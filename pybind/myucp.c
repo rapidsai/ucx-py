@@ -29,6 +29,7 @@
 #include <cuda_runtime.h>
 
 #define DEBUG 0
+#define MAX_STR_LEN 256
 
 #if DEBUG
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
@@ -44,9 +45,20 @@ do {                                                \
     }                                               \
 } while (0)
 
+#define CUDA_CHECK(stmt)                                                \
+    do {                                                                \
+        cudaError_t cuda_err = stmt;                                    \
+        if(cudaSuccess != cuda_err) {                                   \
+            fprintf(stderr, "cuda error: %s\n", cudaGetErrorString(cuda_err)); \
+        }                                                               \
+    } while(0)
+
 int oob_sock = -1;
 callback_func py_func = NULL;
 void *py_data = NULL;
+char peer_hostname[MAX_STR_LEN];
+char peer_service[MAX_STR_LEN];
+char own_hostname[MAX_STR_LEN];
 
 void set_req_cb(callback_func user_py_func, void *user_py_data)
 {
@@ -57,6 +69,8 @@ void set_req_cb(callback_func user_py_func, void *user_py_data)
 int server_connect(uint16_t server_port)
 {
     struct sockaddr_in inaddr;
+    struct sockaddr_in peer_addr;
+    int peer_addr_len;
     int lsock  = -1;
     int dsock  = -1;
     int optval = 1;
@@ -124,6 +138,16 @@ err_conn:
     close(connfd);
 err:
     return -1;
+}
+
+char *get_own_hostname()
+{
+    return own_hostname;
+}
+
+char *get_peer_hostname()
+{
+    return peer_hostname;
 }
 
 int barrier_sock()
@@ -404,6 +428,12 @@ struct data_buf *allocate_cuda_buffer(int length)
     return db;
 }
 
+int set_device(int device)
+{
+    CUDA_CHECK(cudaSetDevice(device));
+    return 0;
+}
+
 int set_host_buffer(struct data_buf *db, int c, int length)
 {
     memset((void *)db->buf, c, (size_t) length);
@@ -534,6 +564,8 @@ int init_ucp(char *client_target_name)
 
     status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
 
+    ret = gethostname(own_hostname, MAX_STR_LEN);
+    assert(0 == ret);
     if (strlen(client_target_name) > 0) {
         is_server = 0;
         peer_addr_len = local_addr_len;
@@ -551,6 +583,9 @@ int init_ucp(char *client_target_name)
         ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
 
         ret = send(oob_sock, local_addr, local_addr_len, 0);
+
+        ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
+        ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
     } else {
         is_server = 1;
         oob_sock = server_connect(server_port);
@@ -566,7 +601,12 @@ int init_ucp(char *client_target_name)
         peer_addr = malloc(peer_addr_len);
 
         ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
+
+        ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
+        ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
     }
+
+    printf("%s : peer = %s\n", own_hostname, peer_hostname);
 
     DEBUG_PRINT("Connection established between server and client\n");
 

@@ -14,10 +14,13 @@ cdef extern from "myucp.h":
 cdef extern from "myucp.h":
     int init_ucp(char *)
     int fin_ucp()
+    char* get_peer_hostname()
+    char* get_own_hostname()
     int setup_ep_ucp()
     int destroy_ep_ucp()
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
+    int set_device(int)
     int set_host_buffer(data_buf*, int, int)
     int set_cuda_buffer(data_buf*, int, int)
     int check_host_buffer(data_buf*, int, int)
@@ -33,9 +36,14 @@ cdef extern from "myucp.h":
 cdef class buffer_region:
     cdef data_buf* buf
     cdef int is_cuda
+    cdef int my_dev
 
     def __cinit__(self):
         return
+
+    def set_cuda_dev(self, dev):
+        self.my_dev = dev
+        return set_device(dev)
 
     def alloc_host(self, len):
         self.buf = allocate_host_buffer(len)
@@ -113,6 +121,12 @@ def init(str):
 
 def fin():
     return fin_ucp()
+
+def get_own_name():
+    return get_own_hostname()
+
+def get_peer_name():
+    return get_peer_hostname()
 
 def setup_ep():
     return setup_ep_ucp()

@@ -16,11 +16,14 @@ struct ucx_context {
 
 int init_ucp(char *);
 int fin_ucp(void);
+char *get_peer_hostname();
+char *get_own_hostname();
 int setup_ep_ucp(void);
 int destroy_ep_ucp(void);
 
 void set_req_cb(callback_func user_py_func, void *user_data);
 
+int set_device(int device);
 struct data_buf *allocate_host_buffer(int length);
 struct data_buf *allocate_cuda_buffer(int length);
 int set_host_buffer(struct data_buf *db, int c, int length);
