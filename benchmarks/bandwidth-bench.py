@@ -8,9 +8,10 @@ import argparse
 cuda_str = "cuda"
 host_str = "host"
 
-def unidir_all_bw(msg_len_log, iters, window, is_server, src_loc, dst_loc):
+def unidir_all_bw(msg_len_log, iters, window, is_server, src_loc, dst_loc, cuda_device):
 
     buffer_region = ucp.buffer_region()
+    buffer_region.set_cuda_dev(cuda_device)
     if is_server:
         if src_loc == cuda_str:
             buffer_region.alloc_cuda(1 << max_msg_log)
@@ -106,6 +107,8 @@ print ("Window size: %s" % args.window_size )
 ## initiate ucp
 init_str = ""
 is_server = True
+own_name = ""
+peer_name = ""
 if args.server is None:
     is_server = True
     ucp.init(init_str.encode())
@@ -120,6 +123,19 @@ else:
 ucp.setup_ep()
 ucp.barrier()
 
+own_name = ucp.get_own_name()
+peer_name = ucp.get_peer_name()
+cuda_device = 0
+
+if own_name == peer_name:
+    print("intra-node test")
+    if is_server:
+        cuda_device = 0
+    else:
+        cuda_device = 1
+else:
+    print("inter-node test")
+
 ## run benchmark
 
 mem_list = [host_str, cuda_str]
@@ -129,7 +145,7 @@ for src_loc in mem_list:
             print("------------------")
             print("{}->{} Bandwidth".format(src_loc, dst_loc))
             print("------------------")
-        unidir_all_bw(max_msg_log, max_iters, window_size, is_server, src_loc, dst_loc)
+        unidir_all_bw(max_msg_log, max_iters, window_size, is_server, src_loc, dst_loc, cuda_device)
 
 ucp.destroy_ep()
 ucp.fin()

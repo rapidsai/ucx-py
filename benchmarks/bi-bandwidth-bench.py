@@ -8,10 +8,12 @@ import argparse
 cuda_str = "cuda"
 host_str = "host"
 
-def bidir_all_bw(msg_len_log, iters, window, is_server, send_loc, recv_loc):
+def bidir_all_bw(msg_len_log, iters, window, is_server, send_loc, recv_loc, cuda_device):
 
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
+    send_buffer_region.set_cuda_dev(cuda_device)
+    recv_buffer_region.set_cuda_dev(cuda_device)
 
     if send_loc == cuda_str:
         send_buffer_region.alloc_cuda(1 << max_msg_log)
@@ -149,6 +151,20 @@ else:
 ucp.setup_ep()
 ucp.barrier()
 
+
+own_name = ucp.get_own_name()
+peer_name = ucp.get_peer_name()
+cuda_device = 0
+
+if own_name == peer_name:
+    print("intra-node test")
+    if is_server:
+        cuda_device = 0
+    else:
+        cuda_device = 1
+else:
+    print("inter-node test")
+
 ## run benchmark
 
 mem_list = [host_str, cuda_str]
@@ -158,7 +174,7 @@ for send_loc in mem_list:
             print("---------------------")
             print("{}->{} Bi-Bandwidth".format(send_loc, recv_loc))
             print("---------------------")
-        bidir_all_bw(max_msg_log, max_iters, window_size, is_server, send_loc, recv_loc)
+        bidir_all_bw(max_msg_log, max_iters, window_size, is_server, send_loc, recv_loc, cuda_device)
 
 ucp.destroy_ep()
 ucp.fin()
