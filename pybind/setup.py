@@ -22,13 +22,14 @@ except:
         print("Error building external library, please create libmyucp.a manually.")
         sys.exit(1)
 
+ucx_dir='/home/akvenkatesh/ucx-github/build'
 # Here is how to use the library built above.
 ext_modules = cythonize([
     Extension("call_myucp",
               sources=["call_myucp.pyx"],
-              include_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/include', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/include'],  # path to .h file(s)
-              library_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],  # path to .a or .so file(s)
-              runtime_library_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],
+              include_dirs=[os.getcwd(), ucx_dir+'/include', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/include'],  # path to .h file(s)
+              library_dirs=[os.getcwd(), ucx_dir+'/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],  # path to .a or .so file(s)
+              runtime_library_dirs=[os.getcwd(), ucx_dir+'/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],
               libraries=['myucp', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart'])
 ])
 
