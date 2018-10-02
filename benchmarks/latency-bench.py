@@ -20,20 +20,25 @@ def ping_pong(msg_len, send_msg, recv_msg, is_server):
         send_msg.send(msg_len)
         send_msg.wait()
 
-def ping_pong_all_lat(msg_len_log, iters, is_server, send_loc, recv_loc):
+def ping_pong_all_lat(msg_len_log, iters, is_server, send_loc, recv_loc, cuda_device):
 
-    send_msg = ucp.ucp_msg(None)
-    recv_msg = ucp.ucp_msg(None)
+    send_buffer_region = ucp.buffer_region()
+    recv_buffer_region = ucp.buffer_region()
+    send_buffer_region.set_cuda_dev(cuda_device)
+    recv_buffer_region.set_cuda_dev(cuda_device)
 
     if send_loc == cuda_str:
-        send_msg.alloc_cuda(1 << max_msg_log)
+        send_buffer_region.alloc_cuda(1 << max_msg_log)
     else:
-        send_msg.alloc_host(1 << max_msg_log)
+        send_buffer_region.alloc_host(1 << max_msg_log)
 
     if recv_loc == cuda_str:
-        recv_msg.alloc_cuda(1 << max_msg_log)
+        recv_buffer_region.alloc_cuda(1 << max_msg_log)
     else:
-        recv_msg.alloc_host(1 << max_msg_log)
+        recv_buffer_region.alloc_host(1 << max_msg_log)
+
+    send_msg = ucp.ucp_msg(send_buffer_region)
+    recv_msg = ucp.ucp_msg(recv_buffer_region)
 
     if is_server:
         print("{}\t\t{}".format("Size (bytes)", "Latency (us)"))
@@ -54,15 +59,16 @@ def ping_pong_all_lat(msg_len_log, iters, is_server, send_loc, recv_loc):
         if is_server:
             print("{}\t\t{}".format(msg_len, lat))
 
+
     if send_loc == cuda_str:
-        send_msg.free_cuda()
+        send_buffer_region.free_cuda()
     else:
-        send_msg.free_host()
+        send_buffer_region.free_host()
 
     if recv_loc == cuda_str:
-        recv_msg.free_cuda()
+        recv_buffer_region.free_cuda()
     else:
-        recv_msg.free_host()
+        recv_buffer_region.free_host()
 
 max_msg_log = 23
 max_iters = 1000
@@ -71,6 +77,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server hostname', required=False)
 parser.add_argument('-m','--max_msg_log', help='log of maximum message size (default =' + str(max_msg_log) +')', required=False)
 parser.add_argument('-i','--max_iters', help=' maximum iterations per msg size', required=False)
+parser.add_argument('-x','--send_buf', help='location of send buffer (host/cuda)', required=False)
+parser.add_argument('-y','--recv_buf', help='location of receive buffer (host/cuda)', required=False)
 args = parser.parse_args()
 
 ## show values ##
@@ -99,16 +107,35 @@ else:
 ucp.setup_ep()
 ucp.barrier()
 
-## run benchmark
+own_name = ucp.get_own_name()
+peer_name = ucp.get_peer_name()
+cuda_device = 0
 
-mem_list = [host_str, cuda_str]
-for send_loc in mem_list:
-    for recv_loc in mem_list:
-        if is_server:
-            print("------------------")
-            print("{}->{} Latency".format(send_loc, recv_loc))
-            print("------------------")
-        ping_pong_all_lat(max_msg_log, max_iters, is_server, send_loc, recv_loc)
+if own_name == peer_name:
+    print("intra-node test")
+    if is_server:
+        cuda_device = 0
+    else:
+        cuda_device = 1
+else:
+    print("inter-node test")
+
+## run benchmark
+if args.send_buf != None and args.recv_buf != None:
+    if is_server:
+        print("------------------")
+        print("{}->{} Latency".format(args.send_buf, args.recv_buf))
+        print("------------------")
+    ping_pong_all_lat(max_msg_log, max_iters, is_server, args.send_buf, args.recv_buf, cuda_device)
+else:
+    mem_list = [host_str, cuda_str]
+    for send_loc in mem_list:
+        for recv_loc in mem_list:
+            if is_server:
+                print("------------------")
+                print("{}->{} Latency".format(send_loc, recv_loc))
+                print("------------------")
+            ping_pong_all_lat(max_msg_log, max_iters, is_server, send_loc, recv_loc, cuda_device)
 
 ucp.destroy_ep()
 ucp.fin()

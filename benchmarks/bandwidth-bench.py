@@ -90,6 +90,8 @@ parser.add_argument('-s','--server', help='enter server hostname', required=Fals
 parser.add_argument('-m','--max_msg_log', help='log of maximum message size (default =' + str(max_msg_log) +')', required=False)
 parser.add_argument('-i','--max_iters', help='maximum iterations per msg size', required=False)
 parser.add_argument('-w','--window_size', help='#send/recv outstanding per iteration', required=False)
+parser.add_argument('-x','--send_buf', help='location of send buffer (host/cuda)', required=False)
+parser.add_argument('-y','--recv_buf', help='location of receive buffer (host/cuda)', required=False)
 args = parser.parse_args()
 
 ## show values ##
@@ -138,14 +140,21 @@ else:
 
 ## run benchmark
 
-mem_list = [host_str, cuda_str]
-for src_loc in mem_list:
-    for dst_loc in mem_list:
-        if is_server:
-            print("------------------")
-            print("{}->{} Bandwidth".format(src_loc, dst_loc))
-            print("------------------")
-        unidir_all_bw(max_msg_log, max_iters, window_size, is_server, src_loc, dst_loc, cuda_device)
+if args.send_buf != None and args.recv_buf != None:
+    if is_server:
+        print("------------------")
+        print("{}->{} Bandwidth".format(args.send_buf, args.recv_buf))
+        print("------------------")
+    unidir_all_bw(max_msg_log, max_iters, window_size, is_server, args.send_buf, args.recv_buf, cuda_device)
+else:
+    mem_list = [host_str, cuda_str]
+    for src_loc in mem_list:
+        for dst_loc in mem_list:
+            if is_server:
+                print("------------------")
+                print("{}->{} Bandwidth".format(src_loc, dst_loc))
+                print("------------------")
+            unidir_all_bw(max_msg_log, max_iters, window_size, is_server, src_loc, dst_loc, cuda_device)
 
 ucp.destroy_ep()
 ucp.fin()
