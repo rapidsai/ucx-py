@@ -4,6 +4,7 @@
 cdef extern from "myucp.h":
     ctypedef void (*callback_func)(char *name, void *user_data)
     void set_req_cb(callback_func user_py_func, void *user_data)
+    void set_accept_cb(callback_func user_py_func, void *user_data)
 
 cdef extern from "myucp.h":
     cdef struct ucx_context:
@@ -12,10 +13,12 @@ cdef extern from "myucp.h":
         void* buf
 
 cdef extern from "myucp.h":
-    int init_ucp(char *)
+    int init_ucp(char *, int, int)
     int fin_ucp()
     char* get_peer_hostname()
     char* get_own_hostname()
+    int create_ep(char*, int)
+    int wait_for_connection()
     int setup_ep_ucp()
     int destroy_ep_ucp()
     data_buf* allocate_host_buffer(int)
@@ -116,11 +119,20 @@ cdef void callback(char *name, void *f):
 def set_callback(f):
     set_req_cb(callback, <void*>f)
 
-def init(str):
-    return init_ucp(str)
+def set_accept_callback(f):
+    set_accept_cb(callback, <void*>f)
+
+def init(str, is_server = 0, server_listens = 1):
+    return init_ucp(str, is_server, server_listens)
 
 def fin():
     return fin_ucp()
+
+def get_endpoint(server_ip, server_port):
+    return create_ep(server_ip, server_port)
+
+def wait_for_client():
+    wait_for_connection()
 
 def get_own_name():
     return get_own_hostname()

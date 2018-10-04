@@ -56,14 +56,23 @@ do {                                                \
 int oob_sock = -1;
 callback_func py_func = NULL;
 void *py_data = NULL;
+callback_func py_server_accept_cb = NULL;
+void *py_server_accept_data = NULL;
 char peer_hostname[MAX_STR_LEN];
 char peer_service[MAX_STR_LEN];
 char own_hostname[MAX_STR_LEN];
+char server_hostname[MAX_STR_LEN];
 
 void set_req_cb(callback_func user_py_func, void *user_py_data)
 {
     py_func = user_py_func;
     py_data = user_py_data;
+}
+
+void set_accept_cb(callback_func server_accept_func, void *accept_data)
+{
+    py_server_accept_cb = server_accept_func;
+    py_server_accept_data = accept_data;
 }
 
 int server_connect(uint16_t server_port)
@@ -191,6 +200,10 @@ static struct err_handling {
     int                     failure;
 } err_handling_opt;
 
+typedef struct ucx_server_ctx {
+    ucp_ep_h     ep;
+} ucx_server_ctx_t;
+
 static ucs_status_t client_status = UCS_OK;
 static uint16_t server_port = 13337;
 static long test_string_length = 16;
@@ -201,11 +214,14 @@ static ucp_address_t *peer_addr;
 static size_t local_addr_len;
 static size_t peer_addr_len;
 static int is_server = 0;
+static int ep_set = 0;
 
 /* UCP handler objects */
 ucp_context_h ucp_context;
+ucx_server_ctx_t server_context;
 ucp_worker_h ucp_worker;
-ucp_ep_h comm_ep;
+ucp_listener_h listener;
+ucp_ep_h comm_ep = NULL;
 
 static void send_handle(void *request, ucs_status_t status)
 {
@@ -323,6 +339,8 @@ struct ucx_context *send_nb_ucp(struct data_buf *send_buf, int length)
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
+    if (NULL != server_context.ep) comm_ep = server_context.ep; // for now
+
     request = ucp_tag_send_nb(comm_ep, send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
@@ -369,7 +387,6 @@ struct ucx_context *recv_nb_ucp(struct data_buf *recv_buf, int length)
     return request;
 
 err_ep:
-    ucp_ep_destroy(comm_ep);
     return request;
 }
 
@@ -519,13 +536,137 @@ int setup_ep_ucp()
     return status;
 }
 
+static int ep_close()
+{
+    ucs_status_t status;
+    void *close_req;
+
+    printf("try ep close\n");
+    if (NULL != server_context.ep) comm_ep = server_context.ep;
+    close_req = ucp_ep_close_nb(comm_ep, UCP_EP_CLOSE_MODE_FORCE);
+    if (UCS_PTR_IS_PTR(close_req)) {
+        do {
+            ucp_worker_progress(ucp_worker);
+            status = ucp_request_check_status(close_req);
+        } while (status == UCS_INPROGRESS);
+
+        ucp_request_free(close_req);
+    } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
+        fprintf(stderr, "failed to close ep %p\n", (void*)comm_ep);
+    }
+    printf("ep closed\n");
+}
+
 int destroy_ep_ucp()
 {
-    ucp_ep_destroy(comm_ep);
+    //ucp_ep_destroy(comm_ep);
+    ep_close();
     return 0;
 }
 
-int init_ucp(char *client_target_name)
+void set_listen_addr(struct sockaddr_in *listen_addr, uint16_t server_port)
+{
+    /* The server will listen on INADDR_ANY */
+    memset(listen_addr, 0, sizeof(struct sockaddr_in));
+    listen_addr->sin_family      = AF_INET;
+    listen_addr->sin_addr.s_addr = INADDR_ANY;
+    listen_addr->sin_port        = server_port;
+}
+
+void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
+                      uint16_t server_port)
+{
+    memset(connect_addr, 0, sizeof(struct sockaddr_in));
+    connect_addr->sin_family      = AF_INET;
+    connect_addr->sin_addr.s_addr = inet_addr(address_str);
+    connect_addr->sin_port        = server_port;
+}
+
+static void server_accept_cb(ucp_ep_h ep, void *arg)
+{
+    ucx_server_ctx_t *context = arg;
+
+    /* Save the server's endpoint in the user's context, for future usage */
+    context->ep = ep;
+    fprintf(stderr, "accepted connection\n");
+    //comm_ep = ep;
+    //fprintf(stderr, "comm_ep set\n");
+    //sleep(20);
+}
+
+static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
+                          ucp_listener_h *listener, uint16_t server_port)
+{
+    struct sockaddr_in listen_addr;
+    ucp_listener_params_t params;
+    ucs_status_t status;
+
+    set_listen_addr(&listen_addr, server_port);
+
+    params.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
+                                UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
+    params.sockaddr.addr      = (const struct sockaddr*)&listen_addr;
+    params.sockaddr.addrlen   = sizeof(listen_addr);
+    params.accept_handler.cb  = server_accept_cb;
+    params.accept_handler.arg = context;
+
+    status = ucp_listener_create(ucp_worker, &params, listener);
+    if (status != UCS_OK) {
+        fprintf(stderr, "failed to listen (%s)\n", ucs_status_string(status));
+    }
+
+    return status;
+}
+
+int create_ep(char *ip, int server_port)
+{
+    ucp_ep_params_t ep_params;
+    struct sockaddr_in connect_addr;
+    ucs_status_t status;
+
+    set_connect_addr(ip, &connect_addr, (uint16_t) server_port);
+
+    /*
+     * Endpoint field mask bits:
+     * UCP_EP_PARAM_FIELD_FLAGS             - Use the value of the 'flags' field.
+     * UCP_EP_PARAM_FIELD_SOCK_ADDR         - Use a remote sockaddr to connect
+     *                                        to the remote peer.
+     * UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE - Error handling mode - this flag
+     *                                        is temporarily required since the
+     *                                        endpoint will be closed with
+     *                                        UCP_EP_CLOSE_MODE_FORCE which
+     *                                        requires this mode.
+     *                                        Once UCP_EP_CLOSE_MODE_FORCE is
+     *                                        removed, the error handling mode
+     *                                        will be removed.
+     */
+    ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
+                                 UCP_EP_PARAM_FIELD_SOCK_ADDR |
+                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
+    ep_params.err_mode         = UCP_ERR_HANDLING_MODE_PEER;
+    ep_params.flags            = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
+    ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
+    ep_params.sockaddr.addrlen = sizeof(connect_addr);
+
+    status = ucp_ep_create(ucp_worker, &ep_params, &comm_ep);
+    if (status != UCS_OK) {
+        fprintf(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
+    }
+
+    return status;
+}
+
+int wait_for_connection()
+{
+    while (NULL == server_context.ep) {
+        ucp_worker_progress(ucp_worker);
+    }
+
+    printf("past progress\n");
+    return 0;
+}
+
+int init_ucp(char *client_target_name, int server_mode, int server_listens)
 {
     int a, b, c;
     ucp_params_t ucp_params;
@@ -562,54 +703,64 @@ int init_ucp(char *client_target_name)
 
     status = ucp_worker_create(ucp_context, &worker_params, &ucp_worker);
 
-    status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
+    //status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
 
     ret = gethostname(own_hostname, MAX_STR_LEN);
     assert(0 == ret);
-    if (strlen(client_target_name) > 0) {
-        is_server = 0;
-        peer_addr_len = local_addr_len;
+    if (1 != server_listens) {
+        if (strlen(client_target_name) > 0 && (0 == server_mode)) {
+            is_server = 0;
+            peer_addr_len = local_addr_len;
 
-        oob_sock = client_connect(client_target_name, server_port);
+            oob_sock = client_connect(client_target_name, server_port);
 
-        ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
+            ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
 
-        peer_addr_len = addr_len;
-        peer_addr = malloc(peer_addr_len);
+            peer_addr_len = addr_len;
+            peer_addr = malloc(peer_addr_len);
 
-        ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
+            ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
 
-        addr_len = local_addr_len;
-        ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
+            addr_len = local_addr_len;
+            ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
 
-        ret = send(oob_sock, local_addr, local_addr_len, 0);
+            ret = send(oob_sock, local_addr, local_addr_len, 0);
 
-        ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
-        ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
+            ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
+            ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
+        } else {
+            is_server = 1;
+            oob_sock = server_connect(server_port);
+
+            addr_len = local_addr_len;
+            ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
+
+            ret = send(oob_sock, local_addr, local_addr_len, 0);
+
+            ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
+
+            peer_addr_len = addr_len;
+            peer_addr = malloc(peer_addr_len);
+
+            ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
+
+            ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
+            ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
+        }
     } else {
-        is_server = 1;
-        oob_sock = server_connect(server_port);
-
-        addr_len = local_addr_len;
-        ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-        ret = send(oob_sock, local_addr, local_addr_len, 0);
-
-        ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-        peer_addr_len = addr_len;
-        peer_addr = malloc(peer_addr_len);
-
-        ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
-
-        ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
-        ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
+        if (server_mode) {
+            server_context.ep = NULL;
+            is_server = 1;
+            status = start_listener(ucp_worker, &server_context, &listener,
+                                    server_port);
+            if (status != UCS_OK) {
+                fprintf(stderr, "failed to start listener\n");
+                goto err_worker;
+            }
+        }
     }
 
-    printf("%s : peer = %s\n", own_hostname, peer_hostname);
-
-    DEBUG_PRINT("Connection established between server and client\n");
-
+ err_worker:
     ucp_config_release(config);
 
     return 0;
@@ -617,10 +768,11 @@ int init_ucp(char *client_target_name)
 
 int fin_ucp()
 {
-    ucp_worker_release_address(ucp_worker, local_addr);
+    //ucp_worker_release_address(ucp_worker, local_addr);
+    if (is_server) ucp_listener_destroy(listener);
     ucp_worker_destroy(ucp_worker);
     ucp_cleanup(ucp_context);
 
-    close(oob_sock);
+    //close(oob_sock);
     DEBUG_PRINT("UCP resources released\n");
 }
