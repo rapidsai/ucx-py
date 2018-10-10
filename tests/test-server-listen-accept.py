@@ -44,12 +44,15 @@ else:
     is_server = 0
     init_str = args.server
 
+#time.sleep(20)
+
 ## setup endpoints
 ucp.init(init_str.encode(), is_server, server_listens = 1)
 
 if 0 == is_server:
     #connect to server
     ucp.get_endpoint(init_str.encode(), int(args.port))
+    #time.sleep(10)
     is_cuda = False
     send_recv(max_msg_log, is_server, is_cuda)
     is_cuda = True
@@ -57,6 +60,7 @@ if 0 == is_server:
 else:
     #setup callback
     ucp.wait_for_client()
+    #time.sleep(10)
     is_cuda = False
     send_recv(max_msg_log, is_server, is_cuda)
     is_cuda = True
