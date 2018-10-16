@@ -26,27 +26,14 @@ def send_recv(ep, msg_log, is_server, is_cuda):
         buffer_region.free_host()
 
 accept_cb_started = 0
-accept_cb_stopped = 0
-main_thread_not_in_progress = 0
 new_client_ep = None
 
 def server_accept_callback(client_ep):
     global accept_cb_started
-    global accept_cb_stopped
-    global main_thread_not_in_progress
     global new_client_ep
     print("in python accept callback")
-    new_client_ep = client_ep.copy()
+    new_client_ep = client_ep
     accept_cb_started = 1
-    #j = 0
-    #while 0 == main_thread_not_in_progress:
-    #    j += 1
-    #print(j)
-    #is_cuda = False
-    #send_recv(client_ep, max_msg_log, is_server, is_cuda)
-    #is_cuda = True
-    #send_recv(client_ep, max_msg_log, is_server, is_cuda)
-    accept_cb_stopped = 1
 
 max_msg_log = 23
 parser = argparse.ArgumentParser()
@@ -69,7 +56,6 @@ server_ep = None
 if 0 == is_server:
     #connect to server
     server_ep = ucp.get_endpoint(init_str.encode(), int(args.port))
-    time.sleep(5)
     is_cuda = False
     send_recv(server_ep, max_msg_log, is_server, is_cuda)
     is_cuda = True
@@ -82,13 +68,6 @@ else:
     send_recv(new_client_ep, max_msg_log, is_server, is_cuda)
     is_cuda = True
     send_recv(new_client_ep, max_msg_log, is_server, is_cuda)
-    #main_thread_not_in_progress = 1
-    #j = 0
-    #while 0 == accept_cb_stopped:
-    #    j += 1
-    #print(j)
-
-#ucp.set_callback(notify_completion)
 
 if 1 == is_server:
     assert new_client_ep != None
