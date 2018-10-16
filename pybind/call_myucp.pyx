@@ -57,11 +57,6 @@ cdef class ucp_py_ep:
         self.ucp_ep = get_ep(ip, port)
         return
 
-    def copy(self):
-        new_ucp_ep = ucp_py_ep()
-        new_ucp_ep.ucp_ep = self.ucp_ep
-        return new_ucp_ep
-
     def close(self):
         return put_ep(self.ucp_ep)
 
