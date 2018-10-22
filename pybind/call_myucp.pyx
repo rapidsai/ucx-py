@@ -1,6 +1,8 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import concurrent.futures
+
 include "call_myucp2.pyx"
 cdef extern from "myucp.h":
     ctypedef void (*callback_func)(char *name, void *user_data)
@@ -57,6 +59,12 @@ cdef class ucp_py_ep:
         self.ucp_ep = get_ep(ip, port)
         return
 
+    '''
+    def recv(self):
+        post_probe()
+        return
+    '''
+
     def close(self):
         return put_ep(self.ucp_ep)
 
@@ -85,6 +93,22 @@ cdef class buffer_region:
 
     def free_cuda(self):
         free_cuda_buffer(self.buf)
+
+class CommFuture(concurrent.futures.Future):
+
+    def __init__(self, ucp_msg):
+        self.ucp_msg = ucp_msg
+        super(CommFuture, self).__init__()
+
+    def done(self):
+        print('CommFuture done?')
+        return (1 == self.ucp_msg.query()) and super(CommFuture, self).done()
+
+    def result(self):
+        self.ucp_msg.wait()
+        print('CommFuture result?')
+        super(CommFuture, self).set_result(None)
+        return super(CommFuture, self).result()
 
 cdef class ucp_msg:
     cdef ucx_context* ctx_ptr
@@ -134,6 +158,16 @@ cdef class ucp_msg:
 
     def recv(self, len):
         self.ctx_ptr = recv_nb_ucp(self.buf, len)
+
+    def send_ft(self, ucp_py_ep ep, len):
+        self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        send_future = CommFuture(self)
+        return send_future
+
+    def recv_ft(self, len):
+        self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        recv_future = CommFuture(self)
+        return recv_future
 
     def wait(self):
         wait_request_ucp(self.ctx_ptr)

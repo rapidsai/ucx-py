@@ -217,6 +217,7 @@ static size_t local_addr_len;
 static size_t peer_addr_len;
 static int is_server = 0;
 static int ep_set = 0;
+static int num_probes_outstanding = 0;
 
 /* UCP handler objects */
 ucp_context_h ucp_context;
@@ -392,6 +393,35 @@ err_ep:
     return request;
 }
 
+int ucp_py_ep_post_probe()
+{
+    return num_probes_outstanding++;
+}
+#if 0
+int ucp_py_ep_probe()
+{
+    ucs_status_t status;
+    ucp_ep_params_t ep_params;
+    struct ucx_context *request = 0;
+    int errs = 0;
+    int i;
+    ucp_tag_recv_info_t info_tag;
+    ucp_tag_message_h msg_tag;
+
+    DEBUG_PRINT("probing..\n");
+
+    msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 1, &info_tag);
+    if (msg_tag != NULL) {
+        /* Message arrived */
+    }
+    else {
+	/* run the callback provided */
+    }
+
+    return 0;
+}
+#endif
+
 struct ucx_context *ucp_py_ep_send(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
                                    int length)
 {
@@ -427,7 +457,33 @@ err_ep:
 
 void ucp_py_worker_progress()
 {
+
+#if 0
+    int i = 0;
+    ucs_status_t status;
+    ucp_ep_params_t ep_params;
+    struct ucx_context *request = 0;
+    int errs = 0;
+    int i;
+    ucp_tag_recv_info_t info_tag;
+    ucp_tag_message_h msg_tag;
+#endif
+
     ucp_worker_progress(ucp_worker);
+
+#if 0
+    for (i = 0; i < num_probes_outstanding; i++) {
+        DEBUG_PRINT("probing..\n");
+
+        msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 1, &info_tag);
+        if (msg_tag != NULL) {
+            /* Message arrived */
+        }
+        else {
+            /* run the callback provided with info_tag*/
+        }
+    }
+#endif
 }
 
 int wait_request_ucp(struct ucx_context *request)
