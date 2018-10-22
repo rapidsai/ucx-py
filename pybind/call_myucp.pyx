@@ -101,12 +101,14 @@ class CommFuture(concurrent.futures.Future):
         super(CommFuture, self).__init__()
 
     def done(self):
-        print('CommFuture done?')
-        return (1 == self.ucp_msg.query()) and super(CommFuture, self).done()
+        if 1 == self.ucp_msg.query():
+            super(CommFuture, self).set_result(None)
+            return super(CommFuture, self).done()
+        else:
+            return False
 
     def result(self):
         self.ucp_msg.wait()
-        print('CommFuture result?')
         super(CommFuture, self).set_result(None)
         return super(CommFuture, self).result()
 

@@ -15,11 +15,15 @@ def send_recv(ep, msg_log, is_server, is_cuda):
     if 1 == is_server:
         msg.set_mem(0, 1 << msg_log)
         send_req = msg.send_ft(ep, 1 << msg_log)
-        send_req.result()
+        #send_req.result()
+        while True != send_req.done():
+            pass
     else:
         msg.set_mem(1, 1 << msg_log)
         recv_req = msg.recv_ft(1 << msg_log)
-        recv_req.result()
+        #recv_req.result()
+        while True != recv_req.done():
+            pass
 
     if is_cuda:
         buffer_region.free_cuda()
