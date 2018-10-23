@@ -430,6 +430,14 @@ int wait_for_probe_success()
     return probed_length;
 }
 
+int query_for_probe_success()
+{
+    int probed_length;
+    ucp_worker_progress(ucp_worker);
+    probed_length = ucp_py_ep_probe();
+    return probed_length;
+}
+
 #if 0
 struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
 {

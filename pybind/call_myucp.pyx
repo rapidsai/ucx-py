@@ -46,6 +46,7 @@ cdef extern from "myucp.h":
     ucx_context* recv_nb_ucp(data_buf*, int)
     int ucp_py_ep_post_probe()
     int wait_for_probe_success()
+    int query_for_probe_success()
     int wait_request_ucp(ucx_context*)
     int query_request_ucp(ucx_context*)
     int barrier_sock()
@@ -62,7 +63,7 @@ class CommFuture(concurrent.futures.Future):
     def done(self):
         if hasattr(self, 'ucp_msg'):
             if 1 == self.ucp_msg.query():
-                super(CommFuture, self).set_result(None)
+                super(CommFuture, self).set_result(ucp_msg)
                 return super(CommFuture, self).done()
             else:
                 return False
@@ -70,12 +71,15 @@ class CommFuture(concurrent.futures.Future):
             pass
 
     def result(self):
-        if hasattr(self, 'ucp_msg'):
-            self.ucp_msg.wait()
-            super(CommFuture, self).set_result(ucp_msg)
-            return super(CommFuture, self).result()
+        if False == super(CommFuture, self).done():
+            if hasattr(self, 'ucp_msg'):
+                 self.ucp_msg.wait()
+                 super(CommFuture, self).set_result(ucp_msg)
+                 return super(CommFuture, self).result()
+            else:
+                pass
         else:
-            pass
+            return super(CommFuture, self).result()
 
 cdef class ucp_py_ep:
     cdef ucp_ep_h* ucp_ep
@@ -141,6 +145,8 @@ cdef class ucp_msg:
     cdef data_buf* buf
     cdef ucp_ep_h* ep_ptr
     cdef int is_cuda
+    alloc_len = -1
+    comm_len = -1
 
     def __cinit__(self, buffer_region buf_reg):
         if buf_reg is None:
@@ -149,14 +155,18 @@ cdef class ucp_msg:
             self.buf = buf_reg.buf
             self.is_cuda = buf_reg.is_cuda
         self.ctx_ptr_set = 0
+        self.alloc_len = -1
+        self.comm_len = -1
         return
 
     def alloc_host(self, len):
         self.buf = allocate_host_buffer(len)
+        self.alloc_len = len
         self.is_cuda = 0
 
     def alloc_cuda(self, len):
         self.buf = allocate_cuda_buffer(len)
+        self.alloc_len = len
         self.is_cuda = 1
 
     def set_mem(self, c, len):
@@ -179,24 +189,29 @@ cdef class ucp_msg:
 
     def send(self, len):
         self.ctx_ptr = send_nb_ucp(self.buf, len)
+        self.comm_len = len
         self.ctx_ptr_set = 1
 
     def send_ep(self, ucp_py_ep ep, len):
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        self.comm_len = len
         self.ctx_ptr_set = 1
 
     def recv(self, len):
         self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        self.comm_len = len
         self.ctx_ptr_set = 1
 
     def send_ft(self, ucp_py_ep ep, len):
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        self.comm_len = len
         self.ctx_ptr_set = 1
         send_future = CommFuture(self)
         return send_future
 
     def recv_ft(self, len):
         self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        self.comm_len = len
         self.ctx_ptr_set = 1
         recv_future = CommFuture(self)
         return recv_future
@@ -205,15 +220,20 @@ cdef class ucp_msg:
         if 1 == self.ctx_ptr_set:
             wait_request_ucp(self.ctx_ptr)
         else:
-            len = wait_for_probe_success()
-            self.alloc_host(len)
-            self.recv(len)
+            if 1 != self.ctx_ptr_set:
+                len = wait_for_probe_success()
+                self.alloc_host(len)
+                self.recv(len)
             wait_request_ucp(self.ctx_ptr)
 
     def query(self):
         if 1 == self.ctx_ptr_set:
             return query_request_ucp(self.ctx_ptr)
         else:
+            len = query_for_probe_success()
+            if -1 != len:
+                self.alloc_host(len)
+                self.recv(len)
             return 0
 
 cdef void callback(char *name, void *f):
