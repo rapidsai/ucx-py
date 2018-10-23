@@ -54,26 +54,12 @@ do {                                                \
     } while(0)
 
 int oob_sock = -1;
-callback_func py_func = NULL;
 void *py_data = NULL;
-callback_func py_server_accept_cb = NULL;
 void *py_server_accept_data = NULL;
 char peer_hostname[MAX_STR_LEN];
 char peer_service[MAX_STR_LEN];
 char own_hostname[MAX_STR_LEN];
 char server_hostname[MAX_STR_LEN];
-
-void set_req_cb(callback_func user_py_func, void *user_py_data)
-{
-    py_func = user_py_func;
-    py_data = user_py_data;
-}
-
-void set_accept_cb(callback_func server_accept_func, void *accept_data)
-{
-    py_server_accept_cb = server_accept_func;
-    py_server_accept_data = accept_data;
-}
 
 int server_connect(uint16_t server_port)
 {
@@ -231,7 +217,6 @@ static void send_handle(void *request, ucs_status_t status)
     struct ucx_context *context = (struct ucx_context *) request;
 
     context->completed = 1;
-    if (NULL != py_data) py_func("send_handle returned", py_data);
 
     DEBUG_PRINT("[0x%x] send handler called with status %d (%s)\n",
                 (unsigned int)pthread_self(), status,
@@ -255,7 +240,6 @@ static void recv_handle(void *request, ucs_status_t status,
     struct ucx_context *context = (struct ucx_context *) request;
 
     context->completed = 1;
-    if (NULL != py_data) py_func("recv_handle returned", py_data);
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
                 (unsigned int)pthread_self(), status, ucs_status_string(status),

@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <ucp/api/ucp.h>
 
-typedef void (*callback_func)(char *name, void *user_data);
 typedef void (*server_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data);
 
 struct data_buf {
@@ -27,9 +26,6 @@ int wait_for_connection();
 int setup_ep_ucp(void);
 int destroy_ep_ucp(void);
 int dummy(int);
-
-void set_req_cb(callback_func user_py_func, void *user_data);
-void set_accept_cb(callback_func server_accept_func, void *accept_data);
 
 int set_device(int device);
 struct data_buf *allocate_host_buffer(int length);

@@ -6,10 +6,7 @@ from weakref import WeakValueDictionary
 
 include "call_myucp2.pyx"
 cdef extern from "myucp.h":
-    ctypedef void (*callback_func)(char *name, void *user_data)
     ctypedef void (*server_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data)
-    void set_req_cb(callback_func user_py_func, void *user_data)
-    void set_accept_cb(callback_func user_py_func, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
@@ -255,19 +252,10 @@ cdef class ucp_msg:
     def get_comm_len(self):
             return self.comm_len
 
-cdef void callback(char *name, void *f):
-    (<object>f)(name.decode('utf-8')) #assuming pyfunc callback accepts char *
-
 cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
     (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
-
-def set_callback(f):
-    set_req_cb(callback, <void*>f)
-
-def set_accept_callback(f):
-    set_accept_cb(callback, <void*>f)
 
 def init(str, py_func, is_server = 0, server_listens = 1):
     return init_ucp(str, is_server, accept_callback, <void *>py_func, server_listens)
