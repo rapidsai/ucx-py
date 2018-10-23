@@ -44,6 +44,8 @@ void ucp_py_worker_progress();
 struct ucx_context *ucp_py_ep_send(ucp_ep_h *ep_ptr, struct data_buf *send_buf, int length);
 struct ucx_context *send_nb_ucp(struct data_buf *buf, int length);
 struct ucx_context *recv_nb_ucp(struct data_buf *buf, int length);
+int ucp_py_ep_post_probe();
+int wait_for_probe_success();
 int wait_request_ucp(struct ucx_context *request);
 int query_request_ucp(struct ucx_context *request);
 

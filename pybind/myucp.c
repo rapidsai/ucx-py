@@ -397,7 +397,7 @@ int ucp_py_ep_post_probe()
 {
     return num_probes_outstanding++;
 }
-#if 0
+
 int ucp_py_ep_probe()
 {
     ucs_status_t status;
@@ -410,15 +410,48 @@ int ucp_py_ep_probe()
 
     DEBUG_PRINT("probing..\n");
 
-    msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 1, &info_tag);
+    msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
         /* Message arrived */
-    }
-    else {
-	/* run the callback provided */
+        num_probes_outstanding--;
+        return info_tag.length;
     }
 
-    return 0;
+    return -1;
+}
+
+int wait_for_probe_success()
+{
+    int probed_length;
+    do {
+        ucp_worker_progress(ucp_worker);
+        probed_length = ucp_py_ep_probe();
+    } while (-1 == probed_length);
+    return probed_length;
+}
+
+#if 0
+struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
+{
+
+    msg = malloc(info_tag.length);
+    CHKERR_JUMP(!msg, "allocate memory\n", err_ep);
+
+    request = ucp_tag_msg_recv_nb(ucp_worker, msg, info_tag.length,
+                                  ucp_dt_make_contig(1), msg_tag,
+                                  recv_handle);
+
+    if (UCS_PTR_IS_ERR(request)) {
+        fprintf(stderr, "unable to receive UCX data message (%u)\n",
+                UCS_PTR_STATUS(request));
+        free(msg);
+        goto err_ep;
+    } else {
+        wait(ucp_worker, request);
+        request->completed = 0;
+        ucp_request_release(request);
+        printf("UCX data message was received\n");
+    }
 }
 #endif
 
@@ -457,33 +490,7 @@ err_ep:
 
 void ucp_py_worker_progress()
 {
-
-#if 0
-    int i = 0;
-    ucs_status_t status;
-    ucp_ep_params_t ep_params;
-    struct ucx_context *request = 0;
-    int errs = 0;
-    int i;
-    ucp_tag_recv_info_t info_tag;
-    ucp_tag_message_h msg_tag;
-#endif
-
     ucp_worker_progress(ucp_worker);
-
-#if 0
-    for (i = 0; i < num_probes_outstanding; i++) {
-        DEBUG_PRINT("probing..\n");
-
-        msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 1, &info_tag);
-        if (msg_tag != NULL) {
-            /* Message arrived */
-        }
-        else {
-            /* run the callback provided with info_tag*/
-        }
-    }
-#endif
 }
 
 int wait_request_ucp(struct ucx_context *request)
