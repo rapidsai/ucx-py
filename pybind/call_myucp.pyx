@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 
 import concurrent.futures
+from weakref import WeakValueDictionary
 
 include "call_myucp2.pyx"
 cdef extern from "myucp.h":
@@ -54,10 +55,12 @@ cdef extern from "myucp.h":
 class CommFuture(concurrent.futures.Future):
 
     SEND, RECV, PROBE = range(3)
+    _instances = WeakValueDictionary()
 
     def __init__(self, ucp_msg = None):
         self.done_state = False
         self.result_state = None
+        self._instances[id(self)] = self
         if None != ucp_msg:
             self.ucp_msg = ucp_msg
         super(CommFuture, self).__init__()
@@ -78,6 +81,10 @@ class CommFuture(concurrent.futures.Future):
                 self.done_state = True
                 self.result_state = self.ucp_msg
         return self.result_state
+
+    def __del__(self):
+        print("releasing " + str(id(self)))
+        self.ucp_msg.free_mem()
 
 cdef class ucp_py_ep:
     cdef ucp_ep_h* ucp_ep
@@ -145,6 +152,7 @@ cdef class ucp_msg:
     cdef int is_cuda
     cdef int alloc_len
     cdef int comm_len
+    cdef int internally_allocated
 
     def __cinit__(self, buffer_region buf_reg):
         if buf_reg is None:
@@ -155,6 +163,7 @@ cdef class ucp_msg:
         self.ctx_ptr_set = 0
         self.alloc_len = -1
         self.comm_len = -1
+        self.internally_allocated = 0
         return
 
     def alloc_host(self, len):
@@ -221,6 +230,7 @@ cdef class ucp_msg:
             if 1 != self.ctx_ptr_set:
                 len = wait_for_probe_success()
                 self.alloc_host(len)
+                self.internally_allocated = 1
                 self.recv(len)
             wait_request_ucp(self.ctx_ptr)
 
@@ -231,8 +241,16 @@ cdef class ucp_msg:
             len = query_for_probe_success()
             if -1 != len:
                 self.alloc_host(len)
+                self.internally_allocated = 1
                 self.recv(len)
             return 0
+
+    def free_mem(self):
+        if 1 == self.internally_allocated and self.alloc_len > 0:
+            if self.is_cuda:
+                self.free_cuda()
+            else:
+                self.free_host()
 
     def get_comm_len(self):
             return self.comm_len
