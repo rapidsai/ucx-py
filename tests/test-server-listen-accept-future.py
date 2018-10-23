@@ -5,6 +5,9 @@ import call_myucp as ucp
 import time
 import argparse
 
+def cb(future):
+    print('in test callback')
+
 def send_recv(ep, msg_log, is_server, is_cuda):
     buffer_region = ucp.buffer_region()
     if is_cuda:
@@ -14,11 +17,19 @@ def send_recv(ep, msg_log, is_server, is_cuda):
     msg = ucp.ucp_msg(buffer_region)
     if 1 == is_server:
         msg.set_mem(0, 1 << msg_log)
-        msg.send_ep(ep, 1 << msg_log)
+        #send_req = msg.send_ft(ep, 1 << msg_log)
+        send_req = ep.send(msg, 1 << msg_log)
+        #send_req.result()
+        while True != send_req.done():
+            pass
     else:
         msg.set_mem(1, 1 << msg_log)
-        msg.recv(1 << msg_log)
-    msg.wait()
+        #recv_req = msg.recv_ft(1 << msg_log)
+        recv_req = ep.recv(msg, 1 << msg_log)
+        recv_req.add_done_callback(cb)
+        #recv_req.result()
+        while True != recv_req.done():
+            pass
 
     if is_cuda:
         buffer_region.free_cuda()

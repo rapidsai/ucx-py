@@ -202,6 +202,8 @@ static struct err_handling {
 
 typedef struct ucx_server_ctx {
     ucp_ep_h     ep;
+    server_accept_cb_func pyx_cb;
+    void *py_cb;
 } ucx_server_ctx_t;
 
 static ucs_status_t client_status = UCS_OK;
@@ -215,6 +217,7 @@ static size_t local_addr_len;
 static size_t peer_addr_len;
 static int is_server = 0;
 static int ep_set = 0;
+static int num_probes_outstanding = 0;
 
 /* UCP handler objects */
 ucp_context_h ucp_context;
@@ -388,6 +391,114 @@ struct ucx_context *recv_nb_ucp(struct data_buf *recv_buf, int length)
 
 err_ep:
     return request;
+}
+
+int ucp_py_ep_post_probe()
+{
+    return num_probes_outstanding++;
+}
+
+int ucp_py_ep_probe()
+{
+    ucs_status_t status;
+    ucp_ep_params_t ep_params;
+    struct ucx_context *request = 0;
+    int errs = 0;
+    int i;
+    ucp_tag_recv_info_t info_tag;
+    ucp_tag_message_h msg_tag;
+
+    DEBUG_PRINT("probing..\n");
+
+    msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 0, &info_tag);
+    if (msg_tag != NULL) {
+        /* Message arrived */
+        num_probes_outstanding--;
+        return info_tag.length;
+    }
+
+    return -1;
+}
+
+int wait_for_probe_success()
+{
+    int probed_length;
+    do {
+        ucp_worker_progress(ucp_worker);
+        probed_length = ucp_py_ep_probe();
+    } while (-1 == probed_length);
+    return probed_length;
+}
+
+int query_for_probe_success()
+{
+    int probed_length;
+    ucp_worker_progress(ucp_worker);
+    probed_length = ucp_py_ep_probe();
+    return probed_length;
+}
+
+#if 0
+struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
+{
+
+    msg = malloc(info_tag.length);
+    CHKERR_JUMP(!msg, "allocate memory\n", err_ep);
+
+    request = ucp_tag_msg_recv_nb(ucp_worker, msg, info_tag.length,
+                                  ucp_dt_make_contig(1), msg_tag,
+                                  recv_handle);
+
+    if (UCS_PTR_IS_ERR(request)) {
+        fprintf(stderr, "unable to receive UCX data message (%u)\n",
+                UCS_PTR_STATUS(request));
+        free(msg);
+        goto err_ep;
+    } else {
+        wait(ucp_worker, request);
+        request->completed = 0;
+        ucp_request_release(request);
+        printf("UCX data message was received\n");
+    }
+}
+#endif
+
+struct ucx_context *ucp_py_ep_send(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
+                                   int length)
+{
+    ucs_status_t status;
+    ucp_ep_params_t ep_params;
+    struct ucx_context *request = 0;
+    int i = 0;
+
+    printf("EP send : %p\n", ep_ptr);
+
+    DEBUG_PRINT("sending %p\n", send_buf->buf);
+
+    request = ucp_tag_send_nb(*ep_ptr, send_buf->buf, length,
+                              ucp_dt_make_contig(1), tag,
+                              send_handle);
+    if (UCS_PTR_IS_ERR(request)) {
+        fprintf(stderr, "unable to send UCX data message\n");
+        goto err_ep;
+    } else if (UCS_PTR_STATUS(request) != UCS_OK) {
+        DEBUG_PRINT("UCX data message was scheduled for send\n");
+    } else {
+        /* request is complete so no need to wait on request */
+    }
+
+    DEBUG_PRINT("returning request %p\n", request);
+
+    return request;
+
+err_ep:
+    ucp_ep_destroy(*ep_ptr);
+    return request;
+}
+
+void ucp_py_worker_progress()
+{
+    ucp_worker_progress(ucp_worker);
 }
 
 int wait_request_ucp(struct ucx_context *request)
@@ -585,10 +696,18 @@ void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
 static void server_accept_cb(ucp_ep_h ep, void *arg)
 {
     ucx_server_ctx_t *context = arg;
+    struct ucx_context *request = 0;
+    ucp_ep_h *ep_ptr = NULL;
+
+    ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
 
     /* Save the server's endpoint in the user's context, for future usage */
-    context->ep = ep;
-    fprintf(stderr, "accepted connection\n");
+    //context->ep = ep;
+    *ep_ptr = ep;
+    printf(" SAC = %p\n", ep_ptr);
+    int tmp = 4;
+    context->pyx_cb(ep_ptr, context->py_cb);
+    //fprintf(stderr, "accepted connection\n");
     //comm_ep = ep;
     //fprintf(stderr, "comm_ep set\n");
     //sleep(20);
@@ -616,6 +735,68 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
     }
 
     return status;
+}
+
+ucp_ep_h *get_ep(char *ip, int server_port)
+{
+    ucp_ep_params_t ep_params;
+    struct sockaddr_in connect_addr;
+    ucs_status_t status;
+    ucp_ep_h *ep_ptr;
+
+    ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
+
+    set_connect_addr(ip, &connect_addr, (uint16_t) server_port);
+
+    /*
+     * Endpoint field mask bits:
+     * UCP_EP_PARAM_FIELD_FLAGS             - Use the value of the 'flags' field.
+     * UCP_EP_PARAM_FIELD_SOCK_ADDR         - Use a remote sockaddr to connect
+     *                                        to the remote peer.
+     * UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE - Error handling mode - this flag
+     *                                        is temporarily required since the
+     *                                        endpoint will be closed with
+     *                                        UCP_EP_CLOSE_MODE_FORCE which
+     *                                        requires this mode.
+     *                                        Once UCP_EP_CLOSE_MODE_FORCE is
+     *                                        removed, the error handling mode
+     *                                        will be removed.
+     */
+    ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
+                                 UCP_EP_PARAM_FIELD_SOCK_ADDR |
+                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
+    ep_params.err_mode         = UCP_ERR_HANDLING_MODE_PEER;
+    ep_params.flags            = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
+    ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
+    ep_params.sockaddr.addrlen = sizeof(connect_addr);
+
+    status = ucp_ep_create(ucp_worker, &ep_params, ep_ptr);
+    if (status != UCS_OK) {
+        fprintf(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
+    }
+
+    return ep_ptr;
+}
+
+int put_ep(ucp_ep_h *ep_ptr)
+{
+    ucs_status_t status;
+    void *close_req;
+
+    printf("try ep close %p\n", ep_ptr);
+    close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
+    if (UCS_PTR_IS_PTR(close_req)) {
+        do {
+            ucp_worker_progress(ucp_worker);
+            status = ucp_request_check_status(close_req);
+        } while (status == UCS_INPROGRESS);
+
+        ucp_request_free(close_req);
+    } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
+        fprintf(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
+    }
+    free(ep_ptr);
+    printf("ep closed\n");
 }
 
 int create_ep(char *ip, int server_port)
@@ -666,7 +847,8 @@ int wait_for_connection()
     return 0;
 }
 
-int init_ucp(char *client_target_name, int server_mode, int server_listens)
+int init_ucp(char *client_target_name, int server_mode,
+             server_accept_cb_func pyx_cb, void *py_cb, int server_listens)
 {
     int a, b, c;
     ucp_params_t ucp_params;
@@ -699,7 +881,7 @@ int init_ucp(char *client_target_name, int server_mode, int server_listens)
     status = ucp_init(&ucp_params, config, &ucp_context);
 
     worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
-    worker_params.thread_mode = UCS_THREAD_MODE_SINGLE;
+    worker_params.thread_mode = UCS_THREAD_MODE_MULTI; //UCS_THREAD_MODE_SINGLE;
 
     status = ucp_worker_create(ucp_context, &worker_params, &ucp_worker);
 
@@ -750,6 +932,8 @@ int init_ucp(char *client_target_name, int server_mode, int server_listens)
     } else {
         if (server_mode) {
             server_context.ep = NULL;
+            server_context.pyx_cb = pyx_cb;
+            server_context.py_cb = py_cb;
             is_server = 1;
             status = start_listener(ucp_worker, &server_context, &listener,
                                     server_port);
