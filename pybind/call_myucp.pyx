@@ -56,30 +56,28 @@ class CommFuture(concurrent.futures.Future):
     SEND, RECV, PROBE = range(3)
 
     def __init__(self, ucp_msg = None):
+        self.done_state = False
+        self.result_state = None
         if None != ucp_msg:
             self.ucp_msg = ucp_msg
         super(CommFuture, self).__init__()
 
     def done(self):
-        if hasattr(self, 'ucp_msg'):
+        if False == self.done_state and hasattr(self, 'ucp_msg'):
             if 1 == self.ucp_msg.query():
-                super(CommFuture, self).set_result(ucp_msg)
-                return super(CommFuture, self).done()
-            else:
-                return False
-        else:
-            pass
+                self.set_result(self.ucp_msg)
+                self.done_state = True
+                self.result_state = self.ucp_msg
+        return self.done_state
 
     def result(self):
-        if False == super(CommFuture, self).done():
+        if False == self.done_state:
             if hasattr(self, 'ucp_msg'):
-                 self.ucp_msg.wait()
-                 super(CommFuture, self).set_result(ucp_msg)
-                 return super(CommFuture, self).result()
-            else:
-                pass
-        else:
-            return super(CommFuture, self).result()
+                self.ucp_msg.wait()
+                self.set_result(self.ucp_msg)
+                self.done_state = True
+                self.result_state = self.ucp_msg
+        return self.result_state
 
 cdef class ucp_py_ep:
     cdef ucp_ep_h* ucp_ep
@@ -145,8 +143,8 @@ cdef class ucp_msg:
     cdef data_buf* buf
     cdef ucp_ep_h* ep_ptr
     cdef int is_cuda
-    alloc_len = -1
-    comm_len = -1
+    cdef int alloc_len
+    cdef int comm_len
 
     def __cinit__(self, buffer_region buf_reg):
         if buf_reg is None:
@@ -235,6 +233,9 @@ cdef class ucp_msg:
                 self.alloc_host(len)
                 self.recv(len)
             return 0
+
+    def get_comm_len(self):
+            return self.comm_len
 
 cdef void callback(char *name, void *f):
     (<object>f)(name.decode('utf-8')) #assuming pyfunc callback accepts char *

@@ -31,7 +31,7 @@ def send_recv(ep, msg_log, is_server, is_cuda):
         while True != recv_req.done():
             pass
         ucp_msg = recv_req.result()
-        #print(ucp_msg.comm_len)
+        print(ucp_msg.get_comm_len())
 
     if is_cuda:
         buffer_region.free_cuda()
