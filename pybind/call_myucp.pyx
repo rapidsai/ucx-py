@@ -35,18 +35,14 @@ class CommFuture(concurrent.futures.Future):
     def done(self):
         if False == self.done_state and hasattr(self, 'ucp_msg'):
             if 1 == self.ucp_msg.query():
-                self.set_result(self.ucp_msg)
                 self.done_state = True
                 self.result_state = self.ucp_msg
+                self.set_result(self.ucp_msg)
         return self.done_state
 
     def result(self):
-        if False == self.done_state:
-            if hasattr(self, 'ucp_msg'):
-                self.ucp_msg.wait()
-                self.set_result(self.ucp_msg)
-                self.done_state = True
-                self.result_state = self.ucp_msg
+        while False == self.done_state:
+            self.done()
         return self.result_state
 
     def __del__(self):
