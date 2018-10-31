@@ -64,7 +64,7 @@ else:
     init_str = args.server
 
 ## setup endpoints
-ucp.init(init_str.encode(), server_accept_callback, is_server, server_listens = 1)
+ucp.init()
 server_ep = None
 if 0 == is_server:
     #connect to server
@@ -74,6 +74,7 @@ if 0 == is_server:
     is_cuda = True
     send_recv(server_ep, max_msg_log, is_server, is_cuda)
 else:
+    ucp.listen(server_accept_callback)
     while 0 == accept_cb_started:
         ucp.ucp_progress()
     assert new_client_ep != None
