@@ -230,7 +230,7 @@ def listen(py_func, server_port = -1):
     return ucp_py_listen(accept_callback, <void *>py_func, server_port)
 
 def fin():
-    return fin_ucp()
+    return ucp_py_finalize()
 
 def get_endpoint(server_ip, server_port):
     #return create_ep(server_ip, server_port)

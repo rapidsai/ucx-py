@@ -17,7 +17,7 @@ struct ucx_context {
 
 int ucp_py_init();
 int ucp_py_listen(server_accept_cb_func, void *, int);
-int fin_ucp(void);
+int ucp_py_finalize(void);
 char *get_peer_hostname();
 char *get_own_hostname();
 int create_ep(char*, int);

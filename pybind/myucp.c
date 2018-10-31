@@ -901,6 +901,16 @@ int ucp_py_listen(server_accept_cb_func pyx_cb, void *py_cb, int port)
     return -1;
 }
 
+int ucp_py_finalize()
+{
+    if (is_server) ucp_listener_destroy(listener);
+    ucp_worker_destroy(ucp_worker);
+    ucp_cleanup(ucp_context);
+
+    DEBUG_PRINT("UCP resources released\n");
+    return 0;
+}
+
 #if 0
 //status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
 
@@ -960,15 +970,5 @@ char *client_target_name, int server_mode,
             }
         }
     }
-#endif
-
-int fin_ucp()
-{
     //ucp_worker_release_address(ucp_worker, local_addr);
-    if (is_server) ucp_listener_destroy(listener);
-    ucp_worker_destroy(ucp_worker);
-    ucp_cleanup(ucp_context);
-
-    //close(oob_sock);
-    DEBUG_PRINT("UCP resources released\n");
-}
+#endif
