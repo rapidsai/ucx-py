@@ -831,8 +831,7 @@ int wait_for_connection()
     return 0;
 }
 
-int init_ucp(char *client_target_name, int server_mode,
-             server_accept_cb_func pyx_cb, void *py_cb, int server_listens)
+int ucp_py_init()
 {
     int a, b, c;
     ucp_params_t ucp_params;
@@ -846,10 +845,8 @@ int init_ucp(char *client_target_name, int server_mode,
 
     ucp_get_version(&a, &b, &c);
 
-#if DEBUG
-    printf("client = %s (%d), ucp version (%d, %d, %d)\n", client_target_name,
-           strlen(client_target_name), a, b, c);
-#endif
+    DEBUG_PRINT("client = %s (%d), ucp version (%d, %d, %d)\n",
+                client_target_name, strlen(client_target_name), a, b, c);
 
     memset(&ucp_params, 0, sizeof(ucp_params));
 
@@ -859,20 +856,56 @@ int init_ucp(char *client_target_name, int server_mode,
                               UCP_PARAM_FIELD_REQUEST_SIZE |
                               UCP_PARAM_FIELD_REQUEST_INIT;
     ucp_params.features     = UCP_FEATURE_TAG;
-    ucp_params.request_size    = sizeof(struct ucx_context);
-    ucp_params.request_init    = request_init;
+    ucp_params.request_size = sizeof(struct ucx_context);
+    ucp_params.request_init = request_init;
 
     status = ucp_init(&ucp_params, config, &ucp_context);
+    CHKERR_JUMP(UCS_OK != status, "ucp_init failed", err_init);
 
     worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
     worker_params.thread_mode = UCS_THREAD_MODE_MULTI; //UCS_THREAD_MODE_SINGLE;
 
     status = ucp_worker_create(ucp_context, &worker_params, &ucp_worker);
-
-    //status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
+    CHKERR_JUMP(UCS_OK != status, "ucp_worker_create failed", err_init);
 
     ret = gethostname(own_hostname, MAX_STR_LEN);
     assert(0 == ret);
+
+ err_worker:
+    ucp_config_release(config);
+    return 0;
+
+ err_init:
+    ucp_cleanup(ucp_context);
+    ucp_config_release(config);
+    return -1;
+}
+
+int ucp_py_listen(server_accept_cb_func pyx_cb, void *py_cb, int port)
+{
+    ucs_status_t status;
+
+    server_context.ep = NULL;
+    server_context.pyx_cb = pyx_cb;
+    server_context.py_cb = py_cb;
+    is_server = 1;
+
+    status = start_listener(ucp_worker, &server_context, &listener,
+                            (port == -1 ? server_port : port));
+    CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
+
+    return 0;
+
+ err_worker:
+    ucp_cleanup(ucp_context);
+    return -1;
+}
+
+#if 0
+//status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
+
+char *client_target_name, int server_mode,
+             server_accept_cb_func pyx_cb, void *py_cb, int server_listens
     if (1 != server_listens) {
         if (strlen(client_target_name) > 0 && (0 == server_mode)) {
             is_server = 0;
@@ -927,12 +960,7 @@ int init_ucp(char *client_target_name, int server_mode,
             }
         }
     }
-
- err_worker:
-    ucp_config_release(config);
-
-    return 0;
-}
+#endif
 
 int fin_ucp()
 {

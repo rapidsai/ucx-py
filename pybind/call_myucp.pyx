@@ -223,8 +223,11 @@ cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
     client_ep.ucp_ep = client_ep_ptr
     (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
 
-def init(str, py_func, is_server = 0, server_listens = 1):
-    return init_ucp(str, is_server, accept_callback, <void *>py_func, server_listens)
+def init():
+    return ucp_py_init()
+
+def listen(py_func, server_port = -1):
+    return ucp_py_listen(accept_callback, <void *>py_func, server_port)
 
 def fin():
     return fin_ucp()

@@ -1,7 +1,8 @@
 cdef extern from "myucp.h":
     void *dummy_fxn(void *, int)
     void ucp_py_worker_progress()
-    int init_ucp(char *, int, server_accept_cb_func, void *, int)
+    int ucp_py_init()
+    int ucp_py_listen(server_accept_cb_func, void *, int)
     int fin_ucp()
     char* get_peer_hostname()
     char* get_own_hostname()
