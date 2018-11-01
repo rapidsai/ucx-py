@@ -226,12 +226,17 @@ int num_cb_free, num_cb_used;
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     unsigned status;
+    void *tmp_py_cb;
+    server_accept_cb_func tmp_pyx_cb;
+    void *tmp_arg;
     status = ucp_worker_progress(ucp_worker);
     while (cb_used_head.tqh_first != NULL) {
         //handle python callbacks
         num_cb_used--;
         np = cb_used_head.tqh_first;
-        np->pyx_cb(np->arg, np->py_cb);
+        tmp_pyx_cb = np->pyx_cb;
+        tmp_arg = np->arg;
+        tmp_py_cb = np->py_cb;
         TAILQ_REMOVE(&cb_used_head, np, entries);
         np->pyx_cb = NULL;
         np->py_cb = NULL;
@@ -240,6 +245,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         num_cb_free++;
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
+        tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
     return status;
 }
