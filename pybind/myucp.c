@@ -281,7 +281,7 @@ static void recv_handle(void *request, ucs_status_t status,
 static void wait(ucp_worker_h ucp_worker, struct ucx_context *context)
 {
     while (context->completed == 0) {
-        ucp_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_worker);
     }
 }
 
@@ -341,7 +341,7 @@ static ucs_status_t flush_ep(ucp_worker_h worker, ucp_ep_h ep)
     } else {
         ucs_status_t status;
         do {
-            ucp_worker_progress(worker);
+            ucp_ipy_worker_progress(worker);
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
         ucp_request_release(request);
@@ -440,7 +440,7 @@ int wait_for_probe_success()
 {
     int probed_length;
     do {
-        ucp_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_worker);
         probed_length = ucp_py_ep_probe();
     } while (-1 == probed_length);
     return probed_length;
@@ -449,7 +449,7 @@ int wait_for_probe_success()
 int query_for_probe_success()
 {
     int probed_length;
-    ucp_worker_progress(ucp_worker);
+    ucp_ipy_worker_progress(ucp_worker);
     probed_length = ucp_py_ep_probe();
     return probed_length;
 }
@@ -514,7 +514,7 @@ err_ep:
 
 void ucp_py_worker_progress()
 {
-    ucp_worker_progress(ucp_worker);
+    ucp_ipy_worker_progress(ucp_worker);
 }
 
 int wait_request_ucp(struct ucx_context *request)
@@ -542,7 +542,7 @@ int query_request_ucp(struct ucx_context *request)
     if (NULL == request) return ret;
 
     if (0 == request->completed) {
-        ucp_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_worker);
     }
 
     ret = request->completed;
@@ -673,7 +673,7 @@ static int ep_close()
     close_req = ucp_ep_close_nb(comm_ep, UCP_EP_CLOSE_MODE_FORCE);
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
-            ucp_worker_progress(ucp_worker);
+            ucp_ipy_worker_progress(ucp_worker);
             status = ucp_request_check_status(close_req);
         } while (status == UCS_INPROGRESS);
 
@@ -818,7 +818,7 @@ int put_ep(ucp_ep_h *ep_ptr)
     close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
-            ucp_worker_progress(ucp_worker);
+            ucp_ipy_worker_progress(ucp_worker);
             status = ucp_request_check_status(close_req);
         } while (status == UCS_INPROGRESS);
 
@@ -871,7 +871,7 @@ int create_ep(char *ip, int server_port)
 int wait_for_connection()
 {
     while (NULL == server_context.ep) {
-        ucp_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_worker);
     }
 
     printf("past progress\n");
