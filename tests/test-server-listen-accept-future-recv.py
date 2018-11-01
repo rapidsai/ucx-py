@@ -47,35 +47,38 @@ max_msg_log = 23
 async def talk_to_client(client_ep):
 
     print("in talk_to_client")
+    msg_log = max_msg_log
 
-    '''
     buffer_region = ucp.buffer_region()
     buffer_region.alloc_cuda(1 << msg_log)
 
-    msg.set_mem(0, 1 << msg_log)
-    #await ep.send(msg, 1 << msg_log)
-
     msg = ucp.ucp_msg(buffer_region)
+
+    send_req = await client_ep.send(msg, 1 << msg_log)
+
+    recv_req = await client_ep.recv_ft()
+
     buffer_region.free_cuda()
-    '''
 
     print(42)
     return 42
 
 async def talk_to_server(ip, port):
 
+    msg_log = max_msg_log
+
     server_ep = ucp.get_endpoint(ip, port)
 
-    '''
     buffer_region = ucp.buffer_region()
     buffer_region.alloc_cuda(1 << msg_log)
 
-    msg.set_mem(0, 1 << msg_log)
-    #await ep.send(msg, 1 << msg_log)
-
     msg = ucp.ucp_msg(buffer_region)
+
+    recv_req = await server_ep.recv_ft()
+
+    send_req = await server_ep.send(msg, 1 << msg_log)
+
     buffer_region.free_cuda()
-    '''
 
     print(3.14)
     return 3.14

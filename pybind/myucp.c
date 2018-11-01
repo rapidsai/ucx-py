@@ -245,7 +245,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         num_cb_free++;
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
-	printf("calling pyx_cb\b");
         tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
     return status;
