@@ -245,6 +245,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         num_cb_free++;
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
+	printf("calling pyx_cb\b");
         tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
     return status;
@@ -289,46 +290,6 @@ static void wait(ucp_worker_h ucp_worker, struct ucx_context *context)
     while (context->completed == 0) {
         ucp_ipy_worker_progress(ucp_worker);
     }
-}
-
-static ucs_status_t test_poll_wait(ucp_worker_h ucp_worker)
-{
-    int ret = -1, err = 0;
-    ucs_status_t status;
-    int epoll_fd_local = 0, epoll_fd = 0;
-    struct epoll_event ev;
-    ev.data.u64 = 0;
-
-    status = ucp_worker_get_efd(ucp_worker, &epoll_fd);
-    CHKERR_JUMP(UCS_OK != status, "ucp_worker_get_efd", err);
-
-    /* It is recommended to copy original fd */
-    epoll_fd_local = epoll_create(1);
-
-    ev.data.fd = epoll_fd;
-    ev.events = EPOLLIN;
-    err = epoll_ctl(epoll_fd_local, EPOLL_CTL_ADD, epoll_fd, &ev);
-    CHKERR_JUMP(err < 0, "add original socket to the new epoll\n", err_fd);
-
-    /* Need to prepare ucp_worker before epoll_wait */
-    status = ucp_worker_arm(ucp_worker);
-    if (status == UCS_ERR_BUSY) { /* some events are arrived already */
-        ret = UCS_OK;
-        goto err_fd;
-    }
-    CHKERR_JUMP(status != UCS_OK, "ucp_worker_arm\n", err_fd);
-
-    do {
-        ret = epoll_wait(epoll_fd_local, &ev, 1, -1);
-    } while ((ret == -1) && (errno == EINTR));
-
-    ret = UCS_OK;
-
-err_fd:
-    close(epoll_fd_local);
-
-err:
-    return ret;
 }
 
 static void flush_callback(void *request, ucs_status_t status)

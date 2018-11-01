@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 
 import concurrent.futures
+import asyncio
 from weakref import WeakValueDictionary
 
 cdef extern from "myucp.h":
@@ -48,6 +49,51 @@ class CommFuture(concurrent.futures.Future):
     def __del__(self):
         print("releasing " + str(id(self)))
         self.ucp_msg.free_mem()
+
+    def __await__(self):
+        if True == self.done_state:
+            return self.result_state
+        else:
+            while False == self.done_state:
+                if True == self.done():
+                    return self.result_state
+                else:
+                    yield
+
+class ServerFuture(concurrent.futures.Future):
+
+    _instances = WeakValueDictionary()
+
+    def __init__(self, cb):
+        self.done_state = False
+        self.result_state = None
+        self.cb = cb
+        self._instances[id(self)] = self
+        super(ServerFuture, self).__init__()
+
+    def done(self):
+        if False == self.done_state:
+            ucp_py_worker_progress()
+        return self.done_state
+
+    def result(self):
+        while False == self.done_state:
+            self.done()
+        return self.result_state
+
+    def __del__(self):
+        print("releasing " + str(id(self)))
+
+    def __await__(self):
+        if True == self.done_state:
+            return self.result_state
+        else:
+            while False == self.done_state:
+                if True == self.done():
+                    return self.result_state
+                else:
+                    yield
+
 
 cdef class ucp_py_ep:
     cdef ucp_ep_h* ucp_ep
@@ -218,16 +264,36 @@ cdef class ucp_msg:
     def get_comm_len(self):
             return self.comm_len
 
+accept_cb_is_coroutine = False
+
 cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
+    global accept_cb_is_coroutine
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
-    (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
+    if not accept_cb_is_coroutine:
+        print('A')
+        (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
+    else:
+        print('B')
+        current_loop = asyncio.get_running_loop()
+        current_loop.create_task((<object>f)(client_ep))
 
 def init():
     return ucp_py_init()
 
 def listen(py_func, server_port = -1):
     return ucp_py_listen(accept_callback, <void *>py_func, server_port)
+
+def start_server(py_func, server_port = -1, is_coroutine = False):
+    global accept_cb_is_coroutine
+    accept_cb_is_coroutine = is_coroutine
+    sf = ServerFuture(py_func)
+    async def async_start_server():
+        await sf
+    if 0 == ucp_py_listen(accept_callback, <void *>py_func, server_port):
+        return async_start_server()
+    else:
+        return -1
 
 def fin():
     return ucp_py_finalize()
