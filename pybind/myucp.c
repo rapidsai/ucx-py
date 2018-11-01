@@ -27,9 +27,11 @@
 #include <signal.h>  /* raise */
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <sys/queue.h>
 
 #define DEBUG 0
 #define MAX_STR_LEN 256
+#define CB_Q_MAX_ENTRIES 256
 
 #if DEBUG
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
@@ -211,6 +213,36 @@ ucx_server_ctx_t server_context;
 ucp_worker_h ucp_worker;
 ucp_listener_h listener;
 ucp_ep_h comm_ep = NULL;
+
+TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
+struct entry {
+    void *py_cb;  //pointer to python callback
+    server_accept_cb_func pyx_cb; //pointer to Cython callback
+    void *arg;    //argument to python callback
+    TAILQ_ENTRY(entry) entries;
+} *np, *np_used, *np_free;
+int num_cb_free, num_cb_used;
+
+static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
+{
+    unsigned status;
+    status = ucp_worker_progress(ucp_worker);
+    while (cb_used_head.tqh_first != NULL) {
+        //handle python callbacks
+        num_cb_used--;
+        np = cb_used_head.tqh_first;
+        np->pyx_cb(np->arg, np->py_cb);
+        TAILQ_REMOVE(&cb_used_head, np, entries);
+        np->pyx_cb = NULL;
+        np->py_cb = NULL;
+        np->arg = NULL;
+        TAILQ_INSERT_TAIL(&cb_free_head, np, entries);
+        num_cb_free++;
+        assert(num_cb_free <= CB_Q_MAX_ENTRIES);
+        assert(cb_free_head.tqh_first != NULL);
+    }
+    return status;
+}
 
 static void send_handle(void *request, ucs_status_t status)
 {
@@ -690,7 +722,22 @@ static void server_accept_cb(ucp_ep_h ep, void *arg)
     *ep_ptr = ep;
     printf(" SAC = %p\n", ep_ptr);
     int tmp = 4;
-    context->pyx_cb(ep_ptr, context->py_cb);
+    if (num_cb_free > 0) {
+        num_cb_free--;
+        np = cb_free_head.tqh_first;
+        TAILQ_REMOVE(&cb_free_head, np, entries);
+        np->pyx_cb = context->pyx_cb;
+        np->py_cb = context->py_cb;
+        np->arg = ep_ptr;
+        TAILQ_INSERT_TAIL(&cb_used_head, np, entries);
+        num_cb_used++;
+        assert(num_cb_used <= CB_Q_MAX_ENTRIES);
+        assert(cb_used_head.tqh_first != NULL);
+    }
+    else {
+        fprintf(stderr, "out of free cb entries. Trying in place\n");
+        context->pyx_cb(ep_ptr, context->py_cb);
+    }
     //fprintf(stderr, "accepted connection\n");
     //comm_ep = ep;
     //fprintf(stderr, "comm_ep set\n");
@@ -838,6 +885,7 @@ int ucp_py_init()
     ucp_worker_params_t worker_params;
     ucp_config_t *config;
     ucs_status_t status;
+    int i;
 
     /* OOB connection vars */
     uint64_t addr_len = 0;
@@ -870,6 +918,18 @@ int ucp_py_init()
 
     ret = gethostname(own_hostname, MAX_STR_LEN);
     assert(0 == ret);
+
+    TAILQ_INIT(&cb_free_head);
+    TAILQ_INIT(&cb_used_head);
+
+    np_free = malloc(sizeof(struct entry) * CB_Q_MAX_ENTRIES);
+
+    for (i = 0; i < CB_Q_MAX_ENTRIES; i++) {
+        TAILQ_INSERT_TAIL(&cb_free_head, np_free + i, entries);
+    }
+
+    num_cb_free = CB_Q_MAX_ENTRIES;
+    num_cb_used = 0;
 
  err_worker:
     ucp_config_release(config);
@@ -906,6 +966,7 @@ int ucp_py_finalize()
     if (is_server) ucp_listener_destroy(listener);
     ucp_worker_destroy(ucp_worker);
     ucp_cleanup(ucp_context);
+    free(np_free);
 
     DEBUG_PRINT("UCP resources released\n");
     return 0;
