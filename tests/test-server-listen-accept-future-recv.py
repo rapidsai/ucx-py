@@ -4,18 +4,20 @@
 import call_myucp as ucp
 import time
 import argparse
+import asyncio
+import concurrent.futures
 
 def cb(future):
     print('in test callback')
 
-def send_recv(ep, msg_log, is_server, is_cuda):
+def send_recv(ep, msg_log, server, is_cuda):
     buffer_region = ucp.buffer_region()
     if is_cuda:
         buffer_region.alloc_cuda(1 << msg_log)
     else:
         buffer_region.alloc_host(1 << msg_log)
     msg = ucp.ucp_msg(buffer_region)
-    if 1 == is_server:
+    if server:
         msg.set_mem(0, 1 << msg_log)
         #send_req = msg.send_ft(ep, 1 << msg_log)
         send_req = ep.send(msg, 1 << msg_log)
@@ -38,17 +40,61 @@ def send_recv(ep, msg_log, is_server, is_cuda):
     else:
         buffer_region.free_host()
 
-accept_cb_started = 0
+accept_cb_started = False
 new_client_ep = None
+max_msg_log = 23
+
+async def talk_to_client(client_ep):
+
+    print("in talk_to_client")
+    msg_log = max_msg_log
+
+    buffer_region = ucp.buffer_region()
+    buffer_region.alloc_cuda(1 << msg_log)
+
+    msg = ucp.ucp_msg(buffer_region)
+
+    send_req = await client_ep.send(msg, 1 << msg_log)
+
+    recv_req = await client_ep.recv_ft()
+
+    buffer_region.free_cuda()
+
+    print(42)
+    return 42
+
+async def talk_to_server(ip, port):
+
+    msg_log = max_msg_log
+
+    server_ep = ucp.get_endpoint(ip, port)
+
+    buffer_region = ucp.buffer_region()
+    buffer_region.alloc_cuda(1 << msg_log)
+
+    msg = ucp.ucp_msg(buffer_region)
+
+    recv_req = await server_ep.recv_ft()
+
+    send_req = await server_ep.send(msg, 1 << msg_log)
+
+    buffer_region.free_cuda()
+
+    print(3.14)
+    return 3.14
 
 def server_accept_callback(client_ep):
     global accept_cb_started
     global new_client_ep
     print("in python accept callback")
     new_client_ep = client_ep
-    accept_cb_started = 1
+    assert new_client_ep != None
+    is_cuda = False
+    send_recv(new_client_ep, max_msg_log, server, is_cuda)
+    is_cuda = True
+    send_recv(new_client_ep, max_msg_log, server, is_cuda)
+    accept_cb_started = True
 
-max_msg_log = 23
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
 parser.add_argument('-p','--port', help='enter server port number', required=False)
@@ -56,40 +102,54 @@ args = parser.parse_args()
 
 ## initiate ucp
 init_str = ""
-is_server = 0
+server = False
 if args.server is None:
-    is_server = 1
+    server = True
 else:
-    is_server = 0
+    server = False
     init_str = args.server
-
+'''
 ## setup endpoints
 ucp.init()
 server_ep = None
-if 0 == is_server:
+if not server:
     #connect to server
     server_ep = ucp.get_endpoint(init_str.encode(), int(args.port))
     is_cuda = False
-    send_recv(server_ep, max_msg_log, is_server, is_cuda)
+    send_recv(server_ep, max_msg_log, server, is_cuda)
     is_cuda = True
-    send_recv(server_ep, max_msg_log, is_server, is_cuda)
+    send_recv(server_ep, max_msg_log, server, is_cuda)
 else:
     ucp.listen(server_accept_callback)
     while 0 == accept_cb_started:
         ucp.ucp_progress()
-    assert new_client_ep != None
-    is_cuda = False
-    send_recv(new_client_ep, max_msg_log, is_server, is_cuda)
-    is_cuda = True
-    send_recv(new_client_ep, max_msg_log, is_server, is_cuda)
+    #assert new_client_ep != None
+    #is_cuda = False
+    #send_recv(new_client_ep, max_msg_log, server, is_cuda)
+    #is_cuda = True
+    #send_recv(new_client_ep, max_msg_log, server, is_cuda)
 
-if 1 == is_server:
+if server:
     assert new_client_ep != None
     ucp.destroy_ep(new_client_ep)
 else:
     ucp.destroy_ep(server_ep)
+'''
 
-if args.server is None:
-    print("Server Finalized")
+ucp.init()
+loop = asyncio.get_event_loop()
+# coro points to either client or server-side coroutine
+if server:
+    coro = ucp.start_server(talk_to_client, is_coroutine = True)
+    #coro = talk_to_client()
 else:
-    print("Client Finalized")
+    coro = talk_to_server(init_str.encode(), int(args.port))
+
+loop.run_until_complete(coro)
+
+try:
+    loop.run_forever()
+except KeyboardInterrupt:
+    pass
+
+loop.close()
