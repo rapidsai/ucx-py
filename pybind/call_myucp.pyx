@@ -29,8 +29,8 @@ class CommFuture(concurrent.futures.Future):
     def __init__(self, ucp_msg = None):
         self.done_state = False
         self.result_state = None
-        self.start_time = time.time()
-        self.end_time = None
+        #self.start_time = time.time()
+        #self.end_time = None
         self._instances[id(self)] = self
         if None != ucp_msg:
             self.ucp_msg = ucp_msg
@@ -40,8 +40,8 @@ class CommFuture(concurrent.futures.Future):
         if False == self.done_state and hasattr(self, 'ucp_msg'):
             if 1 == self.ucp_msg.query():
                 self.done_state = True
-                self.end_time = time.time()
-                lat = self.end_time - self.start_time
+                #self.end_time = time.time()
+                #lat = self.end_time - self.start_time
                 #print("future time {}".format(lat * 1000000))
                 self.result_state = self.ucp_msg
                 self.set_result(self.ucp_msg)
@@ -220,10 +220,10 @@ cdef class ucp_msg:
         self.ctx_ptr_set = 1
 
     def send_ft(self, ucp_py_ep ep, len):
-        start = time.time()
+        #start = time.time()
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
-        end = time.time()
-        lat = end - start
+        #end = time.time()
+        #lat = end - start
         #print("issue time {}".format(lat * 1000000))
         self.comm_len = len
         self.ctx_ptr_set = 1
