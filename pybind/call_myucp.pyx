@@ -220,11 +220,7 @@ cdef class ucp_msg:
         self.ctx_ptr_set = 1
 
     def send_ft(self, ucp_py_ep ep, len):
-        #start = time.time()
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
-        #end = time.time()
-        #lat = end - start
-        #print("issue time {}".format(lat * 1000000))
         self.comm_len = len
         self.ctx_ptr_set = 1
         send_future = CommFuture(self)
