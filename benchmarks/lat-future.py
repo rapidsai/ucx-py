@@ -4,7 +4,6 @@
 import call_myucp as ucp
 import time
 import argparse
-import asyncio
 import concurrent.futures
 
 accept_cb_started = False
@@ -12,12 +11,14 @@ new_client_ep = None
 max_msg_log = 23
 max_iters = 1000
 
-async def talk_to_client(client_ep):
+def talk_to_client(client_ep):
 
     global args
+    global cb_not_done
 
     msg_log = max_msg_log
     iters = max_iters
+    comm_ep = client_ep
 
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
@@ -39,13 +40,17 @@ async def talk_to_client(client_ep):
 
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
-            send_req = await client_ep.send(send_msg, msg_len)
-            recv_req = await client_ep.recv(recv_msg, msg_len)
+            send_req = comm_ep.send(send_msg, msg_len)
+            send_req.result()
+            recv_req = comm_ep.recv(recv_msg, msg_len)
+            recv_req.result()
 
         start = time.time()
         for j in range(iters):
-            send_req = await client_ep.send(send_msg, msg_len)
-            recv_req = await client_ep.recv(recv_msg, msg_len)
+            send_req = comm_ep.send(send_msg, msg_len)
+            send_req.result()
+            recv_req = comm_ep.recv(recv_msg, msg_len)
+            recv_req.result()
         end = time.time()
         lat = end - start
         lat = ((lat/2) / iters)* 1000000
@@ -59,8 +64,9 @@ async def talk_to_client(client_ep):
         recv_buffer_region.free_host()
 
     ucp.destroy_ep(client_ep)
+    cb_not_done = False
 
-async def talk_to_server(ip, port):
+def talk_to_server(ip, port):
 
     global args
 
@@ -68,6 +74,7 @@ async def talk_to_server(ip, port):
     iters = max_iters
 
     server_ep = ucp.get_endpoint(ip, port)
+    comm_ep = server_ep
 
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
@@ -87,13 +94,17 @@ async def talk_to_server(ip, port):
 
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
-            recv_req = await server_ep.recv(recv_msg, msg_len)
-            send_req = await server_ep.send(send_msg, msg_len)
+            recv_req = comm_ep.recv(recv_msg, msg_len)
+            recv_req.result()
+            send_req = comm_ep.send(send_msg, msg_len)
+            send_req.result()
 
         start = time.time()
         for j in range(iters):
-            recv_req = await server_ep.recv(recv_msg, msg_len)
-            send_req = await server_ep.send(send_msg, msg_len)
+            recv_req = comm_ep.recv(recv_msg, msg_len)
+            recv_req.result()
+            send_req = comm_ep.send(send_msg, msg_len)
+            send_req.result()
         end = time.time()
         lat = end - start
         lat = ((lat/2) / iters)* 1000000
@@ -117,6 +128,7 @@ args = parser.parse_args()
 ## initiate ucp
 init_str = ""
 server = False
+cb_not_done = True
 if args.server is None:
     server = True
 else:
@@ -124,20 +136,11 @@ else:
     init_str = args.server
 
 ucp.init()
-loop = asyncio.get_event_loop()
-# coro points to either client or server-side coroutine
 if server:
     if args.intra_node:
         ucp.set_cuda_dev(1)
-    coro = ucp.start_server(talk_to_client, is_coroutine = True)
+    ucp.start_server(talk_to_client, is_coroutine = False)
+    while cb_not_done:
+        ucp.progress()
 else:
-    coro = talk_to_server(init_str.encode(), int(args.port))
-
-loop.run_until_complete(coro)
-
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    pass
-
-loop.close()
+    talk_to_server(init_str.encode(), int(args.port))
