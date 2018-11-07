@@ -30,31 +30,60 @@ def talk_to_client(client_ep):
         send_buffer_region.alloc_host(1 << msg_log)
         recv_buffer_region.alloc_host(1 << msg_log)
 
-    send_msg = ucp.ucp_msg(send_buffer_region)
-    recv_msg = ucp.ucp_msg(recv_buffer_region)
-
-    print("{}\t\t{}".format("Size (bytes)", "Latency (us)"))
+    print("{}\t\t{}\t\t{}\t\t{}".format("Size (bytes)", "Latency (us)",
+                                        "Issue (us)", "Progress (us)"))
 
     for i in range(msg_log):
         msg_len = 2 ** i
 
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
+            send_msg = ucp.ucp_msg(send_buffer_region)
+            recv_msg = ucp.ucp_msg(recv_buffer_region)
             send_req = comm_ep.send(send_msg, msg_len)
-            send_req.result()
             recv_req = comm_ep.recv(recv_msg, msg_len)
+            send_req.result()
             recv_req.result()
 
-        start = time.time()
+        send_msg = []
+        recv_msg = []
         for j in range(iters):
-            send_req = comm_ep.send(send_msg, msg_len)
+            send_msg.append(ucp.ucp_msg(send_buffer_region))
+            recv_msg.append(ucp.ucp_msg(recv_buffer_region))
+
+        start = time.time()
+        issue_lat = 0
+        progress_lat = 0
+
+        for j in range(iters):
+
+            tmp_start = time.time()
+            send_req = comm_ep.send(send_msg[j], msg_len)
+            tmp_end = time.time()
+            issue_lat += (tmp_end - tmp_start)
+
+            tmp_start = time.time()
             send_req.result()
-            recv_req = comm_ep.recv(recv_msg, msg_len)
+            tmp_end = time.time()
+            progress_lat += (tmp_end - tmp_start)
+
+            tmp_start = time.time()
+            recv_req = comm_ep.recv(recv_msg[j], msg_len)
+            tmp_end = time.time()
+            issue_lat += (tmp_end - tmp_start)
+
+            tmp_start = time.time()
             recv_req.result()
+            tmp_end = time.time()
+            progress_lat += (tmp_end - tmp_start)
+
         end = time.time()
         lat = end - start
         lat = ((lat/2) / iters)* 1000000
-        print("{}\t\t{}".format(msg_len, lat))
+        issue_lat = ((issue_lat/2) / iters)* 1000000
+        progress_lat = ((progress_lat/2) / iters)* 1000000
+        print("{}\t\t{}\t\t{}\t\t{}".format(msg_len, lat, issue_lat,
+                                            progress_lat))
 
     if args.mem_type == 'cuda':
         send_buffer_region.free_cuda()
@@ -86,24 +115,29 @@ def talk_to_server(ip, port):
         send_buffer_region.alloc_host(1 << msg_log)
         recv_buffer_region.alloc_host(1 << msg_log)
 
-    send_msg = ucp.ucp_msg(send_buffer_region)
-    recv_msg = ucp.ucp_msg(recv_buffer_region)
-
     for i in range(msg_log):
         msg_len = 2 ** i
 
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
+            send_msg = ucp.ucp_msg(send_buffer_region)
+            recv_msg = ucp.ucp_msg(recv_buffer_region)
             recv_req = comm_ep.recv(recv_msg, msg_len)
             recv_req.result()
             send_req = comm_ep.send(send_msg, msg_len)
             send_req.result()
 
+        send_msg = []
+        recv_msg = []
+        for j in range(iters):
+            send_msg.append(ucp.ucp_msg(send_buffer_region))
+            recv_msg.append(ucp.ucp_msg(recv_buffer_region))
+
         start = time.time()
         for j in range(iters):
-            recv_req = comm_ep.recv(recv_msg, msg_len)
+            recv_req = comm_ep.recv(recv_msg[j], msg_len)
             recv_req.result()
-            send_req = comm_ep.send(send_msg, msg_len)
+            send_req = comm_ep.send(send_msg[j], msg_len)
             send_req.result()
         end = time.time()
         lat = end - start
