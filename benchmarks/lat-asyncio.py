@@ -20,10 +20,14 @@ async def talk_to_client(client_ep):
     iters = max_iters
 
     send_buffer_region = ucp.buffer_region()
-    send_buffer_region.alloc_cuda(1 << msg_log)
-
     recv_buffer_region = ucp.buffer_region()
-    recv_buffer_region.alloc_cuda(1 << msg_log)
+
+    if args.mem_type == 'cuda':
+        send_buffer_region.alloc_cuda(1 << msg_log)
+        recv_buffer_region.alloc_cuda(1 << msg_log)
+    else:
+        send_buffer_region.alloc_host(1 << msg_log)
+        recv_buffer_region.alloc_host(1 << msg_log)
 
     send_msg = ucp.ucp_msg(send_buffer_region)
     recv_msg = ucp.ucp_msg(recv_buffer_region)
@@ -47,8 +51,13 @@ async def talk_to_client(client_ep):
         lat = ((lat/2) / iters)* 1000000
         print("{}\t\t{}".format(msg_len, lat))
 
-    send_buffer_region.free_cuda()
-    recv_buffer_region.free_cuda()
+    if args.mem_type == 'cuda':
+        send_buffer_region.free_cuda()
+        recv_buffer_region.free_cuda()
+    else:
+        send_buffer_region.free_host()
+        recv_buffer_region.free_host()
+
     ucp.destroy_ep(client_ep)
 
 async def talk_to_server(ip, port):
@@ -61,10 +70,14 @@ async def talk_to_server(ip, port):
     server_ep = ucp.get_endpoint(ip, port)
 
     send_buffer_region = ucp.buffer_region()
-    send_buffer_region.alloc_cuda(1 << msg_log)
-
     recv_buffer_region = ucp.buffer_region()
-    recv_buffer_region.alloc_cuda(1 << msg_log)
+
+    if args.mem_type == 'cuda':
+        send_buffer_region.alloc_cuda(1 << msg_log)
+        recv_buffer_region.alloc_cuda(1 << msg_log)
+    else:
+        send_buffer_region.alloc_host(1 << msg_log)
+        recv_buffer_region.alloc_host(1 << msg_log)
 
     send_msg = ucp.ucp_msg(send_buffer_region)
     recv_msg = ucp.ucp_msg(recv_buffer_region)
@@ -85,8 +98,13 @@ async def talk_to_server(ip, port):
         lat = end - start
         lat = ((lat/2) / iters)* 1000000
 
-    send_buffer_region.free_cuda()
-    recv_buffer_region.free_cuda()
+    if args.mem_type == 'cuda':
+        send_buffer_region.free_cuda()
+        recv_buffer_region.free_cuda()
+    else:
+        send_buffer_region.free_host()
+        recv_buffer_region.free_host()
+
     ucp.destroy_ep(server_ep)
 
 parser = argparse.ArgumentParser()
@@ -96,6 +114,8 @@ parser.add_argument('-i','--intra_node', action='store_true')
 parser.add_argument('-m','--mem_type', help='host/cuda (default = host)', required=False)
 args = parser.parse_args()
 
+print(type(args.mem_type))
+print(args.mem_type)
 ## initiate ucp
 init_str = ""
 server = False
