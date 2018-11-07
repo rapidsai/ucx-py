@@ -3,6 +3,7 @@
 
 import concurrent.futures
 import asyncio
+import time
 from weakref import WeakValueDictionary
 
 cdef extern from "myucp.h":
@@ -28,6 +29,8 @@ class CommFuture(concurrent.futures.Future):
     def __init__(self, ucp_msg = None):
         self.done_state = False
         self.result_state = None
+        self.start_time = time.time()
+        self.end_time = None
         self._instances[id(self)] = self
         if None != ucp_msg:
             self.ucp_msg = ucp_msg
@@ -37,6 +40,9 @@ class CommFuture(concurrent.futures.Future):
         if False == self.done_state and hasattr(self, 'ucp_msg'):
             if 1 == self.ucp_msg.query():
                 self.done_state = True
+                self.end_time = time.time()
+                lat = self.end_time - self.start_time
+                #print("future time {}".format(lat * 1000000))
                 self.result_state = self.ucp_msg
                 self.set_result(self.ucp_msg)
         return self.done_state
@@ -47,7 +53,6 @@ class CommFuture(concurrent.futures.Future):
         return self.result_state
 
     def __del__(self):
-        print("releasing " + str(id(self)))
         self.ucp_msg.free_mem()
 
     def __await__(self):
@@ -82,7 +87,8 @@ class ServerFuture(concurrent.futures.Future):
         return self.result_state
 
     def __del__(self):
-        print("releasing " + str(id(self)))
+        #print("releasing " + str(id(self)))
+        pass
 
     def __await__(self):
         if True == self.done_state:
@@ -130,14 +136,9 @@ cdef class ucp_py_ep:
 cdef class buffer_region:
     cdef data_buf* buf
     cdef int is_cuda
-    cdef int my_dev
 
     def __cinit__(self):
         return
-
-    def set_cuda_dev(self, dev):
-        self.my_dev = dev
-        return set_device(dev)
 
     def alloc_host(self, len):
         self.buf = allocate_host_buffer(len)
@@ -219,7 +220,11 @@ cdef class ucp_msg:
         self.ctx_ptr_set = 1
 
     def send_ft(self, ucp_py_ep ep, len):
+        start = time.time()
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        end = time.time()
+        lat = end - start
+        #print("issue time {}".format(lat * 1000000))
         self.comm_len = len
         self.ctx_ptr_set = 1
         send_future = CommFuture(self)
@@ -271,10 +276,8 @@ cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
     if not accept_cb_is_coroutine:
-        print('A')
         (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
     else:
-        print('B')
         current_loop = asyncio.get_running_loop()
         current_loop.create_task((<object>f)(client_ep))
 
@@ -323,8 +326,10 @@ def destroy_ep(ucp_ep):
     if None == ucp_ep:
         return destroy_ep_ucp()
     else:
-        print("calling ep close")
         return ucp_ep.close()
+
+def set_cuda_dev(dev):
+    return set_device(dev)
 
 def barrier():
     return barrier_sock()

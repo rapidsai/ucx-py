@@ -440,7 +440,7 @@ struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
         wait(ucp_worker, request);
         request->completed = 0;
         ucp_request_release(request);
-        printf("UCX data message was received\n");
+        DEBUG_PRINT("UCX data message was received\n");
     }
 }
 #endif
@@ -453,7 +453,7 @@ struct ucx_context *ucp_py_ep_send(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
     struct ucx_context *request = 0;
     int i = 0;
 
-    printf("EP send : %p\n", ep_ptr);
+    DEBUG_PRINT("EP send : %p\n", ep_ptr);
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
@@ -634,7 +634,7 @@ static int ep_close()
     ucs_status_t status;
     void *close_req;
 
-    printf("try ep close\n");
+    DEBUG_PRINT("try ep close\n");
     if (NULL != server_context.ep) comm_ep = server_context.ep;
     close_req = ucp_ep_close_nb(comm_ep, UCP_EP_CLOSE_MODE_FORCE);
     if (UCS_PTR_IS_PTR(close_req)) {
@@ -647,7 +647,7 @@ static int ep_close()
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
         fprintf(stderr, "failed to close ep %p\n", (void*)comm_ep);
     }
-    printf("ep closed\n");
+    DEBUG_PRINT("ep closed\n");
 }
 
 int destroy_ep_ucp()
@@ -686,8 +686,7 @@ static void server_accept_cb(ucp_ep_h ep, void *arg)
     /* Save the server's endpoint in the user's context, for future usage */
     //context->ep = ep;
     *ep_ptr = ep;
-    printf(" SAC = %p\n", ep_ptr);
-    int tmp = 4;
+    DEBUG_PRINT(" SAC = %p\n", ep_ptr);
     if (num_cb_free > 0) {
         num_cb_free--;
         np = cb_free_head.tqh_first;
@@ -701,13 +700,9 @@ static void server_accept_cb(ucp_ep_h ep, void *arg)
         assert(cb_used_head.tqh_first != NULL);
     }
     else {
-        fprintf(stderr, "out of free cb entries. Trying in place\n");
+        DEBUG_PRINT(stderr, "out of free cb entries. Trying in place\n");
         context->pyx_cb(ep_ptr, context->py_cb);
     }
-    //fprintf(stderr, "accepted connection\n");
-    //comm_ep = ep;
-    //fprintf(stderr, "comm_ep set\n");
-    //sleep(20);
 }
 
 static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
@@ -728,7 +723,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
 
     status = ucp_listener_create(ucp_worker, &params, listener);
     if (status != UCS_OK) {
-        fprintf(stderr, "failed to listen (%s)\n", ucs_status_string(status));
+        DEBUG_PRINT(stderr, "failed to listen (%s)\n", ucs_status_string(status));
     }
 
     return status;
@@ -769,7 +764,7 @@ ucp_ep_h *get_ep(char *ip, int server_port)
 
     status = ucp_ep_create(ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
-        fprintf(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
+        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
     }
 
     return ep_ptr;
@@ -780,7 +775,7 @@ int put_ep(ucp_ep_h *ep_ptr)
     ucs_status_t status;
     void *close_req;
 
-    printf("try ep close %p\n", ep_ptr);
+    DEBUG_PRINT("try ep close %p\n", ep_ptr);
     close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
@@ -790,10 +785,10 @@ int put_ep(ucp_ep_h *ep_ptr)
 
         ucp_request_free(close_req);
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
-        fprintf(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
+        DEBUG_PRINT(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
     }
     free(ep_ptr);
-    printf("ep closed\n");
+    DEBUG_PRINT("ep closed\n");
 }
 
 int create_ep(char *ip, int server_port)
@@ -828,7 +823,7 @@ int create_ep(char *ip, int server_port)
 
     status = ucp_ep_create(ucp_worker, &ep_params, &comm_ep);
     if (status != UCS_OK) {
-        fprintf(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
+        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
     }
 
     return status;
@@ -840,7 +835,7 @@ int wait_for_connection()
         ucp_ipy_worker_progress(ucp_worker);
     }
 
-    printf("past progress\n");
+    DEBUG_PRINT("past progress\n");
     return 0;
 }
 
