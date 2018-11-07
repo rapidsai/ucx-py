@@ -115,6 +115,8 @@ max_msg_log = 23
 max_iters = 1000
 window_size = 64
 
+print('Look at *-asyncio.py or *-future.py benchmarks')
+exit()
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server hostname', required=False)
 parser.add_argument('-m','--max_msg_log', help='log of maximum message size (default =' + str(max_msg_log) +')', required=False)
