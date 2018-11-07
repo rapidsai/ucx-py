@@ -290,13 +290,16 @@ def listen(py_func, server_port = -1):
 def start_server(py_func, server_port = -1, is_coroutine = False):
     global accept_cb_is_coroutine
     accept_cb_is_coroutine = is_coroutine
-    sf = ServerFuture(py_func)
-    async def async_start_server():
-        await sf
-    if 0 == ucp_py_listen(accept_callback, <void *>py_func, server_port):
-        return async_start_server()
+    if is_coroutine:
+        sf = ServerFuture(py_func)
+        async def async_start_server():
+            await sf
+        if 0 == ucp_py_listen(accept_callback, <void *>py_func, server_port):
+            return async_start_server()
+        else:
+            return -1
     else:
-        return -1
+        return ucp_py_listen(accept_callback, <void *>py_func, server_port)
 
 def fin():
     return ucp_py_finalize()
@@ -310,7 +313,7 @@ def get_endpoint(server_ip, server_port):
 def wait_for_client():
     wait_for_connection()
 
-def ucp_progress():
+def progress():
     ucp_py_worker_progress()
 
 def get_own_name():
