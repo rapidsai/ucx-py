@@ -23,7 +23,6 @@ include "ucp_py_c_fxns.pyx"
 
 class CommFuture(concurrent.futures.Future):
 
-    SEND, RECV, PROBE = range(3)
     _instances = WeakValueDictionary()
 
     def __init__(self, ucp_msg = None):
@@ -130,6 +129,12 @@ cdef class ucp_py_ep:
     def send(self, ucp_msg msg, len):
         return msg.send_ft(self, len)
 
+    def recv_fast(self, ucp_msg msg, len):
+        return msg.recv_fast(len)
+
+    def send_fast(self, ucp_msg msg, len):
+        return msg.send_fast(self, len)
+
     def close(self):
         return put_ep(self.ucp_ep)
 
@@ -233,6 +238,20 @@ cdef class ucp_msg:
         recv_future = CommFuture(self)
         return recv_future
 
+    def send_fast(self, ucp_py_ep ep, len):
+        self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        self.comm_len = len
+        self.ctx_ptr_set = 1
+        send_request = ucp_comm_request(self)
+        return send_request
+
+    def recv_fast(self, len):
+        self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        self.comm_len = len
+        self.ctx_ptr_set = 1
+        recv_request = ucp_comm_request(self)
+        return recv_request
+
     def wait(self):
         if 1 == self.ctx_ptr_set:
             wait_request_ucp(self.ctx_ptr)
@@ -264,6 +283,26 @@ cdef class ucp_msg:
 
     def get_comm_len(self):
             return self.comm_len
+
+#ucp_comm_request(self)
+cdef class ucp_comm_request:
+    cdef ucp_msg msg
+    cdef int done_state
+
+    def __cinit__(self, ucp_msg msg):
+        self.msg = msg
+        self.done_state = 0
+        return
+
+    def done(self):
+        if 1 == self.msg.query():
+            self.done_state = 1
+        return self.done_state
+
+    def result(self):
+        while 0 == self.done_state:
+            self.done()
+        return self.msg
 
 accept_cb_is_coroutine = False
 
