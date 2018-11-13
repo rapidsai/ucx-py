@@ -86,7 +86,6 @@ class ServerFuture(concurrent.futures.Future):
         return self.result_state
 
     def __del__(self):
-        #print("releasing " + str(id(self)))
         pass
 
     def __await__(self):
@@ -303,6 +302,16 @@ cdef class ucp_comm_request:
         while 0 == self.done_state:
             self.done()
         return self.msg
+
+    def __await__(self):
+        if 1 == self.done_state:
+            return self.msg
+        else:
+            while 0 == self.done_state:
+                if 1 == self.done():
+                    return self.msg
+                else:
+                    yield
 
 accept_cb_is_coroutine = False
 
