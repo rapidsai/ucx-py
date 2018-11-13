@@ -20,6 +20,7 @@ cdef extern from "myucp.h":
         void* buf
 
 include "ucp_py_c_fxns.pyx"
+include "ucp_py_buffer_helper.pyx"
 
 class CommFuture(concurrent.futures.Future):
 
@@ -98,7 +99,6 @@ class ServerFuture(concurrent.futures.Future):
                 else:
                     yield
 
-
 cdef class ucp_py_ep:
     cdef ucp_ep_h* ucp_ep
     cdef int ptr_set
@@ -109,12 +109,6 @@ cdef class ucp_py_ep:
     def connect(self, ip, port):
         self.ucp_ep = get_ep(ip, port)
         return
-
-    '''
-    def recv(self):
-        post_probe()
-        return
-    '''
 
     def recv_ft(self):
         recv_msg = ucp_msg(None)
@@ -137,27 +131,6 @@ cdef class ucp_py_ep:
     def close(self):
         return put_ep(self.ucp_ep)
 
-cdef class buffer_region:
-    cdef data_buf* buf
-    cdef int is_cuda
-
-    def __cinit__(self):
-        return
-
-    def alloc_host(self, len):
-        self.buf = allocate_host_buffer(len)
-        self.is_cuda = 0
-
-    def alloc_cuda(self, len):
-        self.buf = allocate_cuda_buffer(len)
-        self.is_cuda = 1
-
-    def free_host(self):
-        free_host_buffer(self.buf)
-
-    def free_cuda(self):
-        free_cuda_buffer(self.buf)
-
 cdef class ucp_msg:
     cdef ucx_context* ctx_ptr
     cdef int ctx_ptr_set
@@ -167,13 +140,16 @@ cdef class ucp_msg:
     cdef int alloc_len
     cdef int comm_len
     cdef int internally_allocated
+    cdef buffer_region buf_reg
 
     def __cinit__(self, buffer_region buf_reg):
         if buf_reg is None:
+            self.buf_reg = buffer_region()
             return
         else:
             self.buf = buf_reg.buf
             self.is_cuda = buf_reg.is_cuda
+            self.buf_reg = buf_reg
         self.ctx_ptr_set = 0
         self.alloc_len = -1
         self.comm_len = -1
@@ -181,12 +157,14 @@ cdef class ucp_msg:
         return
 
     def alloc_host(self, len):
-        self.buf = allocate_host_buffer(len)
+        self.buf_reg.alloc_host(len)
+        self.buf = self.buf_reg.buf
         self.alloc_len = len
         self.is_cuda = 0
 
     def alloc_cuda(self, len):
-        self.buf = allocate_cuda_buffer(len)
+        self.buf_reg.alloc_cuda(len)
+        self.buf = self.buf_reg.buf
         self.alloc_len = len
         self.is_cuda = 1
 
@@ -203,10 +181,10 @@ cdef class ucp_msg:
              return check_cuda_buffer(self.buf, c, len)
 
     def free_host(self):
-        free_host_buffer(self.buf)
+        self.buf_reg.free_host()
 
     def free_cuda(self):
-        free_cuda_buffer(self.buf)
+        self.buf_reg.free_cuda()
 
     def send(self, len):
         self.ctx_ptr = send_nb_ucp(self.buf, len)
@@ -283,7 +261,6 @@ cdef class ucp_msg:
     def get_comm_len(self):
             return self.comm_len
 
-#ucp_comm_request(self)
 cdef class ucp_comm_request:
     cdef ucp_msg msg
     cdef int done_state
