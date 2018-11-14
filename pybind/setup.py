@@ -1,17 +1,25 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+# This file is a copy of what is available in a Cython demo + some additions
+
 from __future__ import absolute_import, print_function
 
 import os
 import sys
 
-from distutils.core import setup
+from distutils.core import setup, Command
 from distutils.extension import Extension
 from Cython.Build import cythonize
 
+import os
+ucx_dir='/home/akvenkatesh/ucx-github/build'
+cuda_dir='/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26'
+if 'UCX_PY_UCX_PATH' in os.environ.keys():
+    ucx_dir=os.environ['UCX_PY_UCX_PATH']
+if 'UCX_PY_CUDA_PATH' in os.environ.keys():
+    cuda_dir=os.environ['UCX_PY_CUDA_PATH']
 
-# For demo purposes, we build our own tiny library.
 try:
     print("building libmyucp.a")
     print("getcwd: " + str(os.getcwd()))
@@ -23,18 +31,16 @@ except:
         print("Error building external library, please create libmyucp.a manually.")
         sys.exit(1)
 
-ucx_dir='/home/akvenkatesh/ucx-github/build'
-# Here is how to use the library built above.
 ext_modules = cythonize([
     Extension("call_myucp",
               sources=["call_myucp.pyx"],
-              include_dirs=[os.getcwd(), ucx_dir+'/include', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/include'],  # path to .h file(s)
-              library_dirs=[os.getcwd(), ucx_dir+'/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],  # path to .a or .so file(s)
-              runtime_library_dirs=[os.getcwd(), ucx_dir+'/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],
+              include_dirs=[os.getcwd(), ucx_dir+'/include', cuda_dir+'/include'],
+              library_dirs=[os.getcwd(), ucx_dir+'/lib', cuda_dir+'/lib64'],
+              runtime_library_dirs=[os.getcwd(), ucx_dir+'/lib', cuda_dir+'/lib64'],
               libraries=['myucp', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart'])
 ])
 
 setup(
-    name='Demos',
-    ext_modules=ext_modules,
+    name='ucx_py',
+    ext_modules=ext_modules
 )
