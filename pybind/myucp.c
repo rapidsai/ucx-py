@@ -177,12 +177,6 @@ static void request_init(void *request)
     ctx->completed = 0;
 }
 
-enum ucp_test_mode_t {
-    TEST_MODE_PROBE,
-    TEST_MODE_WAIT,
-    TEST_MODE_EVENTFD
-} ucp_test_mode = TEST_MODE_PROBE;
-
 static struct err_handling {
     ucp_err_handling_mode_t ucp_err_mode;
     int                     failure;
@@ -932,65 +926,3 @@ int ucp_py_finalize()
     DEBUG_PRINT("UCP resources released\n");
     return 0;
 }
-
-#if 0
-//status = ucp_worker_get_address(ucp_worker, &local_addr, &local_addr_len);
-
-char *client_target_name, int server_mode,
-             server_accept_cb_func pyx_cb, void *py_cb, int server_listens
-    if (1 != server_listens) {
-        if (strlen(client_target_name) > 0 && (0 == server_mode)) {
-            is_server = 0;
-            peer_addr_len = local_addr_len;
-
-            oob_sock = client_connect(client_target_name, server_port);
-
-            ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-            peer_addr_len = addr_len;
-            peer_addr = malloc(peer_addr_len);
-
-            ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
-
-            addr_len = local_addr_len;
-            ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-            ret = send(oob_sock, local_addr, local_addr_len, 0);
-
-            ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
-            ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
-        } else {
-            is_server = 1;
-            oob_sock = server_connect(server_port);
-
-            addr_len = local_addr_len;
-            ret = send(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-            ret = send(oob_sock, local_addr, local_addr_len, 0);
-
-            ret = recv(oob_sock, &addr_len, sizeof(addr_len), 0);
-
-            peer_addr_len = addr_len;
-            peer_addr = malloc(peer_addr_len);
-
-            ret = recv(oob_sock, peer_addr, peer_addr_len, 0);
-
-            ret = recv(oob_sock, peer_hostname, MAX_STR_LEN, 0);
-            ret = send(oob_sock, own_hostname, MAX_STR_LEN, 0);
-        }
-    } else {
-        if (server_mode) {
-            server_context.ep = NULL;
-            server_context.pyx_cb = pyx_cb;
-            server_context.py_cb = py_cb;
-            is_server = 1;
-            status = start_listener(ucp_worker, &server_context, &listener,
-                                    server_port);
-            if (status != UCS_OK) {
-                fprintf(stderr, "failed to start listener\n");
-                goto err_worker;
-            }
-        }
-    }
-    //ucp_worker_release_address(ucp_worker, local_addr);
-#endif
