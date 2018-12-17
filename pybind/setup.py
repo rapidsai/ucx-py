@@ -24,8 +24,7 @@ try:
     print("building libmyucp.a")
     print("getcwd: " + str(os.getcwd()))
     assert os.system("gcc -shared -fPIC -c myucp.c -o myucp.o") == 0
-    assert os.system("gcc -shared -fPIC -c myucp2.c -o myucp2.o") == 0
-    assert os.system("ar rcs libmyucp.a myucp.o myucp2.o") == 0
+    assert os.system("ar rcs libmyucp.a myucp.o") == 0
 except:
     if not os.path.exists("libmyucp.a"):
         print("Error building external library, please create libmyucp.a manually.")
