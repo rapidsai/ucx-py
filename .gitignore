@@ -1,1 +1,6 @@
 *.*~
+pybind/build
+pybind/call_myucp.c
+pybind/call_myucp.*.so
+pybind/*.a
+pybind/*.o
