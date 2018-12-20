@@ -3,6 +3,7 @@
  * See file LICENSE for terms.
  */
 #include "myucp.h"
+#include "buffer_ops.h"
 #include <ucp/api/ucp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,7 +67,6 @@ static struct err_handling {
 } err_handling_opt;
 
 typedef struct ucx_server_ctx {
-    ucp_ep_h     ep;
     server_accept_cb_func pyx_cb;
     void *py_cb;
 } ucx_server_ctx_t;
@@ -200,8 +200,6 @@ struct ucx_context *send_nb_ucp(struct data_buf *send_buf, int length)
     int i = 0;
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
-
-    if (NULL != server_context.ep) comm_ep = server_context.ep; // for now
 
     request = ucp_tag_send_nb(comm_ep, send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
@@ -484,7 +482,6 @@ static int ep_close()
     void *close_req;
 
     DEBUG_PRINT("try ep close\n");
-    if (NULL != server_context.ep) comm_ep = server_context.ep;
     close_req = ucp_ep_close_nb(comm_ep, UCP_EP_CLOSE_MODE_FORCE);
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
@@ -678,16 +675,6 @@ int create_ep(char *ip, int server_port)
     return status;
 }
 
-int wait_for_connection()
-{
-    while (NULL == server_context.ep) {
-        ucp_ipy_worker_progress(ucp_worker);
-    }
-
-    DEBUG_PRINT("past progress\n");
-    return 0;
-}
-
 int ucp_py_init()
 {
     int a, b, c;
@@ -752,7 +739,6 @@ int ucp_py_listen(server_accept_cb_func pyx_cb, void *py_cb, int port)
 {
     ucs_status_t status;
 
-    server_context.ep = NULL;
     server_context.pyx_cb = pyx_cb;
     server_context.py_cb = py_cb;
     is_server = 1;

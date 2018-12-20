@@ -110,7 +110,7 @@ cdef class ucp_py_ep:
         self.ucp_ep = get_ep(ip, port)
         return
 
-    def recv_ft(self):
+    def recv_future(self):
         recv_msg = ucp_msg(None)
         recv_future = CommFuture(recv_msg)
         ucp_py_ep_post_probe()
@@ -186,21 +186,6 @@ cdef class ucp_msg:
     def free_cuda(self):
         self.buf_reg.free_cuda()
 
-    def send(self, len):
-        self.ctx_ptr = send_nb_ucp(self.buf, len)
-        self.comm_len = len
-        self.ctx_ptr_set = 1
-
-    def send_ep(self, ucp_py_ep ep, len):
-        self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
-        self.comm_len = len
-        self.ctx_ptr_set = 1
-
-    def recv(self, len):
-        self.ctx_ptr = recv_nb_ucp(self.buf, len)
-        self.comm_len = len
-        self.ctx_ptr_set = 1
-
     def send_ft(self, ucp_py_ep ep, len):
         self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
         self.comm_len = len
@@ -229,17 +214,6 @@ cdef class ucp_msg:
         recv_request = ucp_comm_request(self)
         return recv_request
 
-    def wait(self):
-        if 1 == self.ctx_ptr_set:
-            wait_request_ucp(self.ctx_ptr)
-        else:
-            if 1 != self.ctx_ptr_set:
-                len = wait_for_probe_success()
-                self.alloc_host(len)
-                self.internally_allocated = 1
-                self.recv(len)
-            wait_request_ucp(self.ctx_ptr)
-
     def query(self):
         if 1 == self.ctx_ptr_set:
             return query_request_ucp(self.ctx_ptr)
@@ -248,7 +222,9 @@ cdef class ucp_msg:
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
-                self.recv(len)
+                self.ctx_ptr = recv_nb_ucp(self.buf, len)
+                self.comm_len = len
+                self.ctx_ptr_set = 1
             return 0
 
     def free_mem(self):
@@ -271,7 +247,7 @@ cdef class ucp_comm_request:
         return
 
     def done(self):
-        if 1 == self.msg.query():
+        if 0 == self.done_state and 1 == self.msg.query():
             self.done_state = 1
         return self.done_state
 
@@ -305,9 +281,6 @@ cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
 def init():
     return ucp_py_init()
 
-def listen(py_func, server_port = -1):
-    return ucp_py_listen(accept_callback, <void *>py_func, server_port)
-
 def start_server(py_func, server_port = -1, is_coroutine = False):
     global accept_cb_is_coroutine
     accept_cb_is_coroutine = is_coroutine
@@ -330,9 +303,6 @@ def get_endpoint(server_ip, server_port):
     ep = ucp_py_ep()
     ep.connect(server_ip, server_port)
     return ep
-
-def wait_for_client():
-    wait_for_connection()
 
 def progress():
     ucp_py_worker_progress()

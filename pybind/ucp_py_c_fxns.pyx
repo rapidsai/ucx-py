@@ -9,8 +9,6 @@ cdef extern from "myucp.h":
     int create_ep(char*, int)
     ucp_ep_h* get_ep(char *, int)
     int put_ep(ucp_ep_h *)
-    int wait_for_connection()
-    int setup_ep_ucp()
     int destroy_ep_ucp()
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)

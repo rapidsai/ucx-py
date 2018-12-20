@@ -1,4 +1,4 @@
-cdef extern from "myucp.h":
+cdef extern from "buffer_ops.h":
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
     int free_host_buffer(data_buf*)

@@ -24,7 +24,7 @@ async def talk_to_client(client_ep):
 
     send_req = await client_ep.send(msg, 1 << msg_log)
 
-    recv_ft =  client_ep.recv_ft()
+    recv_ft =  client_ep.recv_future()
     await recv_ft
 
     errs = 0
@@ -48,7 +48,7 @@ async def talk_to_server(ip, port):
     msg = ucp.ucp_msg(buffer_region)
     msg.set_mem(1, 1 << msg_log)
 
-    recv_ft = server_ep.recv_ft()
+    recv_ft = server_ep.recv_future()
     await recv_ft
 
     errs = 0

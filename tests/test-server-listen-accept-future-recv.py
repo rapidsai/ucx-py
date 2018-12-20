@@ -23,28 +23,34 @@ async def talk_to_client(client_ep):
 
     send_req = await client_ep.send(msg, 1 << msg_log)
 
-    recv_req = await client_ep.recv_ft()
+    recv_req = await client_ep.recv_future()
 
     buffer_region.free_cuda()
     ucp.destroy_ep(client_ep)
+
+    print("passed talk_to_client")
 
 async def talk_to_server(ip, port):
 
     msg_log = max_msg_log
 
+    print("in talk_to_server")
     server_ep = ucp.get_endpoint(ip, port)
+    print("got endpoint")
 
     buffer_region = ucp.buffer_region()
     buffer_region.alloc_cuda(1 << msg_log)
 
     msg = ucp.ucp_msg(buffer_region)
 
-    recv_req = await server_ep.recv_ft()
+    recv_req = await server_ep.recv_future()
 
     send_req = await server_ep.send(msg, 1 << msg_log)
 
     buffer_region.free_cuda()
     ucp.destroy_ep(server_ep)
+
+    print("passed talk_to_server")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
