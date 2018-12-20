@@ -337,15 +337,6 @@ def wait_for_client():
 def progress():
     ucp_py_worker_progress()
 
-def get_own_name():
-    return get_own_hostname()
-
-def get_peer_name():
-    return get_peer_hostname()
-
-def setup_ep():
-    return setup_ep_ucp()
-
 def destroy_ep(ucp_ep):
     if None == ucp_ep:
         return destroy_ep_ucp()
@@ -354,6 +345,3 @@ def destroy_ep(ucp_ep):
 
 def set_cuda_dev(dev):
     return set_device(dev)
-
-def barrier():
-    return barrier_sock()

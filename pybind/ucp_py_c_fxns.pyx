@@ -29,4 +29,3 @@ cdef extern from "myucp.h":
     int query_for_probe_success()
     int wait_request_ucp(ucx_context*)
     int query_request_ucp(ucx_context*)
-    int barrier_sock()

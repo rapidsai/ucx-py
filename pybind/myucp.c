@@ -30,7 +30,6 @@
 #include <sys/queue.h>
 
 #define DEBUG 0
-#define MAX_STR_LEN 256
 #define CB_Q_MAX_ENTRIES 256
 
 #if DEBUG
@@ -54,122 +53,6 @@ do {                                                \
             fprintf(stderr, "cuda error: %s\n", cudaGetErrorString(cuda_err)); \
         }                                                               \
     } while(0)
-
-int oob_sock = -1;
-void *py_data = NULL;
-void *py_server_accept_data = NULL;
-char peer_hostname[MAX_STR_LEN];
-char peer_service[MAX_STR_LEN];
-char own_hostname[MAX_STR_LEN];
-char server_hostname[MAX_STR_LEN];
-
-int server_connect(uint16_t server_port)
-{
-    struct sockaddr_in inaddr;
-    struct sockaddr_in peer_addr;
-    int peer_addr_len;
-    int lsock  = -1;
-    int dsock  = -1;
-    int optval = 1;
-    int ret;
-
-    lsock = socket(AF_INET, SOCK_STREAM, 0);
-    CHKERR_JUMP(lsock < 0, "open server socket", err);
-
-    optval = 1;
-    ret = setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-    CHKERR_JUMP(ret < 0, "server setsockopt()", err_sock);
-
-    inaddr.sin_family      = AF_INET;
-    inaddr.sin_port        = htons(server_port);
-    inaddr.sin_addr.s_addr = INADDR_ANY;
-    memset(inaddr.sin_zero, 0, sizeof(inaddr.sin_zero));
-    ret = bind(lsock, (struct sockaddr*)&inaddr, sizeof(inaddr));
-    CHKERR_JUMP(ret < 0, "bind server", err_sock);
-
-    ret = listen(lsock, 0);
-    CHKERR_JUMP(ret < 0, "listen server", err_sock);
-
-    fprintf(stdout, "Waiting for connection...\n");
-
-    /* Accept next connection */
-    dsock = accept(lsock, NULL, NULL);
-    CHKERR_JUMP(dsock < 0, "accept server", err_sock);
-
-    close(lsock);
-
-    return dsock;
-
-err_sock:
-    close(lsock);
-
-err:
-    return -1;
-}
-
-int client_connect(const char *server, uint16_t server_port)
-{
-    struct sockaddr_in conn_addr;
-    struct hostent *he;
-    int connfd;
-    int ret;
-
-    connfd = socket(AF_INET, SOCK_STREAM, 0);
-    CHKERR_JUMP(connfd < 0, "open client socket", err);
-
-    he = gethostbyname(server);
-    CHKERR_JUMP((he == NULL || he->h_addr_list == NULL), "found a host", err_conn);
-
-    conn_addr.sin_family = he->h_addrtype;
-    conn_addr.sin_port   = htons(server_port);
-
-    memcpy(&conn_addr.sin_addr, he->h_addr_list[0], he->h_length);
-    memset(conn_addr.sin_zero, 0, sizeof(conn_addr.sin_zero));
-
-    ret = connect(connfd, (struct sockaddr*)&conn_addr, sizeof(conn_addr));
-    CHKERR_JUMP(ret < 0, "connect client", err_conn);
-
-    return connfd;
-
-err_conn:
-    close(connfd);
-err:
-    return -1;
-}
-
-char *get_own_hostname()
-{
-    return own_hostname;
-}
-
-char *get_peer_hostname()
-{
-    return peer_hostname;
-}
-
-int barrier_sock()
-{
-    int dummy = 0;
-    send(oob_sock, &dummy, sizeof(dummy), 0);
-    recv(oob_sock, &dummy, sizeof(dummy), 0);
-    return 0;
-}
-
-static void generate_random_string(char *str, int size)
-{
-    int i;
-    static int init = 0;
-    /* randomize seed only once */
-    if (!init) {
-        srand(time(NULL));
-        init = 1;
-    }
-
-    for (i = 0; i < (size-1); ++i) {
-        str[i] =  'A' + (rand() % 26);
-    }
-    str[i] = 0;
-}
 
 static void request_init(void *request)
 {
@@ -595,34 +478,6 @@ int free_cuda_buffer(struct data_buf *db)
     return 0;
 }
 
-int setup_ep_ucp()
-{
-    ucp_ep_params_t ep_params;
-    ucs_status_t status;
-    int ret = -1;
-
-    if (is_server) {
-        /* Send test string to client */
-        ep_params.field_mask      = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
-                                    UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                                    UCP_EP_PARAM_FIELD_ERR_HANDLER |
-                                    UCP_EP_PARAM_FIELD_USER_DATA;
-        ep_params.address         = peer_addr;
-        ep_params.err_mode        = err_handling_opt.ucp_err_mode;
-        ep_params.err_handler.cb  = failure_handler;
-        ep_params.err_handler.arg = NULL;
-        ep_params.user_data       = &client_status;
-    } else {
-        ep_params.field_mask      = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
-                                    UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
-        ep_params.address         = peer_addr;
-        ep_params.err_mode        = err_handling_opt.ucp_err_mode;
-    }
-
-    status = ucp_ep_create(ucp_worker, &ep_params, &comm_ep);
-    return status;
-}
-
 static int ep_close()
 {
     ucs_status_t status;
@@ -870,9 +725,6 @@ int ucp_py_init()
 
     status = ucp_worker_create(ucp_context, &worker_params, &ucp_worker);
     CHKERR_JUMP(UCS_OK != status, "ucp_worker_create failed", err_init);
-
-    ret = gethostname(own_hostname, MAX_STR_LEN);
-    assert(0 == ret);
 
     TAILQ_INIT(&cb_free_head);
     TAILQ_INIT(&cb_used_head);

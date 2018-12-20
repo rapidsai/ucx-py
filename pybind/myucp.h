@@ -18,8 +18,6 @@ struct ucx_context {
 int ucp_py_init();
 int ucp_py_listen(server_accept_cb_func, void *, int);
 int ucp_py_finalize(void);
-char *get_peer_hostname();
-char *get_own_hostname();
 int create_ep(char*, int);
 ucp_ep_h *get_ep(char *, int);
 int put_ep(ucp_ep_h *);
@@ -46,5 +44,3 @@ int wait_for_probe_success();
 int query_for_probe_success();
 int wait_request_ucp(struct ucx_context *request);
 int query_request_ucp(struct ucx_context *request);
-
-int barrier_sock();
