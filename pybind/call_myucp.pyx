@@ -107,7 +107,7 @@ cdef class ucp_py_ep:
         return
 
     def connect(self, ip, port):
-        self.ucp_ep = get_ep(ip, port)
+        self.ucp_ep = ucp_py_get_ep(ip, port)
         return
 
     def recv_future(self):
@@ -129,7 +129,7 @@ cdef class ucp_py_ep:
         return msg.send_fast(self, len)
 
     def close(self):
-        return put_ep(self.ucp_ep)
+        return ucp_py_put_ep(self.ucp_ep)
 
 cdef class ucp_msg:
     cdef ucx_context* ctx_ptr
@@ -216,9 +216,9 @@ cdef class ucp_msg:
 
     def query(self):
         if 1 == self.ctx_ptr_set:
-            return query_request_ucp(self.ctx_ptr)
+            return ucp_py_query_request(self.ctx_ptr)
         else:
-            len = query_for_probe_success()
+            len = ucp_py_probe_query()
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
@@ -299,7 +299,6 @@ def fin():
     return ucp_py_finalize()
 
 def get_endpoint(server_ip, server_port):
-    #return create_ep(server_ip, server_port)
     ep = ucp_py_ep()
     ep.connect(server_ip, server_port)
     return ep
@@ -308,10 +307,7 @@ def progress():
     ucp_py_worker_progress()
 
 def destroy_ep(ucp_ep):
-    if None == ucp_ep:
-        return destroy_ep_ucp()
-    else:
-        return ucp_ep.close()
+    return ucp_ep.close()
 
 def set_cuda_dev(dev):
     return set_device(dev)

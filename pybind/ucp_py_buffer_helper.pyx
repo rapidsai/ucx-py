@@ -1,8 +1,13 @@
 cdef extern from "buffer_ops.h":
+    int set_device(int)
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
     int free_host_buffer(data_buf*)
     int free_cuda_buffer(data_buf*)
+    int set_host_buffer(data_buf*, int, int)
+    int set_cuda_buffer(data_buf*, int, int)
+    int check_host_buffer(data_buf*, int, int)
+    int check_cuda_buffer(data_buf*, int, int)
 
 cdef class buffer_region:
     cdef data_buf* buf

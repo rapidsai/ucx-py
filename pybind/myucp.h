@@ -15,17 +15,13 @@ struct ucx_context {
 int ucp_py_init();
 int ucp_py_listen(server_accept_cb_func, void *, int);
 int ucp_py_finalize(void);
-int create_ep(char*, int);
-ucp_ep_h *get_ep(char *, int);
-int put_ep(ucp_ep_h *);
-int setup_ep_ucp(void);
-int destroy_ep_ucp(void);
+ucp_ep_h *ucp_py_get_ep(char *, int);
+int ucp_py_put_ep(ucp_ep_h *);
 
 void ucp_py_worker_progress();
 struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_buf, int length);
 struct ucx_context *ucp_py_recv_nb(struct data_buf *buf, int length);
 int ucp_py_ep_post_probe();
-int wait_for_probe_success();
-int query_for_probe_success();
-int wait_request_ucp(struct ucx_context *request);
-int query_request_ucp(struct ucx_context *request);
+int ucp_py_probe_query();
+int ucp_py_probe_wait();
+int ucp_py_query_request(struct ucx_context *request);

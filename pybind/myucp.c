@@ -2,6 +2,13 @@
  * Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
  * See file LICENSE for terms.
  */
+
+/**
+ * Note: A large part of the code here is derived from
+ * test/examples/ucp_hello_world.c + test/examples/ucp_client_server.c
+ * in ucx github master branch
+ */
+
 #include "myucp.h"
 #include "buffer_ops.h"
 #include <ucp/api/ucp.h>
@@ -33,33 +40,14 @@
 #define DEBUG 0
 #define CB_Q_MAX_ENTRIES 256
 
-#if DEBUG
-#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
-#else
-#define DEBUG_PRINT(...) do{} while(0);
-#endif
-
-#define CHKERR_JUMP(_cond, _msg, _label)            \
-do {                                                \
-    if (_cond) {                                    \
-        fprintf(stderr, "Failed to %s\n", _msg);    \
-        goto _label;                                \
-    }                                               \
-} while (0)
-
-#define CUDA_CHECK(stmt)                                                \
-    do {                                                                \
-        cudaError_t cuda_err = stmt;                                    \
-        if(cudaSuccess != cuda_err) {                                   \
-            fprintf(stderr, "cuda error: %s\n", cudaGetErrorString(cuda_err)); \
-        }                                                               \
-    } while(0)
-
-static void request_init(void *request)
-{
-    struct ucx_context *ctx = (struct ucx_context *) request;
-    ctx->completed = 0;
-}
+TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
+struct entry {
+    void *py_cb;  //pointer to python callback
+    server_accept_cb_func pyx_cb; //pointer to Cython callback
+    void *arg;    //argument to python callback
+    TAILQ_ENTRY(entry) entries;
+} *np, *np_used, *np_free;
+int num_cb_free, num_cb_used;
 
 static struct err_handling {
     ucp_err_handling_mode_t ucp_err_mode;
@@ -91,15 +79,6 @@ ucp_worker_h ucp_worker;
 ucp_listener_h listener;
 ucp_ep_h comm_ep = NULL;
 
-TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
-struct entry {
-    void *py_cb;  //pointer to python callback
-    server_accept_cb_func pyx_cb; //pointer to Cython callback
-    void *arg;    //argument to python callback
-    TAILQ_ENTRY(entry) entries;
-} *np, *np_used, *np_free;
-int num_cb_free, num_cb_used;
-
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     unsigned status;
@@ -125,6 +104,12 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
     return status;
+}
+
+static void request_init(void *request)
+{
+    struct ucx_context *ctx = (struct ucx_context *) request;
+    ctx->completed = 0;
 }
 
 static void send_handle(void *request, ucs_status_t status)
@@ -247,7 +232,7 @@ int ucp_py_ep_probe()
     return -1;
 }
 
-int wait_for_probe_success()
+int ucp_py_probe_wait()
 {
     int probed_length;
     do {
@@ -257,38 +242,13 @@ int wait_for_probe_success()
     return probed_length;
 }
 
-int query_for_probe_success()
+int ucp_py_probe_query()
 {
     int probed_length;
     ucp_ipy_worker_progress(ucp_worker);
     probed_length = ucp_py_ep_probe();
     return probed_length;
 }
-
-#if 0
-struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
-{
-
-    msg = malloc(info_tag.length);
-    CHKERR_JUMP(!msg, "allocate memory\n", err_ep);
-
-    request = ucp_tag_msg_recv_nb(ucp_worker, msg, info_tag.length,
-                                  ucp_dt_make_contig(1), msg_tag,
-                                  recv_handle);
-
-    if (UCS_PTR_IS_ERR(request)) {
-        fprintf(stderr, "unable to receive UCX data message (%u)\n",
-                UCS_PTR_STATUS(request));
-        free(msg);
-        goto err_ep;
-    } else {
-        wait(ucp_worker, request);
-        request->completed = 0;
-        ucp_request_release(request);
-        DEBUG_PRINT("UCX data message was received\n");
-    }
-}
-#endif
 
 struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
                                       int length)
@@ -328,24 +288,7 @@ void ucp_py_worker_progress()
     ucp_ipy_worker_progress(ucp_worker);
 }
 
-int wait_request_ucp(struct ucx_context *request)
-{
-    ucs_status_t status;
-    int ret = -1;
-
-    DEBUG_PRINT("waiting on request %p\n", request);
-
-    if (request != NULL) {
-        wait(ucp_worker, request);
-        request->completed = 0;
-        ucp_request_release(request);
-    }
-
-    ret = 0;
-    return ret;
-}
-
-int query_request_ucp(struct ucx_context *request)
+int ucp_py_query_request(struct ucx_context *request)
 {
     ucs_status_t status;
     int ret = 1;
@@ -363,114 +306,6 @@ int query_request_ucp(struct ucx_context *request)
     }
 
     return ret;
-}
-
-struct data_buf *allocate_host_buffer(int length)
-{
-    struct data_buf *db = NULL;
-    db = (struct data_buf *) malloc(sizeof(struct data_buf));
-    db->buf = (void *) malloc(length);
-    DEBUG_PRINT("allocated %p\n", db->buf);
-    return db;
-}
-
-struct data_buf *allocate_cuda_buffer(int length)
-{
-    struct data_buf *db = NULL;
-    db = (struct data_buf *) malloc(sizeof(struct data_buf));
-    cudaMalloc((void **) &(db->buf), (size_t)length);
-    DEBUG_PRINT("allocated %p\n", db->buf);
-    return db;
-}
-
-int set_device(int device)
-{
-    CUDA_CHECK(cudaSetDevice(device));
-    return 0;
-}
-
-int set_host_buffer(struct data_buf *db, int c, int length)
-{
-    memset((void *)db->buf, c, (size_t) length);
-    return 0;
-}
-
-int set_cuda_buffer(struct data_buf *db, int c, int length)
-{
-    cudaMemset((void *)db->buf, c, (size_t) length);
-    return 0;
-}
-
-int check_host_buffer(struct data_buf *db, int c, int length)
-{
-    char *tmp;
-    int i;
-    int errs = 0;
-
-    tmp = (char *)db->buf;
-
-    for (i = 0; i < length; i++) {
-        if (c != (int) tmp[i]) errs++;
-    }
-
-    return errs;
-}
-
-int check_cuda_buffer(struct data_buf *db, int c, int length)
-{
-    char *tmp;
-    int i;
-    int errs = 0;
-
-    tmp = (char *) malloc(sizeof(char) * length);
-    cudaMemcpy((void *) tmp, (void *) db->buf, length, cudaMemcpyDeviceToHost);
-
-    for (i = 0; i < length; i++) {
-        if (c != (int) tmp[i]) errs++;
-    }
-
-    return errs;
-}
-
-int free_host_buffer(struct data_buf *db)
-{
-    free(db->buf);
-    free(db);
-    return 0;
-}
-
-int free_cuda_buffer(struct data_buf *db)
-{
-    cudaFree(db->buf);
-    free(db);
-    return 0;
-}
-
-static int ep_close()
-{
-    ucs_status_t status;
-    void *close_req;
-
-    DEBUG_PRINT("try ep close\n");
-    close_req = ucp_ep_close_nb(comm_ep, UCP_EP_CLOSE_MODE_FORCE);
-    if (UCS_PTR_IS_PTR(close_req)) {
-        do {
-            ucp_ipy_worker_progress(ucp_worker);
-            status = ucp_request_check_status(close_req);
-        } while (status == UCS_INPROGRESS);
-
-        ucp_request_free(close_req);
-    } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
-        fprintf(stderr, "failed to close ep %p\n", (void*)comm_ep);
-    }
-    DEBUG_PRINT("ep closed\n");
-}
-
-int destroy_ep_ucp()
-{
-    //ucp_ep_destroy(comm_ep);
-    ep_close();
-    return 0;
 }
 
 void set_listen_addr(struct sockaddr_in *listen_addr, uint16_t server_port)
@@ -545,7 +380,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
     return status;
 }
 
-ucp_ep_h *get_ep(char *ip, int server_port)
+ucp_ep_h *ucp_py_get_ep(char *ip, int server_port)
 {
     ucp_ep_params_t ep_params;
     struct sockaddr_in connect_addr;
@@ -586,7 +421,7 @@ ucp_ep_h *get_ep(char *ip, int server_port)
     return ep_ptr;
 }
 
-int put_ep(ucp_ep_h *ep_ptr)
+int ucp_py_put_ep(ucp_ep_h *ep_ptr)
 {
     ucs_status_t status;
     void *close_req;
@@ -605,44 +440,6 @@ int put_ep(ucp_ep_h *ep_ptr)
     }
     free(ep_ptr);
     DEBUG_PRINT("ep closed\n");
-}
-
-int create_ep(char *ip, int server_port)
-{
-    ucp_ep_params_t ep_params;
-    struct sockaddr_in connect_addr;
-    ucs_status_t status;
-
-    set_connect_addr(ip, &connect_addr, (uint16_t) server_port);
-
-    /*
-     * Endpoint field mask bits:
-     * UCP_EP_PARAM_FIELD_FLAGS             - Use the value of the 'flags' field.
-     * UCP_EP_PARAM_FIELD_SOCK_ADDR         - Use a remote sockaddr to connect
-     *                                        to the remote peer.
-     * UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE - Error handling mode - this flag
-     *                                        is temporarily required since the
-     *                                        endpoint will be closed with
-     *                                        UCP_EP_CLOSE_MODE_FORCE which
-     *                                        requires this mode.
-     *                                        Once UCP_EP_CLOSE_MODE_FORCE is
-     *                                        removed, the error handling mode
-     *                                        will be removed.
-     */
-    ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
-                                 UCP_EP_PARAM_FIELD_SOCK_ADDR |
-                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
-    ep_params.err_mode         = UCP_ERR_HANDLING_MODE_PEER;
-    ep_params.flags            = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
-    ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
-    ep_params.sockaddr.addrlen = sizeof(connect_addr);
-
-    status = ucp_ep_create(ucp_worker, &ep_params, &comm_ep);
-    if (status != UCS_OK) {
-        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
-    }
-
-    return status;
 }
 
 int ucp_py_init()
