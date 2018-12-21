@@ -187,28 +187,28 @@ cdef class ucp_msg:
         self.buf_reg.free_cuda()
 
     def send_ft(self, ucp_py_ep ep, len):
-        self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        self.ctx_ptr = ucp_py_ep_send_nb(ep.ucp_ep, self.buf, len)
         self.comm_len = len
         self.ctx_ptr_set = 1
         send_future = CommFuture(self)
         return send_future
 
     def recv_ft(self, len):
-        self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        self.ctx_ptr = ucp_py_recv_nb(self.buf, len)
         self.comm_len = len
         self.ctx_ptr_set = 1
         recv_future = CommFuture(self)
         return recv_future
 
     def send_fast(self, ucp_py_ep ep, len):
-        self.ctx_ptr = ucp_py_ep_send(ep.ucp_ep, self.buf, len)
+        self.ctx_ptr = ucp_py_ep_send_nb(ep.ucp_ep, self.buf, len)
         self.comm_len = len
         self.ctx_ptr_set = 1
         send_request = ucp_comm_request(self)
         return send_request
 
     def recv_fast(self, len):
-        self.ctx_ptr = recv_nb_ucp(self.buf, len)
+        self.ctx_ptr = ucp_py_recv_nb(self.buf, len)
         self.comm_len = len
         self.ctx_ptr_set = 1
         recv_request = ucp_comm_request(self)
@@ -222,7 +222,7 @@ cdef class ucp_msg:
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
-                self.ctx_ptr = recv_nb_ucp(self.buf, len)
+                self.ctx_ptr = ucp_py_recv_nb(self.buf, len)
                 self.comm_len = len
                 self.ctx_ptr_set = 1
             return 0

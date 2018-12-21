@@ -192,37 +192,7 @@ static ucs_status_t flush_ep(ucp_worker_h worker, ucp_ep_h ep)
     }
 }
 
-struct ucx_context *send_nb_ucp(struct data_buf *send_buf, int length)
-{
-    ucs_status_t status;
-    ucp_ep_params_t ep_params;
-    struct ucx_context *request = 0;
-    int i = 0;
-
-    DEBUG_PRINT("sending %p\n", send_buf->buf);
-
-    request = ucp_tag_send_nb(comm_ep, send_buf->buf, length,
-                              ucp_dt_make_contig(1), tag,
-                              send_handle);
-    if (UCS_PTR_IS_ERR(request)) {
-        fprintf(stderr, "unable to send UCX data message\n");
-        goto err_ep;
-    } else if (UCS_PTR_STATUS(request) != UCS_OK) {
-        DEBUG_PRINT("UCX data message was scheduled for send\n");
-    } else {
-        /* request is complete so no need to wait on request */
-    }
-
-    DEBUG_PRINT("returning request %p\n", request);
-
-    return request;
-
-err_ep:
-    ucp_ep_destroy(comm_ep);
-    return request;
-}
-
-struct ucx_context *recv_nb_ucp(struct data_buf *recv_buf, int length)
+struct ucx_context *ucp_py_recv_nb(struct data_buf *recv_buf, int length)
 {
     ucs_status_t status;
     ucp_ep_params_t ep_params;
@@ -320,8 +290,8 @@ struct ucx_context *recv_probe_ucp(struct data_buf *msg, int length)
 }
 #endif
 
-struct ucx_context *ucp_py_ep_send(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
-                                   int length)
+struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
+                                      int length)
 {
     ucs_status_t status;
     ucp_ep_params_t ep_params;
