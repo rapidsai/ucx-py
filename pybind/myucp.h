@@ -6,14 +6,14 @@
 #include <ucp/api/ucp.h>
 #include "common.h"
 
-typedef void (*server_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data);
+typedef void (*listener_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data);
 
 struct ucx_context {
     int             completed;
 };
 
 int ucp_py_init();
-int ucp_py_listen(server_accept_cb_func, void *, int);
+int ucp_py_listen(listener_accept_cb_func, void *, int);
 int ucp_py_finalize(void);
 ucp_ep_h *ucp_py_get_ep(char *, int);
 int ucp_py_put_ep(ucp_ep_h *);

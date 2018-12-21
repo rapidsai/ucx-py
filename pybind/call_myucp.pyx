@@ -19,7 +19,7 @@ cdef extern from "myucp.h":
     cdef struct data_buf:
         void* buf
 
-include "ucp_py_c_fxns.pyx"
+include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
 
 class CommFuture(concurrent.futures.Future):

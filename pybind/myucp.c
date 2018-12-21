@@ -42,9 +42,9 @@
 
 TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
 struct entry {
-    void *py_cb;  //pointer to python callback
-    server_accept_cb_func pyx_cb; //pointer to Cython callback
-    void *arg;    //argument to python callback
+    void *py_cb;                    /* pointer to python callback */
+    listener_accept_cb_func pyx_cb; /* pointer to Cython callback */
+    void *arg;                      /* argument to python callback */
     TAILQ_ENTRY(entry) entries;
 } *np, *np_used, *np_free;
 int num_cb_free, num_cb_used;
@@ -54,27 +54,21 @@ static struct err_handling {
     int                     failure;
 } err_handling_opt;
 
-typedef struct ucx_server_ctx {
-    server_accept_cb_func pyx_cb;
+typedef struct ucx_listener_ctx {
+    listener_accept_cb_func pyx_cb;
     void *py_cb;
-} ucx_server_ctx_t;
+} ucx_listener_ctx_t;
 
 static ucs_status_t client_status = UCS_OK;
-static uint16_t server_port = 13337;
-static long test_string_length = 16;
+static uint16_t listener_port = 13337;
 static const ucp_tag_t tag  = 0x1337a880u;
 static const ucp_tag_t tag_mask = -1;
-static ucp_address_t *local_addr;
-static ucp_address_t *peer_addr;
-static size_t local_addr_len;
-static size_t peer_addr_len;
-static int is_server = 0;
-static int ep_set = 0;
+static int listens = 0;
 static int num_probes_outstanding = 0;
 
 /* UCP handler objects */
 ucp_context_h ucp_context;
-ucx_server_ctx_t server_context;
+ucx_listener_ctx_t listener_context;
 ucp_worker_h ucp_worker;
 ucp_listener_h listener;
 ucp_ep_h comm_ep = NULL;
@@ -83,7 +77,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     unsigned status;
     void *tmp_py_cb;
-    server_accept_cb_func tmp_pyx_cb;
+    listener_accept_cb_func tmp_pyx_cb;
     void *tmp_arg;
     status = ucp_worker_progress(ucp_worker);
     while (cb_used_head.tqh_first != NULL) {
@@ -150,30 +144,6 @@ static void wait(ucp_worker_h ucp_worker, struct ucx_context *context)
 {
     while (context->completed == 0) {
         ucp_ipy_worker_progress(ucp_worker);
-    }
-}
-
-static void flush_callback(void *request, ucs_status_t status)
-{
-}
-
-static ucs_status_t flush_ep(ucp_worker_h worker, ucp_ep_h ep)
-{
-    void *request;
-
-    request = ucp_ep_flush_nb(ep, 0, flush_callback);
-    if (request == NULL) {
-        return UCS_OK;
-    } else if (UCS_PTR_IS_ERR(request)) {
-        return UCS_PTR_STATUS(request);
-    } else {
-        ucs_status_t status;
-        do {
-            ucp_ipy_worker_progress(worker);
-            status = ucp_request_check_status(request);
-        } while (status == UCS_INPROGRESS);
-        ucp_request_release(request);
-        return status;
     }
 }
 
@@ -308,27 +278,27 @@ int ucp_py_query_request(struct ucx_context *request)
     return ret;
 }
 
-void set_listen_addr(struct sockaddr_in *listen_addr, uint16_t server_port)
+void set_listen_addr(struct sockaddr_in *listen_addr, uint16_t listener_port)
 {
-    /* The server will listen on INADDR_ANY */
+    /* The listener will listen on INADDR_ANY */
     memset(listen_addr, 0, sizeof(struct sockaddr_in));
     listen_addr->sin_family      = AF_INET;
     listen_addr->sin_addr.s_addr = INADDR_ANY;
-    listen_addr->sin_port        = server_port;
+    listen_addr->sin_port        = listener_port;
 }
 
 void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
-                      uint16_t server_port)
+                      uint16_t listener_port)
 {
     memset(connect_addr, 0, sizeof(struct sockaddr_in));
     connect_addr->sin_family      = AF_INET;
     connect_addr->sin_addr.s_addr = inet_addr(address_str);
-    connect_addr->sin_port        = server_port;
+    connect_addr->sin_port        = listener_port;
 }
 
-static void server_accept_cb(ucp_ep_h ep, void *arg)
+static void listener_accept_cb(ucp_ep_h ep, void *arg)
 {
-    ucx_server_ctx_t *context = arg;
+    ucx_listener_ctx_t *context = arg;
     struct ucx_context *request = 0;
     ucp_ep_h *ep_ptr = NULL;
 
@@ -356,20 +326,20 @@ static void server_accept_cb(ucp_ep_h ep, void *arg)
     }
 }
 
-static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
-                          ucp_listener_h *listener, uint16_t server_port)
+static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
+                          ucp_listener_h *listener, uint16_t listener_port)
 {
     struct sockaddr_in listen_addr;
     ucp_listener_params_t params;
     ucs_status_t status;
 
-    set_listen_addr(&listen_addr, server_port);
+    set_listen_addr(&listen_addr, listener_port);
 
     params.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
                                 UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
     params.sockaddr.addr      = (const struct sockaddr*)&listen_addr;
     params.sockaddr.addrlen   = sizeof(listen_addr);
-    params.accept_handler.cb  = server_accept_cb;
+    params.accept_handler.cb  = listener_accept_cb;
     params.accept_handler.arg = context;
 
     status = ucp_listener_create(ucp_worker, &params, listener);
@@ -380,7 +350,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_server_ctx_t *context,
     return status;
 }
 
-ucp_ep_h *ucp_py_get_ep(char *ip, int server_port)
+ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
 {
     ucp_ep_params_t ep_params;
     struct sockaddr_in connect_addr;
@@ -389,7 +359,7 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int server_port)
 
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
 
-    set_connect_addr(ip, &connect_addr, (uint16_t) server_port);
+    set_connect_addr(ip, &connect_addr, (uint16_t) listener_port);
 
     /*
      * Endpoint field mask bits:
@@ -502,16 +472,16 @@ int ucp_py_init()
     return -1;
 }
 
-int ucp_py_listen(server_accept_cb_func pyx_cb, void *py_cb, int port)
+int ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
 {
     ucs_status_t status;
 
-    server_context.pyx_cb = pyx_cb;
-    server_context.py_cb = py_cb;
-    is_server = 1;
+    listener_context.pyx_cb = pyx_cb;
+    listener_context.py_cb = py_cb;
+    listens = 1;
 
-    status = start_listener(ucp_worker, &server_context, &listener,
-                            (port == -1 ? server_port : port));
+    status = start_listener(ucp_worker, &listener_context, &listener,
+                            (port == -1 ? listener_port : port));
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
     return 0;
@@ -523,7 +493,7 @@ int ucp_py_listen(server_accept_cb_func pyx_cb, void *py_cb, int port)
 
 int ucp_py_finalize()
 {
-    if (is_server) ucp_listener_destroy(listener);
+    if (listens) ucp_listener_destroy(listener);
     ucp_worker_destroy(ucp_worker);
     ucp_cleanup(ucp_context);
     free(np_free);
