@@ -59,17 +59,22 @@ typedef struct ucx_listener_ctx {
     void *py_cb;
 } ucx_listener_ctx_t;
 
-static uint16_t listener_port = 13337;
-static const ucp_tag_t tag  = 0x1337a880u;
-static const ucp_tag_t tag_mask = -1;
-static int listens = 0;
-static int num_probes_outstanding = 0;
+/* UCP Py wrapper Context */
+typedef struct ucp_py_ctx {
+    ucp_context_h ucp_context;
+    ucx_listener_ctx_t listener_context;
+    ucp_worker_h ucp_worker;
+    ucp_listener_h listener;
+    int listens;
+    int num_probes_outstanding;
+} ucp_py_ctx_t;
 
-/* UCP handler objects */
-ucp_context_h ucp_context;
-ucx_listener_ctx_t listener_context;
-ucp_worker_h ucp_worker;
-ucp_listener_h listener;
+ucp_py_ctx_t *ucp_py_ctx_head;
+
+/* defaults */
+static uint16_t default_listener_port = 13337;
+static const ucp_tag_t default_tag = 0x1337a880u;
+static const ucp_tag_t default_tag_mask = -1;
 
 static void request_init(void *request)
 {
@@ -150,9 +155,9 @@ struct ucx_context *ucp_py_recv_nb(struct data_buf *recv_buf, int length)
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    request = ucp_tag_recv_nb(ucp_worker, recv_buf->buf, length,
-                              ucp_dt_make_contig(1), tag,
-                              tag_mask, recv_handle);
+    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
+                              ucp_dt_make_contig(1), default_tag,
+                              default_tag_mask, recv_handle);
 
     DEBUG_PRINT("returning request %p\n", request);
 
@@ -170,7 +175,7 @@ err_ep:
 
 int ucp_py_ep_post_probe()
 {
-    return num_probes_outstanding++;
+    return ucp_py_ctx_head->num_probes_outstanding++;
 }
 
 int ucp_py_ep_probe()
@@ -185,10 +190,11 @@ int ucp_py_ep_probe()
 
     DEBUG_PRINT("probing..\n");
 
-    msg_tag = ucp_tag_probe_nb(ucp_worker, tag, tag_mask, 0, &info_tag);
+    msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, default_tag,
+                               default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
         /* Message arrived */
-        num_probes_outstanding--;
+        ucp_py_ctx_head->num_probes_outstanding--;
         return info_tag.length;
     }
 
@@ -200,7 +206,7 @@ int ucp_py_probe_wait()
     int probed_length;
 
     do {
-        ucp_ipy_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
         probed_length = ucp_py_ep_probe();
     } while (-1 == probed_length);
 
@@ -211,7 +217,7 @@ int ucp_py_probe_query()
 {
     int probed_length;
 
-    ucp_ipy_worker_progress(ucp_worker);
+    ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
     probed_length = ucp_py_ep_probe();
 
     return probed_length;
@@ -229,7 +235,7 @@ struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_bu
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
     request = ucp_tag_send_nb(*ep_ptr, send_buf->buf, length,
-                              ucp_dt_make_contig(1), tag,
+                              ucp_dt_make_contig(1), default_tag,
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
@@ -251,7 +257,7 @@ err_ep:
 
 void ucp_py_worker_progress()
 {
-    ucp_ipy_worker_progress(ucp_worker);
+    ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 }
 
 int ucp_py_query_request(struct ucx_context *request)
@@ -262,7 +268,7 @@ int ucp_py_query_request(struct ucx_context *request)
     if (NULL == request) return ret;
 
     if (0 == request->completed) {
-        ucp_ipy_worker_progress(ucp_worker);
+        ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
     }
 
     ret = request->completed;
@@ -360,7 +366,7 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
     ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
     ep_params.sockaddr.addrlen = sizeof(connect_addr);
 
-    status = ucp_ep_create(ucp_worker, &ep_params, ep_ptr);
+    status = ucp_ep_create(ucp_py_ctx_head->ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
         DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip,
                     ucs_status_string(status));
@@ -379,7 +385,7 @@ int ucp_py_put_ep(ucp_ep_h *ep_ptr)
 
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
-            ucp_ipy_worker_progress(ucp_worker);
+            ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
             status = ucp_request_check_status(close_req);
         } while (status == UCS_INPROGRESS);
 
@@ -400,6 +406,12 @@ int ucp_py_init()
     ucp_config_t *config;
     ucs_status_t status;
 
+    ucp_py_ctx_head = (ucp_py_ctx_t *) malloc(sizeof(ucp_py_ctx_t));
+    if (NULL == ucp_py_ctx_head) goto err_py_init;
+
+    ucp_py_ctx_head->listens = 0;
+    ucp_py_ctx_head->num_probes_outstanding = 0;
+
     ucp_get_version(&a, &b, &c);
 
     DEBUG_PRINT("client = %s (%d), ucp version (%d, %d, %d)\n",
@@ -416,13 +428,13 @@ int ucp_py_init()
     ucp_params.request_size = sizeof(struct ucx_context);
     ucp_params.request_init = request_init;
 
-    status = ucp_init(&ucp_params, config, &ucp_context);
+    status = ucp_init(&ucp_params, config, &(ucp_py_ctx_head->ucp_context));
     CHKERR_JUMP(UCS_OK != status, "ucp_init failed", err_init);
 
     worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
     worker_params.thread_mode = UCS_THREAD_MODE_MULTI; //UCS_THREAD_MODE_SINGLE;
 
-    status = ucp_worker_create(ucp_context, &worker_params, &ucp_worker);
+    status = ucp_worker_create(ucp_py_ctx_head->ucp_context, &worker_params, &ucp_py_ctx_head->ucp_worker);
     CHKERR_JUMP(UCS_OK != status, "ucp_worker_create failed", err_init);
 
     TAILQ_INIT(&cb_free_head);
@@ -442,8 +454,11 @@ int ucp_py_init()
     return 0;
 
  err_init:
-    ucp_cleanup(ucp_context);
+    ucp_cleanup(ucp_py_ctx_head->ucp_context);
     ucp_config_release(config);
+    return -1;
+
+ err_py_init:
     return -1;
 }
 
@@ -451,26 +466,28 @@ int ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
 {
     ucs_status_t status;
 
-    listener_context.pyx_cb = pyx_cb;
-    listener_context.py_cb = py_cb;
-    listens = 1;
+    ucp_py_ctx_head->listener_context.pyx_cb = pyx_cb;
+    ucp_py_ctx_head->listener_context.py_cb = py_cb;
+    ucp_py_ctx_head->listens = 1;
 
-    status = start_listener(ucp_worker, &listener_context, &listener,
-                            (port == -1 ? listener_port : port));
+    status = start_listener(ucp_py_ctx_head->ucp_worker,
+                            &ucp_py_ctx_head->listener_context,
+                            &ucp_py_ctx_head->listener,
+                            (port == -1 ? default_listener_port : port));
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
     return 0;
 
  err_worker:
-    ucp_cleanup(ucp_context);
+    ucp_cleanup(ucp_py_ctx_head->ucp_context);
     return -1;
 }
 
 int ucp_py_finalize()
 {
-    if (listens) ucp_listener_destroy(listener);
-    ucp_worker_destroy(ucp_worker);
-    ucp_cleanup(ucp_context);
+    if (ucp_py_ctx_head->listens) ucp_listener_destroy(ucp_py_ctx_head->listener);
+    ucp_worker_destroy(ucp_py_ctx_head->ucp_worker);
+    ucp_cleanup(ucp_py_ctx_head->ucp_context);
     free(np_free);
 
     DEBUG_PRINT("UCP resources released\n");
