@@ -4,7 +4,7 @@
  */
 
 /**
- * Note: A large part of the code here is derived from
+ * Note: Some part of the code here is derived from
  * test/examples/ucp_hello_world.c + test/examples/ucp_client_server.c
  * in ucx github master branch
  */
@@ -59,7 +59,6 @@ typedef struct ucx_listener_ctx {
     void *py_cb;
 } ucx_listener_ctx_t;
 
-static ucs_status_t client_status = UCS_OK;
 static uint16_t listener_port = 13337;
 static const ucp_tag_t tag  = 0x1337a880u;
 static const ucp_tag_t tag_mask = -1;
@@ -71,34 +70,6 @@ ucp_context_h ucp_context;
 ucx_listener_ctx_t listener_context;
 ucp_worker_h ucp_worker;
 ucp_listener_h listener;
-ucp_ep_h comm_ep = NULL;
-
-static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
-{
-    unsigned status;
-    void *tmp_py_cb;
-    listener_accept_cb_func tmp_pyx_cb;
-    void *tmp_arg;
-    status = ucp_worker_progress(ucp_worker);
-    while (cb_used_head.tqh_first != NULL) {
-        //handle python callbacks
-        num_cb_used--;
-        np = cb_used_head.tqh_first;
-        tmp_pyx_cb = np->pyx_cb;
-        tmp_arg = np->arg;
-        tmp_py_cb = np->py_cb;
-        TAILQ_REMOVE(&cb_used_head, np, entries);
-        np->pyx_cb = NULL;
-        np->py_cb = NULL;
-        np->arg = NULL;
-        TAILQ_INSERT_TAIL(&cb_free_head, np, entries);
-        num_cb_free++;
-        assert(num_cb_free <= CB_Q_MAX_ENTRIES);
-        assert(cb_free_head.tqh_first != NULL);
-        tmp_pyx_cb(tmp_arg, tmp_py_cb);
-    }
-    return status;
-}
 
 static void request_init(void *request)
 {
@@ -140,11 +111,33 @@ static void recv_handle(void *request, ucs_status_t status,
                 info->length);
 }
 
-static void wait(ucp_worker_h ucp_worker, struct ucx_context *context)
+static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
-    while (context->completed == 0) {
-        ucp_ipy_worker_progress(ucp_worker);
+    unsigned status;
+    void *tmp_py_cb;
+    listener_accept_cb_func tmp_pyx_cb;
+    void *tmp_arg;
+    status = ucp_worker_progress(ucp_worker);
+
+    while (cb_used_head.tqh_first != NULL) {
+        //handle python callbacks
+        num_cb_used--;
+        np = cb_used_head.tqh_first;
+        tmp_pyx_cb = np->pyx_cb;
+        tmp_arg = np->arg;
+        tmp_py_cb = np->py_cb;
+        TAILQ_REMOVE(&cb_used_head, np, entries);
+        np->pyx_cb = NULL;
+        np->py_cb = NULL;
+        np->arg = NULL;
+        TAILQ_INSERT_TAIL(&cb_free_head, np, entries);
+        num_cb_free++;
+        assert(num_cb_free <= CB_Q_MAX_ENTRIES);
+        assert(cb_free_head.tqh_first != NULL);
+        tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
+
+    return status;
 }
 
 struct ucx_context *ucp_py_recv_nb(struct data_buf *recv_buf, int length)
@@ -205,18 +198,22 @@ int ucp_py_ep_probe()
 int ucp_py_probe_wait()
 {
     int probed_length;
+
     do {
         ucp_ipy_worker_progress(ucp_worker);
         probed_length = ucp_py_ep_probe();
     } while (-1 == probed_length);
+
     return probed_length;
 }
 
 int ucp_py_probe_query()
 {
     int probed_length;
+
     ucp_ipy_worker_progress(ucp_worker);
     probed_length = ucp_py_ep_probe();
+
     return probed_length;
 }
 
@@ -226,7 +223,6 @@ struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_bu
     ucs_status_t status;
     ucp_ep_params_t ep_params;
     struct ucx_context *request = 0;
-    int i = 0;
 
     DEBUG_PRINT("EP send : %p\n", ep_ptr);
 
@@ -303,11 +299,8 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     ucp_ep_h *ep_ptr = NULL;
 
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
-
-    /* Save the server's endpoint in the user's context, for future usage */
-    //context->ep = ep;
     *ep_ptr = ep;
-    DEBUG_PRINT(" SAC = %p\n", ep_ptr);
+
     if (num_cb_free > 0) {
         num_cb_free--;
         np = cb_free_head.tqh_first;
@@ -321,7 +314,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
         assert(cb_used_head.tqh_first != NULL);
     }
     else {
-        DEBUG_PRINT(stderr, "out of free cb entries. Trying in place\n");
+        WARN_PRINT("out of free cb entries. Trying in place\n");
         context->pyx_cb(ep_ptr, context->py_cb);
     }
 }
@@ -358,23 +351,7 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
     ucp_ep_h *ep_ptr;
 
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
-
     set_connect_addr(ip, &connect_addr, (uint16_t) listener_port);
-
-    /*
-     * Endpoint field mask bits:
-     * UCP_EP_PARAM_FIELD_FLAGS             - Use the value of the 'flags' field.
-     * UCP_EP_PARAM_FIELD_SOCK_ADDR         - Use a remote sockaddr to connect
-     *                                        to the remote peer.
-     * UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE - Error handling mode - this flag
-     *                                        is temporarily required since the
-     *                                        endpoint will be closed with
-     *                                        UCP_EP_CLOSE_MODE_FORCE which
-     *                                        requires this mode.
-     *                                        Once UCP_EP_CLOSE_MODE_FORCE is
-     *                                        removed, the error handling mode
-     *                                        will be removed.
-     */
     ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
                                  UCP_EP_PARAM_FIELD_SOCK_ADDR |
                                  UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
@@ -385,7 +362,8 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
 
     status = ucp_ep_create(ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
-        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip, ucs_status_string(status));
+        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip,
+                    ucs_status_string(status));
     }
 
     return ep_ptr;
@@ -398,6 +376,7 @@ int ucp_py_put_ep(ucp_ep_h *ep_ptr)
 
     DEBUG_PRINT("try ep close %p\n", ep_ptr);
     close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
+
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
             ucp_ipy_worker_progress(ucp_worker);
@@ -408,22 +387,18 @@ int ucp_py_put_ep(ucp_ep_h *ep_ptr)
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
         DEBUG_PRINT(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
     }
+
     free(ep_ptr);
     DEBUG_PRINT("ep closed\n");
 }
 
 int ucp_py_init()
 {
-    int a, b, c;
+    int a, b, c, i;
     ucp_params_t ucp_params;
     ucp_worker_params_t worker_params;
     ucp_config_t *config;
     ucs_status_t status;
-    int i;
-
-    /* OOB connection vars */
-    uint64_t addr_len = 0;
-    int ret = -1;
 
     ucp_get_version(&a, &b, &c);
 

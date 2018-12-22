@@ -11,6 +11,9 @@ struct data_buf {
 #define DEBUG_PRINT(...) do{} while(0);
 #endif
 
+#define WARN_PRINT(...)  fprintf(stdout, __VA_ARGS__);
+#define ERROR_PRINT(...) fprintf(stderr, __VA_ARGS__);
+
 #define CHKERR_JUMP(_cond, _msg, _label)            \
 do {                                                \
     if (_cond) {                                    \
