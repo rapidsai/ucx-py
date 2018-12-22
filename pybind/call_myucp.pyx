@@ -117,16 +117,20 @@ cdef class ucp_py_ep:
         return recv_future
 
     def recv(self, ucp_msg msg, len):
-        return msg.recv_ft(len)
+        msg.ctx_ptr = ucp_py_recv_nb(msg.buf, len)
+        return msg.get_future(len)
 
     def send(self, ucp_msg msg, len):
-        return msg.send_ft(self, len)
+        msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
+        return msg.get_future(len)
 
     def recv_fast(self, ucp_msg msg, len):
-        return msg.recv_fast(len)
+        msg.ctx_ptr = ucp_py_recv_nb(msg.buf, len)
+        return msg.get_comm_request(len)
 
     def send_fast(self, ucp_msg msg, len):
-        return msg.send_fast(self, len)
+        msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
+        return msg.get_comm_request(len)
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
@@ -186,33 +190,15 @@ cdef class ucp_msg:
     def free_cuda(self):
         self.buf_reg.free_cuda()
 
-    def send_ft(self, ucp_py_ep ep, len):
-        self.ctx_ptr = ucp_py_ep_send_nb(ep.ucp_ep, self.buf, len)
+    def get_future(self, len):
         self.comm_len = len
         self.ctx_ptr_set = 1
-        send_future = CommFuture(self)
-        return send_future
+        return CommFuture(self)
 
-    def recv_ft(self, len):
-        self.ctx_ptr = ucp_py_recv_nb(self.buf, len)
+    def get_comm_request(self, len):
         self.comm_len = len
         self.ctx_ptr_set = 1
-        recv_future = CommFuture(self)
-        return recv_future
-
-    def send_fast(self, ucp_py_ep ep, len):
-        self.ctx_ptr = ucp_py_ep_send_nb(ep.ucp_ep, self.buf, len)
-        self.comm_len = len
-        self.ctx_ptr_set = 1
-        send_request = ucp_comm_request(self)
-        return send_request
-
-    def recv_fast(self, len):
-        self.ctx_ptr = ucp_py_recv_nb(self.buf, len)
-        self.comm_len = len
-        self.ctx_ptr_set = 1
-        recv_request = ucp_comm_request(self)
-        return recv_request
+        return ucp_comm_request(self)
 
     def query(self):
         if 1 == self.ctx_ptr_set:
