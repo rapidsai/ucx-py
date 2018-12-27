@@ -253,6 +253,7 @@ cdef class ucp_comm_request:
                     yield
 
 accept_cb_is_coroutine = False
+sf_instance = None
 
 cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
     global accept_cb_is_coroutine
@@ -269,17 +270,23 @@ def init():
 
 def start_server(py_func, server_port = -1, is_coroutine = False):
     global accept_cb_is_coroutine
+    global sf_instance
     accept_cb_is_coroutine = is_coroutine
     if is_coroutine:
         sf = ServerFuture(py_func)
         async def async_start_server():
             await sf
         if 0 == ucp_py_listen(accept_callback, <void *>py_func, server_port):
+            sf_instance = sf
             return async_start_server()
         else:
             return -1
     else:
         return ucp_py_listen(accept_callback, <void *>py_func, server_port)
+
+def stop_server():
+    if sf_instance is not None:
+        sf_instance.done_state = True
 
 def fin():
     return ucp_py_finalize()
