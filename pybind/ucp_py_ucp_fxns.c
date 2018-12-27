@@ -9,13 +9,11 @@
  * in ucx github master branch
  */
 
-#include "myucp.h"
+#include "ucp_py_ucp_fxns.h"
 #include "buffer_ops.h"
-#include <ucp/api/ucp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -23,21 +21,11 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <assert.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  /* getopt */
-#include <ctype.h>   /* isprint */
 #include <pthread.h> /* pthread_self */
-#include <errno.h>   /* errno */
-#include <time.h>
-#include <signal.h>  /* raise */
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <sys/queue.h>
 
-#define DEBUG 0
 #define CB_Q_MAX_ENTRIES 256
 
 TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;

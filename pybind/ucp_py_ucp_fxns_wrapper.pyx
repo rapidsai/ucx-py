@@ -1,4 +1,7 @@
-cdef extern from "myucp.h":
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
+
+cdef extern from "ucp_py_ucp_fxns.h":
     void ucp_py_worker_progress()
     int ucp_py_init()
     int ucp_py_listen(server_accept_cb_func, void *, int)

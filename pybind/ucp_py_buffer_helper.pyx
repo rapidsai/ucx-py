@@ -1,3 +1,6 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
+
 cdef extern from "buffer_ops.h":
     int set_device(int)
     data_buf* allocate_host_buffer(int)
