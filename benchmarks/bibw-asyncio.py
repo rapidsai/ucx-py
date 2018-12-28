@@ -73,6 +73,7 @@ async def talk_to_client(client_ep):
         recv_buffer_region.free_host()
 
     ucp.destroy_ep(client_ep)
+    ucp.stop_server()
 
 async def talk_to_server(ip, port):
 

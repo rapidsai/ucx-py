@@ -29,6 +29,7 @@ async def talk_to_client(client_ep):
     ucp.destroy_ep(client_ep)
 
     print("passed talk_to_client")
+    ucp.stop_server()
 
 async def talk_to_server(ip, port):
 

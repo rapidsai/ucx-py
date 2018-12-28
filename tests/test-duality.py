@@ -27,9 +27,12 @@ async def talk_to_client(client_ep):
 
     buffer_region.free_cuda()
     ucp.destroy_ep(client_ep)
+    print("done with talk_to_client")
+    ucp.stop_server()
 
 async def talk_to_server(ip, port):
 
+    print("in talk_to_server")
     msg_log = max_msg_log
 
     server_ep = ucp.get_endpoint(ip, port)
@@ -45,6 +48,7 @@ async def talk_to_server(ip, port):
 
     buffer_region.free_cuda()
     ucp.destroy_ep(server_ep)
+    print("done with talk_to_server")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
@@ -74,9 +78,10 @@ loop.run_until_complete(
     asyncio.gather(coro_server, coro_client)
 )
 
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    pass
+#try:
+#    loop.run_forever()
+#except KeyboardInterrupt:
+#    pass
 
 loop.close()
+ucp.fin()

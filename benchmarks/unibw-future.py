@@ -70,6 +70,7 @@ def talk_to_client(client_ep):
 
     ucp.destroy_ep(client_ep)
     cb_not_done = False
+    ucp.stop_server()
 
 def talk_to_server(ip, port):
 

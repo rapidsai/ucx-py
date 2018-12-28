@@ -33,6 +33,7 @@ async def talk_to_client(client_ep):
 
     buffer_region.free_cuda()
     ucp.destroy_ep(client_ep)
+    ucp.stop_server()
 
 async def talk_to_server(ip, port):
 
