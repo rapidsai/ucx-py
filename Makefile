@@ -8,8 +8,8 @@ pybind/%.o: pybind/%.c
 
 install: pybind/libucp_py_ucp_fxns.a
 	cd pybind && \
-	python setup.py build_ext && \
-	python -m pip install -e .
+	python3 setup.py build_ext && \
+	python3 -m pip install -e .
 
 clean:
 	rm pybind/*.o pybind/*.a
