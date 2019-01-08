@@ -12,7 +12,7 @@ from setuptools import setup
 from setuptools.extension import Extension
 from Cython.Build import cythonize
 
-UCX_DIR = os.environ.get("UCX_PY_UCX_PATH", "/usr/local/ucx/")
+UCX_DIR = os.environ.get("UCX_PY_UCX_PATH", "/usr/local/")
 CUDA_DIR = os.environ.get("UCX_PY_CUDA_PATH", "/usr/local/cuda")
 
 
