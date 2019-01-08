@@ -1,12 +1,15 @@
 CC = gcc
 
-pybind/libmyucp.a: pybind/myucp.o
+pybind/libucp_py_ucp_fxns.a: pybind/ucp_py_ucp_fxns.o pybind/buffer_ops.o
 	ar rcs $@ $^
 
-pybind/myucp.o: pybind/myucp.c
-	$(CC) -shared -fPIC -c pybind/myucp.c -o pybind/myucp.o
+pybind/%.o: pybind/%.c
+	$(CC) -shared -fPIC -c $^ -o $@
 
-install: pybind/libmyucp.a
+install: pybind/libucp_py_ucp_fxns.a
 	cd pybind && \
 	python setup.py build_ext && \
 	python -m pip install -e .
+
+clean:
+	rm pybind/*.o pybind/*.a
