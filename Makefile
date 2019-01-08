@@ -13,3 +13,5 @@ install: pybind/libucp_py_ucp_fxns.a
 
 clean:
 	rm pybind/*.o pybind/*.a
+	rm -rf pybind/build pybind/ucx_py.egg-info
+	rm pybind/ucp_py.c
