@@ -1,6 +1,11 @@
 *.*~
 pybind/build
-pybind/call_myucp.c
-pybind/call_myucp.*.so
+pybind/ucp_py.c
+pybind/ucp_py.*.so
 pybind/*.a
 pybind/*.o
+
+dask-worker-space
+__pytestcache__
+__pycache__
+*.egg-info/
