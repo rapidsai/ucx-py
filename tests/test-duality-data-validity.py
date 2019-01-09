@@ -89,9 +89,5 @@ loop.run_until_complete(
     asyncio.gather(coro_server, coro_client)
 )
 
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    pass
-
 loop.close()
+ucp.fin()

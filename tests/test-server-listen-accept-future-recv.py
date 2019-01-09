@@ -77,9 +77,5 @@ else:
 
 loop.run_until_complete(coro)
 
-try:
-    loop.run_forever()
-except KeyboardInterrupt:
-    pass
-
 loop.close()
+ucp.fin()
