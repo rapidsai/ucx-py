@@ -1,38 +1,49 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+# This file is a copy of what is available in a Cython demo + some additions
+
 from __future__ import absolute_import, print_function
 
 import os
 import sys
 
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup
+from setuptools.extension import Extension
 from Cython.Build import cythonize
 
+UCX_DIR = os.environ.get("UCX_PY_UCX_PATH", "/usr/local/")
+CUDA_DIR = os.environ.get("UCX_PY_CUDA_PATH", "/usr/local/cuda")
 
-# For demo purposes, we build our own tiny library.
-try:
-    print("building libmyucp.a")
-    print("getcwd: " + str(os.getcwd()))
-    assert os.system("gcc -shared -fPIC -c myucp.c -o myucp.o") == 0
-    assert os.system("ar rcs libmyucp.a myucp.o") == 0
-except:
-    if not os.path.exists("libmyucp.a"):
-        print("Error building external library, please create libmyucp.a manually.")
-        sys.exit(1)
 
-# Here is how to use the library built above.
+msg = "The path '{}' does not exist. Set the {} environment variable."
+
+if not os.path.exists(UCX_DIR):
+    print(msg.format(UCX_DIR, "UCX_PY_UCX_PATH"), file=sys.stderr)
+    sys.exit(1)
+
+
+if not os.path.exists(CUDA_DIR):
+    print(msg.format(CUDA_DIR, "UCX_PY_CUDA_PATH"), file=sys.stderr)
+    sys.exit(1)
+
+
+if not os.path.exists("libucp_py_ucp_fxns.a"):
+    assert os.system("gcc -shared -fPIC -c ucp_py_ucp_fxns.c -o ucp_py_ucp_fxns.o") == 0
+    assert os.system("gcc -shared -fPIC -c buffer_ops.c -o buffer_ops.o") == 0
+    assert os.system("ar rcs libucp_py_ucp_fxns.a ucp_py_ucp_fxns.o buffer_ops.o") == 0
+
+
 ext_modules = cythonize([
-    Extension("call_myucp",
-              sources=["call_myucp.pyx"],
-              include_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/include', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/include'],  # path to .h file(s)
-              library_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],  # path to .a or .so file(s)
-              runtime_library_dirs=[os.getcwd(), '/home/akvenkatesh/ucx/build/lib', '/cm/extra/apps/CUDA.linux86-64/9.2.88.1_396.26/lib64'],
-              libraries=['myucp', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart'])
+    Extension("ucp_py",
+              sources=["ucp_py.pyx"],
+              include_dirs=[os.getcwd(), UCX_DIR + '/include', CUDA_DIR + '/include'],
+              library_dirs=[os.getcwd(), UCX_DIR + '/lib', CUDA_DIR + '/lib64'],
+              runtime_library_dirs=[os.getcwd(), UCX_DIR + '/lib', CUDA_DIR + '/lib64'],
+              libraries=['ucp_py_ucp_fxns', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart']),
 ])
 
 setup(
-    name='Demos',
-    ext_modules=ext_modules,
+    name='ucx_py',
+    ext_modules=ext_modules
 )
