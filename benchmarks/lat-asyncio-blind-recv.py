@@ -36,13 +36,13 @@ async def talk_to_client(client_ep):
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
             send_req = await client_ep.send(send_msg, msg_len)
-            recv_req = client_ep.recv_ft()
+            recv_req = client_ep.recv_future()
             await recv_req
 
         start = time.time()
         for j in range(iters):
             send_req = await client_ep.send(send_msg, msg_len)
-            recv_req = client_ep.recv_ft()
+            recv_req = client_ep.recv_future()
             await recv_req
         end = time.time()
         lat = end - start
@@ -80,13 +80,13 @@ async def talk_to_server(ip, port):
 
         warmup_iters = int((0.1 * iters))
         for j in range(warmup_iters):
-            recv_req = server_ep.recv_ft()
+            recv_req = server_ep.recv_future()
             await recv_req
             send_req = await server_ep.send(send_msg, msg_len)
 
         start = time.time()
         for j in range(iters):
-            recv_req = server_ep.recv_ft()
+            recv_req = server_ep.recv_future()
             await recv_req
             send_req = await server_ep.send(send_msg, msg_len)
         end = time.time()
