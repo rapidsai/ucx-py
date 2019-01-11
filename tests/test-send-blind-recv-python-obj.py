@@ -5,7 +5,6 @@ import ucp_py as ucp
 import time
 import argparse
 import asyncio
-import socket
 import sys
 import concurrent.futures
 
@@ -18,7 +17,7 @@ async def talk_to_client(client_ep):
     print("in talk_to_client")
 
     print("about to send")
-    send_msg = "hello from ucx server @" + socket.gethostname()
+    send_msg = str(list(range(10)))
     send_req = await client_ep.send_msg(send_msg, sys.getsizeof(send_msg))
 
     print("about to recv")
@@ -27,8 +26,11 @@ async def talk_to_client(client_ep):
     #ucp.get_obj_from_msg(recv_req)
     recv_msg = ucp.get_obj_from_msg(recv_req)
 
-    print("server sent: " + send_msg)
-    print("server received: " + recv_msg)
+    print("server sent: " + str(send_msg))
+    print("server received: " + str(recv_msg))  # test fails if I send
+                                                # list directly
+                                                # instead of as a
+                                                # string
 
     ucp.destroy_ep(client_ep)
     print('talk_to_client done')
@@ -47,11 +49,14 @@ async def talk_to_server(ip, port):
     recv_msg = ucp.get_obj_from_msg(recv_req)
 
     print("about to send")
-    send_msg = "hello from ucx client @" + socket.gethostname()
+    send_msg = str(list(range(10, 20)))
     send_req = await server_ep.send_msg(send_msg, sys.getsizeof(send_msg))
 
-    print("client sent: " + send_msg)
-    print("client received: " + recv_msg)
+    print("client sent: " + str(send_msg))
+    print("client received: " + str(recv_msg))  # test fails if I send
+                                                # list directly
+                                                # instead of as a
+                                                # string
 
     ucp.destroy_ep(server_ep)
     print('talk_to_server done')
