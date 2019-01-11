@@ -4,6 +4,7 @@
 cdef extern from "buffer_ops.h":
     int set_device(int)
     data_buf* populate_buffer_region(void *)
+    void* return_ptr_from_buf(data_buf*)
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
     int free_host_buffer(data_buf*)
@@ -36,3 +37,6 @@ cdef class buffer_region:
 
     def populate_ptr(self, pyobj):
         self.buf = populate_buffer_region(<void *> pyobj)
+
+    def return_obj(self):
+        return <object> return_ptr_from_buf(self.buf)
