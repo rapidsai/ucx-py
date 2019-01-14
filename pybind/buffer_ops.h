@@ -5,6 +5,8 @@
 #include "common.h"
 
 int set_device(int device);
+struct data_buf *populate_buffer_region(void *src);
+void *return_ptr_from_buf(struct data_buf *db);
 struct data_buf *allocate_host_buffer(int length);
 struct data_buf *allocate_cuda_buffer(int length);
 int set_host_buffer(struct data_buf *db, int c, int length);

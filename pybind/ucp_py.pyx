@@ -53,7 +53,7 @@ class CommFuture(concurrent.futures.Future):
         return self.result_state
 
     def __del__(self):
-        self.ucp_msg.free_mem()
+        pass #self.ucp_msg.free_mem()
 
     def __await__(self):
         if True == self.done_state:
@@ -131,6 +131,22 @@ cdef class ucp_py_ep:
     def send_fast(self, ucp_msg msg, len):
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
+
+    def recv_msg(self, msg, len):
+        buf_reg = buffer_region()
+        buf_reg.populate_ptr(msg)
+        buf_reg.is_cuda = 0 # for now but it does not matter
+        internal_msg = ucp_msg(buf_reg)
+        internal_msg.ctx_ptr = ucp_py_recv_nb(internal_msg.buf, len)
+        return internal_msg.get_comm_request(len)
+
+    def send_msg(self, msg, len):
+        buf_reg = buffer_region()
+        buf_reg.populate_ptr(msg)
+        buf_reg.is_cuda = 0 # for now but it does not matter
+        internal_msg = ucp_msg(buf_reg)
+        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
+        return internal_msg.get_comm_request(len)
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
@@ -221,7 +237,10 @@ cdef class ucp_msg:
                 self.free_host()
 
     def get_comm_len(self):
-            return self.comm_len
+        return self.comm_len
+
+    def get_obj(self):
+        return self.buf_reg.return_obj()
 
 cdef class ucp_comm_request:
     cdef ucp_msg msg
@@ -304,3 +323,6 @@ def destroy_ep(ucp_ep):
 
 def set_cuda_dev(dev):
     return set_device(dev)
+
+def get_obj_from_msg(ucp_msg):
+    return ucp_msg.get_obj()

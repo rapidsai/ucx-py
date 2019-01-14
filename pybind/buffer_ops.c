@@ -9,6 +9,20 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+struct data_buf *populate_buffer_region(void *src)
+{
+    struct data_buf *db = NULL;
+    db = (struct data_buf *) malloc(sizeof(struct data_buf));
+    db->buf = src;
+    DEBUG_PRINT("allocated %p\n", db->buf);
+    return db;
+}
+
+void *return_ptr_from_buf(struct data_buf *db)
+{
+    return (void *) db->buf;
+}
+
 struct data_buf *allocate_host_buffer(int length)
 {
     struct data_buf *db = NULL;
