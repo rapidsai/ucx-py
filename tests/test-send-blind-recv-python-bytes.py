@@ -1,6 +1,27 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+#
+# $ # server @ a.b.c.d
+# $ python3 tests/test-send-blind-recv-python-bytes.py
+# in talk_to_client
+# about to send
+# about to recv
+# <class 'str'>
+# server sent: b'[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]'
+# server received: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+# talk_to_client done
+
+#
+# $ # client @ p.q.r.s
+# $ python3 tests/test-send-blind-recv-python-bytes.py -s a.b.c.d -p 13337
+# <class 'str'>
+# about to send
+# client sent: b'[10, 11, 12, 13, 14, 15, 16, 17, 18, 19]'
+# client received: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# talk_to_server done
+#
+
 import ucp_py as ucp
 import time
 import argparse
@@ -17,13 +38,13 @@ async def talk_to_client(client_ep):
     print("in talk_to_client")
 
     print("about to send")
-    send_msg = str(list(range(10)))
+    send_msg = bytes(str(list(range(10))), 'utf-8')
     send_req = await client_ep.send_msg(send_msg, sys.getsizeof(send_msg))
 
     print("about to recv")
 
     recv_req = await client_ep.recv_future()
-    recv_msg = ucp.get_obj_from_msg(recv_req)
+    recv_msg = bytes.decode(ucp.get_obj_from_msg(recv_req))
     print(type(recv_msg))
 
     print("server sent: " + str(send_msg))
@@ -45,11 +66,11 @@ async def talk_to_server(ip, port):
     print("about to recv")
 
     recv_req = await server_ep.recv_future()
-    recv_msg = ucp.get_obj_from_msg(recv_req)
+    recv_msg = bytes.decode(ucp.get_obj_from_msg(recv_req))
     print(type(recv_msg))
 
     print("about to send")
-    send_msg = str(list(range(10, 20)))
+    send_msg = bytes(str(list(range(10, 20))), 'utf-8')
     send_req = await server_ep.send_msg(send_msg, sys.getsizeof(send_msg))
 
     print("client sent: " + str(send_msg))
