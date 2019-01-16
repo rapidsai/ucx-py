@@ -57,12 +57,17 @@ process to call:
 
 The envisioned transfer model is to call:
  + send/recv on endpoints
-   - `ep.send_msg`, `ep.recv_msg` which return `CommFuture` objects on
+   - `ep.send`, `ep.recv` which return `CommFuture` objects on
      which `.done` or `.result` calls can be made
    - `ep.send_fast`, `ep.recv_fast` which return `ucp_comm_request`
      objects on which *only* `.done` or `.result` calls can be made
-   - `ep.send_msg`, `ep.recv_msg` which return `ucp_comm_request`
-     object and the received python object respectively
+   - `ep.send_msg`, `ep.recv_msg` perform the same action but take
+     python objects as arguments and provide ways to return python
+     objects
+   - the expectation with the above calls is that a send operation
+     needs data and length, while these are optional for receive
+     operations (when not provided, the receives internally allocate
+     memory)
  + optionally make explicit progress on outstanding transfers
    - call `.progress()`
 
@@ -70,6 +75,51 @@ The above calls are exposed through classes/functions in
 [ucp_py.pyx](./ucp_py.pyx). The corresponding C backend are written in
 [ucp_py_ucp_fxns.c](./ucp_py_ucp_fxns.c) and
 [ucp_py_ucp_fxns.h](./ucp_py_ucp_fxns.h)
+
+#### Functions exposed
+ + `.init()`
+   - Initiate ucp context and create a ucp worker (or progress engine
+     context)
+   - ucp context detects and sets up communication resources
+   - worker helps with connection establishment, drives transfer
+     operations, executes callbacks
+ + `.start_server(py_func, server_port = -1, is_coroutine = False)`
+   - setup a process to listen for connections @ `server_port`
+   - pass a python function `py_func` to be called when an incoming
+     connection gets accepted
+   - `py_func` can be a coroutine but must be indicated
+     * TODO: Find out how to automatically detect if a function is a
+       coroutine
+ + `.stop_server()`
+   - stop listening for incoming connections
+     * TODO: find if outstandidng operations on existing endpoints are
+       completed if listener is destroyed during an ongoing transfer
+       or transfers are pending
+ + `.fin()`
+   - destroy ucp context and worker
+ + `.get_endpoint(server_ip, server_port)`
+   - client connects to a server which is already listening
+     * TODO: provide a `max_timeout` parameter that attempts to
+       connect for a maximum of `max_timeout` seconds
+ + `.destroy_ep(ucp_ep)`
+   - close an endpoint
+     * TODO: find if outstandidng operations are completed if endpoint
+       is destroyed during an ongoing transfer or transfers are
+       pending
+ + `.progress()`
+   - calls underlying ucp_worker_progress call
+   - attempts progress and doesn't ensure progress
+ + `.get_obj_from_msg(ucp_msg)`
+   - some flavors of receive operation return ucp_msg objects
+   - this call returns a python object from the ucp_msg object which
+     can be used directly by the python program
+
+#### Classes used
+ + CommFuture
+ + ServerFuture
+ + ucp_py_ep
+ + ucp_msg
+ + ucp_comm_request
 
 ### Buffer Management
 
