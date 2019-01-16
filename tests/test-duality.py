@@ -1,5 +1,18 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
+#
+# Description: Check if a process can function as both a listening
+# server and as a client that connects to a server
+#
+# Steps:
+# 1. Process starts as a server, activates listener
+#    a. Obtains the coroutine that accepts incoming connection
+#       -> coro_server
+# 2. sleeps for 10s (waiting for the other server to come up)
+# 3. Obtains the coroutine that connects to other server
+#    -> coro_client
+# 4. The process runs both (coro_server, coro_client) to completion
+
 
 import ucp_py as ucp
 import time

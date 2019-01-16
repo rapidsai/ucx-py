@@ -1,5 +1,21 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
+#
+# Description: 2-process test that tests the functionality of sending
+# and receiving ucp_msg objects populated using buffer_region
+# objects. buffer_region objects encapsulate the actual buffers which
+# are transferred.
+#
+# Server Steps:
+# 1. activate listener
+# 2. Obtains the coroutine that accepts incoming connection -> coro
+# 3. When connection is established, first send a `ucp_msg` object and
+#    then receive
+#
+# Client Steps:
+# 1. Obtains the coroutine that connects to server -> coro
+# 2. When connection is established, first recv and then send `ucp_msg`
+#    object to and from server respectively
 
 import ucp_py as ucp
 import time
