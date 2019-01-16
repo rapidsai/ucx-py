@@ -437,7 +437,6 @@ int ucp_py_init()
     num_cb_free = CB_Q_MAX_ENTRIES;
     num_cb_used = 0;
 
- err_worker:
     ucp_config_release(config);
     return 0;
 

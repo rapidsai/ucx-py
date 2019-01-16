@@ -55,7 +55,7 @@ async def talk_to_client(client_ep):
 
     ucp.destroy_ep(client_ep)
     print('talk_to_client done')
-    ucp.stop_server()
+    ucp.stop_listener()
 
 async def talk_to_server(ip, port):
 
@@ -100,7 +100,7 @@ ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
 if server:
-    coro = ucp.start_server(talk_to_client, is_coroutine = True)
+    coro = ucp.start_listener(talk_to_client, is_coroutine = True)
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 

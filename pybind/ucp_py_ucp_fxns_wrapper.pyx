@@ -4,7 +4,7 @@
 cdef extern from "ucp_py_ucp_fxns.h":
     void ucp_py_worker_progress()
     int ucp_py_init()
-    int ucp_py_listen(server_accept_cb_func, void *, int)
+    int ucp_py_listen(listener_accept_cb_func, void *, int)
     int ucp_py_finalize()
     ucp_ep_h* ucp_py_get_ep(char *, int)
     int ucp_py_put_ep(ucp_ep_h *)

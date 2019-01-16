@@ -7,7 +7,7 @@ import time
 from weakref import WeakValueDictionary
 
 cdef extern from "ucp_py_ucp_fxns.h":
-    ctypedef void (*server_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data)
+    ctypedef void (*listener_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
@@ -23,6 +23,7 @@ include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
 
 class CommFuture(concurrent.futures.Future):
+    """A class to represent Communication requests as Futures"""
 
     _instances = WeakValueDictionary()
 
@@ -65,7 +66,10 @@ class CommFuture(concurrent.futures.Future):
                 else:
                     yield
 
-class ServerFuture(concurrent.futures.Future):
+class ListenerFuture(concurrent.futures.Future):
+    """A class to keep listener alive and invoke callbacks on incoming
+    connections
+    """
 
     _instances = WeakValueDictionary()
 
@@ -74,7 +78,7 @@ class ServerFuture(concurrent.futures.Future):
         self.result_state = None
         self.cb = cb
         self._instances[id(self)] = self
-        super(ServerFuture, self).__init__()
+        super(ListenerFuture, self).__init__()
 
     def done(self):
         if False == self.done_state:
@@ -100,6 +104,9 @@ class ServerFuture(concurrent.futures.Future):
                     yield
 
 cdef class ucp_py_ep:
+    """A class that represents an endpoint connected to a peer
+    """
+
     cdef ucp_ep_h* ucp_ep
     cdef int ptr_set
 
@@ -152,6 +159,10 @@ cdef class ucp_py_ep:
         return ucp_py_put_ep(self.ucp_ep)
 
 cdef class ucp_msg:
+    """A class that represents the message associated with a
+    communication request
+    """
+
     cdef ucx_context* ctx_ptr
     cdef int ctx_ptr_set
     cdef data_buf* buf
@@ -243,6 +254,8 @@ cdef class ucp_msg:
         return self.buf_reg.return_obj()
 
 cdef class ucp_comm_request:
+    """A class that represents a communication request"""
+
     cdef ucp_msg msg
     cdef int done_state
 
@@ -285,44 +298,147 @@ cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
         current_loop.create_task((<object>f)(client_ep))
 
 def init():
+    """Initiates ucp resources like ucp_context and ucp_worker
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    0 if initialization was successful
+    """
+
     return ucp_py_init()
 
-def start_server(py_func, server_port = -1, is_coroutine = False):
+def start_listener(py_func, listener_port = -1, is_coroutine = False):
+    """Start listener to accept incoming connections
+
+    Parameters
+    ----------
+    py_func:
+        a callback function that gets invoked when an incoming
+        connection is accepted
+    listener_port: int, optional
+        an unused port number for listening
+        13337 by default
+    is_coroutine: bool
+        if `py_func` is a coroutine then True
+        False by default
+
+    Returns
+    -------
+    0 if listener successfully started
+    """
+
     global accept_cb_is_coroutine
     global sf_instance
     accept_cb_is_coroutine = is_coroutine
     if is_coroutine:
-        sf = ServerFuture(py_func)
-        async def async_start_server():
+        sf = ListenerFuture(py_func)
+        async def async_start_listener():
             await sf
-        if 0 == ucp_py_listen(accept_callback, <void *>py_func, server_port):
+        if 0 == ucp_py_listen(accept_callback, <void *>py_func, listener_port):
             sf_instance = sf
-            return async_start_server()
+            return async_start_listener()
         else:
             return -1
     else:
-        return ucp_py_listen(accept_callback, <void *>py_func, server_port)
+        return ucp_py_listen(accept_callback, <void *>py_func, listener_port)
 
-def stop_server():
+def stop_listener():
+    """Stop listening for incoming connections
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
     if sf_instance is not None:
         sf_instance.done_state = True
 
 def fin():
+    """Release ucp resources like ucp_context and ucp_worker
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    0 if resources freed successfully
+    """
+
     return ucp_py_finalize()
 
-def get_endpoint(server_ip, server_port):
+def get_endpoint(peer_ip, peer_port):
+    """Connect to a peer running at `peer_ip` and `peer_port`
+
+    Parameters
+    ----------
+    peer_ip: str
+        IP of the IB interface at the peer site
+    peer_port: int
+        port at peer side where a listener is running
+
+    Returns
+    -------
+    An endpoint object of class `ucp_py_ep` on which methods like
+    `send_msg` and `recv_msg` may be called
+    """
+
     ep = ucp_py_ep()
-    ep.connect(server_ip, server_port)
+    ep.connect(peer_ip, peer_port)
     return ep
 
 def progress():
+    """Make explicit ucp_worker progress attempt
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    """
+
     ucp_py_worker_progress()
 
 def destroy_ep(ucp_ep):
+    """Destroy an existing endpoint connection to a peer
+
+    Parameters
+    ----------
+    ucp_ep: ucp_py_ep
+        endpoint to peer
+
+    Returns
+    -------
+    0 if successful
+    """
+
     return ucp_ep.close()
 
 def set_cuda_dev(dev):
     return set_device(dev)
 
-def get_obj_from_msg(ucp_msg):
-    return ucp_msg.get_obj()
+def get_obj_from_msg(msg):
+    """Get object associated with a received ucp_msg
+
+    Parameters
+    ----------
+    msg: ucp_msg
+        msg received from `recv_msg` or `recv_future` methods of
+        ucp_py_ep
+
+    Returns
+    -------
+    python object representing the received buffers
+    """
+
+    return msg.get_obj()
