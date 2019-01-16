@@ -116,10 +116,25 @@ The above calls are exposed through classes/functions in
 
 #### Classes used
  + CommFuture
+   - returned in some form as part of `ep.send*`/`ep.recv*` calls
+   - `.done` `.result` to check/get result of transfer
+   - result is a `ucp_msg` object which can used to return a python
+     object under certain conditions
+   - if `CommFuture` is called with await, then request status is
+     checked and control is yielded if request isn't complete
  + ServerFuture
+   - class used primarily to ensure that multiple connections from
+     clients can be accepted
+   - not visible to the user of python bindings
  + ucp_py_ep
- + ucp_msg
+   - the objects of this class is accessible either from listener
+     callback or from calling `.get_endpoint`
+   - exposes different flavors send/recv methods
  + ucp_comm_request
+   - class used to track outstanding send/recv transfers
+ + ucp_msg
+   - class used to track messages associated with outstanding
+     send/recv transfers
 
 ### Buffer Management
 
