@@ -118,28 +118,64 @@ cdef class ucp_py_ep:
         return
 
     def recv_future(self):
+        """Blind receive operation"""
+
         recv_msg = ucp_msg(None)
         recv_future = CommFuture(recv_msg)
         ucp_py_ep_post_probe()
         return recv_future
 
     def recv(self, ucp_msg msg, len):
+        """Receive operation of length `len`
+
+        Returns
+        -------
+        CommFuture object
+        """
+
         msg.ctx_ptr = ucp_py_recv_nb(msg.buf, len)
         return msg.get_future(len)
 
     def send(self, ucp_msg msg, len):
+        """Send msg generated using buffer region class
+
+        Returns
+        -------
+        CommFuture object
+        """
+
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_future(len)
 
     def recv_fast(self, ucp_msg msg, len):
+        """Receive msg allocated using buffer region class
+
+        Returns
+        -------
+        ucp_comm_request object
+        """
         msg.ctx_ptr = ucp_py_recv_nb(msg.buf, len)
         return msg.get_comm_request(len)
 
     def send_fast(self, ucp_msg msg, len):
+        """Send msg generated using buffer region class
+
+        Returns
+        -------
+        ucp_comm_request object
+        """
+
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_msg(self, msg, len):
+    def recv_obj(self, msg, len):
+        """Send msg is a contiguous python object
+
+        Returns
+        -------
+        python object that was sent
+        """
+
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
@@ -147,7 +183,14 @@ cdef class ucp_py_ep:
         internal_msg.ctx_ptr = ucp_py_recv_nb(internal_msg.buf, len)
         return internal_msg.get_comm_request(len)
 
-    def send_msg(self, msg, len):
+    def send_obj(self, msg, len):
+        """Send msg is a contiguous python object
+
+        Returns
+        -------
+        ucp_comm_request object
+        """
+
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
