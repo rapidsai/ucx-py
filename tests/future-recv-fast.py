@@ -23,8 +23,6 @@ import argparse
 import asyncio
 import concurrent.futures
 
-accept_cb_started = False
-new_client_ep = None
 max_msg_log = 23
 blind_recv = False
 use_fast = False
