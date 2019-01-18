@@ -21,16 +21,18 @@ import asyncio
 import concurrent.futures
 
 max_msg_log = 23
-check_data = False
-blind_recv = False
 
 async def talk_to_client(ep):
 
-    global check_data
-    global blind_recv
     global max_msg_log
+    global args
 
-    print("in talk_to_client")
+    start_string = "in talk_to_client"
+    if args.blind_recv:
+        start_string += " + blind recv"
+    if args.check_data:
+        start_string += " + data validity check"
+    print(start_string)
     msg_log = max_msg_log
 
     send_buffer_region = ucp.buffer_region()
@@ -42,30 +44,30 @@ async def talk_to_client(ep):
     recv_buffer_region = None
     recv_req = None
 
-    if not blind_recv:
+    if not args.blind_recv:
         recv_buffer_region = ucp.buffer_region()
         recv_buffer_region.alloc_cuda(1 << msg_log)
         recv_msg = ucp.ucp_msg(recv_buffer_region)
 
-    if check_data:
+    if args.check_data:
         send_msg.set_mem(0, 1 << msg_log)
-        if not blind_recv:
+        if not args.blind_recv:
             recv_msg.set_mem(0, 1 << msg_log)
 
     send_req = await ep.send(send_msg, 1 << msg_log)
 
-    if not blind_recv:
+    if not args.blind_recv:
         recv_req = await ep.recv(recv_msg, 1 << msg_log)
     else:
         recv_req = await ep.recv_future()
 
-    if check_data:
+    if args.check_data:
         errs = 0
         errs = recv_req.check_mem(1, 1 << msg_log)
         print("num errs: " + str(errs))
 
     send_buffer_region.free_cuda()
-    if not blind_recv:
+    if not args.blind_recv:
         recv_buffer_region.free_cuda()
 
     ucp.destroy_ep(ep)
@@ -74,11 +76,16 @@ async def talk_to_client(ep):
 
 async def talk_to_server(ip, port):
 
-    global check_data
-    global blind_recv
     global max_msg_log
+    global args
 
-    print("in talk_to_server")
+    start_string = "in talk_to_server"
+    if args.blind_recv:
+        start_string += " + blind recv"
+    if args.check_data:
+        start_string += " + data validity check"
+    print(start_string)
+
     msg_log = max_msg_log
 
     ep = ucp.get_endpoint(ip, port)
@@ -92,30 +99,30 @@ async def talk_to_server(ip, port):
     recv_buffer_region = None
     recv_req = None
 
-    if not blind_recv:
+    if not args.blind_recv:
         recv_buffer_region = ucp.buffer_region()
         recv_buffer_region.alloc_cuda(1 << msg_log)
         recv_msg = ucp.ucp_msg(recv_buffer_region)
 
-    if check_data:
+    if args.check_data:
         send_msg.set_mem(1, 1 << msg_log)
-        if not blind_recv:
+        if not args.blind_recv:
             recv_msg.set_mem(1, 1 << msg_log)
 
-    if not blind_recv:
+    if not args.blind_recv:
         recv_req = await ep.recv(recv_msg, 1 << msg_log)
     else:
         recv_req = await ep.recv_future()
 
     send_req = await ep.send(send_msg, 1 << msg_log)
 
-    if check_data:
+    if args.check_data:
         errs = 0
         errs = recv_req.check_mem(0, 1 << msg_log)
         print("num errs: " + str(errs))
 
     send_buffer_region.free_cuda()
-    if not blind_recv:
+    if not args.blind_recv:
         recv_buffer_region.free_cuda()
 
     ucp.destroy_ep(ep)
@@ -125,8 +132,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
 parser.add_argument('-p','--port', help='enter server port number', required=False)
 parser.add_argument('-m','--my_port', help='enter own port number', required=False)
-parser.add_argument('-c','--check_data', help='Check if data is valid. Default = False', required=False)
-parser.add_argument('-b','--blind_recv', help='Use blind recv. Default = False', required=False)
+parser.add_argument('-c','--check_data', help='Check if data is valid. Default = False', action="store_true")
+parser.add_argument('-b','--blind_recv', help='Use blind recv. Default = False', action="store_true")
 args = parser.parse_args()
 
 ## initiate ucp
@@ -137,22 +144,6 @@ if args.server is None:
 else:
     server = False
     init_str = args.server
-
-if args.blind_recv is not None:
-    if 'false' == args.blind_recv or 'False' == args.blind_recv:
-        blind_recv = False
-    elif 'true' == args.blind_recv or 'True' == args.blind_recv:
-        blind_recv = True
-    else:
-        blind_recv = False
-
-if args.check_data is not None:
-    if 'false' == args.check_data or 'False' == args.check_data:
-        check_data = False
-    elif 'true' == args.check_data or 'True' == args.check_data:
-        check_data = True
-    else:
-        check_data = False
 
 ucp.init()
 loop = asyncio.get_event_loop()
