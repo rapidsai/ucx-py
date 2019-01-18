@@ -26,52 +26,104 @@ import concurrent.futures
 accept_cb_started = False
 new_client_ep = None
 max_msg_log = 23
+blind_recv = False
+use_fast = False
 
-async def talk_to_client(client_ep):
+async def talk_to_client(ep):
+
+    global blind_recv
+    global use_fast
+    global max_msg_log
 
     print("in talk_to_client")
     msg_log = max_msg_log
 
-    buffer_region = ucp.buffer_region()
-    buffer_region.alloc_cuda(1 << msg_log)
+    send_buffer_region = ucp.buffer_region()
+    send_buffer_region.alloc_cuda(1 << msg_log)
 
-    msg = ucp.ucp_msg(buffer_region)
+    send_msg = ucp.ucp_msg(send_buffer_region)
 
-    send_req = await client_ep.send(msg, 1 << msg_log)
+    recv_msg = None
+    recv_buffer_region = None
+    recv_req = None
 
-    recv_req = await client_ep.recv_future()
+    if not blind_recv:
+        recv_buffer_region = ucp.buffer_region()
+        recv_buffer_region.alloc_cuda(1 << msg_log)
+        recv_msg = ucp.ucp_msg(recv_buffer_region)
 
-    buffer_region.free_cuda()
-    ucp.destroy_ep(client_ep)
+    if use_fast:
+        send_req = await ep.send_fast(send_msg, 1 << msg_log)
+    else:
+        send_req = await ep.send(send_msg, 1 << msg_log)
+
+    if not blind_recv:
+        if use_fast:
+            recv_req = await ep.recv_fast(recv_msg, 1 << msg_log)
+        else:
+            recv_req = await ep.recv(recv_msg, 1 << msg_log)
+    else:
+        recv_req = await ep.recv_future()
+
+    send_buffer_region.free_cuda()
+    if not blind_recv:
+        recv_buffer_region.free_cuda()
+    ucp.destroy_ep(ep)
 
     print("passed talk_to_client")
-    ucp.stop_server()
+    ucp.stop_listener()
 
 async def talk_to_server(ip, port):
+
+    global blind_recv
+    global use_fast
+    global max_msg_log
 
     msg_log = max_msg_log
 
     print("in talk_to_server")
-    server_ep = ucp.get_endpoint(ip, port)
+    ep = ucp.get_endpoint(ip, port)
     print("got endpoint")
 
-    buffer_region = ucp.buffer_region()
-    buffer_region.alloc_cuda(1 << msg_log)
+    send_buffer_region = ucp.buffer_region()
+    send_buffer_region.alloc_cuda(1 << msg_log)
 
-    msg = ucp.ucp_msg(buffer_region)
+    recv_msg = None
+    recv_buffer_region = None
+    recv_req = None
 
-    recv_req = await server_ep.recv_future()
+    if not blind_recv:
+        recv_buffer_region = ucp.buffer_region()
+        recv_buffer_region.alloc_cuda(1 << msg_log)
+        recv_msg = ucp.ucp_msg(recv_buffer_region)
 
-    send_req = await server_ep.send(msg, 1 << msg_log)
+    send_msg = ucp.ucp_msg(send_buffer_region)
 
-    buffer_region.free_cuda()
-    ucp.destroy_ep(server_ep)
+    if not blind_recv:
+        if use_fast:
+            recv_req = await ep.recv_fast(recv_msg, 1 << msg_log)
+        else:
+            recv_req = await ep.recv(recv_msg, 1 << msg_log)
+    else:
+        recv_req = await ep.recv_future()
+
+    if use_fast:
+        send_req = await ep.send_fast(send_msg, 1 << msg_log)
+    else:
+        send_req = await ep.send(send_msg, 1 << msg_log)
+
+    send_buffer_region.free_cuda()
+    if not blind_recv:
+        recv_buffer_region.free_cuda()
+    ucp.destroy_ep(ep)
 
     print("passed talk_to_server")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
 parser.add_argument('-p','--port', help='enter server port number', required=False)
+parser.add_argument('-b','--blind_recv', help='Use blind recv. Default = False', required=False)
+parser.add_argument('-f','--use_fast', help='Use fast send/recv. Default = False', required=False)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -83,11 +135,27 @@ else:
     server = False
     init_str = args.server
 
+if args.blind_recv is not None:
+    if 'false' == args.blind_recv or 'False' == args.blind_recv:
+        blind_recv = False
+    elif 'true' == args.blind_recv or 'True' == args.blind_recv:
+        blind_recv = True
+    else:
+        blind_recv = False
+
+if args.use_fast is not None:
+    if 'false' == args.use_fast or 'False' == args.use_fast:
+        use_fast = False
+    elif 'true' == args.use_fast or 'True' == args.use_fast:
+        use_fast = True
+    else:
+        use_fast = False
+
 ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
 if server:
-    coro = ucp.start_server(talk_to_client, is_coroutine = True)
+    coro = ucp.start_listener(talk_to_client, is_coroutine = True)
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 
