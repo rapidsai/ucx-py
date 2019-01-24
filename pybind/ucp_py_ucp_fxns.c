@@ -169,7 +169,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         // call receive and wait for tag info before callback
         struct ucx_context *request = 0;
         ucp_ep_exch_t exch_info;
-        accept_ep_map[accept_ep_counter].ep_ptr = tmp_arg;
+        accept_ep_map[accept_ep_counter].ep_ptr = ((ucp_py_internal_ep_t *) tmp_arg)->ep_ptr;
         request = ucp_tag_recv_nb(ucp_worker,
                                   &(accept_ep_map[accept_ep_counter].exch_info),
                                   sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
@@ -238,7 +238,8 @@ ucp_tag_t send_get_tag(ucp_ep_h *ep_ptr)
     return default_tag;
 }
 
-struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int length)
+//struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int length)
+struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, int length)
 {
     ucs_status_t status;
     ucp_tag_t tag;
@@ -246,10 +247,11 @@ struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int 
     struct ucx_context *request = 0;
     int errs = 0;
     int i;
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    tag = recv_get_tag((ucp_ep_h *) ep_ptr);
+    tag = recv_get_tag(int_ep->ep_ptr);
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -265,6 +267,7 @@ struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int 
     return request;
 
 err_ep:
+    ucp_ep_destroy(*((ucp_ep_h *) int_ep->ep_ptr));
     return request;
 }
 
@@ -273,7 +276,8 @@ int ucp_py_ep_post_probe()
     return ucp_py_ctx_head->num_probes_outstanding++;
 }
 
-int ucp_py_ep_probe(void *ep_ptr)
+//int ucp_py_ep_probe(void *ep_ptr)
+int ucp_py_ep_probe(void *internal_ep)
 {
     ucs_status_t status;
     ucp_tag_t tag;
@@ -283,10 +287,11 @@ int ucp_py_ep_probe(void *ep_ptr)
     int i;
     ucp_tag_recv_info_t info_tag;
     ucp_tag_message_h msg_tag;
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
     DEBUG_PRINT("probing..\n");
 
-    tag = recv_get_tag((ucp_ep_h *) ep_ptr);
+    tag = recv_get_tag(int_ep->ep_ptr);
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
@@ -298,42 +303,47 @@ int ucp_py_ep_probe(void *ep_ptr)
     return -1;
 }
 
-int ucp_py_probe_wait(void *ep_ptr)
+//int ucp_py_probe_wait(void *ep_ptr)
+int ucp_py_probe_wait(void *internal_ep)
 {
     int probed_length;
 
     do {
         ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
-        probed_length = ucp_py_ep_probe(ep_ptr);
+        probed_length = ucp_py_ep_probe(internal_ep);
     } while (-1 == probed_length);
 
     return probed_length;
 }
 
-int ucp_py_probe_query(void *ep_ptr)
+//int ucp_py_probe_query(ucp_py_internal_ep_t *void *ep_ptr)
+int ucp_py_probe_query(void *internal_ep)
 {
     int probed_length;
 
     ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
-    probed_length = ucp_py_ep_probe(ep_ptr);
+    probed_length = ucp_py_ep_probe(internal_ep);
 
     return probed_length;
 }
 
-struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf,
+//struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf,
+//                                      int length)
+struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
                                       int length)
 {
     ucs_status_t status;
     ucp_tag_t tag;
     ucp_ep_params_t ep_params;
     struct ucx_context *request = 0;
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
-    DEBUG_PRINT("EP send : %p\n", ep_ptr);
+    DEBUG_PRINT("EP send : %p\n", int_ep->ep_ptr);
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
-    tag = send_get_tag((ucp_ep_h *) ep_ptr);
-    request = ucp_tag_send_nb(*((ucp_ep_h *) ep_ptr), send_buf->buf, length,
+    tag = send_get_tag(int_ep->ep_ptr);
+    request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
@@ -350,7 +360,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf,
     return request;
 
 err_ep:
-    ucp_ep_destroy(*((ucp_ep_h *) ep_ptr));
+    ucp_ep_destroy(*((ucp_ep_h *) int_ep->ep_ptr));
     return request;
 }
 
@@ -400,11 +410,14 @@ void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
 static void listener_accept_cb(ucp_ep_h ep, void *arg)
 {
     ucx_listener_ctx_t *context = arg;
+    ucp_py_internal_ep_t *internal_ep;
     ucp_ep_h *ep_ptr = NULL;
     ucs_status_t status;
 
+    internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     *ep_ptr = ep;
+    internal_ep->ep_ptr = ep_ptr;
 
     if (num_cb_free > 0) {
         num_cb_free--;
@@ -412,7 +425,8 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
         TAILQ_REMOVE(&cb_free_head, np, entries);
         np->pyx_cb = context->pyx_cb;
         np->py_cb = context->py_cb;
-        np->arg = ep_ptr;
+        //np->arg = ep_ptr;
+        np->arg = internal_ep;
         TAILQ_INSERT_TAIL(&cb_used_head, np, entries);
         num_cb_used++;
         assert(num_cb_used <= CB_Q_MAX_ENTRIES);
@@ -420,7 +434,9 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     }
     else {
         WARN_PRINT("out of free cb entries. Trying in place\n");
-        context->pyx_cb((void *) ep_ptr, context->py_cb);
+        // TODO: Need a receive of tag info here as well
+        //context->pyx_cb((void *) internal_ep, context->py_cb);
+        context->pyx_cb((void *) internal_ep, context->py_cb);
     }
 
     return;
@@ -456,9 +472,11 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     struct sockaddr_in connect_addr;
     ucs_status_t status;
     ucp_ep_h *ep_ptr;
+    ucp_py_internal_ep_t *internal_ep;
     ucp_ep_exch_t exch_info;
     struct ucx_context *request = 0;
 
+    internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     set_connect_addr(ip, &connect_addr, (uint16_t) listener_port);
     ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
@@ -474,6 +492,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip,
                     ucs_status_string(status));
     }
+    internal_ep->ep_ptr = ep_ptr;
 
     memcpy(connect_ep_map[connect_ep_counter].exch_info.hostname, my_hostname, HNAME_MAX_LEN);
     connect_ep_map[connect_ep_counter].exch_info.my_pid = my_pid;
@@ -500,7 +519,8 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     }
     connect_ep_counter++;
 
-    return (void *)ep_ptr;
+    //return (void *)ep_ptr;
+    return (void *) internal_ep;
 
 err_ep:
     ucp_ep_destroy(*ep_ptr);
@@ -508,13 +528,17 @@ err_ep:
     exit(-1);
 }
 
-int ucp_py_put_ep(void *ep_ptr)
+//int ucp_py_put_ep(void *ep_ptr)
+int ucp_py_put_ep(void *internal_ep)
 {
     ucs_status_t status;
     void *close_req;
+    ucp_ep_h *ep_ptr;
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
+    ep_ptr = int_ep->ep_ptr;
 
     DEBUG_PRINT("try ep close %p\n", ep_ptr);
-    close_req = ucp_ep_close_nb(*((ucp_ep_h *) ep_ptr), UCP_EP_CLOSE_MODE_FORCE);
+    close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
 
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
@@ -528,6 +552,7 @@ int ucp_py_put_ep(void *ep_ptr)
     }
 
     free(ep_ptr);
+    free(internal_ep);
     DEBUG_PRINT("ep closed\n");
 }
 

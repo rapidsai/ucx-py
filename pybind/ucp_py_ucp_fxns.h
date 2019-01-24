@@ -16,14 +16,13 @@ struct ucx_context {
     int             completed;
 };
 
-struct ucp_py_internal_ep {
-    ucp_ep_h  ep;
+typedef struct ucp_py_internal_ep {
+    ucp_ep_h  *ep_ptr;
     int       kind;
     pid_t     ep_pid;
-    char      *hname;
-    void      *ep_ptr;
+    char      hname[HNAME_MAX_LEN];
     ucp_tag_t ep_tag;
-};
+} ucp_py_internal_ep_t;
 
 typedef struct ucp_ep_exch {
     char hostname[HNAME_MAX_LEN];
