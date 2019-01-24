@@ -142,6 +142,17 @@ static void recv_handle(void *request, ucs_status_t status,
                 info->length);
 }
 
+unsigned long djb2_hash(unsigned char *str)
+{
+    unsigned long hash = 5381;
+    int c;
+
+    while (c = *str++)
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+    return hash;
+}
+
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     void *tmp_py_cb;
@@ -169,10 +180,20 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         // call receive and wait for tag info before callback
         struct ucx_context *request = 0;
         ucp_ep_exch_t exch_info;
-        accept_ep_map[accept_ep_counter].ep_ptr = ((ucp_py_internal_ep_t *) tmp_arg)->ep_ptr;
+        ucp_py_internal_ep_t *internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
+        internal_ep->ep_kind = ACCEPTED_EP;
+        //sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
+        //        (unsigned int) my_pid, connect_ep_counter);
+        accept_ep_map[accept_ep_counter].ep_ptr = internal_ep->ep_ptr;
+#if 0
         request = ucp_tag_recv_nb(ucp_worker,
                                   &(accept_ep_map[accept_ep_counter].exch_info),
                                   sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
+                                  default_tag_mask, exch_recv_handle);
+#endif
+        request = ucp_tag_recv_nb(ucp_worker,
+                                  internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
+                                  ucp_dt_make_contig(1), exch_tag,
                                   default_tag_mask, exch_recv_handle);
 
         if (UCS_PTR_IS_ERR(request)) {
@@ -184,6 +205,9 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
             ucp_worker_progress(ucp_worker);
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
+        printf("before pyx_cb: %s\n", internal_ep->ep_tag_str);
+        internal_ep->tag = djb2_hash(internal_ep->ep_tag_str);
+        printf("my hash = %d\n", internal_ep->tag);
         //ucp_request_release(request);
         accept_ep_counter++;
 
@@ -194,17 +218,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
  err_ep:
     printf("listener_accept_cb\n");
     exit(-1);
-}
-
-unsigned long djb2_hash(unsigned char *str)
-{
-    unsigned long hash = 5381;
-    int c;
-
-    while (c = *str++)
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-
-    return hash;
 }
 
 ucp_tag_t recv_get_tag(ucp_ep_h *ep_ptr)
@@ -252,6 +265,8 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
     tag = recv_get_tag(int_ep->ep_ptr);
+    printf("recv_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->tag;
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -292,6 +307,8 @@ int ucp_py_ep_probe(void *internal_ep)
     DEBUG_PRINT("probing..\n");
 
     tag = recv_get_tag(int_ep->ep_ptr);
+    printf("recv_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->tag;
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
@@ -343,6 +360,8 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
     tag = send_get_tag(int_ep->ep_ptr);
+    printf("send_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->tag;
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
@@ -493,6 +512,11 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                     ucs_status_string(status));
     }
     internal_ep->ep_ptr = ep_ptr;
+    internal_ep->ep_kind = CONNECTED_EP;
+    sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
+            (unsigned int) my_pid, connect_ep_counter);
+    internal_ep->tag = djb2_hash(internal_ep->ep_tag_str);
+    printf("my hash = %d\n", internal_ep->tag);
 
     memcpy(connect_ep_map[connect_ep_counter].exch_info.hostname, my_hostname, HNAME_MAX_LEN);
     connect_ep_map[connect_ep_counter].exch_info.my_pid = my_pid;
@@ -500,8 +524,13 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     printf("my ptr = %p my hname = %s my pid = %d\n", ep_ptr,
            connect_ep_map[connect_ep_counter].exch_info.hostname,
            connect_ep_map[connect_ep_counter].exch_info.my_pid);
+#if 0
     request = ucp_tag_send_nb(*ep_ptr, &(connect_ep_map[connect_ep_counter].exch_info),
                               sizeof(connect_ep_map[connect_ep_counter].exch_info),
+                              ucp_dt_make_contig(1), exch_tag,
+                              exch_send_handle);
+#endif
+    request = ucp_tag_send_nb(*ep_ptr, internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                               ucp_dt_make_contig(1), exch_tag,
                               exch_send_handle);
     if (UCS_PTR_IS_ERR(request)) {

@@ -7,8 +7,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "common.h"
-#define HNAME_MAX_LEN 512
+#define HNAME_MAX_LEN 256
+#define TAG_STR_MAX_LEN 512
 #define UCP_MAX_EPS 16384
+#define CONNECTED_EP 0
+#define ACCEPTED_EP 1
 
 typedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data);
 
@@ -18,10 +21,9 @@ struct ucx_context {
 
 typedef struct ucp_py_internal_ep {
     ucp_ep_h  *ep_ptr;
-    int       kind;
-    pid_t     ep_pid;
-    char      hname[HNAME_MAX_LEN];
-    ucp_tag_t ep_tag;
+    int       ep_kind;
+    char      ep_tag_str[TAG_STR_MAX_LEN];
+    ucp_tag_t tag;
 } ucp_py_internal_ep_t;
 
 typedef struct ucp_ep_exch {
