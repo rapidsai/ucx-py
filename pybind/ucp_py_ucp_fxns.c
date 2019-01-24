@@ -144,10 +144,10 @@ static void recv_handle(void *request, ucs_status_t status,
 
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
-    unsigned status;
     void *tmp_py_cb;
     listener_accept_cb_func tmp_pyx_cb;
     void *tmp_arg;
+    ucs_status_t status = 0;
     status = ucp_worker_progress(ucp_worker);
 
     while (cb_used_head.tqh_first != NULL) {
@@ -165,10 +165,35 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         num_cb_free++;
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
+
+        // call receive and wait for tag info before callback
+        struct ucx_context *request = 0;
+        ucp_ep_exch_t exch_info;
+        accept_ep_map[accept_ep_counter].ep_ptr = tmp_arg;
+        request = ucp_tag_recv_nb(ucp_worker,
+                                  &(accept_ep_map[accept_ep_counter].exch_info),
+                                  sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
+                                  default_tag_mask, exch_recv_handle);
+
+        if (UCS_PTR_IS_ERR(request)) {
+            fprintf(stderr, "unable to receive UCX data message (%u)\n",
+                    UCS_PTR_STATUS(request));
+            goto err_ep;
+        }
+        do {
+            ucp_worker_progress(ucp_worker);
+            status = ucp_request_check_status(request);
+        } while (status == UCS_INPROGRESS);
+        //ucp_request_release(request);
+        accept_ep_counter++;
+
         tmp_pyx_cb(tmp_arg, tmp_py_cb);
     }
 
-    return status;
+    return (unsigned int) status;
+ err_ep:
+    printf("listener_accept_cb\n");
+    exit(-1);
 }
 
 unsigned long djb2_hash(unsigned char *str)
@@ -375,26 +400,11 @@ void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
 static void listener_accept_cb(ucp_ep_h ep, void *arg)
 {
     ucx_listener_ctx_t *context = arg;
-    struct ucx_context *request = 0;
     ucp_ep_h *ep_ptr = NULL;
-    ucp_ep_exch_t exch_info;
     ucs_status_t status;
 
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     *ep_ptr = ep;
-
-    accept_ep_map[accept_ep_counter].ep_ptr = ep_ptr;
-    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker,
-                              &(accept_ep_map[accept_ep_counter].exch_info),
-                              sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
-                              default_tag_mask, exch_recv_handle);
-
-    if (UCS_PTR_IS_ERR(request)) {
-        fprintf(stderr, "unable to receive UCX data message (%u)\n",
-                UCS_PTR_STATUS(request));
-        goto err_ep;
-    }
-    accept_ep_counter++;
 
     if (num_cb_free > 0) {
         num_cb_free--;
@@ -414,10 +424,6 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     }
 
     return;
-
- err_ep:
-    printf("listener_accept_cb\n");
-    exit(-1);
 }
 
 static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
@@ -482,6 +488,15 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
         goto err_ep;
+    } else if (UCS_PTR_STATUS(request) != UCS_OK) {
+        DEBUG_PRINT("UCX data message was scheduled for send\n");
+        do {
+            ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
+            status = ucp_request_check_status(request);
+        } while (status == UCS_INPROGRESS);
+        //ucp_request_release(request);
+    } else {
+        /* request is complete so no need to wait on request */
     }
     connect_ep_counter++;
 
