@@ -187,7 +187,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         //ucp_request_release(request);
         accept_ep_counter++;
 
-        tmp_pyx_cb(tmp_arg, tmp_py_cb);
+        tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
     }
 
     return (unsigned int) status;
@@ -238,7 +238,7 @@ ucp_tag_t send_get_tag(ucp_ep_h *ep_ptr)
     return default_tag;
 }
 
-struct ucx_context *ucp_py_recv_nb(ucp_ep_h *ep_ptr, struct data_buf *recv_buf, int length)
+struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int length)
 {
     ucs_status_t status;
     ucp_tag_t tag;
@@ -249,7 +249,7 @@ struct ucx_context *ucp_py_recv_nb(ucp_ep_h *ep_ptr, struct data_buf *recv_buf, 
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    tag = recv_get_tag(ep_ptr);
+    tag = recv_get_tag((ucp_ep_h *) ep_ptr);
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -273,7 +273,7 @@ int ucp_py_ep_post_probe()
     return ucp_py_ctx_head->num_probes_outstanding++;
 }
 
-int ucp_py_ep_probe(ucp_ep_h *ep_ptr)
+int ucp_py_ep_probe(void *ep_ptr)
 {
     ucs_status_t status;
     ucp_tag_t tag;
@@ -286,7 +286,7 @@ int ucp_py_ep_probe(ucp_ep_h *ep_ptr)
 
     DEBUG_PRINT("probing..\n");
 
-    tag = recv_get_tag(ep_ptr);
+    tag = recv_get_tag((ucp_ep_h *) ep_ptr);
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
@@ -298,7 +298,7 @@ int ucp_py_ep_probe(ucp_ep_h *ep_ptr)
     return -1;
 }
 
-int ucp_py_probe_wait(ucp_ep_h *ep_ptr)
+int ucp_py_probe_wait(void *ep_ptr)
 {
     int probed_length;
 
@@ -310,7 +310,7 @@ int ucp_py_probe_wait(ucp_ep_h *ep_ptr)
     return probed_length;
 }
 
-int ucp_py_probe_query(ucp_ep_h *ep_ptr)
+int ucp_py_probe_query(void *ep_ptr)
 {
     int probed_length;
 
@@ -320,7 +320,7 @@ int ucp_py_probe_query(ucp_ep_h *ep_ptr)
     return probed_length;
 }
 
-struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_buf,
+struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf,
                                       int length)
 {
     ucs_status_t status;
@@ -332,8 +332,8 @@ struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_bu
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
-    tag = send_get_tag(ep_ptr);
-    request = ucp_tag_send_nb(*ep_ptr, send_buf->buf, length,
+    tag = send_get_tag((ucp_ep_h *) ep_ptr);
+    request = ucp_tag_send_nb(*((ucp_ep_h *) ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
@@ -350,7 +350,7 @@ struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_bu
     return request;
 
 err_ep:
-    ucp_ep_destroy(*ep_ptr);
+    ucp_ep_destroy(*((ucp_ep_h *) ep_ptr));
     return request;
 }
 
@@ -420,7 +420,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     }
     else {
         WARN_PRINT("out of free cb entries. Trying in place\n");
-        context->pyx_cb(ep_ptr, context->py_cb);
+        context->pyx_cb((void *) ep_ptr, context->py_cb);
     }
 
     return;
@@ -450,7 +450,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
     return status;
 }
 
-ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
+void *ucp_py_get_ep(char *ip, int listener_port)
 {
     ucp_ep_params_t ep_params;
     struct sockaddr_in connect_addr;
@@ -500,7 +500,7 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
     }
     connect_ep_counter++;
 
-    return ep_ptr;
+    return (void *)ep_ptr;
 
 err_ep:
     ucp_ep_destroy(*ep_ptr);
@@ -508,13 +508,13 @@ err_ep:
     exit(-1);
 }
 
-int ucp_py_put_ep(ucp_ep_h *ep_ptr)
+int ucp_py_put_ep(void *ep_ptr)
 {
     ucs_status_t status;
     void *close_req;
 
     DEBUG_PRINT("try ep close %p\n", ep_ptr);
-    close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
+    close_req = ucp_ep_close_nb(*((ucp_ep_h *) ep_ptr), UCP_EP_CLOSE_MODE_FORCE);
 
     if (UCS_PTR_IS_PTR(close_req)) {
         do {

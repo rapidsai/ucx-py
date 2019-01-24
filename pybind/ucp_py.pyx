@@ -7,7 +7,7 @@ import time
 from weakref import WeakValueDictionary
 
 cdef extern from "ucp_py_ucp_fxns.h":
-    ctypedef void (*listener_accept_cb_func)(ucp_ep_h *client_ep_ptr, void *user_data)
+    ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
@@ -107,7 +107,7 @@ cdef class ucp_py_ep:
     """A class that represents an endpoint connected to a peer
     """
 
-    cdef ucp_ep_h* ucp_ep
+    cdef void* ucp_ep
     cdef int ptr_set
 
     def __cinit__(self):
@@ -210,7 +210,7 @@ cdef class ucp_msg:
     cdef ucx_context* ctx_ptr
     cdef int ctx_ptr_set
     cdef data_buf* buf
-    cdef ucp_ep_h* ucp_ep
+    cdef void* ucp_ep
     cdef int is_cuda
     cdef int alloc_len
     cdef int comm_len
@@ -331,7 +331,7 @@ cdef class ucp_comm_request:
 accept_cb_is_coroutine = False
 sf_instance = None
 
-cdef void accept_callback(ucp_ep_h *client_ep_ptr, void *f):
+cdef void accept_callback(void *client_ep_ptr, void *f):
     global accept_cb_is_coroutine
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
