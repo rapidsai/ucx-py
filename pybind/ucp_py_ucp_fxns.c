@@ -66,8 +66,10 @@ static const ucp_tag_t exch_tag = 0x1342a880u;
 static const ucp_tag_t default_tag_mask = -1;
 static char my_hostname[HNAME_MAX_LEN];
 static pid_t my_pid = -1;
-static int ep_counter = 0;
-ucp_ep_exch_map_t ep_map[UCP_MAX_EPS];
+static int connect_ep_counter = 0;
+static int accept_ep_counter = 0;
+ucp_ep_exch_map_t connect_ep_map[UCP_MAX_EPS];
+ucp_ep_exch_map_t accept_ep_map[UCP_MAX_EPS];
 
 static void request_init(void *request)
 {
@@ -117,9 +119,9 @@ static void exch_recv_handle(void *request, ucs_status_t status,
 
     context->completed = 1;
 
-    for (i = 0; i < ep_counter; i++) {
-        printf("hname: %s pid: %d rem ptr = %p\n", ep_map[i].exch_info.hostname,
-               ep_map[i].exch_info.my_pid, (ucp_ep_h *) ep_map[i].exch_info.my_ptr);
+    for (i = 0; i < accept_ep_counter; i++) {
+        printf("hname: %s pid: %d rem ptr = %p\n", accept_ep_map[i].exch_info.hostname,
+               accept_ep_map[i].exch_info.my_pid, (ucp_ep_h *) accept_ep_map[i].exch_info.my_ptr);
     }
     ucp_request_release(request);
 
@@ -180,14 +182,33 @@ unsigned long djb2_hash(unsigned char *str)
     return hash;
 }
 
-ucp_tag_t get_tag(ucp_ep_h *ep_ptr)
+ucp_tag_t recv_get_tag(ucp_ep_h *ep_ptr)
 {
     int i;
 
-    for (i = 0; i < ep_counter; i++) {
-        if (ep_map[i].ep == *ep_ptr) printf("found match hname = %s, hash = %d\n",
-                                            ep_map[i].exch_info.hostname,
-                                            djb2_hash(ep_map[i].exch_info.hostname));
+    for (i = 0; i < accept_ep_counter; i++) {
+        if (accept_ep_map[i].ep_ptr == ep_ptr) {
+            printf("match hname: %s pid: %d rem ptr = %p\n", accept_ep_map[i].exch_info.hostname,
+                   accept_ep_map[i].exch_info.my_pid, (ucp_ep_h *) accept_ep_map[i].exch_info.my_ptr);
+#if 0
+            printf("recv found match hname = %s, hash = %d pid = %d\n",
+                   accept_ep_map[i].exch_info.hostname,
+                   djb2_hash(accept_ep_map[i].exch_info.hostname),
+                   accept_ep_map[i].exch_info.my_pid);
+#endif
+        }
+    }
+    return default_tag;
+}
+
+ucp_tag_t send_get_tag(ucp_ep_h *ep_ptr)
+{
+    int i;
+
+    for (i = 0; i < connect_ep_counter; i++) {
+        if (connect_ep_map[i].ep_ptr == ep_ptr) printf("send found match hname = %s, hash = %d\n",
+                                                    connect_ep_map[i].exch_info.hostname,
+                                                    djb2_hash(connect_ep_map[i].exch_info.hostname));
     }
     return default_tag;
 }
@@ -203,7 +224,7 @@ struct ucx_context *ucp_py_recv_nb(ucp_ep_h *ep_ptr, struct data_buf *recv_buf, 
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    tag = get_tag(ep_ptr);
+    tag = recv_get_tag(ep_ptr);
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -240,7 +261,7 @@ int ucp_py_ep_probe(ucp_ep_h *ep_ptr)
 
     DEBUG_PRINT("probing..\n");
 
-    tag = get_tag(ep_ptr);
+    tag = recv_get_tag(ep_ptr);
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
@@ -286,7 +307,7 @@ struct ucx_context *ucp_py_ep_send_nb(ucp_ep_h *ep_ptr, struct data_buf *send_bu
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
-    tag = get_tag(ep_ptr);
+    tag = send_get_tag(ep_ptr);
     request = ucp_tag_send_nb(*ep_ptr, send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
@@ -356,14 +377,15 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     ucx_listener_ctx_t *context = arg;
     struct ucx_context *request = 0;
     ucp_ep_h *ep_ptr = NULL;
+    ucp_ep_exch_t exch_info;
     ucs_status_t status;
 
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     *ep_ptr = ep;
 
-    ep_map[ep_counter].ep = ep;
+    accept_ep_map[accept_ep_counter].ep_ptr = ep_ptr;
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker,
-                              &(ep_map[ep_counter].exch_info),
+                              &(accept_ep_map[accept_ep_counter].exch_info),
                               sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
                               default_tag_mask, exch_recv_handle);
 
@@ -372,7 +394,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
                 UCS_PTR_STATUS(request));
         goto err_ep;
     }
-    ep_counter++;
+    accept_ep_counter++;
 
     if (num_cb_free > 0) {
         num_cb_free--;
@@ -447,25 +469,21 @@ ucp_ep_h *ucp_py_get_ep(char *ip, int listener_port)
                     ucs_status_string(status));
     }
 
-    memcpy(exch_info.hostname, my_hostname, HNAME_MAX_LEN);
-    exch_info.my_pid = my_pid;
-    exch_info.my_ptr = ep_ptr;
-    printf("my ptr = %p\n", ep_ptr);
-    request = ucp_tag_send_nb(*ep_ptr, &exch_info, sizeof(exch_info),
+    memcpy(connect_ep_map[connect_ep_counter].exch_info.hostname, my_hostname, HNAME_MAX_LEN);
+    connect_ep_map[connect_ep_counter].exch_info.my_pid = my_pid;
+    connect_ep_map[connect_ep_counter].exch_info.my_ptr = ep_ptr;
+    printf("my ptr = %p my hname = %s my pid = %d\n", ep_ptr,
+           connect_ep_map[connect_ep_counter].exch_info.hostname,
+           connect_ep_map[connect_ep_counter].exch_info.my_pid);
+    request = ucp_tag_send_nb(*ep_ptr, &(connect_ep_map[connect_ep_counter].exch_info),
+                              sizeof(connect_ep_map[connect_ep_counter].exch_info),
                               ucp_dt_make_contig(1), exch_tag,
                               exch_send_handle);
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
         goto err_ep;
-    } else if (UCS_PTR_STATUS(request) != UCS_OK) {
-        DEBUG_PRINT("UCX data message was scheduled for send\n");
-        do {
-            ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
-            status = ucp_request_check_status(request);
-        } while (status == UCS_INPROGRESS);
-    } else {
-        /* request is complete so no need to wait on request */
     }
+    connect_ep_counter++;
 
     return ep_ptr;
 

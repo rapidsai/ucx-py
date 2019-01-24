@@ -16,6 +16,15 @@ struct ucx_context {
     int             completed;
 };
 
+struct ucp_py_internal_ep {
+    ucp_ep_h  ep;
+    int       kind;
+    pid_t     ep_pid;
+    char      *hname;
+    void      *ep_ptr;
+    ucp_tag_t ep_tag;
+};
+
 typedef struct ucp_ep_exch {
     char hostname[HNAME_MAX_LEN];
     pid_t my_pid;
@@ -23,7 +32,7 @@ typedef struct ucp_ep_exch {
 } ucp_ep_exch_t;
 
 typedef struct ucp_ep_exch_map {
-    ucp_ep_h ep;
+    ucp_ep_h *ep_ptr;
     ucp_ep_exch_t exch_info;
 } ucp_ep_exch_map_t;
 
