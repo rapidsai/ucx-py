@@ -39,14 +39,14 @@ async def run(host, port, close, n_bytes, n_iter):
     data = np.random.randint(0, 255, size=n_bytes, dtype=np.uint8).tobytes()
 
     for i in range(n_iter):
-        ep.send_msg(data, sys.getsizeof(data))
+        ep.send_obj(data, sys.getsizeof(data))
 
         resp = await ep.recv_future()
         ucp.get_obj_from_msg(resp)
 
     if close:
         print("Sending shutdown")
-        ep.send_msg(b"", sys.getsizeof(b""))
+        ep.send_obj(b"", sys.getsizeof(b""))
     else:
         print("Note: no-close isn't working well on the server side.")
     print("Shutting down client")
@@ -64,13 +64,13 @@ async def serve_forever(client_ep):
         if msg == b"":
             break
         else:
-            client_ep.send_msg(msg, sys.getsizeof(msg))
+            client_ep.send_obj(msg, sys.getsizeof(msg))
             last = msg
         niters += 1
 
     end = clock()
     ucp.destroy_ep(client_ep)
-    ucp.stop_server()
+    ucp.stop_listener()
 
     dt = end - start
     rate = len(last) * niters / dt
@@ -82,7 +82,7 @@ async def main(args=None):
     ucp.init()
 
     if args.serve:
-        await ucp.start_server(serve_forever, is_coroutine=True)
+        await ucp.start_listener(serve_forever, is_coroutine=True)
 
     else:
         await run(args.host, args.port, not args.no_close, args.n_bytes, args.n_iter)
