@@ -159,6 +159,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     listener_accept_cb_func tmp_pyx_cb;
     void *tmp_arg;
     ucs_status_t status = 0;
+    char tmp_str[TAG_STR_MAX_LEN];
     status = ucp_worker_progress(ucp_worker);
 
     while (cb_used_head.tqh_first != NULL) {
@@ -206,8 +207,11 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
         printf("before pyx_cb: %s\n", internal_ep->ep_tag_str);
-        internal_ep->tag = djb2_hash(internal_ep->ep_tag_str);
-        printf("my hash = %d\n", internal_ep->tag);
+	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
+        internal_ep->send_tag = djb2_hash(tmp_str);
+        internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
+        printf("my send hash = %d\n", internal_ep->send_tag);
+        printf("my recv hash = %d\n", internal_ep->recv_tag);
         //ucp_request_release(request);
         accept_ep_counter++;
 
@@ -264,9 +268,9 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    tag = recv_get_tag(int_ep->ep_ptr);
-    printf("recv_nb tag? = %d\n", int_ep->tag);
-    tag = int_ep->tag;
+    //tag = recv_get_tag(int_ep->ep_ptr);
+    //printf("recv_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->recv_tag;
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -306,9 +310,9 @@ int ucp_py_ep_probe(void *internal_ep)
 
     DEBUG_PRINT("probing..\n");
 
-    tag = recv_get_tag(int_ep->ep_ptr);
-    printf("recv_nb tag? = %d\n", int_ep->tag);
-    tag = int_ep->tag;
+    //tag = recv_get_tag(int_ep->ep_ptr);
+    //printf("recv_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->recv_tag;
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
@@ -359,9 +363,9 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
-    tag = send_get_tag(int_ep->ep_ptr);
-    printf("send_nb tag? = %d\n", int_ep->tag);
-    tag = int_ep->tag;
+    //tag = send_get_tag(int_ep->ep_ptr);
+    //printf("send_nb tag? = %d\n", int_ep->tag);
+    tag = int_ep->send_tag;
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
@@ -494,6 +498,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     ucp_py_internal_ep_t *internal_ep;
     ucp_ep_exch_t exch_info;
     struct ucx_context *request = 0;
+    char tmp_str[TAG_STR_MAX_LEN];
 
     internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
@@ -515,8 +520,11 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     internal_ep->ep_kind = CONNECTED_EP;
     sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
             (unsigned int) my_pid, connect_ep_counter);
-    internal_ep->tag = djb2_hash(internal_ep->ep_tag_str);
-    printf("my hash = %d\n", internal_ep->tag);
+    internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
+    sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
+    internal_ep->recv_tag = djb2_hash(tmp_str);
+    printf("my send hash = %d\n", internal_ep->send_tag);
+    printf("my recv hash = %d\n", internal_ep->recv_tag);
 
     memcpy(connect_ep_map[connect_ep_counter].exch_info.hostname, my_hostname, HNAME_MAX_LEN);
     connect_ep_map[connect_ep_counter].exch_info.my_pid = my_pid;
@@ -660,11 +668,12 @@ int ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
     ucp_py_ctx_head->listener_context.pyx_cb = pyx_cb;
     ucp_py_ctx_head->listener_context.py_cb = py_cb;
     ucp_py_ctx_head->listens = 1;
-
+    default_listener_port = (port == -1 ? default_listener_port : port);
+    
     status = start_listener(ucp_py_ctx_head->ucp_worker,
                             &ucp_py_ctx_head->listener_context,
                             &ucp_py_ctx_head->listener,
-                            (port == -1 ? default_listener_port : port));
+                            default_listener_port);
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
     return 0;

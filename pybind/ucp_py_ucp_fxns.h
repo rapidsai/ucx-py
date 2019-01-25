@@ -23,7 +23,8 @@ typedef struct ucp_py_internal_ep {
     ucp_ep_h  *ep_ptr;
     int       ep_kind;
     char      ep_tag_str[TAG_STR_MAX_LEN];
-    ucp_tag_t tag;
+    ucp_tag_t send_tag;
+    ucp_tag_t recv_tag;
 } ucp_py_internal_ep_t;
 
 typedef struct ucp_ep_exch {
