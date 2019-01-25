@@ -25,6 +25,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <sys/queue.h>
+#include <arpa/inet.h>
+
 
 #define CB_Q_MAX_ENTRIES 256
 
@@ -86,18 +88,6 @@ static void send_handle(void *request, ucs_status_t status)
                 ucs_status_string(status));
 }
 
-static void exch_send_handle(void *request, ucs_status_t status)
-{
-    struct ucx_context *context = (struct ucx_context *) request;
-
-    context->completed = 1;
-    ucp_request_release(request);
-
-    DEBUG_PRINT("[0x%x] send handler called with status %d (%s)\n",
-                (unsigned int)pthread_self(), status,
-                ucs_status_string(status));
-}
-
 static void failure_handler(void *arg, ucp_ep_h ep, ucs_status_t status)
 {
     ucs_status_t *arg_status = (ucs_status_t *)arg;
@@ -107,20 +97,6 @@ static void failure_handler(void *arg, ucp_ep_h ep, ucs_status_t status)
                 ucs_status_string(status));
 
     *arg_status = status;
-}
-
-static void exch_recv_handle(void *request, ucs_status_t status,
-                        ucp_tag_recv_info_t *info)
-{
-    struct ucx_context *context = (struct ucx_context *) request;
-    int i;
-
-    context->completed = 1;
-    ucp_request_release(request);
-
-    DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
-                (unsigned int)pthread_self(), status, ucs_status_string(status),
-                info->length);
 }
 
 static void recv_handle(void *request, ucs_status_t status,
@@ -180,7 +156,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         request = ucp_tag_recv_nb(ucp_worker,
                                   internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                                   ucp_dt_make_contig(1), exch_tag,
-                                  default_tag_mask, exch_recv_handle);
+                                  default_tag_mask, recv_handle);
 
         if (UCS_PTR_IS_ERR(request)) {
             fprintf(stderr, "unable to receive UCX data message (%u)\n",
@@ -194,7 +170,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
-        //ucp_request_release(request);
+        ucp_request_release(request);
         accept_ep_counter++;
 
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
@@ -465,7 +441,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     
     request = ucp_tag_send_nb(*ep_ptr, internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                               ucp_dt_make_contig(1), exch_tag,
-                              exch_send_handle);
+                              send_handle);
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
         goto err_ep;
@@ -475,7 +451,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
             ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-        //ucp_request_release(request);
+        ucp_request_release(request);
     } else {
         /* request is complete so no need to wait on request */
     }
