@@ -9,8 +9,6 @@
 #include "common.h"
 #define HNAME_MAX_LEN 256
 #define TAG_STR_MAX_LEN 512
-#define CONNECTED_EP 0
-#define ACCEPTED_EP 1
 
 typedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data);
 
@@ -20,22 +18,10 @@ struct ucx_context {
 
 typedef struct ucp_py_internal_ep {
     ucp_ep_h  *ep_ptr;
-    int       ep_kind;
     char      ep_tag_str[TAG_STR_MAX_LEN];
     ucp_tag_t send_tag;
     ucp_tag_t recv_tag;
 } ucp_py_internal_ep_t;
-
-typedef struct ucp_ep_exch {
-    char hostname[HNAME_MAX_LEN];
-    pid_t my_pid;
-    uint64_t my_ptr;
-} ucp_ep_exch_t;
-
-typedef struct ucp_ep_exch_map {
-    ucp_ep_h *ep_ptr;
-    ucp_ep_exch_t exch_info;
-} ucp_ep_exch_map_t;
 
 int ucp_py_init();
 int ucp_py_listen(listener_accept_cb_func, void *, int);

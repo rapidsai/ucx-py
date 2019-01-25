@@ -130,7 +130,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     ucs_status_t status = 0;
     char tmp_str[TAG_STR_MAX_LEN];
     struct ucx_context *request = 0;
-    ucp_ep_exch_t exch_info;
     ucp_py_internal_ep_t *internal_ep;
     status = ucp_worker_progress(ucp_worker);
 
@@ -152,7 +151,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 
         // call receive and wait for tag info before callback
         internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
-        internal_ep->ep_kind = ACCEPTED_EP;
         request = ucp_tag_recv_nb(ucp_worker,
                                   internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                                   ucp_dt_make_contig(1), exch_tag,
@@ -165,6 +163,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         }
         do {
             ucp_worker_progress(ucp_worker);
+	    //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
 	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
@@ -411,7 +410,6 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     ucs_status_t status;
     ucp_ep_h *ep_ptr;
     ucp_py_internal_ep_t *internal_ep;
-    ucp_ep_exch_t exch_info;
     struct ucx_context *request = 0;
     char tmp_str[TAG_STR_MAX_LEN];
 
@@ -432,7 +430,6 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                     ucs_status_string(status));
     }
     internal_ep->ep_ptr = ep_ptr;
-    internal_ep->ep_kind = CONNECTED_EP;
     sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
             (unsigned int) my_pid, connect_ep_counter);
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
@@ -449,6 +446,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         DEBUG_PRINT("UCX data message was scheduled for send\n");
         do {
             ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
+	    //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
         ucp_request_release(request);
