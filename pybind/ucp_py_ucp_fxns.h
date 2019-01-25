@@ -9,7 +9,6 @@
 #include "common.h"
 #define HNAME_MAX_LEN 256
 #define TAG_STR_MAX_LEN 512
-#define UCP_MAX_EPS 16384
 #define CONNECTED_EP 0
 #define ACCEPTED_EP 1
 

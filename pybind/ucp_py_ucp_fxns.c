@@ -68,8 +68,6 @@ static char my_hostname[HNAME_MAX_LEN];
 static pid_t my_pid = -1;
 static int connect_ep_counter = 0;
 static int accept_ep_counter = 0;
-ucp_ep_exch_map_t connect_ep_map[UCP_MAX_EPS];
-ucp_ep_exch_map_t accept_ep_map[UCP_MAX_EPS];
 
 static void request_init(void *request)
 {
@@ -118,11 +116,6 @@ static void exch_recv_handle(void *request, ucs_status_t status,
     int i;
 
     context->completed = 1;
-
-    for (i = 0; i < accept_ep_counter; i++) {
-        printf("hname: %s pid: %d rem ptr = %p\n", accept_ep_map[i].exch_info.hostname,
-               accept_ep_map[i].exch_info.my_pid, (ucp_ep_h *) accept_ep_map[i].exch_info.my_ptr);
-    }
     ucp_request_release(request);
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
@@ -160,6 +153,9 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     void *tmp_arg;
     ucs_status_t status = 0;
     char tmp_str[TAG_STR_MAX_LEN];
+    struct ucx_context *request = 0;
+    ucp_ep_exch_t exch_info;
+    ucp_py_internal_ep_t *internal_ep;
     status = ucp_worker_progress(ucp_worker);
 
     while (cb_used_head.tqh_first != NULL) {
@@ -179,19 +175,8 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         assert(cb_free_head.tqh_first != NULL);
 
         // call receive and wait for tag info before callback
-        struct ucx_context *request = 0;
-        ucp_ep_exch_t exch_info;
-        ucp_py_internal_ep_t *internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
+        internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
         internal_ep->ep_kind = ACCEPTED_EP;
-        //sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
-        //        (unsigned int) my_pid, connect_ep_counter);
-        accept_ep_map[accept_ep_counter].ep_ptr = internal_ep->ep_ptr;
-#if 0
-        request = ucp_tag_recv_nb(ucp_worker,
-                                  &(accept_ep_map[accept_ep_counter].exch_info),
-                                  sizeof(ucp_ep_exch_t), ucp_dt_make_contig(1), exch_tag,
-                                  default_tag_mask, exch_recv_handle);
-#endif
         request = ucp_tag_recv_nb(ucp_worker,
                                   internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                                   ucp_dt_make_contig(1), exch_tag,
@@ -206,12 +191,9 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
             ucp_worker_progress(ucp_worker);
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-        printf("before pyx_cb: %s\n", internal_ep->ep_tag_str);
 	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
-        printf("my send hash = %d\n", internal_ep->send_tag);
-        printf("my recv hash = %d\n", internal_ep->recv_tag);
         //ucp_request_release(request);
         accept_ep_counter++;
 
@@ -224,38 +206,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     exit(-1);
 }
 
-ucp_tag_t recv_get_tag(ucp_ep_h *ep_ptr)
-{
-    int i;
-
-    for (i = 0; i < accept_ep_counter; i++) {
-        if (accept_ep_map[i].ep_ptr == ep_ptr) {
-            printf("match hname: %s pid: %d rem ptr = %p\n", accept_ep_map[i].exch_info.hostname,
-                   accept_ep_map[i].exch_info.my_pid, (ucp_ep_h *) accept_ep_map[i].exch_info.my_ptr);
-#if 0
-            printf("recv found match hname = %s, hash = %d pid = %d\n",
-                   accept_ep_map[i].exch_info.hostname,
-                   djb2_hash(accept_ep_map[i].exch_info.hostname),
-                   accept_ep_map[i].exch_info.my_pid);
-#endif
-        }
-    }
-    return default_tag;
-}
-
-ucp_tag_t send_get_tag(ucp_ep_h *ep_ptr)
-{
-    int i;
-
-    for (i = 0; i < connect_ep_counter; i++) {
-        if (connect_ep_map[i].ep_ptr == ep_ptr) printf("send found match hname = %s, hash = %d\n",
-                                                    connect_ep_map[i].exch_info.hostname,
-                                                    djb2_hash(connect_ep_map[i].exch_info.hostname));
-    }
-    return default_tag;
-}
-
-//struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *recv_buf, int length)
 struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, int length)
 {
     ucs_status_t status;
@@ -268,8 +218,6 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
-    //tag = recv_get_tag(int_ep->ep_ptr);
-    //printf("recv_nb tag? = %d\n", int_ep->tag);
     tag = int_ep->recv_tag;
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
@@ -295,7 +243,6 @@ int ucp_py_ep_post_probe()
     return ucp_py_ctx_head->num_probes_outstanding++;
 }
 
-//int ucp_py_ep_probe(void *ep_ptr)
 int ucp_py_ep_probe(void *internal_ep)
 {
     ucs_status_t status;
@@ -310,8 +257,6 @@ int ucp_py_ep_probe(void *internal_ep)
 
     DEBUG_PRINT("probing..\n");
 
-    //tag = recv_get_tag(int_ep->ep_ptr);
-    //printf("recv_nb tag? = %d\n", int_ep->tag);
     tag = int_ep->recv_tag;
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
@@ -324,7 +269,6 @@ int ucp_py_ep_probe(void *internal_ep)
     return -1;
 }
 
-//int ucp_py_probe_wait(void *ep_ptr)
 int ucp_py_probe_wait(void *internal_ep)
 {
     int probed_length;
@@ -337,7 +281,6 @@ int ucp_py_probe_wait(void *internal_ep)
     return probed_length;
 }
 
-//int ucp_py_probe_query(ucp_py_internal_ep_t *void *ep_ptr)
 int ucp_py_probe_query(void *internal_ep)
 {
     int probed_length;
@@ -348,8 +291,6 @@ int ucp_py_probe_query(void *internal_ep)
     return probed_length;
 }
 
-//struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf,
-//                                      int length)
 struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
                                       int length)
 {
@@ -363,8 +304,6 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
 
-    //tag = send_get_tag(int_ep->ep_ptr);
-    //printf("send_nb tag? = %d\n", int_ep->tag);
     tag = int_ep->send_tag;
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
@@ -523,21 +462,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
     internal_ep->recv_tag = djb2_hash(tmp_str);
-    printf("my send hash = %d\n", internal_ep->send_tag);
-    printf("my recv hash = %d\n", internal_ep->recv_tag);
-
-    memcpy(connect_ep_map[connect_ep_counter].exch_info.hostname, my_hostname, HNAME_MAX_LEN);
-    connect_ep_map[connect_ep_counter].exch_info.my_pid = my_pid;
-    connect_ep_map[connect_ep_counter].exch_info.my_ptr = ep_ptr;
-    printf("my ptr = %p my hname = %s my pid = %d\n", ep_ptr,
-           connect_ep_map[connect_ep_counter].exch_info.hostname,
-           connect_ep_map[connect_ep_counter].exch_info.my_pid);
-#if 0
-    request = ucp_tag_send_nb(*ep_ptr, &(connect_ep_map[connect_ep_counter].exch_info),
-                              sizeof(connect_ep_map[connect_ep_counter].exch_info),
-                              ucp_dt_make_contig(1), exch_tag,
-                              exch_send_handle);
-#endif
+    
     request = ucp_tag_send_nb(*ep_ptr, internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                               ucp_dt_make_contig(1), exch_tag,
                               exch_send_handle);
@@ -561,11 +486,9 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 
 err_ep:
     ucp_ep_destroy(*ep_ptr);
-    printf("get_ep\n");
     exit(-1);
 }
 
-//int ucp_py_put_ep(void *ep_ptr)
 int ucp_py_put_ep(void *internal_ep)
 {
     ucs_status_t status;
