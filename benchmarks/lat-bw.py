@@ -6,6 +6,7 @@ import time
 import argparse
 import asyncio
 import concurrent.futures
+import sys
 
 accept_cb_started = False
 new_client_ep = None
@@ -15,30 +16,35 @@ ignore_args = None
 
 def allocate_mem(size, args):
 
-    send_buffer_region = ucp.buffer_region()
-    recv_buffer_region = ucp.buffer_region()
+    if not args.use_obj:
+        send_buffer_region = ucp.buffer_region()
+        recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
-        send_buffer_region.alloc_cuda(size)
-        if not args.blind_recv:
-            recv_buffer_region.alloc_cuda(size)
+        if args.mem_type == 'cuda':
+            send_buffer_region.alloc_cuda(size)
+            if not args.blind_recv:
+                recv_buffer_region.alloc_cuda(size)
+        else:
+            send_buffer_region.alloc_host(size)
+            if not args.blind_recv:
+                recv_buffer_region.alloc_host(size)
     else:
-        send_buffer_region.alloc_host(size)
-        if not args.blind_recv:
-            recv_buffer_region.alloc_host(size)
+        send_buffer_region = str(list(range(size)))
+        recv_buffer_region = str(list(range(size, 2 * size)))
 
     return send_buffer_region, recv_buffer_region
 
 def free_mem(send_buffer_region, recv_buffer_region, args):
 
-    if args.mem_type == 'cuda':
-        send_buffer_region.free_cuda()
-        if not args.blind_recv:
-            recv_buffer_region.free_cuda()
-    else:
-        send_buffer_region.free_host()
-        if not args.blind_recv:
-            recv_buffer_region.free_host()
+    if not args.use_obj:
+        if args.mem_type == 'cuda':
+            send_buffer_region.free_cuda()
+            if not args.blind_recv:
+                recv_buffer_region.free_cuda()
+        else:
+            send_buffer_region.free_host()
+            if not args.blind_recv:
+                recv_buffer_region.free_host()
 
 def profile(fxn, *args):
     tmp_start = time.time()
@@ -75,6 +81,9 @@ def populate_ops(ep, send_first, args):
         if args.use_fast:
             first_op = ep.send_fast
             second_op = ep.recv_fast
+        elif args.use_obj:
+            first_op = ep.send_obj
+            second_op = ep.recv_obj
         else:
             first_op = ep.send
             second_op = ep.recv
@@ -87,6 +96,9 @@ def populate_ops(ep, send_first, args):
         if args.use_fast:
             first_op = ep.recv_fast
             second_op = ep.send_fast
+        elif args.use_obj:
+            first_op = ep.recv_obj
+            second_op = ep.send_obj
         else:
             first_op = ep.recv
             second_op = ep.send
@@ -99,7 +111,7 @@ def populate_ops(ep, send_first, args):
     return first_op, second_op
 
 def run_iters(ep, first_buffer_region, second_buffer_region, msg_log, send_first, args):
-    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)",
+    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)", "BW (GB/s)",
                                         "Issue (us)", "Progress (us)"))
 
     warmup_iters = int(0.1 * max_iters)
@@ -112,12 +124,19 @@ def run_iters(ep, first_buffer_region, second_buffer_region, msg_log, send_first
         first_msg = []
         second_msg = []
         for j in range(max_iters + warmup_iters):
-            first_msg.append(ucp.ucp_msg(first_buffer_region))
-            second_msg.append(ucp.ucp_msg(second_buffer_region))
+            if not args.use_obj:
+                first_msg.append(ucp.ucp_msg(first_buffer_region))
+                second_msg.append(ucp.ucp_msg(second_buffer_region))
+            else:
+                first_msg.append(first_buffer_region)
+                second_msg.append(second_buffer_region)
 
         start = time.time()
         issue_lat = 0
         progress_lat = 0
+        
+        if args.use_obj:
+            msg_len = sys.getsizeof(str(list(range(msg_len))))
 
         for j in range(max_iters):
 
@@ -140,12 +159,13 @@ def run_iters(ep, first_buffer_region, second_buffer_region, msg_log, send_first
         end = time.time()
         lat = end - start
         get_avg_us = lambda x: ((x/2) / max_iters) * 1000000
-        print("{}\t\t{:.2f}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat),
-                                                        get_avg_us(issue_lat),
-                                                        get_avg_us(progress_lat)))
+        print("{}\t\t{:.2f}\t\t{:.2f}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat),
+                                                                  ((msg_len/(lat/2)) / 1000000),
+                                                                  get_avg_us(issue_lat),
+                                                                  get_avg_us(progress_lat)))
 
 async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log, send_first, args):
-    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)",
+    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)", "BW (GB/s)",
                                         "Issue (us)", "Progress (us)"))
 
     warmup_iters = int(0.1 * max_iters)
@@ -155,10 +175,17 @@ async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log
     for i in range(msg_log):
         msg_len = 2 ** i
 
-        first_msg = ucp.ucp_msg(first_buffer_region)
-        second_msg = ucp.ucp_msg(second_buffer_region)
+        if not args.use_obj:
+            first_msg = ucp.ucp_msg(first_buffer_region)
+            second_msg = ucp.ucp_msg(second_buffer_region)
+        else:
+            first_msg = first_buffer_region
+            second_msg = second_buffer_region
 
         warmup_iters = int((0.1 * max_iters))
+        if args.use_obj:
+            msg_len = sys.getsizeof(str(list(range(msg_len))))
+            
         for j in range(warmup_iters):
             first_req = await first_op(first_msg, msg_len)
             second_req = await second_op(second_msg, msg_len)
@@ -170,7 +197,8 @@ async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log
         end = time.time()
         lat = end - start
         get_avg_us = lambda x: ((x/2) / max_iters) * 1000000
-        print("{}\t\t{:.2f}".format(msg_len, get_avg_us(lat)))
+        print("{}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat),
+                                              ((msg_len/(lat/2)) / 1000000)))
 
 def talk_to_client(ep):
 
@@ -231,6 +259,7 @@ parser.add_argument('-i','--intra_node', action='store_true')
 parser.add_argument('-m','--mem_type', help='host/cuda (default = host)', required=False)
 parser.add_argument('-a','--use_asyncio', help='use asyncio execution (default = false)', action="store_true")
 parser.add_argument('-f','--use_fast', help='use fast send/recv (default = false)', action="store_true")
+parser.add_argument('-o','--use_obj', help='use python objects for send/recv (default = false)', action="store_true")
 parser.add_argument('-b','--blind_recv', help='use blind recv (default = false)', action="store_true")
 parser.add_argument('-w','--wait', help='wait after every send/recv (default = false)', action="store_true")
 args = parser.parse_args()
