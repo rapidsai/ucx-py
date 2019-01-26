@@ -65,7 +65,7 @@ async def talk_to_client(ep):
         recv_string = "hello from ucx server @" + socket.gethostname()
         recv_msg = get_msg(recv_string, args.object_type)
         recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
-
+        recv_msg = ucp.get_obj_from_msg(recv_req)
     else:
         recv_req = await ep.recv_future()
         recv_msg = ucp.get_obj_from_msg(recv_req)
@@ -92,7 +92,7 @@ async def talk_to_server(ip, port):
         recv_string = "hello from ucx client @" + socket.gethostname()
         recv_msg = get_msg(recv_string, args.object_type)
         recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
-
+        recv_msg = ucp.get_obj_from_msg(recv_req)
     else:
         recv_req = await ep.recv_future()
         recv_msg = ucp.get_obj_from_msg(recv_req)
