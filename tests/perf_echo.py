@@ -58,7 +58,7 @@ async def run(host, port, close, n_bytes, n_iter, check=True):
 
     if close:
         print("Sending shutdown")
-        ep.send_obj(b"", sys.getsizeof(b""))
+        await ep.send_obj(b"0" * n_bytes, size)
     else:
         print("Note: no-close isn't working well on the server side.")
     print("Shutting down client")
@@ -73,15 +73,16 @@ def wrapper(n_bytes):
         last = b""
         dummy = b' ' * n_bytes
         size = sys.getsizeof(dummy)
+        eof = b'0' * n_bytes
 
         while True:
-            msg = await client_ep.recv_future()
-            # msg = await client_ep.recv_obj(dummy, size)
-            msg = ucp.get_obj_from_msg(msg)
-            if msg == b"":
+            # msg = await client_ep.recv_future()
+            result = await client_ep.recv_obj(dummy, size)
+            msg = ucp.get_obj_from_msg(result)
+            if msg == eof:
                 break
             else:
-                client_ep.send_obj(msg, sys.getsizeof(msg))
+                await client_ep.send_obj(msg, sys.getsizeof(msg))
                 last = msg
             niters += 1
 
