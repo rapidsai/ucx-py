@@ -14,12 +14,15 @@ import numpy as np
 def parse_args(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--serve", action="store_true", help="Start a server. Must be done first."
+        "--serve", action="store_true",
+        help="Start a server. Must be done first."
     )
     parser.add_argument(
-        "--host", type=bytes, default=b"10.33.225.160", help="The host to connect to."
+        "--host",  default="10.33.225.160",
+        help="The host to connect to."
     )
-    parser.add_argument("--port", type=int, default=13337, help="The port to bind.")
+    parser.add_argument("--port", type=int, default=13337,
+                        help="The port to bind.")
     parser.add_argument("--no-close", action="store_true")
     parser.add_argument(
         "--n-bytes",
@@ -30,19 +33,28 @@ def parse_args(args=None):
     parser.add_argument(
         "--n-iter", type=int, default=10, help="Number of round-trip messages."
     )
+    parser.add_argument(
+        '-c', '--check', action='store_true',
+        help='Whether to assert that the echoed message matches.'
+    )
 
     return parser.parse_args(args)
 
 
-async def run(host, port, close, n_bytes, n_iter):
+async def run(host, port, close, n_bytes, n_iter, check=True):
     ep = ucp.get_endpoint(host, port)
     data = np.random.randint(0, 255, size=n_bytes, dtype=np.uint8).tobytes()
+    size = sys.getsizeof(data)
+    dummy = b' ' * n_bytes
 
     for i in range(n_iter):
-        ep.send_obj(data, sys.getsizeof(data))
+        await ep.send_obj(data, size)
 
-        resp = await ep.recv_future()
-        ucp.get_obj_from_msg(resp)
+        # resp = await ep.recv_future()
+        resp = await ep.recv_obj(dummy, size)
+        result = ucp.get_obj_from_msg(resp)
+        if check:
+            assert data == result
 
     if close:
         print("Sending shutdown")
@@ -54,27 +66,33 @@ async def run(host, port, close, n_bytes, n_iter):
     print("Client done")
 
 
-async def serve_forever(client_ep):
-    start = clock()
-    niters = 0
-    last = b""
-    while True:
-        msg = await client_ep.recv_future()
-        msg = ucp.get_obj_from_msg(msg)
-        if msg == b"":
-            break
-        else:
-            client_ep.send_obj(msg, sys.getsizeof(msg))
-            last = msg
-        niters += 1
+def wrapper(n_bytes):
+    async def serve_forever(client_ep):
+        start = clock()
+        niters = 0
+        last = b""
+        dummy = b' ' * n_bytes
+        size = sys.getsizeof(dummy)
 
-    end = clock()
-    ucp.destroy_ep(client_ep)
-    ucp.stop_listener()
+        while True:
+            msg = await client_ep.recv_future()
+            # msg = await client_ep.recv_obj(dummy, size)
+            msg = ucp.get_obj_from_msg(msg)
+            if msg == b"":
+                break
+            else:
+                client_ep.send_obj(msg, sys.getsizeof(msg))
+                last = msg
+            niters += 1
 
-    dt = end - start
-    rate = len(last) * niters / dt
-    print("duration: %s => rate: %d MB/s" % (dt, rate / 1e6))
+        end = clock()
+        ucp.destroy_ep(client_ep)
+        ucp.stop_listener()
+
+        dt = end - start
+        rate = len(last) * niters / dt
+        print("duration: %s => rate: %d MB/s" % (dt, rate / 1e6))
+    return serve_forever
 
 
 async def main(args=None):
@@ -82,10 +100,12 @@ async def main(args=None):
     ucp.init()
 
     if args.serve:
-        await ucp.start_listener(serve_forever, is_coroutine=True)
+        handler = wrapper(args.n_bytes)
+        await ucp.start_listener(handler, is_coroutine=True)
 
     else:
-        await run(args.host, args.port, not args.no_close, args.n_bytes, args.n_iter)
+        await run(args.host.encode(), args.port, not args.no_close,
+                  args.n_bytes, args.n_iter, args.check)
 
 
 if __name__ == "__main__":
