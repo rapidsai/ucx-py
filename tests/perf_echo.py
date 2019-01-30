@@ -50,8 +50,8 @@ async def run(host, port, close, n_bytes, n_iter, check=True):
     for i in range(n_iter):
         await ep.send_obj(data, size)
 
-        # resp = await ep.recv_future()
-        resp = await ep.recv_obj(dummy, size)
+        resp = await ep.recv_future()
+        # resp = await ep.recv_obj(dummy, size)
         result = ucp.get_obj_from_msg(resp)
         if check:
             assert data == result
@@ -76,8 +76,8 @@ def wrapper(n_bytes):
         eof = b'0' * n_bytes
 
         while True:
-            # msg = await client_ep.recv_future()
-            result = await client_ep.recv_obj(dummy, size)
+            result = await client_ep.recv_future()
+            # result = await client_ep.recv_obj(dummy, size)
             msg = ucp.get_obj_from_msg(result)
             if msg == eof:
                 break
