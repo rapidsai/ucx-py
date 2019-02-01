@@ -161,7 +161,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
                     UCS_PTR_STATUS(request));
             goto err_ep;
         }
-        request->completed = 0;
         do {
             ucp_worker_progress(ucp_worker);
 	    //TODO: Workout if there are deadlock possibilities here
@@ -170,7 +169,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
-        ucp_request_release(request);
+        ucp_request_free(request);
         accept_ep_counter++;
 
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
@@ -206,8 +205,6 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
                 UCS_PTR_STATUS(request));
         goto err_ep;
     }
-
-    request->completed = 0;
 
     return request;
 
@@ -290,7 +287,6 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
         fprintf(stderr, "unable to send UCX data message\n");
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
-        request->completed = 0;
         DEBUG_PRINT("UCX data message was scheduled for send\n");
     } else {
         /* request is complete so no need to wait on request */
@@ -323,8 +319,7 @@ int ucp_py_query_request(struct ucx_context *request)
 
     ret = request->completed;
     if (request->completed) {
-        request->completed = 0;
-        ucp_request_release(request);
+        ucp_request_free(request);
     }
 
     return ret;
@@ -448,13 +443,12 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
-        request->completed = 0;
         do {
             ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 	    //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-        ucp_request_release(request);
+        ucp_request_free(request);
     } else {
         /* request is complete so no need to wait on request */
     }
