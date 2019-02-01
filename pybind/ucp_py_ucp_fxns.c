@@ -161,6 +161,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
                     UCS_PTR_STATUS(request));
             goto err_ep;
         }
+        request->completed = 0;
         do {
             ucp_worker_progress(ucp_worker);
 	    //TODO: Workout if there are deadlock possibilities here
@@ -205,6 +206,8 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
                 UCS_PTR_STATUS(request));
         goto err_ep;
     }
+
+    request->completed = 0;
 
     return request;
 
@@ -287,6 +290,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
         fprintf(stderr, "unable to send UCX data message\n");
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
+        request->completed = 0;
         DEBUG_PRINT("UCX data message was scheduled for send\n");
     } else {
         /* request is complete so no need to wait on request */
@@ -444,6 +448,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
+        request->completed = 0;
         do {
             ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 	    //TODO: Workout if there are deadlock possibilities here
