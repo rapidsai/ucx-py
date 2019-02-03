@@ -75,6 +75,7 @@ static void request_init(void *request)
 {
     struct ucx_context *ctx = (struct ucx_context *) request;
     ctx->completed = 0;
+    DEBUG_PRINT("%p initialized\n", request);
 }
 
 static void send_handle(void *request, ucs_status_t status)
@@ -105,6 +106,7 @@ static void recv_handle(void *request, ucs_status_t status,
     struct ucx_context *context = (struct ucx_context *) request;
 
     context->completed = 1;
+    DEBUG_PRINT("recv complete %p\n", request);
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
                 (unsigned int)pthread_self(), status, ucs_status_string(status),
@@ -163,13 +165,14 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         }
         do {
             ucp_worker_progress(ucp_worker);
-	    //TODO: Workout if there are deadlock possibilities here
+            //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-	sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
+        sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
-        ucp_request_release(request);
+        request_init(request);
+        ucp_request_free(request);
         accept_ep_counter++;
 
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
@@ -199,6 +202,7 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
                               recv_handle);
 
     DEBUG_PRINT("returning request %p\n", request);
+    DEBUG_PRINT("recv issued %p (%d)\n", request, request->completed);
 
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to receive UCX data message (%u)\n",
@@ -319,8 +323,8 @@ int ucp_py_query_request(struct ucx_context *request)
 
     ret = request->completed;
     if (request->completed) {
-        request->completed = 0;
-        ucp_request_release(request);
+        request_init(request);
+        ucp_request_free(request);
     }
 
     return ret;
@@ -449,7 +453,8 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 	    //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-        ucp_request_release(request);
+        request_init(request);
+        ucp_request_free(request);
     } else {
         /* request is complete so no need to wait on request */
     }
@@ -480,6 +485,7 @@ int ucp_py_put_ep(void *internal_ep)
             status = ucp_request_check_status(close_req);
         } while (status == UCS_INPROGRESS);
 
+        request_init(close_req);
         ucp_request_free(close_req);
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
         DEBUG_PRINT(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
