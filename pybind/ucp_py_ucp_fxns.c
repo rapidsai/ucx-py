@@ -310,6 +310,58 @@ void ucp_py_worker_progress()
     ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 }
 
+int ucp_py_worker_progress_wait()
+{
+    int ret = -1, err = 0;
+    ucs_status_t status;
+    int epoll_fd_local = 0, epoll_fd = 0;
+    struct epoll_event ev;
+    ev.data.u64 = 0;
+
+    status = ucp_worker_get_efd(ucp_py_ctx_head->ucp_worker, &epoll_fd);
+    if (UCS_OK != status) {
+        printf("ucp_worker_get_efd error\n");
+        goto err;
+    }
+
+    /* It is recommended to copy original fd */
+    epoll_fd_local = epoll_create(1);
+
+    ev.data.fd = epoll_fd;
+    ev.events = EPOLLIN;
+    err = epoll_ctl(epoll_fd_local, EPOLL_CTL_ADD, epoll_fd, &ev);
+    if (err < 0) {
+        printf("add original socket to the new epoll error\n");
+        goto err;
+    }
+
+    /* Need to prepare ucp_worker before epoll_wait */
+    status = ucp_worker_arm(ucp_py_ctx_head->ucp_worker);
+    if (status == UCS_ERR_BUSY) { /* some events are arrived already */
+        ret = UCS_OK;
+        goto err;
+    }
+    if (status != UCS_OK) {
+        printf("ucp_worker_arm error\n");
+        goto err;
+    }
+
+    /*
+    do {
+        ret = epoll_wait(epoll_fd_local, &ev, 1, -1);
+    } while ((ret == -1) && (errno == EINTR));
+    */
+
+    return epoll_fd_local;
+ err:
+    return -1;
+}
+
+void ucp_py_worker_drain()
+{
+    while (0 != ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker));
+}
+
 int ucp_py_query_request(struct ucx_context *request)
 {
     ucs_status_t status;
@@ -527,7 +579,7 @@ int ucp_py_init()
     ucp_params.field_mask   = UCP_PARAM_FIELD_FEATURES |
                               UCP_PARAM_FIELD_REQUEST_SIZE |
                               UCP_PARAM_FIELD_REQUEST_INIT;
-    ucp_params.features     = UCP_FEATURE_TAG;
+    ucp_params.features     = UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP;
     ucp_params.request_size = sizeof(struct ucx_context);
     ucp_params.request_init = request_init;
 
@@ -564,31 +616,40 @@ int ucp_py_init()
     return -1;
 }
 
-int ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
+void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
 {
     ucs_status_t status;
+    ucp_listener_h *listener;
 
     ucp_py_ctx_head->listener_context.pyx_cb = pyx_cb;
     ucp_py_ctx_head->listener_context.py_cb = py_cb;
     ucp_py_ctx_head->listens = 1;
     default_listener_port = (port == -1 ? default_listener_port : port);
-    
+
+    listener = (ucp_listener_h *) malloc(sizeof(ucp_listener_h));
+
     status = start_listener(ucp_py_ctx_head->ucp_worker,
                             &ucp_py_ctx_head->listener_context,
-                            &ucp_py_ctx_head->listener,
+                            listener,
                             default_listener_port);
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
-    return 0;
+    return (void *) listener;
 
  err_worker:
     ucp_cleanup(ucp_py_ctx_head->ucp_context);
-    return -1;
+    return NULL;
+}
+
+int ucp_py_stop_listener(void *listener)
+{
+    ucp_listener_destroy(*((ucp_listener_h *) listener));
+    free(listener);
+    return 0;
 }
 
 int ucp_py_finalize()
 {
-    if (ucp_py_ctx_head->listens) ucp_listener_destroy(ucp_py_ctx_head->listener);
     ucp_worker_destroy(ucp_py_ctx_head->ucp_worker);
     ucp_cleanup(ucp_py_ctx_head->ucp_context);
     free(np_free);

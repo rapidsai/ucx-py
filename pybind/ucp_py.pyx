@@ -4,6 +4,8 @@
 import concurrent.futures
 import asyncio
 import time
+import sys
+import selectors
 from weakref import WeakValueDictionary
 
 cdef extern from "ucp_py_ucp_fxns.h":
@@ -73,10 +75,14 @@ class ListenerFuture(concurrent.futures.Future):
 
     _instances = WeakValueDictionary()
 
-    def __init__(self, cb):
+    def __init__(self, cb, is_coroutine = False):
         self.done_state = False
         self.result_state = None
         self.cb = cb
+        self.is_coroutine = is_coroutine
+        self.coroutine = None
+        self.ucp_listener = None
+        self.sel = selectors.DefaultSelector()
         self._instances[id(self)] = self
         super(ListenerFuture, self).__init__()
 
@@ -93,6 +99,27 @@ class ListenerFuture(concurrent.futures.Future):
     def __del__(self):
         pass
 
+    def dummy_cb(self, fileobj, mask):
+        print("dummy_cb")
+        pass
+
+    def block_for_comm(self):
+        print("in block for comm")
+        fd = ucp_py_worker_progress_wait()
+        self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
+        events = self.sel.select()
+        for key, mask in events:
+            callback = key.data
+            callback(key.fileobj, mask)
+        self.sel.unregister(fd)
+        ucp_py_worker_drain()
+        print("done with block for comm")
+
+    async def async_await(self):
+        while False == self.done_state:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self.block_for_comm)
+
     def __await__(self):
         if True == self.done_state:
             return self.result_state
@@ -102,6 +129,7 @@ class ListenerFuture(concurrent.futures.Future):
                     return self.result_state
                 else:
                     yield
+
 
 cdef class ucp_py_ep:
     """A class that represents an endpoint connected to a peer
@@ -201,6 +229,9 @@ cdef class ucp_py_ep:
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
+
+cdef class ucp_listener:
+    cdef void* listener_ptr
 
 cdef class ucp_msg:
     """A class that represents the message associated with a
@@ -328,18 +359,16 @@ cdef class ucp_comm_request:
                 else:
                     yield
 
-accept_cb_is_coroutine = False
-sf_instance = None
 
-cdef void accept_callback(void *client_ep_ptr, void *f):
-    global accept_cb_is_coroutine
+cdef void accept_callback(void *client_ep_ptr, void *lf):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
-    if not accept_cb_is_coroutine:
-        (<object>f)(client_ep) #sign py_func(ucp_py_ep()) expected
+    listener_instance = (<object> lf)
+    if not listener_instance.is_coroutine:
+        (listener_instance.cb)(client_ep, listener_instance)
     else:
         current_loop = asyncio.get_running_loop()
-        current_loop.create_task((<object>f)(client_ep))
+        current_loop.create_task((listener_instance.cb)(client_ep, listener_instance))
 
 def init():
     """Initiates ucp resources like ucp_context and ucp_worker
@@ -374,23 +403,22 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     -------
     0 if listener successfully started
     """
+    listener = ucp_listener()
+    lf = ListenerFuture(py_func, is_coroutine)
 
-    global accept_cb_is_coroutine
-    global sf_instance
-    accept_cb_is_coroutine = is_coroutine
     if is_coroutine:
-        sf = ListenerFuture(py_func)
         async def async_start_listener():
-            await sf
-        if 0 == ucp_py_listen(accept_callback, <void *>py_func, listener_port):
-            sf_instance = sf
-            return async_start_listener()
-        else:
-            return -1
-    else:
-        return ucp_py_listen(accept_callback, <void *>py_func, listener_port)
+            await lf.async_await()
+        lf.coroutine = async_start_listener()
 
-def stop_listener():
+    listener.listener_ptr = ucp_py_listen(accept_callback, <void *> lf, listener_port)
+    if <void *> NULL != listener.listener_ptr:
+        lf.ucp_listener = listener
+        return lf
+    else:
+        return None
+
+def stop_listener(lf):
     """Stop listening for incoming connections
 
     Parameters
@@ -402,8 +430,11 @@ def stop_listener():
     None
     """
 
-    if sf_instance is not None:
-        sf_instance.done_state = True
+    cdef ucp_listener listener
+    if lf.is_coroutine:
+        lf.done_state = True
+    listener = lf.ucp_listener
+    ucp_py_stop_listener(listener.listener_ptr)
 
 def fin():
     """Release ucp resources like ucp_context and ucp_worker

@@ -24,12 +24,15 @@ typedef struct ucp_py_internal_ep {
 } ucp_py_internal_ep_t;
 
 int ucp_py_init();
-int ucp_py_listen(listener_accept_cb_func, void *, int);
+void *ucp_py_listen(listener_accept_cb_func, void *, int);
+int ucp_py_stop_listener(void *);
 int ucp_py_finalize(void);
 void *ucp_py_get_ep(char *, int);
 int ucp_py_put_ep(void *);
 
 void ucp_py_worker_progress();
+int ucp_py_worker_progress_wait();
+void ucp_py_worker_drain();
 struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf, int length);
 struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *buf, int length);
 int ucp_py_ep_post_probe();

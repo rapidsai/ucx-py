@@ -44,7 +44,7 @@ def print_msg(preamble, obj, obj_type):
     else:
         print(preamble + str(obj))
 
-async def talk_to_client(ep):
+async def talk_to_client(ep, listener):
 
     global args
     global max_msg_log
@@ -83,7 +83,7 @@ async def talk_to_client(ep):
 
     ucp.destroy_ep(ep)
     print('talk_to_client done')
-    ucp.stop_listener()
+    ucp.stop_listener(listener)
 
 async def talk_to_server(ip, port):
 
@@ -151,7 +151,8 @@ ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
 if server:
-    coro = ucp.start_listener(talk_to_client, is_coroutine = True)
+    listener = ucp.start_listener(talk_to_client, is_coroutine = True)
+    coro = listener.coroutine
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 
