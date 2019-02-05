@@ -57,6 +57,7 @@ typedef struct ucp_py_ctx {
     ucp_listener_h listener;
     int listens;
     int num_probes_outstanding;
+    int epoll_fd_local;
 } ucp_py_ctx_t;
 
 ucp_py_ctx_t *ucp_py_ctx_head;
@@ -314,34 +315,12 @@ int ucp_py_worker_progress()
 
 int ucp_py_worker_progress_wait()
 {
-    int ret = -1, err = 0;
     ucs_status_t status;
-    int epoll_fd_local = 0, epoll_fd = 0;
-    struct epoll_event ev;
-    ev.data.u64 = 0;
-
-    status = ucp_worker_get_efd(ucp_py_ctx_head->ucp_worker, &epoll_fd);
-    if (UCS_OK != status) {
-        DEBUG_PRINT("ucp_worker_get_efd error\n");
-        goto err;
-    }
-
-    /* It is recommended to copy original fd */
-    epoll_fd_local = epoll_create(1);
-
-    ev.data.fd = epoll_fd;
-    ev.events = EPOLLIN;
-    err = epoll_ctl(epoll_fd_local, EPOLL_CTL_ADD, epoll_fd, &ev);
-    if (err < 0) {
-        printf("add original socket to the new epoll error\n");
-        goto err;
-    }
 
     /* Need to prepare ucp_worker before epoll_wait */
     status = ucp_worker_arm(ucp_py_ctx_head->ucp_worker);
     if (status == UCS_ERR_BUSY) { /* some events are arrived already */
         DEBUG_PRINT("worker_arm returned busy\n");
-        ret = UCS_OK;
         goto err;
     }
     if (status != UCS_OK) {
@@ -349,9 +328,7 @@ int ucp_py_worker_progress_wait()
         goto err;
     }
 
-    DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
-
-    return epoll_fd_local;
+    return ucp_py_ctx_head->epoll_fd_local;
  err:
     return -1;
 }
@@ -552,6 +529,10 @@ int ucp_py_init()
     ucp_worker_params_t worker_params;
     ucp_config_t *config;
     ucs_status_t status;
+    int ret = -1, err = 0;
+    int epoll_fd_local = 0, epoll_fd = 0;
+    struct epoll_event ev;
+    ev.data.u64 = 0;
 
     if (0 != gethostname(my_hostname, HNAME_MAX_LEN)) goto err_py_init;
     my_pid = getpid();
@@ -600,6 +581,26 @@ int ucp_py_init()
 
     num_cb_free = CB_Q_MAX_ENTRIES;
     num_cb_used = 0;
+
+    status = ucp_worker_get_efd(ucp_py_ctx_head->ucp_worker, &epoll_fd);
+    if (UCS_OK != status) {
+        DEBUG_PRINT("ucp_worker_get_efd error\n");
+        goto err_init;
+    }
+
+    /* It is recommended to copy original fd */
+    epoll_fd_local = epoll_create(1);
+
+    ev.data.fd = epoll_fd;
+    ev.events = EPOLLIN;
+    err = epoll_ctl(epoll_fd_local, EPOLL_CTL_ADD, epoll_fd, &ev);
+    if (err < 0) {
+        printf("add original socket to the new epoll error\n");
+        goto err_init;
+    }
+
+    DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
+    ucp_py_ctx_head->epoll_fd_local = epoll_fd_local;
 
     ucp_config_release(config);
     return 0;

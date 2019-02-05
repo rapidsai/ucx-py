@@ -107,7 +107,7 @@ class ListenerFuture(concurrent.futures.Future):
         if -1 != fd:
             self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
             events = self.sel.select()
-            for key, mask in events:
+            for key, mask in events: # not really needed
                 callback = key.data
                 callback(key.fileobj, mask)
             self.sel.unregister(fd)
@@ -208,7 +208,8 @@ cdef class ucp_py_ep:
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
-        return internal_msg.get_comm_request(len)
+        internal_comm_req = internal_msg.get_comm_request(len)
+        return internal_comm_req.async_await()
 
     def send_obj(self, msg, len):
         """Send msg is a contiguous python object
@@ -223,7 +224,8 @@ cdef class ucp_py_ep:
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg)
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
-        return internal_msg.get_comm_request(len)
+        internal_comm_req = internal_msg.get_comm_request(len)
+        return internal_comm_req.async_await()
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
@@ -331,10 +333,12 @@ cdef class ucp_comm_request:
 
     cdef ucp_msg msg
     cdef int done_state
+    cpdef object sel
 
     def __cinit__(self, ucp_msg msg):
         self.msg = msg
         self.done_state = 0
+        self.sel = selectors.DefaultSelector()
         return
 
     def done(self):
@@ -345,6 +349,27 @@ cdef class ucp_comm_request:
     def result(self):
         while 0 == self.done_state:
             self.done()
+        return self.msg
+
+    def dummy_cb(self, fileobj, mask):
+        pass
+
+    def block_for_comm(self):
+        fd = ucp_py_worker_progress_wait()
+        if -1 != fd:
+            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
+            events = self.sel.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+            self.sel.unregister(fd)
+
+    async def async_await(self):
+        while 0 == self.done_state:
+            if 0 == self.done():
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.block_for_comm)
+        self.done_state = 1
         return self.msg
 
     def __await__(self):
