@@ -349,12 +349,6 @@ int ucp_py_worker_progress_wait()
         goto err;
     }
 
-    /*
-    do {
-        ret = epoll_wait(epoll_fd_local, &ev, 1, -1);
-    } while ((ret == -1) && (errno == EINTR));
-    */
-
     DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
 
     return epoll_fd_local;
