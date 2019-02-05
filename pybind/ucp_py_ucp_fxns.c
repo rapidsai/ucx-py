@@ -134,6 +134,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     struct ucx_context *request = 0;
     ucp_py_internal_ep_t *internal_ep;
     status = ucp_worker_progress(ucp_worker);
+    DEBUG_PRINT("called ucp_worker_progress\n");
 
     while (cb_used_head.tqh_first != NULL) {
         //handle python callbacks
@@ -175,6 +176,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         ucp_request_free(request);
         accept_ep_counter++;
 
+        DEBUG_PRINT("calling python callback\n");
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
     }
 
@@ -305,9 +307,9 @@ err_ep:
     return request;
 }
 
-void ucp_py_worker_progress()
+int ucp_py_worker_progress()
 {
-    ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
+    return ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 }
 
 int ucp_py_worker_progress_wait()
@@ -320,7 +322,7 @@ int ucp_py_worker_progress_wait()
 
     status = ucp_worker_get_efd(ucp_py_ctx_head->ucp_worker, &epoll_fd);
     if (UCS_OK != status) {
-        printf("ucp_worker_get_efd error\n");
+        DEBUG_PRINT("ucp_worker_get_efd error\n");
         goto err;
     }
 
@@ -338,6 +340,7 @@ int ucp_py_worker_progress_wait()
     /* Need to prepare ucp_worker before epoll_wait */
     status = ucp_worker_arm(ucp_py_ctx_head->ucp_worker);
     if (status == UCS_ERR_BUSY) { /* some events are arrived already */
+        DEBUG_PRINT("worker_arm returned busy\n");
         ret = UCS_OK;
         goto err;
     }
@@ -352,14 +355,11 @@ int ucp_py_worker_progress_wait()
     } while ((ret == -1) && (errno == EINTR));
     */
 
+    DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
+
     return epoll_fd_local;
  err:
     return -1;
-}
-
-void ucp_py_worker_drain()
-{
-    while (0 != ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker));
 }
 
 int ucp_py_query_request(struct ucx_context *request)
@@ -412,7 +412,10 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     *ep_ptr = ep;
     internal_ep->ep_ptr = ep_ptr;
 
+    DEBUG_PRINT("in listener accept cb\n");
+
     if (num_cb_free > 0) {
+        DEBUG_PRINT("adding to tailq with pycb\n");
         num_cb_free--;
         np = cb_free_head.tqh_first;
         TAILQ_REMOVE(&cb_free_head, np, entries);
@@ -491,7 +494,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
     internal_ep->recv_tag = djb2_hash(tmp_str);
-    
+
     request = ucp_tag_send_nb(*ep_ptr, internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                               ucp_dt_make_contig(1), exch_tag,
                               send_handle);
@@ -502,7 +505,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         DEBUG_PRINT("UCX data message was scheduled for send\n");
         do {
             ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
-	    //TODO: Workout if there are deadlock possibilities here
+            //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
         request_init(request);

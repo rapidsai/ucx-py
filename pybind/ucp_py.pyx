@@ -100,25 +100,23 @@ class ListenerFuture(concurrent.futures.Future):
         pass
 
     def dummy_cb(self, fileobj, mask):
-        print("dummy_cb")
         pass
 
     def block_for_comm(self):
-        print("in block for comm")
         fd = ucp_py_worker_progress_wait()
-        self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
-        events = self.sel.select()
-        for key, mask in events:
-            callback = key.data
-            callback(key.fileobj, mask)
-        self.sel.unregister(fd)
-        ucp_py_worker_drain()
-        print("done with block for comm")
+        if -1 != fd:
+            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
+            events = self.sel.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+            self.sel.unregister(fd)
 
     async def async_await(self):
         while False == self.done_state:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, self.block_for_comm)
+            if 0 == ucp_py_worker_progress():
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.block_for_comm)
 
     def __await__(self):
         if True == self.done_state:
