@@ -32,6 +32,7 @@ class CommFuture(concurrent.futures.Future):
     def __init__(self, ucp_msg = None):
         self.done_state = False
         self.result_state = None
+        self.sel = selectors.DefaultSelector()
         #self.start_time = time.time()
         #self.end_time = None
         self._instances[id(self)] = self
@@ -57,6 +58,26 @@ class CommFuture(concurrent.futures.Future):
 
     def __del__(self):
         pass #self.ucp_msg.free_mem()
+
+    def dummy_cb(self, fileobj, mask):
+        pass
+
+    def block_for_comm(self):
+        fd = ucp_py_worker_progress_wait()
+        if -1 != fd:
+            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
+            events = self.sel.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+            self.sel.unregister(fd)
+
+    async def async_await(self):
+        while False == self.done_state:
+            if False == self.done():
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, self.block_for_comm)
+        return self.result_state
 
     def __await__(self):
         if True == self.done_state:
@@ -146,11 +167,16 @@ cdef class ucp_py_ep:
     def recv_future(self):
         """Blind receive operation"""
 
+        global use_blocking_progress
         recv_msg = ucp_msg(None)
         recv_msg.ucp_ep = self.ucp_ep
         recv_future = CommFuture(recv_msg)
         ucp_py_ep_post_probe()
-        return recv_future
+        internal_req = recv_future
+        if use_blocking_progress:
+            return internal_req.async_await()
+        else:
+            return internal_req
 
     def recv(self, ucp_msg msg, len):
         """Receive operation of length `len`
@@ -160,8 +186,13 @@ cdef class ucp_py_ep:
         CommFuture object
         """
 
+        global use_blocking_progress
         msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, len)
-        return msg.get_future(len)
+        internal_req = msg.get_future(len)
+        if use_blocking_progress:
+            return internal_req.async_await()
+        else:
+            return internal_req
 
     def send(self, ucp_msg msg, len):
         """Send msg generated using buffer region class
@@ -171,8 +202,13 @@ cdef class ucp_py_ep:
         CommFuture object
         """
 
+        global use_blocking_progress
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
-        return msg.get_future(len)
+        internal_req = msg.get_future(len)
+        if use_blocking_progress:
+            return internal_req.async_await()
+        else:
+            return internal_req
 
     def recv_fast(self, ucp_msg msg, len):
         """Receive msg allocated using buffer region class
@@ -203,13 +239,17 @@ cdef class ucp_py_ep:
         python object that was sent
         """
 
+        global use_blocking_progress
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
         internal_comm_req = internal_msg.get_comm_request(len)
-        return internal_comm_req.async_await()
+        if use_blocking_progress:
+            return internal_comm_req.async_await()
+        else:
+            return internal_comm_req
 
     def send_obj(self, msg, len):
         """Send msg is a contiguous python object
@@ -219,13 +259,17 @@ cdef class ucp_py_ep:
         ucp_comm_request object
         """
 
+        global use_blocking_progress
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg)
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
         internal_comm_req = internal_msg.get_comm_request(len)
-        return internal_comm_req.async_await()
+        if use_blocking_progress:
+            return internal_comm_req.async_await()
+        else:
+            return internal_comm_req
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
@@ -313,6 +357,7 @@ cdef class ucp_msg:
                 self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
                 self.comm_len = len
                 self.ctx_ptr_set = 1
+                return ucp_py_query_request(self.ctx_ptr)
             return 0
 
     def free_mem(self):
@@ -393,7 +438,9 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
         current_loop = asyncio.get_running_loop()
         current_loop.create_task((listener_instance.cb)(client_ep, listener_instance))
 
-def init():
+use_blocking_progress = True
+
+def init(blocking_progress = True):
     """Initiates ucp resources like ucp_context and ucp_worker
 
     Parameters
@@ -404,6 +451,9 @@ def init():
     -------
     0 if initialization was successful
     """
+
+    global use_blocking_progress
+    use_blocking_progress = blocking_progress
 
     return ucp_py_init()
 
