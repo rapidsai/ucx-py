@@ -22,11 +22,14 @@
 #include <netinet/in.h>
 #include <assert.h>
 #include <pthread.h> /* pthread_self */
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include <sys/queue.h>
 #include <arpa/inet.h>
 #include <errno.h>   /* errno */
+
+#ifdef UCX_PY_CUDA
+#include <cuda.h>
+#include <cuda_runtime.h>
+#endif
 
 
 #define CB_Q_MAX_ENTRIES 256
@@ -40,10 +43,10 @@ struct entry {
 } *np, *np_used, *np_free;
 int num_cb_free, num_cb_used;
 
-static struct err_handling {
-    ucp_err_handling_mode_t ucp_err_mode;
-    int                     failure;
-} err_handling_opt;
+/* static struct err_handling { */
+/*     ucp_err_handling_mode_t ucp_err_mode; */
+/*     int                     failure; */
+/* } err_handling_opt; */
 
 typedef struct ucx_listener_ctx {
     listener_accept_cb_func pyx_cb;
@@ -93,16 +96,16 @@ static void send_handle(void *request, ucs_status_t status)
                 ucs_status_string(status));
 }
 
-static void failure_handler(void *arg, ucp_ep_h ep, ucs_status_t status)
-{
-    ucs_status_t *arg_status = (ucs_status_t *)arg;
+/* static void failure_handler(void *arg, ucp_ep_h ep, ucs_status_t status) */
+/* { */
+/*     ucs_status_t *arg_status = (ucs_status_t *)arg; */
 
-    DEBUG_PRINT("[0x%x] failure handler called with status %d (%s)\n",
-                (unsigned int)pthread_self(), status,
-                ucs_status_string(status));
+/*     DEBUG_PRINT("[0x%x] failure handler called with status %d (%s)\n", */
+/*                 (unsigned int)pthread_self(), status, */
+/*                 ucs_status_string(status)); */
 
-    *arg_status = status;
-}
+/*     *arg_status = status; */
+/* } */
 
 static void recv_handle(void *request, ucs_status_t status,
                         ucp_tag_recv_info_t *info)
@@ -117,12 +120,12 @@ static void recv_handle(void *request, ucs_status_t status,
                 info->length);
 }
 
-unsigned long djb2_hash(unsigned char *str)
+unsigned long djb2_hash(char *str)
 {
     unsigned long hash = 5381;
     int c;
 
-    while (c = *str++)
+    while ((c = *str++))
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
 
     return hash;
@@ -191,12 +194,8 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 
 struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, int length)
 {
-    ucs_status_t status;
     ucp_tag_t tag;
-    ucp_ep_params_t ep_params;
     struct ucx_context *request = 0;
-    int errs = 0;
-    int i;
     ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
@@ -230,12 +229,7 @@ int ucp_py_ep_post_probe()
 
 int ucp_py_ep_probe(void *internal_ep)
 {
-    ucs_status_t status;
     ucp_tag_t tag;
-    ucp_ep_params_t ep_params;
-    struct ucx_context *request = 0;
-    int errs = 0;
-    int i;
     ucp_tag_recv_info_t info_tag;
     ucp_tag_message_h msg_tag;
     ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
@@ -287,9 +281,7 @@ int ucp_py_probe_query_wo_progress(void *internal_ep)
 struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
                                       int length)
 {
-    ucs_status_t status;
     ucp_tag_t tag;
-    ucp_ep_params_t ep_params;
     struct ucx_context *request = 0;
     ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
@@ -319,12 +311,12 @@ err_ep:
     return request;
 }
 
-int ucp_py_worker_progress()
+int ucp_py_worker_progress(void)
 {
     return ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 }
 
-int ucp_py_worker_progress_wait()
+int ucp_py_worker_progress_wait(void)
 {
     ucs_status_t status;
 
@@ -374,7 +366,6 @@ int ucp_py_request_is_complete(struct ucx_context *request)
 
 int ucp_py_query_request(struct ucx_context *request)
 {
-    ucs_status_t status;
     int ret = 1;
 
     if (NULL == request) return ret;
@@ -415,7 +406,6 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
     ucx_listener_ctx_t *context = arg;
     ucp_py_internal_ep_t *internal_ep;
     ucp_ep_h *ep_ptr = NULL;
-    ucs_status_t status;
 
     internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
@@ -558,16 +548,19 @@ int ucp_py_put_ep(void *internal_ep)
     free(ep_ptr);
     free(internal_ep);
     DEBUG_PRINT("ep closed\n");
+    /* TODO: handle failure, raise exception? */
+    return 0;
 }
 
-int ucp_py_init()
+int ucp_py_init(void)
 {
-    int a, b, c, i;
+    unsigned int a, b, c;
+    int i;
     ucp_params_t ucp_params;
     ucp_worker_params_t worker_params;
     ucp_config_t *config;
     ucs_status_t status;
-    int ret = -1, err = 0;
+    int err = 0;
     int epoll_fd_local = 0, epoll_fd = 0;
     struct epoll_event ev;
     ev.data.u64 = 0;

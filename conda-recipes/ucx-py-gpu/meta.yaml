@@ -1,0 +1,57 @@
+{% set name = "ucx-py-gpu" %}
+{% set version = "1.5.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ../../
+
+build:
+  number: 4
+  skip: True  # [not linux]
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+  host:
+    - python
+    - pip
+    - cython
+    - ucx-gpu==1.5.0
+    - cudatoolkit==9.2
+  run:
+    - python
+    - ucx-gpu==1.5.0
+    - cudatoolkit==9.2
+
+
+test:
+  requires:
+      - pytest
+      - pytest-asyncio>=0.10.0
+      - numpy
+      - numba
+  source_files:
+      - tests/
+  commands:
+      - python -m pytest tests -vs
+  imports:
+    - ucp_py
+
+about:
+  home: http://github.com/openucx/ucx
+  license: BSD-3-Clause
+  license_family: BSD
+  # license_file: LICENSE
+  summary: 'Unified Communication X.'
+
+  description: |
+    Unifided Communication X.
+
+  dev_url: https://github.com/openucx/ucx
+
+extra:
+  recipe-maintainers:
+    - TomAugspurger

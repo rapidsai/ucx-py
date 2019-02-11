@@ -1,7 +1,16 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-cdef extern from "ucp_py_ucp_fxns.h":
+cdef extern from "src/common.h":
+    struct data_buf:
+        void *buf
+
+
+cdef extern from "src/ucp_py_ucp_fxns.h":
+    struct ucx_context:
+        int completed
+
+cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_worker_progress()
     int ucp_py_worker_progress_wait()
     int ucp_py_worker_drain_fd()

@@ -19,3 +19,9 @@ clean:
 	rm ucp_py/_libs/*.o ucp_py/_libs/*.a
 	rm -rf ucp_py/_libs/build ucp_py/_libs/ucx_py.egg-info
 	rm ucp_py/_libs/ucp_py.c
+
+conda-packages:
+	conda build --numpy=1.14 --python=3.7 ucx
+	conda build --numpy=1.14 --python=3.7 ucx-gpu
+	conda build --numpy=1.14 --python=3.7 ucx-py     -c defaults -c conda-forge
+	conda build --numpy=1.14 --python=3.7 ucx-py-gpu -c defaults -c conda-forge
