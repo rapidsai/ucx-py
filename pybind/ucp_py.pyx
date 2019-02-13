@@ -62,6 +62,9 @@ class CommFuture(concurrent.futures.Future):
     def dummy_cb(self, fileobj, mask):
         pass
 
+    def wait_for_read(self, waiter):
+        waiter.set_result(None)
+
     def block_for_comm(self):
         fd = ucp_py_worker_progress_wait()
         if -1 != fd:
@@ -76,7 +79,13 @@ class CommFuture(concurrent.futures.Future):
         while False == self.done_state:
             if False == self.done():
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, self.block_for_comm)
+                #await loop.run_in_executor(None, self.block_for_comm)
+                fd = ucp_py_worker_progress_wait()
+                if -1 != fd:
+                     waiter = loop.create_future()
+                     loop.add_reader(fd, self.wait_for_read, waiter)
+                     await waiter
+                     loop.remove_reader(fd)
         return self.result_state
 
     def __await__(self):
@@ -99,6 +108,7 @@ class ListenerFuture(concurrent.futures.Future):
     def __init__(self, cb, is_coroutine = False):
         self.done_state = False
         self.result_state = None
+        self.waiter = None
         self.cb = cb
         self.is_coroutine = is_coroutine
         self.coroutine = None
@@ -133,11 +143,21 @@ class ListenerFuture(concurrent.futures.Future):
                 callback(key.fileobj, mask)
             self.sel.unregister(fd)
 
+    def wait_for_read(self, waiter):
+        waiter.set_result(None)
+
     async def async_await(self):
         while False == self.done_state:
             if 0 == ucp_py_worker_progress():
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, self.block_for_comm)
+                #await loop.run_in_executor(None, self.block_for_comm)
+                fd = ucp_py_worker_progress_wait()
+                if -1 != fd:
+                     self.waiter = loop.create_future()
+                     loop.add_reader(fd, self.wait_for_read, self.waiter)
+                     await self.waiter
+                     loop.remove_reader(fd)
+        return self.result_state
 
     def __await__(self):
         if True == self.done_state:
@@ -164,7 +184,7 @@ cdef class ucp_py_ep:
         self.ucp_ep = ucp_py_get_ep(ip, port)
         return
 
-    def recv_future(self):
+    def recv_future(self, *other_args):
         """Blind receive operation"""
 
         global use_blocking_progress
@@ -399,6 +419,9 @@ cdef class ucp_comm_request:
     def dummy_cb(self, fileobj, mask):
         pass
 
+    def wait_for_read(self, waiter):
+        waiter.set_result(None)
+
     def block_for_comm(self):
         fd = ucp_py_worker_progress_wait()
         if -1 != fd:
@@ -413,8 +436,13 @@ cdef class ucp_comm_request:
         while 0 == self.done_state:
             if 0 == self.done():
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, self.block_for_comm)
-        self.done_state = 1
+                #await loop.run_in_executor(None, self.block_for_comm)
+                fd = ucp_py_worker_progress_wait()
+                if -1 != fd:
+                     waiter = loop.create_future()
+                     loop.add_reader(fd, self.wait_for_read, waiter)
+                     await waiter
+                     loop.remove_reader(fd)
         return self.msg
 
     def __await__(self):
@@ -506,6 +534,8 @@ def stop_listener(lf):
     cdef ucp_listener listener
     if lf.is_coroutine:
         lf.done_state = True
+        if lf.waiter != None:
+            lf.waiter.set_result(None)
     listener = lf.ucp_listener
     ucp_py_stop_listener(listener.listener_ptr)
 

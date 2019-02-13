@@ -200,7 +200,7 @@ async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log
         print("{}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat),
                                               ((msg_len/(lat/2)) / 1000000)))
 
-def talk_to_client(ep):
+def talk_to_client(ep, listener):
 
     global args
     global cb_not_done
@@ -212,7 +212,7 @@ def talk_to_client(ep):
 
     ucp.destroy_ep(ep)
     cb_not_done = False
-    ucp.stop_listener()
+    ucp.stop_listener(listener)
 
 def talk_to_server(ip, port):
 
@@ -227,7 +227,7 @@ def talk_to_server(ip, port):
 
     ucp.destroy_ep(ep)
 
-async def talk_to_client_async(ep):
+async def talk_to_client_async(ep, listener):
 
     global args
     send_first = True
@@ -237,7 +237,7 @@ async def talk_to_client_async(ep):
     free_mem(send_buffer_region, recv_buffer_region, args)
 
     ucp.destroy_ep(ep)
-    ucp.stop_listener()
+    ucp.stop_listener(listener)
 
 async def talk_to_server_async(ip, port):
 
@@ -290,7 +290,8 @@ else:
     if server:
         if args.intra_node:
             ucp.set_cuda_dev(1)
-        coro = ucp.start_listener(talk_to_client_async, is_coroutine = True)
+        listener = ucp.start_listener(talk_to_client_async, is_coroutine = True)
+        coro = listener.coroutine
     else:
         coro = talk_to_server_async(init_str.encode(), int(args.port))
 
