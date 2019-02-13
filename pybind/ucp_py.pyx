@@ -157,6 +157,7 @@ class ListenerFuture(concurrent.futures.Future):
                      loop.add_reader(fd, self.wait_for_read, self.waiter)
                      await self.waiter
                      loop.remove_reader(fd)
+                     self.waiter = None
         return self.result_state
 
     def __await__(self):
