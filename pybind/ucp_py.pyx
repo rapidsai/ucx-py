@@ -30,7 +30,7 @@ running = False
 i = 0
 
 
-def on_activity_cb(fd):
+def on_activity_cb():
     """
     Advance the state of the world.
     """
@@ -52,11 +52,7 @@ def on_activity_cb(fd):
 
     for msg in dones:
         RECVS.pop(msg)
-    time.sleep(1.5)
-
-
-def on_write_cb(fd):
-    print("Hey, listen!")
+    # time.sleep(1.5)
 
 
 class CommFuture(concurrent.futures.Future):
@@ -321,6 +317,9 @@ cdef class ucp_py_ep:
         internal_msg.ucp_ep = self.ucp_ep
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
         # internal_comm_req = internal_msg.get_comm_request(len)
+        internal_msg.comm_len = len
+        internal_msg.ctx_ptr_set = 1
+        # get_comm_request
 
         fut = asyncio.Future()
         RECVS[internal_msg] = fut
@@ -576,8 +575,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
             await lf.async_await()
         lf.coroutine = start()
 
-    loop.add_reader(fd, on_activity_cb, lf)
-    loop.add_writer(fd, on_write_cb, lf)
+    loop.add_reader(fd, on_activity_cb)
     # fut = asyncio.Future()
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
     if <void *> NULL != listener.listener_ptr:
@@ -653,7 +651,7 @@ def get_endpoint(peer_ip, peer_port):
         fd = ucp_py_worker_progress_wait()
 
     loop = asyncio.get_running_loop()
-    loop.add_reader(fd, on_activity_cb, None)
+    loop.add_reader(fd, on_activity_cb)
     return ep
 
 def progress():
