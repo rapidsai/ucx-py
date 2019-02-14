@@ -17,7 +17,7 @@ async def connect(host):
     print("Done await send")
     dest = b'00'
 
-    resp = await ep.recv_obj(dest, size)
+    resp = await ep.recv_future()
     print("Done await recv")
     r_msg = ucp.get_obj_from_msg(resp)
     print("8. Client got message: {}".format(r_msg.decode()))
@@ -30,7 +30,7 @@ async def serve(ep, lf):
     print("5. Starting serve")
     dest = b'00'
 
-    msg = await ep.recv_obj(dest, size)
+    msg = await ep.recv_future()
     print("6. Server got message")
     msg = ucp.get_obj_from_msg(msg)
     response = "Got: {}".format(server_msg.decode()).encode()
