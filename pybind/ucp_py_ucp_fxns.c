@@ -428,7 +428,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
 
     status = ucp_listener_create(ucp_worker, &params, listener);
     if (status != UCS_OK) {
-        DEBUG_PRINT(stderr, "failed to listen (%s)\n", ucs_status_string(status));
+        ERROR_PRINT("failed to listen (%s)\n", ucs_status_string(status));
     }
 
     return status;
@@ -457,7 +457,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 
     status = ucp_ep_create(ucp_py_ctx_head->ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
-        DEBUG_PRINT(stderr, "failed to connect to %s (%s)\n", ip,
+        ERROR_PRINT("failed to connect to %s (%s)\n", ip,
                     ucs_status_string(status));
     }
     internal_ep->ep_ptr = ep_ptr;
@@ -515,7 +515,7 @@ int ucp_py_put_ep(void *internal_ep)
         request_init(close_req);
         ucp_request_free(close_req);
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
-        DEBUG_PRINT(stderr, "failed to close ep %p\n", (void*)*ep_ptr);
+        ERROR_PRINT("failed to close ep %p\n", (void*)*ep_ptr);
     }
 
     free(ep_ptr);
@@ -547,9 +547,6 @@ int ucp_py_init()
     ucp_py_ctx_head->num_probes_outstanding = 0;
 
     ucp_get_version(&a, &b, &c);
-
-    DEBUG_PRINT("client = %s (%d), ucp version (%d, %d, %d)\n",
-                client_target_name, strlen(client_target_name), a, b, c);
 
     memset(&ucp_params, 0, sizeof(ucp_params));
 
