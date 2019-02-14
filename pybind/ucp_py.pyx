@@ -25,47 +25,38 @@ include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
 
 RECVS = {}  # type: Dict[ucp_msg, Future]
+running = False
 # TODO: remove the reader
+i = 0
 
 
 def on_activity_cb(fd):
     """
     Advance the state of the world.
     """
-    print(f"Working on {RECVS.keys()}")
-    dones = []
-    time.sleep(3)
+    global i, running
+    running = True
 
+    print(f"Working on {list(RECVS.keys())}-{i}")
+    i += 1
+    dones = []
+
+    ucp_py_worker_progress()  # why?
     for msg, fut in RECVS.items():
         # print(f"check for {msg}")
-        print('query')
         completed = msg.query()
         if completed:
             print(f"{msg} completed!")
             dones.append(msg)
             fut.set_result(msg)
 
-
-        # length = ucp_py_probe_query(internal_ep)
-        # if length >= 0:
-        #     msg.alloc_host(len)
-        #     msg.internally_allocated = 1
-        #     buf = <data_buf *>msg.data_buf
-            
-        #     ctx_ptr = ucp_py_recv_nb(internal_ep, buf, <int>len)
-        #     msg.comm_len = len
-        #     msg.ctx_ptr_set = 1
-        #     completed = ucp_py_query_request(ctx_ptr)
-
-        #     if completed:
-        #         fut = RECVS[msg]
-        #         fut.set_result(msg)
-        #         dones.append(msg)
-        # time.sleep(1)
-
     for msg in dones:
-        print(f"finished {msg}")
         RECVS.pop(msg)
+    time.sleep(1.5)
+
+
+def on_write_cb(fd):
+    print("Hey, listen!")
 
 
 class CommFuture(concurrent.futures.Future):
@@ -327,6 +318,7 @@ cdef class ucp_py_ep:
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg, name=name, op='send', length=len)
         # TODO: do this here or there?
+        internal_msg.ucp_ep = self.ucp_ep
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
         # internal_comm_req = internal_msg.get_comm_request(len)
 
@@ -439,12 +431,11 @@ cdef class ucp_msg:
         return ucp_comm_request(self)
 
     def query(self):
-        print("check ptr_set")
         if 1 == self.ctx_ptr_set:
             return ucp_py_query_request(self.ctx_ptr)
         else:
-            print('probe query')
             len = ucp_py_probe_query(self.ucp_ep)
+            print('query len', len)
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
@@ -586,6 +577,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         lf.coroutine = start()
 
     loop.add_reader(fd, on_activity_cb, lf)
+    loop.add_writer(fd, on_write_cb, lf)
     # fut = asyncio.Future()
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
     if <void *> NULL != listener.listener_ptr:
@@ -654,9 +646,14 @@ def get_endpoint(peer_ip, peer_port):
     An endpoint object of class `ucp_py_ep` on which methods like
     `send_msg` and `recv_msg` may be called
     """
-
     ep = ucp_py_ep()
     ep.connect(peer_ip, peer_port)
+    fd = -1
+    while fd == -1:
+        fd = ucp_py_worker_progress_wait()
+
+    loop = asyncio.get_running_loop()
+    loop.add_reader(fd, on_activity_cb, None)
     return ep
 
 def progress():

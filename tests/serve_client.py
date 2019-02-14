@@ -17,11 +17,17 @@ async def main():
     obj = b'hi'
     size = sizeof(obj)
 
-    resp = ep.send_obj(obj, size, name='client-send-0')
-    print(resp)
-    await resp
+    for i in range(5):
+        print(f'client-send-{i}')
+        resp = ep.send_obj(obj, size, name=f'client-send-{i}')
+        await resp
+        print(f'client-recv-{i}')
+        resp = ep.recv_future(name=f'client-recv-{i}')
+        await resp
 
-
+    await ep.send_obj(b'', sizeof(b''))
+    print("closing client")
+    ucp.destroy_ep(ep)
 
 
 if __name__ == '__main__':

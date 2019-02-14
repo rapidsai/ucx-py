@@ -17,11 +17,14 @@ async def serve_forever(ep, lf):
         resp = await ep.recv_future(f'serve-recv_future-{i}')
         print("Got resp!", resp)
         obj = resp.get_obj()
+        if not obj:
+            break
         size = sizeof(obj)
         print(f"Got obj: {obj}:: {size}")
         await ep.send_obj(obj, size, name=f'serve-send-{i}')
         i += 1
 
+    print('closing!')
     ucp.destroy_ep(ep)
     ucp.stop_listener(lf)
 
