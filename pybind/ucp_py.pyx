@@ -24,31 +24,73 @@ cdef extern from "ucp_py_ucp_fxns.h":
 include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
 
+RECVS : dict = {}
+# TODO: remove the reader
+
+
+def _check_for_done():
+    done = [k for k, v in RECVS.items() if v.done()]
+    for k in done:
+        print(f"finished {k}")
+        RECVS.pop(k)
+
+
+def on_activity_cb(fd):
+    """
+    Advance the state of the world.
+    """
+    print("Activity!")
+    print(f"Working on {RECVS}")
+    cdef void* internal_ep
+    cdef ucx_context* ctx_ptr
+    cdef data_buf* buf
+    dones = []
+    time.sleep(1)
+
+    for msg in RECVS:
+        print(f"check for {msg}")
+        internal_ep = <void *>msg.my_ucp_ep
+
+        length = ucp_py_probe_query(internal_ep)
+        if length >= 0:
+            msg.alloc_host(len)
+            msg.internally_allocated = 1
+            buf = <data_buf *>msg.data_buf
+            
+            ctx_ptr = ucp_py_recv_nb(internal_ep, buf, <int>len)
+            msg.comm_len = len
+            msg.ctx_ptr_set = 1
+            completed = ucp_py_query_request(ctx_ptr)
+
+            if completed:
+                fut = RECVS[msg]
+                fut.set_result(msg)
+                dones.append(msg)
+        time.sleep(1)
+
+    for msg in dones:
+        print(f"finished {msg}")
+        RECVS.pop(msg)
+
+
 class CommFuture(concurrent.futures.Future):
     """A class to represent Communication requests as Futures"""
 
     _instances = WeakValueDictionary()
 
     def __init__(self, ucp_msg = None):
+        assert ucp_msg is not None
         self.done_state = False
         self.result_state = None
         self.sel = selectors.DefaultSelector()
         #self.start_time = time.time()
         #self.end_time = None
         self._instances[id(self)] = self
-        if None != ucp_msg:
-            self.ucp_msg = ucp_msg
+        self.ucp_msg = ucp_msg
         super(CommFuture, self).__init__()
+        self._done = False
 
     def done(self):
-        if False == self.done_state and hasattr(self, 'ucp_msg'):
-            if 1 == self.ucp_msg.query():
-                self.done_state = True
-                #self.end_time = time.time()
-                #lat = self.end_time - self.start_time
-                #print("future time {}".format(lat * 1000000))
-                self.result_state = self.ucp_msg
-                self.set_result(self.ucp_msg)
         return self.done_state
 
     def result(self):
@@ -56,36 +98,46 @@ class CommFuture(concurrent.futures.Future):
             self.done()
         return self.result_state
 
-    def __del__(self):
-        pass #self.ucp_msg.free_mem()
-
-    def dummy_cb(self, fileobj, mask):
-        pass
-
-    def wait_for_read(self, waiter):
-        waiter.set_result(None)
-
-    def block_for_comm(self):
-        fd = ucp_py_worker_progress_wait()
-        if -1 != fd:
-            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
-            events = self.sel.select()
-            for key, mask in events:
-                callback = key.data
-                callback(key.fileobj, mask)
-            self.sel.unregister(fd)
-
     async def async_await(self):
-        while False == self.done_state:
-            if False == self.done():
+        print(f'{self.ucp_msg.name} :: async_await')
+        i = 0
+        while not self.done():
+            print(f'{self.ucp_msg.name} :: not done :: {i}')
+            i += 1
+            fd = ucp_py_worker_progress_wait()
+
+            if -1 != fd:
+                done = asyncio.Event()
+
+                def wait_for_read():
+                    loop.remove_reader(fd)
+                    print(f"querying :: {self.ucp_msg.name}")
+                    time.sleep(1)
+                    status = self.ucp_msg.query()
+                    print(f'status :: {self.ucp_msg.name}', status)
+                    if status == 1:
+                        print("Done!")
+                        self.done_state = True
+                        self.set_result(self.ucp_msg)
+                        self.result_state = self.ucp_msg
+                        done.set()
+
+                    else:
+                        print(f"Continue, adding reader :: {self.ucp_msg.name}")
+                        time.sleep(0.5)
+                        loop.add_reader(fd, wait_for_read)
+
+                print(f'{self.ucp_msg.name} :: fd {fd}')
                 loop = asyncio.get_running_loop()
-                #await loop.run_in_executor(None, self.block_for_comm)
-                fd = ucp_py_worker_progress_wait()
-                if -1 != fd:
-                     waiter = loop.create_future()
-                     loop.add_reader(fd, self.wait_for_read, waiter)
-                     await waiter
-                     loop.remove_reader(fd)
+                # waiter = loop.create_future()
+                print(f"adding reader :: {self.ucp_msg.name}")
+                loop.add_reader(fd, wait_for_read)
+                await done.wait()
+                print(f"done done! :: {self.ucp_msg.name}")
+                break
+
+        assert self.result_state is not None, 'Not done!'
+        print(self.ucp_msg.name, self.result_state.get_obj())
         return self.result_state
 
     def __await__(self):
@@ -133,24 +185,14 @@ class ListenerFuture(concurrent.futures.Future):
     def dummy_cb(self, fileobj, mask):
         pass
 
-    def block_for_comm(self):
-        fd = ucp_py_worker_progress_wait()
-        if -1 != fd:
-            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
-            events = self.sel.select()
-            for key, mask in events: # not really needed
-                callback = key.data
-                callback(key.fileobj, mask)
-            self.sel.unregister(fd)
-
     def wait_for_read(self, waiter):
+        print("ListenerFuture.wait_for_read")
         waiter.set_result(None)
 
     async def async_await(self):
         while False == self.done_state:
             if 0 == ucp_py_worker_progress():
                 loop = asyncio.get_running_loop()
-                #await loop.run_in_executor(None, self.block_for_comm)
                 fd = ucp_py_worker_progress_wait()
                 if -1 != fd:
                      self.waiter = loop.create_future()
@@ -185,19 +227,20 @@ cdef class ucp_py_ep:
         self.ucp_ep = ucp_py_get_ep(ip, port)
         return
 
-    def recv_future(self, *other_args):
+    def recv_future(self, name='ep.recv-future', *other_args):
         """Blind receive operation"""
-
-        global use_blocking_progress
-        recv_msg = ucp_msg(None)
+        recv_msg = ucp_msg(None, name=name)
         recv_msg.ucp_ep = self.ucp_ep
-        recv_future = CommFuture(recv_msg)
+        fut = asyncio.Future()
+
+        RECVS[recv_msg] = fut
         ucp_py_ep_post_probe()
-        internal_req = recv_future
-        if use_blocking_progress:
-            return internal_req.async_await()
-        else:
-            return internal_req
+        return asyncio.Future()
+        
+        # if use_blocking_progress:
+        #     return recv_future.async_await()
+        # else:
+        #     return recv_future
 
     def recv(self, ucp_msg msg, len):
         """Receive operation of length `len`
@@ -259,20 +302,23 @@ cdef class ucp_py_ep:
         -------
         python object that was sent
         """
-
-        global use_blocking_progress
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg)
+        internal_msg = ucp_msg(buf_reg, ucp_ep=self)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
-        internal_comm_req = internal_msg.get_comm_request(len)
-        if use_blocking_progress:
-            return internal_comm_req.async_await()
-        else:
-            return internal_comm_req
+        print(<object>self.ucp_ep)
+        print("setting msg.ucp_ep")
+        internal_msg.ucp_ep = self.ucp_ep
+        print("checking msg.ucp_ep")
+        assert internal_msg.my_ucp_ep
 
-    def send_obj(self, msg, len):
+        fut = asyncio.Future()
+        RECVS[internal_msg] = fut
+        ucp_py_ep_post_probe()
+        return fut
+
+    def send_obj(self, msg, len, name=''):
         """Send msg is a contiguous python object
 
         Returns
@@ -284,7 +330,7 @@ cdef class ucp_py_ep:
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg)
+        internal_msg = ucp_msg(buf_reg, name=name)
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
         internal_comm_req = internal_msg.get_comm_request(len)
         if use_blocking_progress:
@@ -312,8 +358,12 @@ cdef class ucp_msg:
     cdef int comm_len
     cdef int internally_allocated
     cdef buffer_region buf_reg
+    cdef str _name
 
-    def __cinit__(self, buffer_region buf_reg):
+    def __cinit__(self, buffer_region buf_reg, name='', ucp_ep=None):
+        assert name is not None
+        self._name = name
+        # self._my_ucp_ep = ucp_ep
         if buf_reg is None:
             self.buf_reg = buffer_region()
             return
@@ -326,6 +376,14 @@ cdef class ucp_msg:
         self.comm_len = -1
         self.internally_allocated = 0
         return
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def my_ucp_ep(self):
+        return <object>self.ucp_ep
 
     def alloc_host(self, len):
         self.buf_reg.alloc_host(len)
@@ -421,23 +479,13 @@ cdef class ucp_comm_request:
         pass
 
     def wait_for_read(self, waiter):
+        print("ucp_comm_request.wait_for_read")
         waiter.set_result(None)
-
-    def block_for_comm(self):
-        fd = ucp_py_worker_progress_wait()
-        if -1 != fd:
-            self.sel.register(fd, selectors.EVENT_READ, self.dummy_cb)
-            events = self.sel.select()
-            for key, mask in events:
-                callback = key.data
-                callback(key.fileobj, mask)
-            self.sel.unregister(fd)
 
     async def async_await(self):
         while 0 == self.done_state:
             if 0 == self.done():
                 loop = asyncio.get_running_loop()
-                #await loop.run_in_executor(None, self.block_for_comm)
                 fd = ucp_py_worker_progress_wait()
                 if -1 != fd:
                      waiter = loop.create_future()
@@ -461,6 +509,7 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
     listener_instance = (<object> lf)
+    print("in accept_callback")
     if not listener_instance.is_coroutine:
         (listener_instance.cb)(client_ep, listener_instance)
     else:
@@ -486,6 +535,7 @@ def init(blocking_progress = True):
 
     return ucp_py_init()
 
+
 def start_listener(py_func, listener_port = -1, is_coroutine = False):
     """Start listener to accept incoming connections
 
@@ -506,19 +556,37 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     0 if listener successfully started
     """
     listener = ucp_listener()
+    loop = asyncio.get_running_loop()
+    # this will spin, but w/e for now...
+    fd = -1
+    while fd == -1:
+        fd = ucp_py_worker_progress_wait()
+
     lf = ListenerFuture(py_func, is_coroutine)
-
     if is_coroutine:
-        async def async_start_listener():
+        async def start():
             await lf.async_await()
-        lf.coroutine = async_start_listener()
+        lf.coroutine = start()
 
-    listener.listener_ptr = ucp_py_listen(accept_callback, <void *> lf, listener_port)
+    loop.add_reader(fd, on_activity_cb, lf)
+    # fut = asyncio.Future()
+    listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
     if <void *> NULL != listener.listener_ptr:
         lf.ucp_listener = listener
-        return lf
-    else:
-        return None
+    return lf
+
+    #
+    # if is_coroutine:
+    #     async def async_start_listener():
+    #         await lf.async_await()
+    #     lf.coroutine = async_start_listener()
+
+    # listener.listener_ptr = ucp_py_listen(accept_callback, <void *> lf, listener_port)
+    # if <void *> NULL != listener.listener_ptr:
+    #     lf.ucp_listener = listener
+    #     return lf
+    # else:
+    #     return None
 
 def stop_listener(lf):
     """Stop listening for incoming connections
