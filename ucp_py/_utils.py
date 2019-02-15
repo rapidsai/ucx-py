@@ -1,7 +1,6 @@
 import fcntl
 import socket
 import struct
-import sys
 
 
 def get_address(ifname='ib0'):
@@ -37,16 +36,3 @@ def get_address(ifname='ib0'):
         0x8915,  # SIOCGIFADDR
         struct.pack('256s', ifname[:15])
     )[20:24])
-
-
-def sizeof(obj):
-    """
-    Get the size of an object, defined as
-
-    1. it's length
-    2. it's Python overhead
-
-    So this is appropriate for sequences where each element
-    is a byte (bytestrings or memoryviews).
-    """
-    return len(obj) + sys.getsizeof(obj[:0])

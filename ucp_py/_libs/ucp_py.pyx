@@ -202,7 +202,7 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_obj(self, msg, len, name='recv_obj'):
+    def recv_obj(self, length, name='recv_obj'):
         """Send msg is a contiguous python object
 
         Returns
@@ -210,35 +210,39 @@ cdef class ucp_py_ep:
         python object that was sent
         """
         buf_reg = buffer_region()
-        buf_reg.populate_ptr(msg)
-        buf_reg.is_cuda = 0 # for now but it does not matter
+        buf_reg._is_cuda = 0 # for now but it does not matter
+        buf_reg.alloc_host(length)
+
         internal_msg = ucp_msg(buf_reg, name=name)
-        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
+        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, length)
         internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.comm_len = len
+        internal_msg.comm_len = length
         internal_msg.ctx_ptr_set = 1
 
         fut = handle_msg(internal_msg)
         ucp_py_ep_post_probe()
         return fut
 
-    def send_obj(self, msg, len, name='send_obj'):
+    def send_obj(self, msg, name='send_obj'):
         """Send msg is a contiguous python object
 
         Returns
         -------
         ucp_comm_request object
         """
-
+        # TODO: cuda-compatible memoryview wrapper
+        msg = memoryview(msg)
         buf_reg = buffer_region()
-        buf_reg.populate_ptr(msg)
-        buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg, name=name, length=len)
+        buf_reg.set(msg)
+        length = len(msg)
+
+        buf_reg._is_cuda = 0 # for now but it does not matter
+        internal_msg = ucp_msg(buf_reg, name=name, length=length)
         # TODO: do this here or there?
         internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
-        # internal_comm_req = internal_msg.get_comm_request(len)
-        internal_msg.comm_len = len
+        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, length)
+        # internal_comm_req = internal_msg.get_comm_request(length)
+        internal_msg.comm_len = length
         internal_msg.ctx_ptr_set = 1
         # get_comm_request
 
@@ -356,7 +360,8 @@ cdef class ucp_msg:
         return self.comm_len
 
     def get_obj(self):
-        return self.buf_reg.return_obj()
+        return memoryview(self.buf_reg)
+
 
 cdef class ucp_comm_request:
     """A class that represents a communication request"""

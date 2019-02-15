@@ -187,6 +187,7 @@ async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log
             msg_len = sys.getsizeof(str(list(range(msg_len))))
 
         for j in range(warmup_iters):
+            # TODO: handle size
             first_req = await first_op(first_msg, msg_len)
             second_req = await second_op(second_msg, msg_len)
 

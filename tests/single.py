@@ -5,7 +5,6 @@ import ucp_py as ucp
 
 client_msg = b'hi'
 server_msg = b'ih'
-size = len(client_msg) + sys.getsizeof(client_msg[:0])
 
 
 def parse_args(args=None):
@@ -29,37 +28,52 @@ def parse_args(args=None):
         dest='message',
         help="Whether to send messages, or just connect and close."
     )
+    parser.add_argument(
+        '-t', '--type',
+        choices=['bytes', 'memoryview'],
+        default='bytes'
+    )
     return parser.parse_args(args)
 
 
-async def connect(host, port=13337, message=True):
+async def connect(host, port=13337, message=True, type_='bytes'):
+    if type_ == 'memoryview':
+        box = memoryview
+    else:
+        box = bytes
+
     print("3. Starting connect")
     ep = ucp.get_endpoint(host, port)
     if message:
         print("4. Client send")
-        await ep.send_obj(client_msg, sys.getsizeof(client_msg),
-                          name='connect-send')
-        dest = b'00'
+        msg = box(client_msg)
+        await ep.send_obj(msg, name='connect-send')
 
         # resp = await ep.recv_future()
-        resp = await ep.recv_obj(dest, size)
+        size = len(client_msg)
+        resp = await ep.recv_obj(size)
         r_msg = ucp.get_obj_from_msg(resp)
-        print("8. Client got message: {}".format(r_msg.decode()))
+        print("8. Client got message: {}".format(bytes(r_msg).decode()))
     print("9. Stopping client")
     ucp.destroy_ep(ep)
 
 
-def serve_wrapper(message):
+def serve_wrapper(message, type_):
+    if type_ == 'memoryview':
+        box = memoryview
+    else:
+        box = bytes
+
     async def serve(ep, lf):
         print("5. Starting serve")
         if message:
             # msg = await ep.recv_future()
-            dest = b'00'
-            msg = await ep.recv_obj(dest, size)
+            size = len(client_msg)
+            msg = await ep.recv_obj(size)
             msg = ucp.get_obj_from_msg(msg)
-            print("6. Server got message", msg.decode())
+            print("6. Server got message", bytes(msg).decode())
             # response = "Got: {}".format(server_msg.decode()).encode()
-            await ep.send_obj(server_msg, size, name='serve-send')
+            await ep.send_obj(box(server_msg), name='serve-send')
 
         print('7. Stopping server')
         ucp.destroy_ep(ep)
@@ -75,18 +89,18 @@ async def main(args=None):
     port = 13337
 
     print("1. Calling connect")
-    client = connect(host, port, message=message)
+    client = connect(host, port, message=message, type_=args.type)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(message),
+    server = ucp.start_listener(serve_wrapper(message, args.type),
                                 port, is_coroutine=True)
     await asyncio.gather(server.coroutine, client)
     print("-" * 80)
 
     port = 13338
     print("1. Calling connect")
-    client = connect(host, port, message)
+    client = connect(host, port, message, type_=args.type)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(message),
+    server = ucp.start_listener(serve_wrapper(message, args.type),
                                 port, is_coroutine=True)
     await asyncio.gather(server.coroutine, client)
 
