@@ -1,10 +1,20 @@
 import asyncio
+import argparse
 import sys
 import ucp_py as ucp
 
-client_msg = rb'hi'
-server_msg = rb'ih'
+client_msg = b'hi'
+server_msg = b'ih'
 size = len(client_msg) + sys.getsizeof(client_msg[:0])
+
+
+def parse_args(args=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "host",
+        help="Host to use for the connection. Like 10.33.225.160"
+    )
+    return parser.parse_args(args)
 
 
 async def connect(host):
@@ -38,8 +48,11 @@ async def serve(ep, lf):
     ucp.stop_listener(lf)
 
 
-async def main(host):
+async def main(args=None):
     ucp.init()
+    args = parse_args(args)
+    host = args.host.encode()
+
     print("1. Calling connect")
     client = connect(host)
     print("2. Calling start_server")
@@ -48,9 +61,6 @@ async def main(host):
     # not clear that we need this
     await asyncio.gather(server.coroutine, client)
 
+
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        host = sys.argv[1].encode()
-    else:
-        host = b"192.168.40.19"
-    asyncio.run(main(host))
+    asyncio.run(main())
