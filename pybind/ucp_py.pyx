@@ -150,16 +150,6 @@ class ListenerFuture(concurrent.futures.Future):
                      self.waiter = None
         return self.result_state
 
-    def __await__(self):
-        if True == self.done_state:
-            return self.result_state
-        else:
-            while False == self.done_state:
-                if True == self.done():
-                    return self.result_state
-                else:
-                    yield
-
 
 cdef class ucp_py_ep:
     """A class that represents an endpoint connected to a peer
@@ -400,16 +390,6 @@ cdef class ucp_comm_request:
                      await waiter
                      loop.remove_reader(fd)
         return self.msg
-
-    def __await__(self):
-        if 1 == self.done_state:
-            return self.msg
-        else:
-            while 0 == self.done_state:
-                if 1 == self.done():
-                    return self.msg
-                else:
-                    yield
 
 
 cdef void accept_callback(void *client_ep_ptr, void *lf):

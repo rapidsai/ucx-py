@@ -58,7 +58,6 @@ async def main(args=None):
     print("2. Calling start_server")
     server = ucp.start_listener(serve, is_coroutine=True)
 
-    # not clear that we need this
     await asyncio.gather(server.coroutine, client)
 
 
