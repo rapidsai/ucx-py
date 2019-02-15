@@ -204,7 +204,7 @@ cdef class ucp_py_ep:
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg, ucp_ep=self)
+        internal_msg = ucp_msg(buf_reg)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
         internal_msg.ucp_ep = self.ucp_ep
         internal_msg.comm_len = len
@@ -261,7 +261,7 @@ cdef class ucp_msg:
     cdef str _name
     cdef int _length
 
-    def __cinit__(self, buffer_region buf_reg, name='', ucp_ep=None,
+    def __cinit__(self, buffer_region buf_reg, name='',
                   length=-1):
         assert name is not None
         self._name = name
