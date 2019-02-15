@@ -31,7 +31,7 @@ include "ucp_py_buffer_helper.pyx"
 # event loop to processes these outstanding requests when stuff has
 # happened on the file descriptor.
 
-PENDING_MESSAGSE = {}  # type: Dict[ucp_msg, Future]
+PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
 UCX_FILE_DESCRIPTOR = -1
 
 
@@ -55,7 +55,7 @@ cpdef handle_msg(ucp_msg msg):
     assert UCX_FILE_DESCRIPTOR > 0
     fut = asyncio.Future()
     loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
-    PENDING_MESSAGSE[msg] = fut
+    PENDING_MESSAGES[msg] = fut
     return fut
 
 
@@ -80,16 +80,16 @@ def on_activity_cb():
     """
     dones = []
 
-    for msg, fut in PENDING_MESSAGSE.items():
+    for msg, fut in PENDING_MESSAGES.items():
         completed = msg.query()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
 
     for msg in dones:
-        PENDING_MESSAGSE.pop(msg)
+        PENDING_MESSAGES.pop(msg)
 
-    if not PENDING_MESSAGSE:
+    if not PENDING_MESSAGES:
         loop = asyncio.get_event_loop()
         loop.remove_reader(UCX_FILE_DESCRIPTOR)
 
