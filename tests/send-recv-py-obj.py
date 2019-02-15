@@ -60,7 +60,6 @@ async def talk_to_client(ep, listener):
     if args.validate:
         send_string = 'a' * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
-    time.sleep(10)
     send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
     recv_msg = None
 
@@ -115,7 +114,6 @@ async def talk_to_server(ip, port):
     if args.validate:
         send_string = 'd' * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
-    time.sleep(10)
     send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
 
     if not args.validate:
