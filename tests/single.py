@@ -4,7 +4,7 @@ import ucp_py as ucp
 
 client_msg = rb'hi'
 server_msg = rb'ih'
-size = sys.getsizeof(client_msg)
+size = len(client_msg) + sys.getsizeof(client_msg[:0])
 
 
 async def connect(host):
@@ -15,7 +15,8 @@ async def connect(host):
                       name='connect-send')
     dest = b'00'
 
-    resp = await ep.recv_future()
+    # resp = await ep.recv_future()
+    resp = await ep.recv_obj(dest, size)
     r_msg = ucp.get_obj_from_msg(resp)
     print("8. Client got message: {}".format(r_msg.decode()))
     print("9. Stopping client")
@@ -26,11 +27,12 @@ async def serve(ep, lf):
     print("5. Starting serve")
     dest = b'00'
 
-    msg = await ep.recv_future()
-    print("6. Server got message")
+    # msg = await ep.recv_future()
+    msg = await ep.recv_obj(dest, size)
     msg = ucp.get_obj_from_msg(msg)
-    response = "Got: {}".format(server_msg.decode()).encode()
-    await ep.send_obj(response, sys.getsizeof(response), name='serve-send')
+    print("6. Server got message", msg.decode())
+    # response = "Got: {}".format(server_msg.decode()).encode()
+    await ep.send_obj(server_msg, size, name='serve-send')
     print('7. Stopping server')
     ucp.destroy_ep(ep)
     ucp.stop_listener(lf)
@@ -43,7 +45,8 @@ async def main(host):
     print("2. Calling start_server")
     server = ucp.start_listener(serve, is_coroutine=True)
 
-    await asyncio.gather(server, client)
+    # not clear that we need this
+    await asyncio.gather(server.coroutine, client)
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
