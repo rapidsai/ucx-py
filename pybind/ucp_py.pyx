@@ -35,13 +35,13 @@ PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
 UCX_FILE_DESCRIPTOR = -1
 
 
-cpdef handle_msg(ucp_msg msg):
+def handle_msg(msg):
     """
     Prime an incoming or outbound request.
 
     Parameters
     ----------
-    msg : ucp_msg
+    msg : ucp_msg (or... an endpoint :/)
         The message representing the sent or recv'd objeect.
 
     Returns
@@ -54,12 +54,12 @@ cpdef handle_msg(ucp_msg msg):
     loop = asyncio.get_event_loop()
     assert UCX_FILE_DESCRIPTOR > 0
     fut = asyncio.Future()
-    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
+    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb, 'handle_msg')
     PENDING_MESSAGES[msg] = fut
     return fut
 
 
-def on_activity_cb():
+def on_activity_cb(source):
     """
     Advance any outstanding messages.
 
@@ -81,7 +81,12 @@ def on_activity_cb():
     dones = []
 
     for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.query()
+        if type(msg) is ucp_msg:
+            completed = msg.query()
+        else:
+            # an endpoint
+            ucp_py_probe_query(<void *>msg)
+            completed = True  # ?
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -456,7 +461,8 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
             await lf.async_await()
         lf.coroutine = start()
 
-    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
+    # TODO: it's not clear that this does anything...
+    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb, 'start_listener')
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
     if <void *> NULL != listener.listener_ptr:
         lf.ucp_listener = listener
@@ -497,6 +503,7 @@ def fin():
 
     return ucp_py_finalize()
 
+
 def get_endpoint(peer_ip, peer_port):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
@@ -519,8 +526,11 @@ def get_endpoint(peer_ip, peer_port):
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
 
+    # hmm... we need to call ucp_py_query_request(ctx_ptr)...
+    handle_msg(ep)
+
     loop = asyncio.get_event_loop()
-    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
+    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb, 'get_endpoint')
     return ep
 
 def progress():

@@ -18,13 +18,15 @@ def parse_args(args=None):
         '--message',
         action='store_const',
         const=True,
-        dest='message'
+        dest='message',
+        help="Whether to send messages, or just connect and close."
     )
     parser.add_argument(
         '--no-message',
         action='store_const',
         const=False,
-        dest='message'
+        dest='message',
+        help="Whether to send messages, or just connect and close."
     )
     return parser.parse_args(args)
 
@@ -68,21 +70,23 @@ async def main(args=None):
     ucp.init()
     args = parse_args(args)
     host = args.host.encode()
+    message = args.message
     port = 13337
+    print("message", message)
 
     print("1. Calling connect")
-    client = connect(host, port)
+    client = connect(host, port, message=message)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(args.message),
+    server = ucp.start_listener(serve_wrapper(message),
                                 port, is_coroutine=True)
     await asyncio.gather(server.coroutine, client)
     print("-" * 80)
 
     port = 13338
     print("1. Calling connect")
-    client = connect(host, port)
+    client = connect(host, port, message)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(args.message),
+    server = ucp.start_listener(serve_wrapper(message),
                                 port, is_coroutine=True)
     await asyncio.gather(server.coroutine, client)
 
