@@ -17,7 +17,7 @@ async def main():
     obj = b'hi'
     size = sizeof(obj)
 
-    for i in range(5):
+    for i in range(1000):
         print(f'client-send-{i}')
         resp = ep.send_obj(obj, size, name=f'client-send-{i}')
         await resp

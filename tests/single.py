@@ -8,17 +8,14 @@ size = sys.getsizeof(client_msg)
 
 
 async def connect(host):
-    import pdb; pdb.set_trace()
     print("3. Starting connect")
     ep = ucp.get_endpoint(host, 13337)
     print("4. Client send")
     await ep.send_obj(client_msg, sys.getsizeof(client_msg),
                       name='connect-send')
-    print("Done await send")
     dest = b'00'
 
     resp = await ep.recv_future()
-    print("Done await recv")
     r_msg = ucp.get_obj_from_msg(resp)
     print("8. Client got message: {}".format(r_msg.decode()))
     print("9. Stopping client")
@@ -26,7 +23,6 @@ async def connect(host):
 
 
 async def serve(ep, lf):
-    import pdb; pdb.set_trace()
     print("5. Starting serve")
     dest = b'00'
 
@@ -37,7 +33,7 @@ async def serve(ep, lf):
     await ep.send_obj(response, sys.getsizeof(response), name='serve-send')
     print('7. Stopping server')
     ucp.destroy_ep(ep)
-    ucp.stop_listener(lf.coroutine)
+    ucp.stop_listener(lf)
 
 
 async def main(host):
@@ -46,7 +42,6 @@ async def main(host):
     client = connect(host)
     print("2. Calling start_server")
     server = ucp.start_listener(serve, is_coroutine=True)
-    import pdb; pdb.set_trace()
 
     await asyncio.gather(server, client)
 

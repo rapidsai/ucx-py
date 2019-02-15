@@ -28,16 +28,27 @@ RECVS = {}  # type: Dict[ucp_msg, Future]
 running = False
 # TODO: remove the reader
 i = 0
+FD = -1
+
+
+cpdef handle_msg(ucp_msg msg):
+    loop = asyncio.get_event_loop()
+    assert FD > 0
+    fut = asyncio.Future()
+    loop.add_reader(FD, on_activity_cb)
+    RECVS[msg] = fut
+    return fut
 
 
 def on_activity_cb():
     """
     Advance the state of the world.
     """
+    # print("*" * 40, " New reader ", "*" * 40)
     global i, running
     running = True
 
-    print(f"Working on {list(RECVS.keys())}-{i}")
+    # print(f"Working on {list(RECVS.keys())}-{i}")
     i += 1
     dones = []
 
@@ -46,12 +57,16 @@ def on_activity_cb():
         # print(f"check for {msg}")
         completed = msg.query()
         if completed:
-            print(f"{msg} completed!")
+            # print(f"{msg} completed!")
             dones.append(msg)
             fut.set_result(msg)
 
     for msg in dones:
         RECVS.pop(msg)
+
+    if not RECVS:
+        loop = asyncio.get_event_loop()
+        loop.remove_reader(FD)
     # time.sleep(1.5)
 
 
@@ -81,10 +96,8 @@ class CommFuture(concurrent.futures.Future):
         return self.result_state
 
     async def async_await(self):
-        print(f'{self.ucp_msg.name} :: async_await')
         i = 0
         while not self.done():
-            print(f'{self.ucp_msg.name} :: not done :: {i}')
             i += 1
             fd = ucp_py_worker_progress_wait()
 
@@ -93,33 +106,25 @@ class CommFuture(concurrent.futures.Future):
 
                 def wait_for_read():
                     loop.remove_reader(fd)
-                    print(f"querying :: {self.ucp_msg.name}")
                     time.sleep(1)
                     status = self.ucp_msg.query()
-                    print(f'status :: {self.ucp_msg.name}', status)
                     if status == 1:
-                        print("Done!")
                         self.done_state = True
                         self.set_result(self.ucp_msg)
                         self.result_state = self.ucp_msg
                         done.set()
 
                     else:
-                        print(f"Continue, adding reader :: {self.ucp_msg.name}")
                         time.sleep(0.5)
                         loop.add_reader(fd, wait_for_read)
 
-                print(f'{self.ucp_msg.name} :: fd {fd}')
                 loop = asyncio.get_running_loop()
                 # waiter = loop.create_future()
-                print(f"adding reader :: {self.ucp_msg.name}")
                 loop.add_reader(fd, wait_for_read)
                 await done.wait()
-                print(f"done done! :: {self.ucp_msg.name}")
                 break
 
         assert self.result_state is not None, 'Not done!'
-        print(self.ucp_msg.name, self.result_state.get_obj())
         return self.result_state
 
     def __await__(self):
@@ -168,7 +173,6 @@ class ListenerFuture(concurrent.futures.Future):
         pass
 
     def wait_for_read(self, waiter):
-        print("ListenerFuture.wait_for_read")
         waiter.set_result(None)
 
     async def async_await(self):
@@ -213,17 +217,10 @@ cdef class ucp_py_ep:
         """Blind receive operation"""
         recv_msg = ucp_msg(None, name=name, op='recv')
         recv_msg.ucp_ep = self.ucp_ep
-        fut = asyncio.Future()
-
-        RECVS[recv_msg] = fut
-        ucp_py_ep_post_probe()  # here or on the fd?
+        fut = handle_msg(recv_msg)
+        ucp_py_ep_post_probe()
         return fut
-        
-        # if use_blocking_progress:
-        #     return recv_future.async_await()
-        # else:
-        #     return recv_future
-
+       
     def recv(self, ucp_msg msg, len):
         """Receive operation of length `len`
 
@@ -289,10 +286,7 @@ cdef class ucp_py_ep:
         buf_reg.is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg, ucp_ep=self, op='recv')
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
-        print(<object>self.ucp_ep)
-        print("setting msg.ucp_ep")
         internal_msg.ucp_ep = self.ucp_ep
-        print("checking msg.ucp_ep")
         assert internal_msg.my_ucp_ep
 
         fut = asyncio.Future()
@@ -321,14 +315,8 @@ cdef class ucp_py_ep:
         internal_msg.ctx_ptr_set = 1
         # get_comm_request
 
-        fut = asyncio.Future()
-        RECVS[internal_msg] = fut
+        fut = handle_msg(internal_msg)
         return fut
-
-        # if use_blocking_progress:
-        #     return internal_comm_req.async_await()
-        # else:
-        #     return internal_comm_req
 
     def close(self):
         return ucp_py_put_ep(self.ucp_ep)
@@ -434,15 +422,12 @@ cdef class ucp_msg:
             return ucp_py_query_request(self.ctx_ptr)
         else:
             len = ucp_py_probe_query(self.ucp_ep)
-            print('query len', len)
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
-                print('recv_nb')
                 self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
                 self.comm_len = len
                 self.ctx_ptr_set = 1
-                print('query_request')
                 return ucp_py_query_request(self.ctx_ptr)
             return 0
 
@@ -486,7 +471,6 @@ cdef class ucp_comm_request:
         pass
 
     def wait_for_read(self, waiter):
-        print("ucp_comm_request.wait_for_read")
         waiter.set_result(None)
 
     async def async_await(self):
@@ -516,7 +500,6 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
     listener_instance = (<object> lf)
-    print("in accept_callback")
     if not listener_instance.is_coroutine:
         (listener_instance.cb)(client_ep, listener_instance)
     else:
@@ -562,12 +545,13 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     -------
     0 if listener successfully started
     """
+    global FD
+
     listener = ucp_listener()
     loop = asyncio.get_running_loop()
     # this will spin, but w/e for now...
-    fd = -1
-    while fd == -1:
-        fd = ucp_py_worker_progress_wait()
+    while FD == -1:
+        FD = ucp_py_worker_progress_wait()
 
     lf = ListenerFuture(py_func, is_coroutine)
     if is_coroutine:
@@ -575,7 +559,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
             await lf.async_await()
         lf.coroutine = start()
 
-    loop.add_reader(fd, on_activity_cb)
+    loop.add_reader(FD, on_activity_cb)
     # fut = asyncio.Future()
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
     if <void *> NULL != listener.listener_ptr:
@@ -644,14 +628,15 @@ def get_endpoint(peer_ip, peer_port):
     An endpoint object of class `ucp_py_ep` on which methods like
     `send_msg` and `recv_msg` may be called
     """
+    global FD
+
     ep = ucp_py_ep()
     ep.connect(peer_ip, peer_port)
-    fd = -1
-    while fd == -1:
-        fd = ucp_py_worker_progress_wait()
+    while FD == -1:
+        FD = ucp_py_worker_progress_wait()
 
     loop = asyncio.get_running_loop()
-    loop.add_reader(fd, on_activity_cb)
+    loop.add_reader(FD, on_activity_cb)
     return ep
 
 def progress():
