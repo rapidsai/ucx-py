@@ -31,6 +31,10 @@ include "ucp_py_buffer_helper.pyx"
 # event loop to processes these outstanding requests when stuff has
 # happened on the file descriptor.
 
+# TODO: Properly handle endpoints connections along with messages.
+# Right now, get_endpoint just throws the endpoint to handle_msg,
+# which we've hacked up to handle them.
+
 PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
 UCX_FILE_DESCRIPTOR = -1
 
@@ -114,7 +118,7 @@ class ListenerFuture(concurrent.futures.Future):
 
     _instances = WeakValueDictionary()
 
-    def __init__(self, cb, is_coroutine = False):
+    def __init__(self, cb, is_coroutine=False):
         self.done_state = False
         self.result_state = None
         self.waiter = None
@@ -170,7 +174,7 @@ cdef class ucp_py_ep:
         self.ucp_ep = ucp_py_get_ep(ip, port)
         return
 
-    def recv_future(self, name='ep.recv-future', *other_args):
+    def recv_future(self, name='recv-future'):
         """Blind receive operation"""
         recv_msg = ucp_msg(None, name=name)
         recv_msg.ucp_ep = self.ucp_ep
@@ -199,7 +203,7 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_obj(self, msg, len):
+    def recv_obj(self, msg, len, name='recv_obj'):
         """Send msg is a contiguous python object
 
         Returns
@@ -209,7 +213,7 @@ cdef class ucp_py_ep:
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg)
+        internal_msg = ucp_msg(buf_reg, name=name)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
         internal_msg.ucp_ep = self.ucp_ep
         internal_msg.comm_len = len
@@ -219,7 +223,7 @@ cdef class ucp_py_ep:
         ucp_py_ep_post_probe()
         return fut
 
-    def send_obj(self, msg, len, name=''):
+    def send_obj(self, msg, len, name='send_obj'):
         """Send msg is a contiguous python object
 
         Returns
@@ -227,7 +231,6 @@ cdef class ucp_py_ep:
         ucp_comm_request object
         """
 
-        global use_blocking_progress
         buf_reg = buffer_region()
         buf_reg.populate_ptr(msg)
         buf_reg.is_cuda = 0 # for now but it does not matter
@@ -266,11 +269,10 @@ cdef class ucp_msg:
     cdef str _name
     cdef int _length
 
-    def __cinit__(self, buffer_region buf_reg, name='',
-                  length=-1):
-        assert name is not None
+    def __cinit__(self, buffer_region buf_reg, name='', length=-1):
         self._name = name
-        # self._my_ucp_ep = ucp_ep
+        self._length = length
+
         if buf_reg is None:
             self.buf_reg = buffer_region()
             return
@@ -282,7 +284,6 @@ cdef class ucp_msg:
         self.alloc_len = -1
         self.comm_len = -1
         self.internally_allocated = 0
-        self._length = length
         return
 
     def __repr__(self):
@@ -363,13 +364,10 @@ cdef class ucp_comm_request:
 
     cdef ucp_msg msg
     cdef int done_state
-    cpdef object sel
 
     def __cinit__(self, ucp_msg msg):
         self.msg = msg
         self.done_state = 0
-        self.sel = selectors.DefaultSelector()
-        return
 
     def done(self):
         if 0 == self.done_state and 1 == self.msg.query():
@@ -379,21 +377,6 @@ cdef class ucp_comm_request:
     def result(self):
         while 0 == self.done_state:
             self.done()
-        return self.msg
-
-    def wait_for_read(self, waiter):
-        waiter.set_result(None)
-
-    async def async_await(self):
-        while 0 == self.done_state:
-            if 0 == self.done():
-                loop = asyncio.get_event_loop()
-                fd = ucp_py_worker_progress_wait()
-                if -1 != fd:
-                     waiter = loop.create_future()
-                     loop.add_reader(fd, self.wait_for_read, waiter)
-                     await waiter
-                     loop.remove_reader(fd)
         return self.msg
 
 
@@ -407,23 +390,14 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
         current_loop = asyncio.get_event_loop()
         current_loop.create_task((listener_instance.cb)(client_ep, listener_instance))
 
-use_blocking_progress = True
 
-def init(blocking_progress = True):
+def init():
     """Initiates ucp resources like ucp_context and ucp_worker
-
-    Parameters
-    ----------
-    None
 
     Returns
     -------
     0 if initialization was successful
     """
-
-    global use_blocking_progress
-    use_blocking_progress = blocking_progress
-
     return ucp_py_init()
 
 
@@ -526,7 +500,7 @@ def get_endpoint(peer_ip, peer_port):
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
 
-    # hmm... we need to call ucp_py_query_request(ctx_ptr)...
+    # TODO: Properly handle endpoints along with messages
     handle_msg(ep)
 
     loop = asyncio.get_event_loop()

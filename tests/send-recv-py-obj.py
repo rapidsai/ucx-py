@@ -151,7 +151,7 @@ ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
 if server:
-    listener = ucp.start_listener(talk_to_client, is_coroutine = True)
+    listener = ucp.start_listener(talk_to_client, is_coroutine=True)
     coro = listener.coroutine
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))

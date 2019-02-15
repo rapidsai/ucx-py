@@ -280,7 +280,7 @@ if not args.use_asyncio:
     if server:
         if args.intra_node:
             ucp.set_cuda_dev(1)
-        ucp.start_listener(talk_to_client, is_coroutine = False)
+        ucp.start_listener(talk_to_client, is_coroutine=False)
         while cb_not_done:
             ucp.progress()
     else:
@@ -290,7 +290,7 @@ else:
     if server:
         if args.intra_node:
             ucp.set_cuda_dev(1)
-        listener = ucp.start_listener(talk_to_client_async, is_coroutine = True)
+        listener = ucp.start_listener(talk_to_client_async, is_coroutine=True)
         coro = listener.coroutine
     else:
         coro = talk_to_server_async(init_str.encode(), int(args.port))

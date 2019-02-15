@@ -17,6 +17,7 @@ def parse_args(args=None):
     parser.add_argument(
         '--message',
         action='store_const',
+        default=True,
         const=True,
         dest='message',
         help="Whether to send messages, or just connect and close."
@@ -72,7 +73,6 @@ async def main(args=None):
     host = args.host.encode()
     message = args.message
     port = 13337
-    print("message", message)
 
     print("1. Calling connect")
     client = connect(host, port, message=message)
