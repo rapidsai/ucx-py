@@ -5,7 +5,6 @@ import concurrent.futures
 import asyncio
 import time
 import sys
-import selectors
 from weakref import WeakValueDictionary
 
 cdef extern from "ucp_py_ucp_fxns.h":
@@ -89,8 +88,9 @@ def on_activity_cb(source):
             completed = msg.query()
         else:
             # an endpoint
-            ucp_py_probe_query(<void *>msg)
-            completed = True  # ?
+            # ucp_py_probe_query(<void *>msg)
+            # This seems wrong...
+            completed = ucp_py_worker_progress()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -126,7 +126,6 @@ class ListenerFuture(concurrent.futures.Future):
         self.is_coroutine = is_coroutine
         self.coroutine = None
         self.ucp_listener = None
-        self.sel = selectors.DefaultSelector()
         self._instances[id(self)] = self
         super(ListenerFuture, self).__init__()
 
