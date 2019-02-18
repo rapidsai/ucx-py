@@ -18,6 +18,15 @@ def get_address(ifname='ib0'):
     Returns
     -------
     address : str
+        The inet addr associated with an interface.
+
+    Examples
+    --------
+    >>> get_address()
+    '10.33.225.160'
+
+    >>> get_address(ifname='lo')
+    '127.0.0.1'
     """
     # https://stackoverflow.com/a/24196955/1889400
     ifname = ifname.encode()
