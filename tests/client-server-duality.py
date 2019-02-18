@@ -22,7 +22,7 @@ import concurrent.futures
 
 max_msg_log = 23
 
-async def talk_to_client(ep):
+async def talk_to_client(ep, listener):
 
     global max_msg_log
     global args
@@ -36,7 +36,7 @@ async def talk_to_client(ep):
     msg_log = max_msg_log
 
     send_buffer_region = ucp.buffer_region()
-    send_buffer_region.alloc_cuda(1 << msg_log)
+    send_buffer_region.alloc_host(1 << msg_log)
 
     send_msg = ucp.ucp_msg(send_buffer_region)
 
@@ -46,7 +46,7 @@ async def talk_to_client(ep):
 
     if not args.blind_recv:
         recv_buffer_region = ucp.buffer_region()
-        recv_buffer_region.alloc_cuda(1 << msg_log)
+        recv_buffer_region.alloc_host(1 << msg_log)
         recv_msg = ucp.ucp_msg(recv_buffer_region)
 
     if args.check_data:
@@ -66,13 +66,13 @@ async def talk_to_client(ep):
         errs = recv_req.check_mem(1, 1 << msg_log)
         print("num errs: " + str(errs))
 
-    send_buffer_region.free_cuda()
+    send_buffer_region.free_host()
     if not args.blind_recv:
-        recv_buffer_region.free_cuda()
+        recv_buffer_region.free_host()
 
     ucp.destroy_ep(ep)
     print("done with talk_to_client")
-    ucp.stop_listener()
+    ucp.stop_listener(listener)
 
 async def talk_to_server(ip, port):
 
@@ -91,7 +91,7 @@ async def talk_to_server(ip, port):
     ep = ucp.get_endpoint(ip, port)
 
     send_buffer_region = ucp.buffer_region()
-    send_buffer_region.alloc_cuda(1 << msg_log)
+    send_buffer_region.alloc_host(1 << msg_log)
 
     send_msg = ucp.ucp_msg(send_buffer_region)
 
@@ -101,7 +101,7 @@ async def talk_to_server(ip, port):
 
     if not args.blind_recv:
         recv_buffer_region = ucp.buffer_region()
-        recv_buffer_region.alloc_cuda(1 << msg_log)
+        recv_buffer_region.alloc_host(1 << msg_log)
         recv_msg = ucp.ucp_msg(recv_buffer_region)
 
     if args.check_data:
@@ -121,9 +121,9 @@ async def talk_to_server(ip, port):
         errs = recv_req.check_mem(0, 1 << msg_log)
         print("num errs: " + str(errs))
 
-    send_buffer_region.free_cuda()
+    send_buffer_region.free_host()
     if not args.blind_recv:
-        recv_buffer_region.free_cuda()
+        recv_buffer_region.free_host()
 
     ucp.destroy_ep(ep)
     print("done with talk_to_server")
@@ -148,9 +148,10 @@ else:
 ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
-coro_server = ucp.start_listener(talk_to_client,
-                                 listener_port = int(args.my_port),
-                                 is_coroutine = True)
+listener = ucp.start_listener(talk_to_client,
+                              listener_port = int(args.my_port),
+                              is_coroutine = True)
+coro_server = listener.coroutine
 time.sleep(5)
 coro_client = talk_to_server(init_str.encode(), int(args.port))
 
