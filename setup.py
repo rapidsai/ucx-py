@@ -28,22 +28,25 @@ if not os.path.exists(CUDA_DIR):
     sys.exit(1)
 
 
-if not os.path.exists("libucp_py_ucp_fxns.a"):
-    assert os.system("gcc -shared -fPIC -c ucp_py_ucp_fxns.c -o ucp_py_ucp_fxns.o") == 0
-    assert os.system("gcc -shared -fPIC -c buffer_ops.c -o buffer_ops.o") == 0
-    assert os.system("ar rcs libucp_py_ucp_fxns.a ucp_py_ucp_fxns.o buffer_ops.o") == 0
+prefix = "ucp_py/_libs"
+
+if not os.path.exists(f"{prefix}/libucp_py_ucp_fxns.a"):
+    assert os.system(f"gcc -shared -fPIC -c {prefix}/ucp_py_ucp_fxns.c -o {prefix}/ucp_py_ucp_fxns.o") == 0
+    assert os.system(f"gcc -shared -fPIC -c {prefix}/buffer_ops.c -o {prefix}/buffer_ops.o") == 0
+    assert os.system(f"ar rcs {prefix}/libucp_py_ucp_fxns.a {prefix}/ucp_py_ucp_fxns.o {prefix}/buffer_ops.o") == 0
 
 
 ext_modules = cythonize([
-    Extension("ucp_py",
-              sources=["ucp_py.pyx"],
+    Extension("ucp_py._libs.ucp_py",
+              sources=["ucp_py/_libs/ucp_py.pyx"],
               include_dirs=[os.getcwd(), UCX_DIR + '/include', CUDA_DIR + '/include'],
               library_dirs=[os.getcwd(), UCX_DIR + '/lib', CUDA_DIR + '/lib64'],
               runtime_library_dirs=[os.getcwd(), UCX_DIR + '/lib', CUDA_DIR + '/lib64'],
-              libraries=['ucp_py_ucp_fxns', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart']),
+              libraries=[f'{prefix}/ucp_py_ucp_fxns', 'ucp', 'uct', 'ucm', 'ucs', 'cuda', 'cudart']),
 ])
 
 setup(
     name='ucx_py',
-    ext_modules=ext_modules
+    packages=['ucp_py'],
+    ext_modules=ext_modules,
 )

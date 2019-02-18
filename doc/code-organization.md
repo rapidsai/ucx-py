@@ -159,3 +159,11 @@ character. `check_*_buffer` methods return the number of mismatches in
 the buffers with the character provided. `set_*_buffer` methods have
 not be tested when python objects are assoicated with
 **buffer_region's** *data_buf* structure.
+
+## Tests
+
+To run the automated tests
+
+```
+$ python3 -m pytest tests
+```
