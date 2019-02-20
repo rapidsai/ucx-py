@@ -47,10 +47,6 @@ cdef class buffer_region:
             else:
                 print("non-contig unhandled")
         else:
-            v = memoryview(pyobj)
-            print(v)
-            print(hex(id(pyobj)))
-            print(v[:])
             self.buf = populate_buffer_region(<void *> pyobj)
 
     def return_obj(self):
