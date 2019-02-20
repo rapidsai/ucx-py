@@ -42,9 +42,10 @@ cdef class buffer_region:
 
     def populate_ptr(self, pyobj):
         if type(pyobj) == cp.core.core.ndarray:
-            print("found cupy obj")
-            print(pyobj.data.ptr)
-            self.buf = populate_buffer_region_with_ptr(pyobj.data.ptr)
+            if 'strides' not in pyobj.__cuda_array_interface__:
+                self.buf = populate_buffer_region_with_ptr(pyobj.__cuda_array_interface__['data'][0])
+            else:
+                print("non-contig unhandled")
         else:
             v = memoryview(pyobj)
             print(v)
