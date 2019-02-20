@@ -1,9 +1,13 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import cupy as cp
+from libc.stdint cimport uintptr_t
+
 cdef extern from "buffer_ops.h":
     int set_device(int)
     data_buf* populate_buffer_region(void *)
+    data_buf* populate_buffer_region_with_ptr(unsigned long long int)
     void* return_ptr_from_buf(data_buf*)
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
@@ -17,6 +21,7 @@ cdef extern from "buffer_ops.h":
 cdef class buffer_region:
     cdef data_buf* buf
     cdef int is_cuda
+    cdef uintptr_t cupy_ptr
 
     def __cinit__(self):
         return
@@ -36,7 +41,16 @@ cdef class buffer_region:
         free_cuda_buffer(self.buf)
 
     def populate_ptr(self, pyobj):
-        self.buf = populate_buffer_region(<void *> pyobj)
+        if type(pyobj) == cp.core.core.ndarray:
+            print("found cupy obj")
+            print(pyobj.data.ptr)
+            self.buf = populate_buffer_region_with_ptr(pyobj.data.ptr)
+        else:
+            v = memoryview(pyobj)
+            print(v)
+            print(hex(id(pyobj)))
+            print(v[:])
+            self.buf = populate_buffer_region(<void *> pyobj)
 
     def return_obj(self):
         return <object> return_ptr_from_buf(self.buf)
