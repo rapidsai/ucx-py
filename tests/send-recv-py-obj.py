@@ -40,6 +40,7 @@ def get_msg(obj, obj_type):
         return obj
 
 def print_msg(preamble, obj, obj_type):
+    print(type(obj))
     if 'bytes' == obj_type:
         print(preamble + str(bytes.decode(obj)))
     else:
@@ -67,7 +68,10 @@ async def talk_to_client(ep, listener):
         else:
             send_string = 'a' * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
-    send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
+    if args.object_type == 'cupy':
+        send_req = await ep.send_obj(send_msg, send_msg.data.mem.size)
+    else:
+        send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
     recv_msg = None
 
     print("about to recv")
@@ -84,7 +88,10 @@ async def talk_to_client(ep, listener):
             else:
                 recv_string = 'b' * (2 ** max_msg_log)
         recv_msg = get_msg(recv_string, args.object_type)
-        recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
+        if args.object_type == 'cupy':
+            recv_req = await ep.recv_obj(recv_msg, recv_msg.data.mem.size)
+        else:
+            recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
     else:
         recv_req = await ep.recv_future()
         recv_msg = ucp.get_obj_from_msg(recv_req)
@@ -127,7 +134,10 @@ async def talk_to_server(ip, port):
             else:
                 recv_string = 'c' * (2 ** max_msg_log)
         recv_msg = get_msg(recv_string, args.object_type)
-        recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
+        if args.object_type == 'cupy':
+            recv_req = await ep.recv_obj(recv_msg, recv_msg.data.mem.size)
+        else:
+            recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
     else:
         recv_req = await ep.recv_future()
         recv_msg = ucp.get_obj_from_msg(recv_req)
@@ -144,7 +154,10 @@ async def talk_to_server(ip, port):
         else:
             send_string = 'd' * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
-    send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
+    if args.object_type == 'cupy':
+        send_req = await ep.send_obj(send_msg, send_msg.data.mem.size)
+    else:
+        send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
 
     if not args.validate:
         print_msg("client sent: ", send_msg, args.object_type)
