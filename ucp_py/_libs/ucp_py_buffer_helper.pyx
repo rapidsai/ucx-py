@@ -105,6 +105,7 @@ cdef class buffer_region:
         desc = {
              'shape': self.shape,
              'typestr': self.typestr,
+             'descr': [('', self.typestr)],  # this is surely wrong
              'data': (<Py_ssize_t>self.buf.buf, self.readonly),
              'version': 0,
         }
