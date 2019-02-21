@@ -345,7 +345,7 @@ int ucp_py_worker_drain_fd()
         ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
     } while ((ret == -1) && (errno == EINTR));
 
-    return 0;
+    return ret;
 }
 
 int ucp_py_query_request(struct ucx_context *request)

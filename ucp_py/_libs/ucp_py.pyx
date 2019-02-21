@@ -110,12 +110,20 @@ def on_activity_cb():
     """
     dones = []
 
-    ucp_py_worker_drain_fd()
+    num_drains = ucp_py_worker_drain_fd()
+
+    while 0 != ucp_py_worker_progress():
+        pass
     armed = 0
 
     for msg, fut in PENDING_MESSAGES.items():
         if type(msg) is ucp_msg:
             completed = msg.query()
+            if 0 == completed and 0 == armed:
+                tmp = -1
+                while tmp == -1:
+                    tmp = ucp_py_worker_progress_wait()
+                armed = 1
         elif type(msg) is ListenerFuture:
             ucp_py_worker_progress()
             completed = 1
@@ -240,7 +248,7 @@ cdef class ucp_py_ep:
         internal_msg.ctx_ptr_set = 1
 
         fut = handle_msg(internal_msg)
-        ucp_py_ep_post_probe()
+        #ucp_py_ep_post_probe()
         return fut
 
     def send_obj(self, msg, len, name='send_obj'):

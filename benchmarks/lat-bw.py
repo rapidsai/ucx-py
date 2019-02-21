@@ -234,9 +234,12 @@ async def talk_to_client_async(ep, listener):
 
     send_buffer_region, recv_buffer_region = allocate_mem((1 << max_msg_log), args)
     await run_iters_async(ep, send_buffer_region, recv_buffer_region, max_msg_log, send_first, args)
+    print("past iters")
 
     ucp.destroy_ep(ep)
+    print("past ep destroy")
     ucp.stop_listener(listener)
+    print("past listener destroy")
 
 async def talk_to_server_async(ip, port):
 
@@ -247,8 +250,10 @@ async def talk_to_server_async(ip, port):
 
     send_buffer_region, recv_buffer_region = allocate_mem((1 << max_msg_log), args)
     await run_iters_async(ep, recv_buffer_region, send_buffer_region, max_msg_log, send_first, args)
+    print("past iters")
 
     ucp.destroy_ep(ep)
+    print("past ep destroy")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--server', help='enter server ip', required=False)
