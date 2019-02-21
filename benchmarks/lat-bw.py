@@ -234,7 +234,6 @@ async def talk_to_client_async(ep, listener):
 
     send_buffer_region, recv_buffer_region = allocate_mem((1 << max_msg_log), args)
     await run_iters_async(ep, send_buffer_region, recv_buffer_region, max_msg_log, send_first, args)
-    free_mem(send_buffer_region, recv_buffer_region, args)
 
     ucp.destroy_ep(ep)
     ucp.stop_listener(listener)
@@ -248,7 +247,6 @@ async def talk_to_server_async(ip, port):
 
     send_buffer_region, recv_buffer_region = allocate_mem((1 << max_msg_log), args)
     await run_iters_async(ep, recv_buffer_region, send_buffer_region, max_msg_log, send_first, args)
-    free_mem(send_buffer_region, recv_buffer_region, args)
 
     ucp.destroy_ep(ep)
 

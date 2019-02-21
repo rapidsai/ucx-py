@@ -5,8 +5,6 @@ import concurrent.futures
 import asyncio
 import time
 import sys
-import selectors
-import socket
 from weakref import WeakValueDictionary
 
 cdef extern from "ucp_py_ucp_fxns.h":
@@ -39,8 +37,7 @@ include "ucp_py_buffer_helper.pyx"
 PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
-registered = 0
-sel = selectors.EpollSelector()
+armed = 0
 
 def handle_msg(msg):
     """
@@ -48,36 +45,49 @@ def handle_msg(msg):
 
     Parameters
     ----------
-    msg : ucp_msg (or... an endpoint :/ or ListenerFuture :()
-        The message representing the sent or recv'd objeect.
+    msg : ucp_msg or ListenerFuture
+        The message representing the sent or recv'd objeect
+        Or the listener object waiting for a connection
 
     Returns
     -------
     Future
         An :class:`asynico.Future`. This will be completed
-        when the message has finished being sent or received.
+        when:
+        a. the message has finished being sent or received.
         The ``.result`` will be the original `msg`.
+        b. when listener accepts a connection and adds a
+        callback or trivially complete when no outstanding
+        connections remain
     """
     global reader_added
+    global armed
     loop = asyncio.get_event_loop()
     assert UCX_FILE_DESCRIPTOR > 0
     fut = asyncio.Future()
 
     if type(msg) == ucp_msg:
-        if 0 == msg.query():
+        if 0 == armed:
+            if 0 == msg.query():
+                tmp = -1
+                while tmp == -1:
+                    tmp = ucp_py_worker_progress_wait()
+                armed = 1
+            else:
+                fut.set_result(msg)
+                return fut
+    else:
+        if 0 == armed:
             tmp = -1
             while tmp == -1:
                 tmp = ucp_py_worker_progress_wait()
-        else:
-            fut.set_result(msg)
-            return fut
+            armed = 1
 
     if 0 == reader_added:
         loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
         reader_added = 1
     PENDING_MESSAGES[msg] = fut
     return fut
-
 
 def on_activity_cb():
     """
@@ -101,6 +111,7 @@ def on_activity_cb():
     dones = []
 
     ucp_py_worker_drain_fd()
+    armed = 0
 
     for msg, fut in PENDING_MESSAGES.items():
         if type(msg) is ucp_msg:
@@ -109,10 +120,7 @@ def on_activity_cb():
             ucp_py_worker_progress()
             completed = 1
         else:
-            # an endpoint
-            # ucp_py_probe_query(<void *>msg)
-            # This seems wrong...
-            completed = ucp_py_worker_progress()
+            pass
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -143,7 +151,6 @@ class ListenerFuture(concurrent.futures.Future):
     def __init__(self, cb, is_coroutine=False):
         self.done_state = False
         self.result_state = None
-        self.waiter = None
         self.cb = cb
         self.is_coroutine = is_coroutine
         self.coroutine = None
@@ -164,22 +171,12 @@ class ListenerFuture(concurrent.futures.Future):
     def __del__(self):
         pass
 
-    def wait_for_read(self, waiter):
-        waiter.set_result(None)
-
     async def async_await(self):
         while False == self.done_state:
             if 0 == ucp_py_worker_progress():
                 loop = asyncio.get_event_loop()
                 fut = handle_msg(self)
                 await fut
-                #fd = ucp_py_worker_progress_wait()
-                #if -1 != fd:
-                #     self.waiter = loop.create_future()
-                #     loop.add_reader(fd, self.wait_for_read, self.waiter)
-                #     await self.waiter
-                #     loop.remove_reader(fd)
-                #     self.waiter = None
         return self.result_state
 
 
@@ -422,11 +419,14 @@ def init():
     0 if initialization was successful
     """
     global UCX_FILE_DESCRIPTOR
+    global armed
 
     rval = ucp_py_init()
 
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
+
+    armed = 1
 
     return rval
 
@@ -489,8 +489,6 @@ def stop_listener(lf):
     cdef ucp_listener listener
     if lf.is_coroutine:
         lf.done_state = True
-        if lf.waiter != None:
-            lf.waiter.set_result(None)
     listener = lf.ucp_listener
     ucp_py_stop_listener(listener.listener_ptr)
 
@@ -530,11 +528,8 @@ def get_endpoint(peer_ip, peer_port):
     ep = ucp_py_ep()
     ep.connect(peer_ip, peer_port)
 
-    # TODO: Properly handle endpoints along with messages
-    handle_msg(ep)
-
-    loop = asyncio.get_event_loop()
     if 0 == reader_added:
+        loop = asyncio.get_event_loop()
         assert UCX_FILE_DESCRIPTOR > 0
         loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
         reader_added = 1
