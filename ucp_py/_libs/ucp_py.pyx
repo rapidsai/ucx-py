@@ -284,7 +284,6 @@ cdef class ucp_msg:
             return
         else:
             self.buf = buf_reg.buf
-            self.is_cuda = buf_reg.is_cuda
             self.buf_reg = buf_reg
         self.ctx_ptr_set = 0
         self.alloc_len = -1
@@ -303,17 +302,19 @@ cdef class ucp_msg:
     def length(self):
         return self._length
 
+    @property
+    def is_cuda(self):
+        return self.buf_reg.is_cuda
+
     def alloc_host(self, len):
         self.buf_reg.alloc_host(len)
         self.buf = self.buf_reg.buf
         self.alloc_len = len
-        self.is_cuda = 0
 
     def alloc_cuda(self, len):
         self.buf_reg.alloc_cuda(len)
         self.buf = self.buf_reg.buf
         self.alloc_len = len
-        self.is_cuda = 1
 
     def set_mem(self, c, len):
         if 0 == self.is_cuda:
@@ -363,7 +364,10 @@ cdef class ucp_msg:
         return self.comm_len
 
     def get_obj(self):
-        return memoryview(self.buf_reg)
+        if self.is_cuda:
+            return self.buf_reg
+        else:
+            return memoryview(self.buf_reg)
 
 
 cdef class ucp_comm_request:

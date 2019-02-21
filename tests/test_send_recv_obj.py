@@ -74,7 +74,8 @@ async def test_send_recv(echo_pair, container):
     msg = container(b"hi")
 
     await client.send_obj(msg)
-    resp = await client.recv_future()
+    import pdb; pdb.set_trace()
+    resp = await client.recv_obj(len(msg))
     result = ucp.get_obj_from_msg(resp)
 
     if container is memoryview:

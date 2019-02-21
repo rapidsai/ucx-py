@@ -115,6 +115,7 @@ cdef class buffer_region:
         return desc
 
     def __len__(self):
+        # return self._shape[0]
         return self._length
 
     def alloc_host(self, Py_ssize_t len):
