@@ -7,9 +7,13 @@ cdef extern from "common.h":
     struct data_buf:
         void *buf
 
+import cupy as cp
+from libc.stdint cimport uintptr_t
+
 cdef extern from "buffer_ops.h":
     int set_device(int)
     data_buf* populate_buffer_region(void *)
+    data_buf* populate_buffer_region_with_ptr(unsigned long long int)
     void* return_ptr_from_buf(data_buf*)
     data_buf* allocate_host_buffer(int)
     data_buf* allocate_cuda_buffer(int)
@@ -49,6 +53,7 @@ cdef class buffer_region:
         Py_ssize_t _shape[1]
         str _typestr
         bint _readonly
+        uintptr_t cupy_ptr
 
     def __init__(self):
         self._is_cuda = 0
@@ -164,7 +169,15 @@ cdef class buffer_region:
         free_cuda_buffer(self.buf)
 
     def populate_ptr(self, pyobj):
-        self.buf = populate_buffer_region(<void *> pyobj)
+        info = getattr(pyobj, '__cuda_array_interface__', None)
+
+        if info:
+            if 'strides' not in info:
+                self.buf = populate_buffer_region_with_ptr(info['data'][0])
+            else:
+                raise NotImplementedError("non-contiguous data not supported.")
+        else:
+            self.buf = populate_buffer_region(<void *> pyobj)
 
     def return_obj(self):
         return <object> return_ptr_from_buf(self.buf)
