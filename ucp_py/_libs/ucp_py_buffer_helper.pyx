@@ -77,17 +77,6 @@ cdef class buffer_region:
     def readonly(self):
         return self._readonly
 
-    # ------------------------------------------------------------------------
-    # CPU Interface
-    cpdef void set(self, const unsigned char[:] obj):
-        self._shape = obj.shape
-        self._is_cuda  = 0
-        self._shape = obj.shape
-
-        # TODO: typestr isn't handled.
-        self.buf = allocate_host_buffer(obj.size)
-        self.buf.buf = &(obj[0])
-
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
             Py_ssize_t itemsize = 1
@@ -111,31 +100,6 @@ cdef class buffer_region:
         buffer.suboffsets = NULL
 
     # ------------------------------------------------------------------------
-    # GPU Interface
-
-    cpdef void set_cuda(self, obj):
-        cdef:
-            Py_ssize_t nbytes, itemsize, size
-
-        info = obj.__cuda_array_interface__
-
-        # Copy attributes
-        self._shape = info['shape']
-        self._is_cuda = 1
-        self._typestr = info['typestr']
-        data, is_readonly = info['data']
-        self._readonly = is_readonly
-
-        itemsize = _typestr_itemsize(self._typestr)
-        size = prod(self._shape)
-
-        nbytes = size * itemsize
-
-        # # Allocate and set.
-        self.alloc_cuda(nbytes)
-        data_p = <void *>data
-        self.buf.buf = data_p
-
     @property
     def __cuda_array_interface__(self):
         desc = {
@@ -145,9 +109,6 @@ cdef class buffer_region:
              'version': 0,
         }
         return desc
-
-    # ------------------------------------------------------------------------
-    # Common
 
     def __len__(self):
         return self._length
@@ -168,16 +129,25 @@ cdef class buffer_region:
     def free_cuda(self):
         free_cuda_buffer(self.buf)
 
-    def populate_ptr(self, pyobj):
-        info = getattr(pyobj, '__cuda_array_interface__', None)
+    cpdef populate_ptr(self, const unsigned char[:] pyobj):
+        self.buf = populate_buffer_region(&(pyobj[0]))
+        self._shape = pyobj.shape
+        self._is_cuda  = 0
+        self._shape = pyobj.shape
 
-        if info:
-            if 'strides' not in info:
-                self.buf = populate_buffer_region_with_ptr(info['data'][0])
-            else:
-                raise NotImplementedError("non-contiguous data not supported.")
+    def populate_cuda_ptr(self, pyobj):
+        info = pyobj.__cuda_array_interface__
+
+        self._shape = info['shape']
+        self._is_cuda = 1
+        self._typestr = info['typestr']
+        ptr_int, is_readonly = info['data']
+        self._readonly = is_readonly
+
+        if 'strides' not in info:
+            self.buf = populate_buffer_region_with_ptr(ptr_int)
         else:
-            self.buf = populate_buffer_region(<void *> pyobj)
+            raise NotImplementedError("non-contiguous data not supported.")
 
     def return_obj(self):
         return <object> return_ptr_from_buf(self.buf)
