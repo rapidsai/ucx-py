@@ -230,13 +230,16 @@ cdef class ucp_py_ep:
         -------
         ucp_comm_request object
         """
-        # TODO: cuda-compatible memoryview wrapper
-        msg = memoryview(msg)
         buf_reg = buffer_region()
-        buf_reg.set(msg)
+        # TODO: cuda-compatible memoryview wrapper
+        if hasattr(msg, '__cuda_array_interface__'):
+            buf_reg.populate_cuda_ptr(msg)
+        else:
+            msg = memoryview(msg)
+            buf_reg.populate_ptr(msg)
+
         length = len(msg)
 
-        buf_reg._is_cuda = 0 # for now but it does not matter
         internal_msg = ucp_msg(buf_reg, name=name, length=length)
         # TODO: do this here or there?
         internal_msg.ucp_ep = self.ucp_ep
