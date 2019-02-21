@@ -80,14 +80,17 @@ cdef class buffer_region:
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
             Py_ssize_t itemsize = 1
-            Py_ssize_t shape[1]
             Py_ssize_t strides[1]
+            empty = b''
 
         # shape[0] = self.length
         strides[0] = 1
-        assert len(shape)  # TODO: check if still necesssary
+        assert len(self._shape)
+        if self._shape[0] == 0:
+            buffer.buf = <void *>empty
+        else:
+            buffer.buf = <void *>&(self.buf.buf[0])
 
-        buffer.buf = <void *>&(self.buf.buf[0])
         buffer.format = 'B'
         buffer.internal = NULL
         buffer.itemsize = itemsize
@@ -131,10 +134,15 @@ cdef class buffer_region:
         free_cuda_buffer(self.buf)
 
     cpdef populate_ptr(self, const unsigned char[:] pyobj):
-        self.buf = populate_buffer_region(&(pyobj[0]))
         self._shape = pyobj.shape
         self._is_cuda  = 0
         self._shape = pyobj.shape
+
+        if pyobj.shape[0] > 0:
+            self.buf = populate_buffer_region(&(pyobj[0]))
+        else:
+            self.buf = populate_buffer_region(NULL)
+
 
     def populate_cuda_ptr(self, pyobj):
         info = pyobj.__cuda_array_interface__

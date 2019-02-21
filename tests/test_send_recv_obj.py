@@ -17,13 +17,13 @@ async def listen(ep, listener):
     while True:
         msg = await ep.recv_future()
         msg = ucp.get_obj_from_msg(msg)
-        if msg == b"":
+        if msg.tobytes() == b"":
             await ep.send_obj(msg)
             break
         await ep.send_obj(msg)
 
     ucp.destroy_ep(ep)
-    ucp.stop_server(listener)
+    ucp.stop_listener(listener)
 
 
 @pytest.fixture
@@ -41,13 +41,43 @@ async def echo_pair():
     ucp.destroy_ep(client)
 
 
+_containers = [
+    memoryview,
+]
+_ids = ['memoryview']
+
+try:
+    import numpy
+except ImportError:
+    pass
+else:
+    _containers.append(lambda x: numpy.frombuffer(x, dtype='u1'))
+    _ids.append('numpy')
+
+try:
+    import cupy
+except ImportError:
+    pass
+else:
+    _containers.append(lambda x: cupy.asarray(memoryview(x), dtype='u1'))
+    _ids.append('cupy')
+
+
+@pytest.fixture(params=_containers, ids=_ids)
+def container(request):
+    return request.param
+
+
 @pytest.mark.asyncio
-async def test_send_recv(echo_pair):
+async def test_send_recv(echo_pair, container):
     listen, client = echo_pair
-    msg = b"hi"
+    msg = container(b"hi")
 
     await client.send_obj(msg)
     resp = await client.recv_future()
     result = ucp.get_obj_from_msg(resp)
 
-    assert result == msg
+    if container is memoryview:
+        assert result.tobytes() == msg
+    else:
+        assert (container(result) == msg).all()
