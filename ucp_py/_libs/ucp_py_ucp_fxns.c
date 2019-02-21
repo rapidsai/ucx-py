@@ -26,6 +26,7 @@
 #include <cuda_runtime.h>
 #include <sys/queue.h>
 #include <arpa/inet.h>
+#include <errno.h>   /* errno */
 
 
 #define CB_Q_MAX_ENTRIES 256
@@ -58,6 +59,8 @@ typedef struct ucp_py_ctx {
     int listens;
     int num_probes_outstanding;
     int epoll_fd_local;
+    int epoll_fd;
+    struct epoll_event ev;
 } ucp_py_ctx_t;
 
 ucp_py_ctx_t *ucp_py_ctx_head;
@@ -334,6 +337,17 @@ int ucp_py_worker_progress_wait()
     return -1;
 }
 
+int ucp_py_worker_drain_fd()
+{
+    int ret = -1;
+
+    do {
+        ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
+    } while ((ret == -1) && (errno == EINTR));
+
+    return 0;
+}
+
 int ucp_py_query_request(struct ucx_context *request)
 {
     ucs_status_t status;
@@ -598,7 +612,9 @@ int ucp_py_init()
     }
 
     DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
+    ucp_py_ctx_head->epoll_fd = epoll_fd;
     ucp_py_ctx_head->epoll_fd_local = epoll_fd_local;
+    ucp_py_ctx_head->ev = ev;
 
     ucp_config_release(config);
     return 0;
