@@ -14,13 +14,9 @@ PORT_COUNTER = itertools.count(13337)
 
 
 async def listen(ep, listener):
-    while True:
-        msg = await ep.recv_future()
-        msg = ucp.get_obj_from_msg(msg)
-        if msg.tobytes() == b"":
-            await ep.send_obj(msg)
-            break
-        await ep.send_obj(msg)
+    msg = await ep.recv_obj(2)
+    msg = ucp.get_obj_from_msg(msg)
+    await ep.send_obj(msg)
 
     ucp.destroy_ep(ep)
     ucp.stop_listener(listener)
@@ -35,50 +31,57 @@ async def echo_pair():
     t = loop.create_task(listener.coroutine)
     client = ucp.get_endpoint(address.encode(), port)
     yield listener, client
-    await client.send_obj(b"")
-    await client.recv_future()
     t.cancel()
     ucp.destroy_ep(client)
 
 
-_containers = [
-    memoryview,
-]
-_ids = ['memoryview']
-
-try:
-    import numpy
-except ImportError:
-    pass
-else:
-    _containers.append(lambda x: numpy.frombuffer(x, dtype='u1'))
-    _ids.append('numpy')
-
-try:
-    import cupy
-except ImportError:
-    pass
-else:
-    _containers.append(lambda x: cupy.asarray(memoryview(x), dtype='u1'))
-    _ids.append('cupy')
-
-
-@pytest.fixture(params=_containers, ids=_ids)
-def container(request):
-    return request.param
-
-
 @pytest.mark.asyncio
-async def test_send_recv(echo_pair, container):
+async def test_send_recv_bytes(echo_pair):
     listen, client = echo_pair
-    msg = container(b"hi")
+    msg = b"hi"
 
     await client.send_obj(msg)
-    import pdb; pdb.set_trace()
     resp = await client.recv_obj(len(msg))
     result = ucp.get_obj_from_msg(resp)
 
-    if container is memoryview:
-        assert result.tobytes() == msg
-    else:
-        assert (container(result) == msg).all()
+    assert result.tobytes() == msg
+
+
+@pytest.mark.asyncio
+async def test_send_recv_memoryview(echo_pair):
+    listen, client = echo_pair
+    msg = memoryview(b"hi")
+
+    await client.send_obj(msg)
+    resp = await client.recv_obj(len(msg))
+    result = ucp.get_obj_from_msg(resp)
+
+    assert result == msg
+
+
+@pytest.mark.asyncio
+async def test_send_recv_numpy(echo_pair):
+    np = pytest.importorskip('numpy')
+    listen, client = echo_pair
+    msg = np.frombuffer(memoryview(b"hi"), dtype='u1')
+
+    await client.send_obj(msg)
+    resp = await client.recv_obj(len(msg))
+    result = ucp.get_obj_from_msg(resp)
+    result = np.frombuffer(result, 'u1')
+
+    np.testing.assert_array_equal(result, msg)
+
+
+@pytest.mark.asyncio
+async def test_send_recv_cupy(echo_pair):
+    cupy = pytest.importorskip('cupy')
+    listen, client = echo_pair
+    msg = cupy.array(memoryview(b"hi"), dtype='u1')
+
+    await client.send_obj(msg)
+    resp = await client.recv_obj(len(msg))
+    result = ucp.get_obj_from_msg(resp)
+    assert hasattr(result, '__cuda_array_interface__')
+    result = cupy.asarray(result)
+    cupy.testing.assert_array_equal(msg, result)

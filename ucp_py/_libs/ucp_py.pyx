@@ -202,7 +202,7 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_obj(self, length, name='recv_obj'):
+    def recv_obj(self, length, name='recv_obj', cuda=False):
         """Send msg is a contiguous python object
 
         Returns
@@ -210,7 +210,7 @@ cdef class ucp_py_ep:
         python object that was sent
         """
         buf_reg = buffer_region()
-        buf_reg._is_cuda = 0 # for now but it does not matter
+        buf_reg._is_cuda = int(cuda) # for now but it does not matter
         buf_reg.alloc_host(length)
 
         internal_msg = ucp_msg(buf_reg, name=name)
