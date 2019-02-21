@@ -211,7 +211,10 @@ cdef class ucp_py_ep:
         """
         buf_reg = buffer_region()
         buf_reg._is_cuda = int(cuda) # for now but it does not matter
-        buf_reg.alloc_host(length)
+        if cuda:
+            buf_reg.alloc_cuda(length)
+        else:
+            buf_reg.alloc_host(length)
 
         internal_msg = ucp_msg(buf_reg, name=name)
         internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, length)
