@@ -226,6 +226,17 @@ cdef class ucp_py_ep:
         ucp_py_ep_post_probe()
         return fut
 
+    def _send_obj_cuda(self, obj, str name):
+        buf_reg = buffer_region()
+        buf_reg.populate_cuda_ptr(obj)
+        return buf_reg
+
+    def _send_obj_host(self, chars[:] obj, str name):
+        buf_reg = buffer_region()
+        obj = memoryview(obj)
+        buf_reg.populate_ptr(obj)
+        return buf_reg
+
     def send_obj(self, msg, name='send_obj'):
         """Send msg is a contiguous python object
 
@@ -233,15 +244,13 @@ cdef class ucp_py_ep:
         -------
         ucp_comm_request object
         """
-        buf_reg = buffer_region()
         # TODO: cuda-compatible memoryview wrapper
-        if hasattr(msg, '__cuda_array_interface__'):
-            buf_reg.populate_cuda_ptr(msg)
-        else:
-            msg = memoryview(msg)
-            buf_reg.populate_ptr(msg)
-
         length = len(msg)
+        if hasattr(msg, '__cuda_array_interface__'):
+            print("got cupy array")
+            buf_reg = self._send_obj_cuda(msg, name)
+        else:
+            buf_reg = self._send_obj_host(msg, name)
 
         internal_msg = ucp_msg(buf_reg, name=name, length=length)
         # TODO: do this here or there?

@@ -25,6 +25,10 @@ cdef extern from "buffer_ops.h":
     int check_cuda_buffer(data_buf*, int, int)
 
 
+ctypedef fused chars:
+    const char
+    const unsigned char
+
 
 # How does this square with recv_future, where we don't know the length?
 # Well, that's hard...
@@ -134,7 +138,7 @@ cdef class buffer_region:
     def free_cuda(self):
         free_cuda_buffer(self.buf)
 
-    cpdef populate_ptr(self, const unsigned char[:] pyobj):
+    cpdef populate_ptr(self, chars[:] pyobj):
         self._shape = pyobj.shape
         self._is_cuda  = 0
         self._shape = pyobj.shape
@@ -143,7 +147,6 @@ cdef class buffer_region:
             self.buf = populate_buffer_region(&(pyobj[0]))
         else:
             self.buf = populate_buffer_region(NULL)
-
 
     def populate_cuda_ptr(self, pyobj):
         info = pyobj.__cuda_array_interface__
