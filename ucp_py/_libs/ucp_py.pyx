@@ -202,7 +202,7 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_obj(self, length, name='recv_obj', cuda=False):
+    def recv_obj(self, length, name='recv_obj', cuda_info=None):
         """Send msg is a contiguous python object
 
         Returns
@@ -210,20 +210,8 @@ cdef class ucp_py_ep:
         python object that was sent
         """
         buf_reg = buffer_region()
-        buf_reg._is_cuda = int(cuda) # for now but it does not matter
-        if cuda:
-            buf_reg.alloc_cuda(length)
-        else:
-            buf_reg.alloc_host(length)
-
-        internal_msg = ucp_msg(buf_reg, name=name)
-        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, length)
-        internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.comm_len = length
-        internal_msg.ctx_ptr_set = 1
-
-        fut = handle_msg(internal_msg)
-        ucp_py_ep_post_probe()
+        if cuda_info:
+            buf_reg.set_cuda_array_info(cuda_info)
         return fut
 
     def _send_obj_cuda(self, obj, str name):
@@ -247,7 +235,6 @@ cdef class ucp_py_ep:
         # TODO: cuda-compatible memoryview wrapper
         length = len(msg)
         if hasattr(msg, '__cuda_array_interface__'):
-            print("got cupy array")
             buf_reg = self._send_obj_cuda(msg, name)
         else:
             buf_reg = self._send_obj_host(msg, name)
