@@ -203,11 +203,41 @@ cdef class ucp_py_ep:
         return msg.get_comm_request(len)
 
     def recv_obj(self, length, name='recv_obj', cuda=False):
-        """Send msg is a contiguous python object
+        """
+        Recieve into a newly allocated block of memeory.
+
+        Parameters
+        ----------
+        length : int
+            Number of bytes to receive
+        name : str
+            Identifier for the messages
+        cuda : bool, default False
+            Whether to recieve into host or device memory.
 
         Returns
         -------
-        python object that was sent
+        Future
+            A future. Upon completion of the recieve, the future will
+            become avaliable. Its result is a :class:`ucp_py_msg`. The
+            contents of the message can be objtained with
+            :meth:`get_obj_from_msg`.
+
+        Examples
+        --------
+        Request a length-1000 message into host memory.
+
+        >>> msg = await ep.recv_obj(1000)
+        >>> result = ucp.get_obj_from_msg(msg)
+        >>> result
+        <memory at 0x...>
+
+        Request a length-1000 message into GPU  memory.
+
+        >>> msg = await ep.recv_obj(1000, cuda=True)
+        >>> result = ucp.get_obj_from_msg(msg)
+        >>> result
+        <ucp_py._libs.ucp_py.buffer_region at 0x...>
         """
         buf_reg = buffer_region()
         if cuda:
@@ -239,7 +269,15 @@ cdef class ucp_py_ep:
         return buf_reg
 
     def send_obj(self, msg, name='send_obj'):
-        """Send msg is a contiguous python object
+        """Send an object as a message.
+
+        Parameters
+        ----------
+        msg : object
+            An object implementing the buffer protocol or the
+            ``_cuda_array_interface__``.
+        name : str
+            An identifier for the message.
 
         Returns
         -------

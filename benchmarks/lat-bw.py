@@ -81,12 +81,9 @@ def populate_ops(ep, send_first, args):
         if args.use_fast:
             first_op = ep.send_fast
             second_op = ep.recv_fast
-        elif args.use_obj:
+        else:
             first_op = ep.send_obj
             second_op = ep.recv_obj
-        else:
-            first_op = ep.send
-            second_op = ep.recv
 
         if args.blind_recv:
             second_op = ep.recv_future
@@ -96,12 +93,9 @@ def populate_ops(ep, send_first, args):
         if args.use_fast:
             first_op = ep.recv_fast
             second_op = ep.send_fast
-        elif args.use_obj:
+        else:
             first_op = ep.recv_obj
             second_op = ep.send_obj
-        else:
-            first_op = ep.recv
-            second_op = ep.send
 
         if args.blind_recv:
             first_op = ep.recv_future
@@ -134,9 +128,6 @@ def run_iters(ep, first_buffer_region, second_buffer_region, msg_log, send_first
         start = time.time()
         issue_lat = 0
         progress_lat = 0
-
-        if args.use_obj:
-            msg_len = sys.getsizeof(str(list(range(msg_len))))
 
         for j in range(max_iters):
 
@@ -188,12 +179,12 @@ async def run_iters_async(ep, first_buffer_region, second_buffer_region, msg_log
 
         for j in range(warmup_iters):
             # TODO: handle size
-            first_req = await first_op(first_msg, msg_len)
+            first_req = await first_op(first_msg)
             second_req = await second_op(second_msg, msg_len)
 
         start = time.time()
         for j in range(max_iters):
-            send_req = await first_op(first_msg, msg_len)
+            send_req = await first_op(first_msg)
             recv_req = await second_op(second_msg, msg_len)
         end = time.time()
         lat = end - start
