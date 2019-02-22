@@ -212,6 +212,18 @@ cdef class ucp_py_ep:
         buf_reg = buffer_region()
         if cuda_info:
             buf_reg.set_cuda_array_info(cuda_info)
+            buf_reg.is_cuda = True
+        else:
+            buf_reg.alloc_host(length)
+
+        internal_msg = ucp_msg(buf_reg, name=name)
+        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, length)
+        internal_msg.ucp_ep = self.ucp_ep
+        internal_msg.comm_len = length
+        internal_msg.ctx_ptr_set = 1
+
+        fut = handle_msg(internal_msg)
+        ucp_py_ep_post_probe()
         return fut
 
     def _send_obj_cuda(self, obj, str name):
@@ -240,13 +252,10 @@ cdef class ucp_py_ep:
             buf_reg = self._send_obj_host(msg, name)
 
         internal_msg = ucp_msg(buf_reg, name=name, length=length)
-        # TODO: do this here or there?
         internal_msg.ucp_ep = self.ucp_ep
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, length)
-        # internal_comm_req = internal_msg.get_comm_request(length)
         internal_msg.comm_len = length
         internal_msg.ctx_ptr_set = 1
-        # get_comm_request
 
         fut = handle_msg(internal_msg)
         return fut

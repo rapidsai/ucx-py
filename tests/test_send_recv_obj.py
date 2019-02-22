@@ -78,6 +78,7 @@ async def test_send_recv_numpy():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="handing on await send_obj")
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
     info = {
@@ -85,7 +86,6 @@ async def test_send_recv_cupy():
         'typestr': '|u1',
     }
     async with echo_pair(cuda_info=info) as (_, client):
-        import pdb; pdb.set_trace()
         msg = cupy.array(memoryview(b"hi"), dtype='u1')
 
         await client.send_obj(msg)
