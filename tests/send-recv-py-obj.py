@@ -26,7 +26,6 @@ import sys
 
 import ucp_py as ucp
 
-max_msg_log = 2
 msg_size = 1024
 
 
@@ -125,12 +124,6 @@ parser.add_argument(
 parser.add_argument(
     "-v", "--validate", help="Validate data. Default = false", action="store_true"
 )
-parser.add_argument(
-    "-m",
-    "--msg_log",
-    help="log_2(Message length). Default = 2. So length = 4 bytes",
-    required=False,
-)
 args = parser.parse_args()
 
 # initiate ucp
@@ -143,8 +136,6 @@ else:
     server = False
     init_str = args.server
 
-if args.msg_log:
-    max_msg_log = int(args.msg_log)
 
 ucp.init()
 loop = asyncio.get_event_loop()
