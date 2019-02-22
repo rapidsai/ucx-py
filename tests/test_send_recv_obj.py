@@ -81,8 +81,8 @@ async def test_send_recv_numpy():
     np.testing.assert_array_equal(result, msg)
 
 
-# @pytest.mark.asyncio
-# @pytest.mark.skip(reason="handing on await send_obj")
+@pytest.mark.asyncio
+@pytest.mark.skip(reason="handing on await send_obj")
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
     info = {
@@ -92,7 +92,6 @@ async def test_send_recv_cupy():
     async with echo_pair(cuda_info=info) as (_, client):
         msg = cupy.array(memoryview(b"hi"), dtype='u1')
 
-        breakpoint()
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg), cuda_info=info)
         result = ucp.get_obj_from_msg(resp)
