@@ -410,6 +410,18 @@ cdef class ucp_msg:
         return self.comm_len
 
     def get_obj(self):
+        """
+        Get the object recieved in this message.
+
+        Returns
+        -------
+        obj: memoryview or buffer_region
+            For CPU receives, this returns a memoryview on the buffer.
+            For GPU receives, this returns a `buffer_region`, which
+            implements the CUDA array interface. Note that the metadata
+            like ``typestr`` and ``shape`` may be incorrect. This will
+            need to be manually fixed before consuming the buffer.
+        """
         if self.buf_reg._is_cuda:
             return self.buf_reg
         else:
