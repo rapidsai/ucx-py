@@ -41,6 +41,17 @@ cdef class buffer_region:
     2. The CUDA `__cuda__array_interface__` [2]
     3. The CPython buffer protocol [3]
 
+    The buffer region can be used in two ways.
+
+    1. When sending data, the buffer region will not manually allocate memory
+       for the array of data. Instead, the buffer region keeps
+
+       1. a pointer to the data buffer
+       2. metadata about the array (shape, dtype, etc.)
+
+    2. When receiving data, alloc_host and alloc_cuda must be used to create
+       a destination buffer for the data.
+
     [1]: https://docs.scipy.org/doc/numpy-1.15.1/reference/arrays.interface.html
     [2]: https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
     [3]: https://docs.python.org/3/c-api/buffer.html
@@ -49,7 +60,9 @@ cdef class buffer_region:
     ----------
     shape : Tuple[int]
     typestr : str
-    version : ...
+    version : int
+    is_cuda : bool
+    is_set : bool
     """
     cdef:
         data_buf* buf
@@ -134,22 +147,6 @@ cdef class buffer_region:
         }
         return desc
 
-    def alloc_host(self, Py_ssize_t len):
-        self.buf = allocate_host_buffer(len)
-        self._is_cuda = 0
-        self._shape[0] = len
-
-    def alloc_cuda(self, len):
-        self.buf = allocate_cuda_buffer(len)
-        self._is_cuda = 1
-        self._shape[0] = len
-
-    def free_host(self):
-        free_host_buffer(self.buf)
-
-    def free_cuda(self):
-        free_cuda_buffer(self.buf)
-
     cpdef populate_ptr(self, chars[:] pyobj):
         self._shape = pyobj.shape
         self._is_cuda  = 0
@@ -182,6 +179,28 @@ cdef class buffer_region:
         self._shape = info['shape']
         self._typestr = info['typestr']
         # TODO: readonly
+
+    # ------------------------------------------------------------------------
+    # Manual memory management
+
+    def alloc_host(self, Py_ssize_t len):
+        self.buf = allocate_host_buffer(len)
+        self._is_cuda = 0
+        self._shape[0] = len
+
+    def alloc_cuda(self, len):
+        self.buf = allocate_cuda_buffer(len)
+        self._is_cuda = 1
+        self._shape[0] = len
+
+    def free_host(self):
+        free_host_buffer(self.buf)
+
+    def free_cuda(self):
+        free_cuda_buffer(self.buf)
+
+    # ------------------------------------------------------------------------
+    # Conversion
 
     def return_obj(self):
         if not self.is_set:

@@ -245,7 +245,6 @@ cdef class ucp_py_ep:
         -------
         ucp_comm_request object
         """
-        # TODO: cuda-compatible memoryview wrapper
         length = len(msg)
         if hasattr(msg, '__cuda_array_interface__'):
             buf_reg = self._send_obj_cuda(msg, name)
