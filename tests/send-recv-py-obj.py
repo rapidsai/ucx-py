@@ -19,16 +19,19 @@
 # wrapped in strings (to workaround contiguous memory requirement) or
 # strings wrapped in bytes object
 
-import ucp_py as ucp
 import argparse
 import asyncio
 import reprlib
 
-max_msg_log = 2
+import ucp_py as ucp
+
 msg_size = 1024
 
 
 def get_msg(base, obj_type):
+    """
+    Construct the message from bytes or a buffer_region.
+    """
     if obj_type == "bytes":
         return bytes(base)
     elif obj_type == "memoryview":
@@ -47,6 +50,9 @@ def get_msg(base, obj_type):
 
 
 def check(a, b, obj_type):
+    """
+    Check that the sent and recv'd data matches.
+    """
     if obj_type in ('bytes', 'memoryview'):
         assert a == b
     elif obj_type == 'numpy':
@@ -60,10 +66,6 @@ def check(a, b, obj_type):
 
 
 async def talk_to_client(ep, listener):
-    # send, recv
-
-    print("about to send")
-
     base = b'0' * msg_size
     send_msg = get_msg(base, args.object_type)
     await ep.send_obj(send_msg)
@@ -124,12 +126,6 @@ parser.add_argument(
     "-v", "--validate", help="Validate data. Default = false",
     action="store_true"
 )
-parser.add_argument(
-    "-m",
-    "--msg_log",
-    help="log_2(Message length). Default = 2. So length = 4 bytes",
-    required=False,
-)
 args = parser.parse_args()
 
 # initiate ucp
@@ -142,8 +138,6 @@ else:
     server = False
     init_str = args.server
 
-if args.msg_log:
-    max_msg_log = int(args.msg_log)
 
 ucp.init()
 loop = asyncio.get_event_loop()
