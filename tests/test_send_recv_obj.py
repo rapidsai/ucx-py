@@ -12,9 +12,9 @@ ucp.init()
 PORT_COUNTER = itertools.count(13337)
 
 
-def get_listener(cuda_info=None):
+def get_listener(cuda=False):
     async def listen(ep, listener):
-        msg = await ep.recv_obj(2, cuda_info=cuda_info)
+        msg = await ep.recv_obj(2, cuda=cuda)
 
         br = msg.get_buffer_region()
         assert br.is_set
@@ -28,11 +28,11 @@ def get_listener(cuda_info=None):
 
 
 @asynccontextmanager
-async def echo_pair(cuda_info=None):
+async def echo_pair(cuda=False):
     loop = asyncio.get_event_loop()
     port = next(PORT_COUNTER)
 
-    listener = ucp.start_listener(get_listener(cuda_info=cuda_info), port,
+    listener = ucp.start_listener(get_listener(cuda=cuda), port,
                                   is_coroutine=True)
     t = loop.create_task(listener.coroutine)
     client = ucp.get_endpoint(address.encode(), port)
@@ -45,7 +45,7 @@ async def echo_pair(cuda_info=None):
 
 @pytest.mark.asyncio
 async def test_send_recv_bytes():
-    async with echo_pair(cuda_info=False) as (_, client):
+    async with echo_pair(cuda=False) as (_, client):
         msg = b"hi"
 
         await client.send_obj(msg)
@@ -57,7 +57,7 @@ async def test_send_recv_bytes():
 
 @pytest.mark.asyncio
 async def test_send_recv_memoryview():
-    async with echo_pair(cuda_info=False) as (_, client):
+    async with echo_pair(cuda=False) as (_, client):
         msg = memoryview(b"hi")
 
         await client.send_obj(msg)
@@ -70,7 +70,7 @@ async def test_send_recv_memoryview():
 @pytest.mark.asyncio
 async def test_send_recv_numpy():
     np = pytest.importorskip('numpy')
-    async with echo_pair(cuda_info=False) as (_, client):
+    async with echo_pair(cuda=False) as (_, client):
         msg = np.frombuffer(memoryview(b"hi"), dtype='u1')
 
         await client.send_obj(msg)
@@ -82,20 +82,16 @@ async def test_send_recv_numpy():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="handing on await send_obj")
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
-    info = {
-        'shape': (2,),
-        'typestr': '|u1',
-    }
-    async with echo_pair(cuda_info=info) as (_, client):
+    async with echo_pair(cuda=True) as (_, client):
         msg = cupy.array(memoryview(b"hi"), dtype='u1')
 
         await client.send_obj(msg)
-        resp = await client.recv_obj(len(msg), cuda_info=info)
+        resp = await client.recv_obj(len(msg), cuda=True)
         result = ucp.get_obj_from_msg(resp)
 
     assert hasattr(result, '__cuda_array_interface__')
+    result.typestr = msg.__cuda_array_interface__['typestr']
     result = cupy.asarray(result)
     cupy.testing.assert_array_equal(msg, result)

@@ -64,18 +64,20 @@ cdef class buffer_region:
     is_cuda : bool
     is_set : bool
     """
+    cdef public:
+        str typestr
+        Py_ssize_t _shape[1]
+
     cdef:
         data_buf* buf
         int _is_cuda  # TODO: change -> bint
-        Py_ssize_t _shape[1]
-        str _typestr
         bint _readonly
         uintptr_t cupy_ptr
 
     def __init__(self):
         self._is_cuda = 0
         self._shape[0] = 0
-        self._typestr = None
+        self.typestr = None
         self._readonly = False  # True?
         self.buf = NULL
 
@@ -96,10 +98,6 @@ cdef class buffer_region:
     @property
     def shape(self):
         return tuple(self._shape)
-
-    @property
-    def typestr(self):
-        return self._typestr
 
     @property
     def readonly(self):
@@ -136,6 +134,8 @@ cdef class buffer_region:
     # ------------------------------------------------------------------------
     @property
     def __cuda_array_interface__(self):
+        if not self._is_cuda:
+            raise AttributeError("Not a CUDA array.")
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
         desc = {
@@ -162,7 +162,7 @@ cdef class buffer_region:
 
         self._shape = info['shape']
         self._is_cuda = 1
-        self._typestr = info['typestr']
+        self.typestr = info['typestr']
         ptr_int, is_readonly = info['data']
         self._readonly = is_readonly
 
@@ -177,7 +177,7 @@ cdef class buffer_region:
         """
         self._is_cuda = 1
         self._shape = info['shape']
-        self._typestr = info['typestr']
+        self.typestr = info['typestr']
         # TODO: readonly
 
     # ------------------------------------------------------------------------
