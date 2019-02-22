@@ -212,7 +212,8 @@ cdef class ucp_py_ep:
         buf_reg = buffer_region()
         if cuda_info:
             buf_reg.set_cuda_array_info(cuda_info)
-            buf_reg.is_cuda = True
+            buf_reg.alloc_cuda(length)
+            buf_reg._is_cuda = 1
         else:
             buf_reg.alloc_host(length)
 
@@ -376,6 +377,10 @@ cdef class ucp_msg:
             return self.buf_reg
         else:
             return memoryview(self.buf_reg)
+
+    def get_buffer_region(self):
+        # TODO: public property
+        return self.buf_reg
 
 
 cdef class ucp_comm_request:

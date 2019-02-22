@@ -61,13 +61,24 @@ cdef class buffer_region:
 
     def __init__(self):
         self._is_cuda = 0
-        self._shape[0] = 1
+        self._shape[0] = 0
         self._typestr = None
         self._readonly = False  # True?
+        self.buf = NULL
+
+    def __len__(self):
+        if not self.is_set:
+            return 0
+        else:
+            return self._shape[0]
 
     @property
     def is_cuda(self):
         return self._is_cuda
+
+    @property
+    def is_set(self):
+        return self.buf is not NULL
 
     @property
     def shape(self):
@@ -86,6 +97,9 @@ cdef class buffer_region:
             Py_ssize_t itemsize = 1
             Py_ssize_t strides[1]
             empty = b''
+
+        # if not self.is_set:
+        #     raise ValueError("This buffer region's memory has not been set.")
 
         # shape[0] = self.length
         strides[0] = 1
@@ -109,6 +123,8 @@ cdef class buffer_region:
     # ------------------------------------------------------------------------
     @property
     def __cuda_array_interface__(self):
+        if not self.is_set:
+            raise ValueError("This buffer region's memory has not been set.")
         desc = {
              'shape': self.shape,
              'typestr': self.typestr,
@@ -117,10 +133,6 @@ cdef class buffer_region:
              'version': 0,
         }
         return desc
-
-    def __len__(self):
-        # return self._shape[0]
-        return self._length
 
     def alloc_host(self, Py_ssize_t len):
         self.buf = allocate_host_buffer(len)
@@ -172,6 +184,8 @@ cdef class buffer_region:
         # TODO: readonly
 
     def return_obj(self):
+        if not self.is_set:
+            raise ValueError("This buffer region's memory has not been set.")
         return <object> return_ptr_from_buf(self.buf)
 
 

@@ -15,6 +15,10 @@ PORT_COUNTER = itertools.count(13337)
 def get_listener(cuda_info=None):
     async def listen(ep, listener):
         msg = await ep.recv_obj(2, cuda_info=cuda_info)
+
+        br = msg.get_buffer_region()
+        assert br.is_set
+
         msg = ucp.get_obj_from_msg(msg)
         await ep.send_obj(msg)
 
@@ -77,8 +81,8 @@ async def test_send_recv_numpy():
     np.testing.assert_array_equal(result, msg)
 
 
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="handing on await send_obj")
+# @pytest.mark.asyncio
+# @pytest.mark.skip(reason="handing on await send_obj")
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
     info = {
@@ -88,8 +92,9 @@ async def test_send_recv_cupy():
     async with echo_pair(cuda_info=info) as (_, client):
         msg = cupy.array(memoryview(b"hi"), dtype='u1')
 
+        breakpoint()
         await client.send_obj(msg)
-        resp = await client.recv_obj(len(msg))
+        resp = await client.recv_obj(len(msg), cuda_info=info)
         result = ucp.get_obj_from_msg(resp)
 
     assert hasattr(result, '__cuda_array_interface__')
