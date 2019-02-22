@@ -25,8 +25,6 @@ import reprlib
 
 import ucp_py as ucp
 
-msg_size = 1024
-
 
 def get_msg(base, obj_type):
     """
@@ -66,14 +64,14 @@ def check(a, b, obj_type):
 
 
 async def talk_to_client(ep, listener):
-    base = b'0' * msg_size
+    base = b'0' * args.n_bytes
     send_msg = get_msg(base, args.object_type)
     await ep.send_obj(send_msg)
 
     print("about to recv")
 
     if not args.blind_recv:
-        recv_req = await ep.recv_obj(msg_size)
+        recv_req = await ep.recv_obj(args.n_bytes)
         recv_msg = get_msg(recv_req.get_obj(), args.object_type)
     else:
         recv_req = await ep.recv_future()
@@ -95,7 +93,7 @@ async def talk_to_server(ip, port):
     ep = ucp.get_endpoint(ip, port)
 
     if not args.blind_recv:
-        recv_req = await ep.recv_obj(msg_size)
+        recv_req = await ep.recv_obj(args.n_bytes)
     else:
         recv_req = await ep.recv_future()
 
@@ -125,6 +123,10 @@ parser.add_argument(
 parser.add_argument(
     "-v", "--validate", help="Validate data. Default = false",
     action="store_true"
+)
+parser.add_argument(
+    '-n', '--n-bytes', help="Size of the messages (in bytes)", type=int,
+    default=1024,
 )
 args = parser.parse_args()
 
