@@ -16,9 +16,30 @@ def test_set_read():
     assert buffer_region.shape == (2,)
 
 
-def test_cupy():
+@pytest.mark.parametrize("dtype", [
+    'u1', 'u8', 'i1', 'i8'
+])
+def test_numpy(dtype):
+    np = pytest.importorskip("numpy")
+    arr = np.ones(10, dtype)
+
+    buffer_region = ucp.buffer_region()
+    buffer_region.populate_ptr(arr)
+
+    # TODO: see if we can do this in Cython.
+    # typed memoryviews don't have a format attribute...
+    buffer_region.format = arr.data.format.encode()
+
+    result = np.asarray(buffer_region)
+    np.testing.assert_array_equal(result, arr)
+
+
+@pytest.mark.parametrize('dtype', [
+    'u1', 'u8', 'i1', 'i8'
+])
+def test_cupy(dtype):
     cupy = pytest.importorskip('cupy')
-    arr = cupy.array([48, 49, 50], dtype='u1')
+    arr = cupy.ones(10, dtype)
 
     buffer_region = ucp.buffer_region()
     buffer_region.populate_cuda_ptr(arr)

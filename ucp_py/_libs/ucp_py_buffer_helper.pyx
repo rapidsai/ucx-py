@@ -28,6 +28,13 @@ cdef extern from "buffer_ops.h":
 ctypedef fused chars:
     const char
     const unsigned char
+    const int
+    const unsigned int
+    const long
+    const unsigned long
+    const float
+    const double
+
 
 
 # How does this square with recv_future, where we don't know the length?
@@ -67,6 +74,8 @@ cdef class buffer_region:
     cdef public:
         str typestr
         Py_ssize_t _shape[1]
+        bytes format
+        int itemsize
 
     cdef:
         data_buf* buf
@@ -78,6 +87,8 @@ cdef class buffer_region:
         self._is_cuda = 0
         self._shape[0] = 0
         self.typestr = None
+        self.format = b"B"
+        self.itemsize = 0
         self._readonly = False  # True?
         self.buf = NULL
 
@@ -113,16 +124,16 @@ cdef class buffer_region:
         #     raise ValueError("This buffer region's memory has not been set.")
 
         # shape[0] = self.length
-        strides[0] = 1
+        strides[0] = self.itemsize
         assert len(self._shape)
         if self._shape[0] == 0:
             buffer.buf = <void *>empty
         else:
             buffer.buf = <void *>&(self.buf.buf[0])
 
-        buffer.format = 'B'
+        buffer.format = self.format
         buffer.internal = NULL
-        buffer.itemsize = itemsize
+        buffer.itemsize = self.itemsize
         buffer.len = self._shape[0]
         buffer.ndim = 1
         buffer.obj = self
@@ -150,7 +161,8 @@ cdef class buffer_region:
     cpdef populate_ptr(self, chars[:] pyobj):
         self._shape = pyobj.shape
         self._is_cuda  = 0
-        self._shape = pyobj.shape
+        # self.format = pyobj.base.format.encode()
+        self.itemsize = pyobj.itemsize
 
         if pyobj.shape[0] > 0:
             self.buf = populate_buffer_region(&(pyobj[0]))
