@@ -19,16 +19,17 @@ def test_set_read():
 @pytest.mark.parametrize("dtype", [
     'u1', 'u8', 'i1', 'i8'
 ])
-def test_numpy(dtype):
+@pytest.mark.parametrize("data", [True, False])
+def test_numpy(dtype, data):
     np = pytest.importorskip("numpy")
     arr = np.ones(10, dtype)
 
     buffer_region = ucp.buffer_region()
-    buffer_region.populate_ptr(arr)
 
-    # TODO: see if we can do this in Cython.
-    # typed memoryviews don't have a format attribute...
-    buffer_region.format = arr.data.format.encode()
+    if data:
+        buffer_region.populate_ptr(arr.data)
+    else:
+        buffer_region.populate_ptr(arr.data)
 
     result = np.asarray(buffer_region)
     np.testing.assert_array_equal(result, arr)

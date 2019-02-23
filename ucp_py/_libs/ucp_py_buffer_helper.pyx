@@ -28,17 +28,17 @@ cdef extern from "buffer_ops.h":
 ctypedef fused chars:
     const char
     const unsigned char
+    const short
+    const unsigned short
     const int
     const unsigned int
     const long
     const unsigned long
+    const long long
+    const unsigned long long
     const float
     const double
 
-
-
-# How does this square with recv_future, where we don't know the length?
-# Well, that's hard...
 
 cdef class buffer_region:
     """
@@ -74,8 +74,8 @@ cdef class buffer_region:
     cdef public:
         str typestr
         Py_ssize_t _shape[1]
+        Py_ssize_t itemsize
         bytes format
-        int itemsize
 
     cdef:
         data_buf* buf
@@ -87,7 +87,7 @@ cdef class buffer_region:
         self._is_cuda = 0
         self._shape[0] = 0
         self.typestr = None
-        self.format = b"B"
+        self.format = None
         self.itemsize = 0
         self._readonly = False  # True?
         self.buf = NULL
@@ -116,25 +116,23 @@ cdef class buffer_region:
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
-            Py_ssize_t itemsize = 1
             Py_ssize_t strides[1]
             empty = b''
 
-        # if not self.is_set:
-        #     raise ValueError("This buffer region's memory has not been set.")
+        if not self.is_set:
+            raise ValueError("This buffer region's memory has not been set.")
 
-        # shape[0] = self.length
-        strides[0] = self.itemsize
+        strides[0] = <Py_ssize_t>self.itemsize
         assert len(self._shape)
         if self._shape[0] == 0:
-            buffer.buf = <void *>empty
+            buffer.buf = <char *>empty
         else:
-            buffer.buf = <void *>&(self.buf.buf[0])
+            buffer.buf = <char *>&(self.buf.buf[0])
 
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = self._shape[0]
+        buffer.len = self._shape[0] * self.itemsize
         buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = 1  # TODO
@@ -161,7 +159,9 @@ cdef class buffer_region:
     cpdef populate_ptr(self, chars[:] pyobj):
         self._shape = pyobj.shape
         self._is_cuda  = 0
-        # self.format = pyobj.base.format.encode()
+        # TODO: We may not have a `.format` here. Not sure how to handle.
+        if hasattr(pyobj.base, 'format'):
+            self.format = pyobj.base.format.encode()
         self.itemsize = pyobj.itemsize
 
         if pyobj.shape[0] > 0:
