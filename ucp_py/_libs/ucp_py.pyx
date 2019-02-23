@@ -37,7 +37,6 @@ include "ucp_py_buffer_helper.pyx"
 PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
-armed = 0
 
 def handle_msg(msg):
     """
@@ -58,28 +57,31 @@ def handle_msg(msg):
         a. the message has finished being sent or received.
         The ``.result`` will be the original `msg`.
     """
-    global armed
+    global reader_added
     loop = asyncio.get_event_loop()
     assert UCX_FILE_DESCRIPTOR > 0
+    assert reader_added > 0
     fut = asyncio.Future()
-    print("in handle_msg {} armed = {} RA = {}".format(msg, armed, reader_added))
+    print("in handle_msg {}".format(msg))
 
-    if 0 == armed:
-        if 0 == msg.query():
-            tmp = -1
-            while tmp == -1:
-                tmp = ucp_py_worker_progress_wait()
-            armed = 1
-            print("armed worker")
-        else:
-            print("finisehd handle_msg {} armed = {} RA = {}".format(msg, armed, reader_added))
-            fut.set_result(msg)
-            return fut
+    if 0 == msg.query():
+        tmp = -1
+        # arm if possible
+        # returns if msg xfer finished on arm attempt
+        while -1 == tmp:
+            tmp = ucp_py_worker_progress_wait()
+            print("(0) arm returned {}".format(tmp))
+            if -1 == tmp:
+                 print("(1) arm returned {}".format(tmp))
+                 if 1 == msg.query():
+                     print("finished handle_msg {}".format(msg))
+                     fut.set_result(msg)
+                     return fut
+                 print("(2) arm returned {}".format(tmp))
     else:
-        if 1 == msg.check():
-            print("check success")
-            fut.set_result(msg)
-            return fut
+        print("finished handle_msg {}".format(msg))
+        fut.set_result(msg)
+        return fut
 
     PENDING_MESSAGES[msg] = fut
     return fut
@@ -112,29 +114,10 @@ def on_activity_cb():
     while 0 != ucp_py_worker_progress():
         print("progress non-zero pending len = {}".format(len(PENDING_MESSAGES)))
         pass
-    armed = 0
     print("====================================================")
 
-    #listener_present = 0
-    #for msg, fut in PENDING_MESSAGES.items():
-    #    if type(msg) is ListenerFuture:
-    #        listener_present = 1
-    #
-    #if 1 == listener_present and 1 == len(PENDING_MESSAGES):
-
     for msg, fut in PENDING_MESSAGES.items():
-        if type(msg) is ucp_msg:
-            completed = msg.query()
-            #if 0 == completed and 0 == armed:
-            #    tmp = -1
-            #    while tmp == -1:
-            #        tmp = ucp_py_worker_progress_wait()
-            #    armed = 1
-        elif type(msg) is ListenerFuture:
-            ucp_py_worker_progress()
-            completed = 1
-        else:
-            pass
+        completed = msg.query()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -142,15 +125,11 @@ def on_activity_cb():
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
 
-    if 0 == armed:
-        tmp = -1
-        x = 0
-        while tmp == -1:
-            tmp = ucp_py_worker_progress_wait()
-            print("arm attempt # {} tmp {}".format(x, tmp))
-            x += 1
-        armed = 1
-        print("armed worker")
+    tmp = -1
+    x = 0
+    while tmp == -1:
+        tmp = ucp_py_worker_progress_wait()
+        ucp_py_worker_progress()
 
     print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)))
 
@@ -459,15 +438,13 @@ def init():
     0 if initialization was successful
     """
     global UCX_FILE_DESCRIPTOR
-    global armed
 
     rval = ucp_py_init()
 
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
 
-    armed = 1
-    print("armed worker")
+    print("Init: UCX_FILE_DESCRIPTOR = {}".format(UCX_FILE_DESCRIPTOR))
 
     return rval
 
@@ -528,7 +505,6 @@ def stop_listener(lf):
     None
     """
 
-    global armed
     global reader_added
     cdef ucp_listener listener
     if lf.is_coroutine:
