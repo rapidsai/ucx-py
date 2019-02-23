@@ -87,8 +87,8 @@ cdef class buffer_region:
         self._is_cuda = 0
         self._shape[0] = 0
         self.typestr = None
-        self.format = None
-        self.itemsize = 0
+        self.format = b"B"
+        self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
 
@@ -125,9 +125,9 @@ cdef class buffer_region:
         strides[0] = <Py_ssize_t>self.itemsize
         assert len(self._shape)
         if self._shape[0] == 0:
-            buffer.buf = <char *>empty
+            buffer.buf = <void *>empty
         else:
-            buffer.buf = <char *>&(self.buf.buf[0])
+            buffer.buf = <void *>&(self.buf.buf[0])
 
         buffer.format = self.format
         buffer.internal = NULL

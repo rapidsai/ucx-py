@@ -287,15 +287,18 @@ cdef class ucp_py_ep:
         if hasattr(msg, '__cuda_array_interface__'):
             buf_reg = self._send_obj_cuda(msg, name)
         else:
+            print("send host")
             buf_reg = self._send_obj_host(msg, name)
 
         internal_msg = ucp_msg(buf_reg, name=name, length=length)
+        print("msg")
         internal_msg.ucp_ep = self.ucp_ep
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, length)
         internal_msg.comm_len = length
         internal_msg.ctx_ptr_set = 1
 
         fut = handle_msg(internal_msg)
+        print("done")
         return fut
 
     def close(self):

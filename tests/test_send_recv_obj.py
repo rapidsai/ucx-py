@@ -16,8 +16,12 @@ def get_listener(cuda=False):
     async def listen(ep, listener):
         msg = await ep.recv_obj(2, cuda=cuda)
 
+        # XXX: this is kind of wrong. It only happens
+        # to work because the data we're sending matches
+        # the defautl format and itemsize.
         br = msg.get_buffer_region()
         assert br.is_set
+        msg = ucp.ucp_msg(br)
 
         msg = ucp.get_obj_from_msg(msg)
         await ep.send_obj(msg)
