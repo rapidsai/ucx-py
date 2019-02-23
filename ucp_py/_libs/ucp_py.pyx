@@ -65,6 +65,7 @@ def handle_msg(msg):
     print("in handle_msg {}".format(msg))
 
     if 0 == msg.query():
+        print("handle_msg isn't done {}".format(msg))
         tmp = -1
         # arm if possible
         # returns if msg xfer finished on arm attempt
@@ -72,12 +73,14 @@ def handle_msg(msg):
             tmp = ucp_py_worker_progress_wait()
             print("(0) arm returned {}".format(tmp))
             if -1 == tmp:
-                 print("(1) arm returned {}".format(tmp))
-                 if 1 == msg.query():
-                     print("finished handle_msg {}".format(msg))
-                     fut.set_result(msg)
-                     return fut
-                 print("(2) arm returned {}".format(tmp))
+                print("(1) arm returned {}".format(tmp))
+                while 0 != ucp_py_worker_progress():
+                    pass
+                if 1 == msg.check():
+                    print("finished handle_msg {}".format(msg))
+                    fut.set_result(msg)
+                    return fut
+                print("(2) arm returned {}".format(tmp))
     else:
         print("finished handle_msg {}".format(msg))
         fut.set_result(msg)
@@ -117,7 +120,7 @@ def on_activity_cb():
     print("====================================================")
 
     for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.query()
+        completed = msg.check()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -129,7 +132,9 @@ def on_activity_cb():
     x = 0
     while tmp == -1:
         tmp = ucp_py_worker_progress_wait()
-        ucp_py_worker_progress()
+        if -1 == tmp:
+            while 0 != ucp_py_worker_progress():
+                pass
 
     print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)))
 
