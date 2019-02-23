@@ -142,7 +142,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     ucp_py_internal_ep_t *internal_ep;
     status = ucp_worker_progress(ucp_worker);
     DEBUG_PRINT("called ucp_worker_progress\n");
-    printf("called ucp_worker_progress\n");
+    fprintf(stderr, "called ucp_worker_progress\n");
 
     while (cb_used_head.tqh_first != NULL) {
         //handle python callbacks
@@ -160,7 +160,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
 
-        printf("got connection 1:. Will call py cb soon\n");
+        fprintf(stderr, "got connection 1:. Will call py cb soon\n");
         // call receive and wait for tag info before callback
         internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
         request = ucp_tag_recv_nb(ucp_worker,
@@ -173,7 +173,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
                     UCS_PTR_STATUS(request));
             goto err_ep;
         }
-        printf("got connection 2:. Will call py cb soon\n");
+        fprintf(stderr, "got connection 2:. Will call py cb soon\n");
         do {
             ucp_worker_progress(ucp_worker);
             //TODO: Workout if there are deadlock possibilities here
@@ -185,7 +185,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         request_init(request);
         ucp_request_free(request);
         accept_ep_counter++;
-        printf("got connection 3. Will call py cb soon\n");
+        fprintf(stderr, "got connection 3. Will call py cb soon\n");
 
         DEBUG_PRINT("calling python callback\n");
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
@@ -358,19 +358,27 @@ int ucp_py_worker_drain_fd()
 {
     int ret = -1;
 
-    printf("starting drain\n");
+    fprintf(stderr, "starting drain\n");
     do {
         ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
     } while ((ret == -1) && (errno == EINTR));
-    printf("finished drain %d\n", ret);
+    fprintf(stderr, "finished drain %d\n", ret);
 
     return ret;
 }
 
 int ucp_py_request_is_complete(struct ucx_context *request)
 {
-    if (NULL == request) return 1;
-    return request->completed;
+    int rval = 1;
+    if (NULL == request) return rval;
+
+    rval = request->completed;
+    if (rval) {
+        request_init(request);
+        ucp_request_free(request);
+    }
+
+    return rval;
 }
 
 int ucp_py_query_request(struct ucx_context *request)
@@ -525,7 +533,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         /* request is complete so no need to wait on request */
     }
     connect_ep_counter++;
-    printf("completed connection. got back ep\n");
+    fprintf(stderr, "completed connection. got back ep\n");
 
     //return (void *)ep_ptr;
     return (void *) internal_ep;
@@ -643,7 +651,7 @@ int ucp_py_init()
     ucp_py_ctx_head->ev = ev;
 
     ucp_config_release(config);
-    printf("ucp_py_init\n");
+    fprintf(stderr, "ucp_py_init\n");
     return 0;
 
  err_init:
@@ -672,7 +680,7 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
                             listener,
                             default_listener_port);
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
-    printf("created listener %p\n", listener);
+    fprintf(stderr, "created listener %p\n", listener);
 
     return (void *) listener;
 
@@ -684,7 +692,7 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
 int ucp_py_stop_listener(void *listener)
 {
     ucp_listener_destroy(*((ucp_listener_h *) listener));
-    printf("destroyed listener %p\n", listener);
+    fprintf(stderr, "destroyed listener %p\n", listener);
     free(listener);
     return 0;
 }
@@ -694,7 +702,7 @@ int ucp_py_finalize()
     ucp_worker_destroy(ucp_py_ctx_head->ucp_worker);
     ucp_cleanup(ucp_py_ctx_head->ucp_context);
     free(np_free);
-    printf("ucp_py_finalize\n");
+    fprintf(stderr, "ucp_py_finalize\n");
 
     DEBUG_PRINT("UCP resources released\n");
     return 0;

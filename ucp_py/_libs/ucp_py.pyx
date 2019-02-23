@@ -62,27 +62,27 @@ def handle_msg(msg):
     assert UCX_FILE_DESCRIPTOR > 0
     assert reader_added > 0
     fut = asyncio.Future()
-    print("in handle_msg {}".format(msg))
+    print("in handle_msg {}".format(msg), flush = True)
 
     if 0 == msg.query():
-        print("handle_msg isn't done {}".format(msg))
+        print("handle_msg isn't done {}".format(msg), flush = True)
         tmp = -1
         # arm if possible
         # returns if msg xfer finished on arm attempt
         while -1 == tmp:
             tmp = ucp_py_worker_progress_wait()
-            print("(0) arm returned {}".format(tmp))
+            print("(0) arm returned {}".format(tmp), flush = True)
             if -1 == tmp:
-                print("(1) arm returned {}".format(tmp))
+                print("(1) arm returned {}".format(tmp), flush = True)
                 while 0 != ucp_py_worker_progress():
                     pass
                 if 1 == msg.check():
-                    print("finished handle_msg {}".format(msg))
+                    print("finished handle_msg {}".format(msg), flush = True)
                     fut.set_result(msg)
                     return fut
-                print("(2) arm returned {}".format(tmp))
+                print("(2) arm returned {}".format(tmp), flush = True)
     else:
-        print("finished handle_msg {}".format(msg))
+        print("finished handle_msg {}".format(msg), flush = True)
         fut.set_result(msg)
         return fut
 
@@ -109,18 +109,18 @@ def on_activity_cb():
     from the event loop when all outstanding messages have been processed.
     """
     dones = []
-    print("entry: PENDING len = {}".format(len(PENDING_MESSAGES)))
+    print("entry: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     num_drains = ucp_py_worker_drain_fd()
-    print("====================================================")
+    print("====================================================", flush = True)
 
     while 0 != ucp_py_worker_progress():
-        print("progress non-zero pending len = {}".format(len(PENDING_MESSAGES)))
+        print("progress non-zero pending len = {}".format(len(PENDING_MESSAGES)), flush = True)
         pass
-    print("====================================================")
+    print("====================================================", flush = True)
 
     for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.check()
+        completed = msg.query()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -128,15 +128,21 @@ def on_activity_cb():
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
 
-    tmp = -1
-    x = 0
-    while tmp == -1:
-        tmp = ucp_py_worker_progress_wait()
-        if -1 == tmp:
-            while 0 != ucp_py_worker_progress():
-                pass
+    print("past checks: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
-    print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)))
+    while -1 == ucp_py_worker_progress_wait():
+        if 0 != ucp_py_worker_progress():
+            dones = []
+            for msg, fut in PENDING_MESSAGES.items():
+                completed = msg.query()
+                if completed:
+                    dones.append(msg)
+                    fut.set_result(msg)
+
+            for msg in dones:
+                PENDING_MESSAGES.pop(msg)
+
+    print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     #if not PENDING_MESSAGES:
     #    loop = asyncio.get_event_loop()
@@ -202,7 +208,7 @@ cdef class ucp_py_ep:
         recv_msg.ucp_ep = self.ucp_ep
         length = recv_msg.probe_no_progress()
         if -1 != length: # in case something came before post
-             print("probe length {}".format(length))
+             print("probe length {}".format(length), flush = True)
              fut = handle_msg(recv_msg)
              return fut
         fut = handle_msg(recv_msg)
@@ -367,7 +373,7 @@ cdef class ucp_msg:
     def probe_no_progress(self):
         len = ucp_py_probe_query_wo_progress(self.ucp_ep)
         if -1 != len:
-            print("found something during probe wo progress")
+            print("found something during probe wo progress", flush = True)
             self.alloc_host(len)
             self.internally_allocated = 1
             self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
@@ -449,7 +455,7 @@ def init():
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
 
-    print("Init: UCX_FILE_DESCRIPTOR = {}".format(UCX_FILE_DESCRIPTOR))
+    print("Init: UCX_FILE_DESCRIPTOR = {}".format(UCX_FILE_DESCRIPTOR), flush = True)
 
     return rval
 
