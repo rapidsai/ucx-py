@@ -17,7 +17,7 @@ def test_set_read():
 
 
 @pytest.mark.parametrize("dtype", [
-    'u1', 'u8', 'i1', 'i8'
+    'u1', 'u8', 'i1', 'i8', 'f4', 'f8'
 ])
 @pytest.mark.parametrize("data", [True, False])
 def test_numpy(dtype, data):
@@ -36,7 +36,7 @@ def test_numpy(dtype, data):
 
 
 @pytest.mark.parametrize('dtype', [
-    'u1', 'u8', 'i1', 'i8'
+    'u1', 'u8', 'i1', 'i8', 'f4', 'f8'
 ])
 def test_cupy(dtype):
     cupy = pytest.importorskip('cupy')
