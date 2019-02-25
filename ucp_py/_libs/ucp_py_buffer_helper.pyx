@@ -7,7 +7,6 @@ cdef extern from "common.h":
     struct data_buf:
         void *buf
 
-import cupy as cp
 from libc.stdint cimport uintptr_t
 
 cdef extern from "buffer_ops.h":
@@ -25,7 +24,7 @@ cdef extern from "buffer_ops.h":
     int check_cuda_buffer(data_buf*, int, int)
 
 
-ctypedef fused chars:
+ctypedef fused format_:
     const char
     const unsigned char
     const short
@@ -156,7 +155,7 @@ cdef class buffer_region:
         }
         return desc
 
-    cpdef populate_ptr(self, chars[:] pyobj):
+    cpdef populate_ptr(self, format_[:] pyobj):
         self._shape = pyobj.shape
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
@@ -218,21 +217,3 @@ cdef class buffer_region:
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
         return <object> return_ptr_from_buf(self.buf)
-
-
-cpdef Py_ssize_t _typestr_itemsize(str typestr):
-    # typestr is a string like '|u1'
-    # where the fields are
-    # endianess : {|, <, >}
-    # character code: { ... }
-    # itemsize
-    return int(typestr[2:])
-
-
-cpdef Py_ssize_t prod(shape):
-    cdef Py_ssize_t total = 1
-
-    for item in shape:
-        total *= item
-
-    return total

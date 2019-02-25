@@ -36,11 +36,13 @@ def get_msg(base, obj_type):
         return memoryview(base)
     elif obj_type == "numpy":
         import numpy as np
-        return np.frombuffer(base, dtype='u1')
+
+        return np.frombuffer(base, dtype="u1")
     elif obj_type == "cupy":
         import cupy
+
         if isinstance(base, bytes):
-            return cupy.asarray(memoryview(base), dtype='u1')
+            return cupy.asarray(memoryview(base), dtype="u1")
         else:
             return cupy.asarray(base)
     else:
@@ -51,20 +53,22 @@ def check(a, b, obj_type):
     """
     Check that the sent and recv'd data matches.
     """
-    if obj_type in ('bytes', 'memoryview'):
+    if obj_type in ("bytes", "memoryview"):
         assert a == b
-    elif obj_type == 'numpy':
+    elif obj_type == "numpy":
         import numpy as np
+
         np.testing.assert_array_equal(a, b)
-    elif obj_type == 'cupy':
+    elif obj_type == "cupy":
         import cupy
+
         cupy.testing.assert_array_equal(a, b)
     else:
         raise ValueError(obj_type)
 
 
 async def talk_to_client(ep, listener):
-    base = b'0' * args.n_bytes
+    base = b"0" * args.n_bytes
     send_msg = get_msg(base, args.object_type)
     await ep.send_obj(send_msg)
 
@@ -117,16 +121,13 @@ parser.add_argument(
     default="bytes",
 )
 parser.add_argument(
-    "-b", "--blind_recv", help="Use blind receive. Default = false",
-    action="store_true"
+    "-b", "--blind_recv", help="Use blind receive. Default = false", action="store_true"
 )
 parser.add_argument(
-    "-v", "--validate", help="Validate data. Default = false",
-    action="store_true"
+    "-v", "--validate", help="Validate data. Default = false", action="store_true"
 )
 parser.add_argument(
-    '-n', '--n-bytes', help="Size of the messages (in bytes)", type=int,
-    default=1024,
+    "-n", "--n-bytes", help="Size of the messages (in bytes)", type=int, default=1024
 )
 args = parser.parse_args()
 

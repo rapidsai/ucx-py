@@ -241,7 +241,6 @@ cdef class ucp_py_ep:
         """
         buf_reg = buffer_region()
         if cuda:
-            # buf_reg.set_cuda_array_info(cuda_info)
             buf_reg.alloc_cuda(length)
             buf_reg._is_cuda = 1
         else:
@@ -262,7 +261,7 @@ cdef class ucp_py_ep:
         buf_reg.populate_cuda_ptr(obj)
         return buf_reg
 
-    def _send_obj_host(self, chars[:] obj, str name):
+    def _send_obj_host(self, format_[:] obj, str name):
         buf_reg = buffer_region()
         obj = memoryview(obj)
         buf_reg.populate_ptr(obj)
