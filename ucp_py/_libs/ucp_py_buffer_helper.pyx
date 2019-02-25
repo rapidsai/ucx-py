@@ -72,7 +72,7 @@ cdef class buffer_region:
     """
     cdef public:
         str typestr
-        Py_ssize_t _shape[1]
+        object shape
         Py_ssize_t itemsize
         bytes format
 
@@ -84,18 +84,18 @@ cdef class buffer_region:
 
     def __init__(self):
         self._is_cuda = 0
-        self._shape[0] = 0
         self.typestr = None
         self.format = b"B"
         self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
+        self.shape = [0]
 
     def __len__(self):
         if not self.is_set:
             return 0
         else:
-            return self._shape[0]
+            return self.shape[0]
 
     @property
     def is_cuda(self):
@@ -106,36 +106,35 @@ cdef class buffer_region:
         return self.buf is not NULL
 
     @property
-    def shape(self):
-        return tuple(self._shape)
-
-    @property
     def readonly(self):
         return self._readonly
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
             Py_ssize_t strides[1]
+            Py_ssize_t shape2[1]
             empty = b''
 
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
 
         strides[0] = <Py_ssize_t>self.itemsize
-        assert len(self._shape)
-        if self._shape[0] == 0:
+        assert len(self.shape)
+        if self.shape[0] == 0:
             buffer.buf = <void *>empty
         else:
             buffer.buf = <void *>&(self.buf.buf[0])
 
+        shape2[0] = self.shape[0]
+
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = self._shape[0] * self.itemsize
+        buffer.len = self.shape[0] * self.itemsize
         buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = 1  # TODO
-        buffer.shape = self._shape
+        buffer.shape = shape2
         buffer.strides = strides
         buffer.suboffsets = NULL
 
@@ -156,7 +155,7 @@ cdef class buffer_region:
         return desc
 
     cpdef populate_ptr(self, format_[:] pyobj):
-        self._shape = pyobj.shape
+        self.shape = pyobj.shape
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
         if hasattr(pyobj.base, 'format'):
@@ -171,7 +170,7 @@ cdef class buffer_region:
     def populate_cuda_ptr(self, pyobj):
         info = pyobj.__cuda_array_interface__
 
-        self._shape = info['shape']
+        self.shape = info['shape']
         self._is_cuda = 1
         self.typestr = info['typestr']
         ptr_int, is_readonly = info['data']
@@ -187,7 +186,7 @@ cdef class buffer_region:
         Set all the info aside from the data pointer.
         """
         self._is_cuda = 1
-        self._shape = info['shape']
+        self.shape = info['shape']
         self.typestr = info['typestr']
         # TODO: readonly
 
@@ -197,12 +196,12 @@ cdef class buffer_region:
     def alloc_host(self, Py_ssize_t len):
         self.buf = allocate_host_buffer(len)
         self._is_cuda = 0
-        self._shape[0] = len
+        self.shape[0] = len
 
     def alloc_cuda(self, len):
         self.buf = allocate_cuda_buffer(len)
         self._is_cuda = 1
-        self._shape[0] = len
+        self.shape[0] = len
 
     def free_host(self):
         free_host_buffer(self.buf)
