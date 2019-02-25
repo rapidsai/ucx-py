@@ -267,7 +267,7 @@ cdef class ucp_py_ep:
         buf_reg.populate_ptr(obj)
         return buf_reg
 
-    def send_obj(self, msg, name='send_obj'):
+    def send_obj(self, msg, nbytes=None, name='send_obj'):
         """Send an object as a message.
 
         Parameters
@@ -282,16 +282,18 @@ cdef class ucp_py_ep:
         -------
         ucp_comm_request object
         """
-        length = len(msg)
         if hasattr(msg, '__cuda_array_interface__'):
             buf_reg = self._send_obj_cuda(msg, name)
         else:
             buf_reg = self._send_obj_host(msg, name)
 
-        internal_msg = ucp_msg(buf_reg, name=name, length=length)
+        if nbytes is None:
+            nbytes = getattr(msg, 'nbytes', len(msg))
+        internal_msg = ucp_msg(buf_reg, name=name, length=nbytes)
         internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, length)
-        internal_msg.comm_len = length
+
+        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, nbytes)
+        internal_msg.comm_len = nbytes
         internal_msg.ctx_ptr_set = 1
 
         fut = handle_msg(internal_msg)

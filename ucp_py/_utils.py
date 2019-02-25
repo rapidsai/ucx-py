@@ -49,9 +49,14 @@ def make_server(cuda_info=None):
         >>> await ep.send_obj(obj)       # send the real message
         >>> await ep.recv_obj(msg_size)  # receive the echo
         """
+        from ucp_py._libs.ucp_py import destroy_ep, stop_listener
+
         while True:
             size_msg = await ep.recv_future()
             size = int(size_msg.get_obj())
+
+            if not size:
+                break
 
             msg = await ep.recv_obj(size, cuda=bool(cuda_info))
             obj = msg.get_obj()
@@ -62,8 +67,13 @@ def make_server(cuda_info=None):
                     obj.typestr = cuda_info['typestr']
                 if 'shape' in cuda_info:
                     obj._shape = cuda_info['shape']
+                print(obj.__cuda_array_interface__)
                 obj = cupy.asarray(obj)
+                print(obj)
 
             await ep.send_obj(obj)
+
+        destroy_ep(ep)
+        stop_listener(lf)
 
     return echo_server
