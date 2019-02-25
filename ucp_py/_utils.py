@@ -36,3 +36,34 @@ def get_address(ifname='ib0'):
         0x8915,  # SIOCGIFADDR
         struct.pack('256s', ifname[:15])
     )[20:24])
+
+
+def make_server(cuda_info=None):
+    async def echo_server(ep, lf):
+        """
+        Basic echo server for sized messages.
+
+        We expect the other endpoint to follow the pattern::
+
+        >>> await ep.send_obj(msg_size)  # size of the real message
+        >>> await ep.send_obj(obj)       # send the real message
+        >>> await ep.recv_obj(msg_size)  # receive the echo
+        """
+        while True:
+            size_msg = await ep.recv_future()
+            size = int(size_msg.get_obj())
+
+            msg = await ep.recv_obj(size, cuda=bool(cuda_info))
+            obj = msg.get_obj()
+
+            if cuda_info:
+                import cupy
+                if 'typestr' in cuda_info:
+                    obj.typestr = cuda_info['typestr']
+                if 'shape' in cuda_info:
+                    obj._shape = cuda_info['shape']
+                obj = cupy.asarray(obj)
+
+            await ep.send_obj(obj)
+
+    return echo_server
