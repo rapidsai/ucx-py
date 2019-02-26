@@ -288,7 +288,13 @@ cdef class ucp_py_ep:
             buf_reg = self._send_obj_host(msg, name)
 
         if nbytes is None:
-            nbytes = getattr(msg, 'nbytes', len(msg))
+            if hasattr(msg, 'nbytes'):
+                nbytes = msg.nbytes
+            elif hasattr(msg, 'dtype') and hasattr(msg, 'size'):
+                nbytes = msg.dtype.itemsize * msg.size
+            else:
+                nbytes = len(msg)
+
         internal_msg = ucp_msg(buf_reg, name=name, length=nbytes)
         internal_msg.ucp_ep = self.ucp_ep
 

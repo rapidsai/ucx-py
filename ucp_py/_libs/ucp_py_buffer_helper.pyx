@@ -176,7 +176,7 @@ cdef class buffer_region:
         ptr_int, is_readonly = info['data']
         self._readonly = is_readonly
 
-        if 'strides' not in info:
+        if len(info.get('strides', ())) <= 1:
             self.buf = populate_buffer_region_with_ptr(ptr_int)
         else:
             raise NotImplementedError("non-contiguous data not supported.")
