@@ -359,7 +359,7 @@ cdef class ucp_msg:
             return ucp_py_request_is_complete(self.ctx_ptr)
         else:
             if self.is_blind:
-                probe_length = self.probe_no_progress()
+                probe_length = self.probe_wo_progress()
                 if self.ctx_ptr_set:
                     return ucp_py_request_is_complete(self.ctx_ptr)
                 else:
@@ -367,7 +367,7 @@ cdef class ucp_msg:
             else:
                 return 0
 
-    def probe_no_progress(self):
+    def probe_wo_progress(self):
         len = ucp_py_probe_query_wo_progress(self.ucp_ep)
         if -1 != len:
             self.alloc_host(len)
