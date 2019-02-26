@@ -13,7 +13,7 @@ def test_set_read():
 
     # our properties
     assert buffer_region.is_cuda == 0
-    assert buffer_region.shape == (2,)
+    assert buffer_region.shape[0] == 2
 
 
 @pytest.mark.parametrize("dtype", [
