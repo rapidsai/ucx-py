@@ -43,9 +43,8 @@ cdef class buffer_region:
     """
     A compatability layer for
 
-    1. The NumPy `__array_interface__` [1]
-    2. The CUDA `__cuda__array_interface__` [2]
-    3. The CPython buffer protocol [3]
+    1. The CUDA `__cuda__array_interface__` [1]
+    2. The CPython buffer protocol [2]
 
     The buffer region can be used in two ways.
 
@@ -58,9 +57,8 @@ cdef class buffer_region:
     2. When receiving data, alloc_host and alloc_cuda must be used to create
        a destination buffer for the data.
 
-    [1]: https://docs.scipy.org/doc/numpy-1.15.1/reference/arrays.interface.html
-    [2]: https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-    [3]: https://docs.python.org/3/c-api/buffer.html
+    [1]: https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
+    [2]: https://docs.python.org/3/c-api/buffer.html
 
     Properties
     ----------
