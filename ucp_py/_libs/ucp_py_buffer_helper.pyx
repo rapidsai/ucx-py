@@ -45,7 +45,7 @@ cdef class buffer_region:
             if 'strides' not in pyobj.__cuda_array_interface__:
                 self.buf = populate_buffer_region_with_ptr(pyobj.__cuda_array_interface__['data'][0])
             else:
-                print("non-contig unhandled")
+                raise NotImplementedError('non-contiguous arrays are not supported')
         else:
             self.buf = populate_buffer_region(<void *> pyobj)
 
