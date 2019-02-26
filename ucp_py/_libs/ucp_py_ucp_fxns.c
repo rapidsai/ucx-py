@@ -26,7 +26,6 @@
 #include <cuda_runtime.h>
 #include <sys/queue.h>
 #include <arpa/inet.h>
-#include <errno.h>   /* errno */
 
 
 #define CB_Q_MAX_ENTRIES 256
@@ -59,8 +58,6 @@ typedef struct ucp_py_ctx {
     int listens;
     int num_probes_outstanding;
     int epoll_fd_local;
-    int epoll_fd;
-    struct epoll_event ev;
 } ucp_py_ctx_t;
 
 ucp_py_ctx_t *ucp_py_ctx_head;
@@ -156,6 +153,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
 
+        // call receive and wait for tag info before callback
         internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
         request = ucp_tag_recv_nb(ucp_worker,
                                   internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
@@ -276,14 +274,6 @@ int ucp_py_probe_query(void *internal_ep)
     return probed_length;
 }
 
-int ucp_py_probe_query_wo_progress(void *internal_ep)
-{
-    int probed_length;
-    probed_length = ucp_py_ep_probe(internal_ep);
-
-    return probed_length;
-}
-
 struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
                                       int length)
 {
@@ -342,34 +332,6 @@ int ucp_py_worker_progress_wait()
     return ucp_py_ctx_head->epoll_fd_local;
  err:
     return -1;
-}
-
-int ucp_py_worker_drain_fd()
-{
-    int ret = -1;
-
-    ucp_worker_signal(ucp_py_ctx_head->ucp_worker);
-#if 0
-    do {
-        ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
-    } while ((ret == -1) && (errno == EINTR));
-#endif
-
-    return ret;
-}
-
-int ucp_py_request_is_complete(struct ucx_context *request)
-{
-    int rval = 1;
-    if (NULL == request) return rval;
-
-    rval = request->completed;
-    if (rval) {
-        request_init(request);
-        ucp_request_free(request);
-    }
-
-    return rval;
 }
 
 int ucp_py_query_request(struct ucx_context *request)
@@ -525,6 +487,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     }
     connect_ep_counter++;
 
+    //return (void *)ep_ptr;
     return (void *) internal_ep;
 
 err_ep:
@@ -635,9 +598,7 @@ int ucp_py_init()
     }
 
     DEBUG_PRINT("return epoll_fd_local = %d\n", epoll_fd_local);
-    ucp_py_ctx_head->epoll_fd = epoll_fd;
     ucp_py_ctx_head->epoll_fd_local = epoll_fd_local;
-    ucp_py_ctx_head->ev = ev;
 
     ucp_config_release(config);
     return 0;

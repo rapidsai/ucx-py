@@ -4,7 +4,6 @@
 cdef extern from "ucp_py_ucp_fxns.h":
     int ucp_py_worker_progress()
     int ucp_py_worker_progress_wait()
-    int ucp_py_worker_drain_fd()
     int ucp_py_init()
     void *ucp_py_listen(listener_accept_cb_func, void *, int)
     int ucp_py_stop_listener(void *)
@@ -15,7 +14,5 @@ cdef extern from "ucp_py_ucp_fxns.h":
     ucx_context* ucp_py_recv_nb(void*, data_buf*, int)
     int ucp_py_ep_post_probe()
     int ucp_py_probe_query(void*)
-    int ucp_py_probe_query_wo_progress(void*)
     int ucp_py_probe_wait(void*)
     int ucp_py_query_request(ucx_context*)
-    int ucp_py_request_is_complete(ucx_context*)
