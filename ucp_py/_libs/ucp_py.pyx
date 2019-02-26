@@ -62,6 +62,7 @@ def handle_msg(msg):
     assert UCX_FILE_DESCRIPTOR > 0
     assert reader_added > 0
     fut = asyncio.Future()
+    #print("in handle_msg {} {}".format(msg, id(msg)), flush = True)
 
     """
     if 0 == msg.query():
@@ -91,9 +92,11 @@ def handle_msg(msg):
     if 1 == msg.check():
         fut.set_result(msg)
         PENDING_MESSAGES.pop(msg)
+        #print(" handle_msg {} {} fin {} ".format(msg, id(msg), msg.check()), flush = True)
 
     l = []
     while -1 == ucp_py_worker_progress_wait():
+        #print("arm returned -1", flush = True)
         while 0 != ucp_py_worker_progress():
             pass
         #res = ucp_py_worker_progress()
@@ -108,6 +111,11 @@ def handle_msg(msg):
 
         for m in dones:
             PENDING_MESSAGES.pop(m)
+
+    #for m, ft in PENDING_MESSAGES.items():
+    #    print("{} {} {}".format(m, id(m), ft))
+
+    #print("armed handle_msg {} {}".format(msg, id(msg)), flush = True)
 
     return fut
 
@@ -131,19 +139,26 @@ def on_activity_cb():
     from the event loop when all outstanding messages have been processed.
     """
     dones = []
+    #print("entry: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     num_drains = ucp_py_worker_drain_fd()
+    #print("====================================================", flush = True)
 
     while 0 != ucp_py_worker_progress():
+        #print("progress non-zero pending len = {}".format(len(PENDING_MESSAGES)), flush = True)
         dones = []
         for msg, fut in PENDING_MESSAGES.items():
             completed = msg.check()
             if completed:
                 dones.append(msg)
                 fut.set_result(msg)
+                #print("completed {} {}".format(msg, id(msg)), flush = True)
 
         for msg in dones:
             PENDING_MESSAGES.pop(msg)
+    #print("====================================================", flush = True)
+
+    #print("start checks: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     dones = []
     for msg, fut in PENDING_MESSAGES.items():
@@ -151,11 +166,15 @@ def on_activity_cb():
         if completed:
             dones.append(msg)
             fut.set_result(msg)
+            #print("completed {} {}".format(msg, id(msg)), flush = True)
 
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
 
+    #print("past checks: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
+
     while -1 == ucp_py_worker_progress_wait():
+        #print("arm returned -1", flush = True)
         while 0 != ucp_py_worker_progress():
             dones = []
             for msg, fut in PENDING_MESSAGES.items():
@@ -163,9 +182,14 @@ def on_activity_cb():
                 if completed:
                     dones.append(msg)
                     fut.set_result(msg)
+                    #print("completed {} {}".format(msg, id(msg)), flush = True)
 
             for msg in dones:
                 PENDING_MESSAGES.pop(msg)
+
+    #for msg, fut in PENDING_MESSAGES.items():
+    #    print("{} {}".format(msg, id(msg), fut))
+    #print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     #if not PENDING_MESSAGES:
     #    loop = asyncio.get_event_loop()
@@ -401,6 +425,7 @@ cdef class ucp_msg:
     def probe_no_progress(self):
         len = ucp_py_probe_query_wo_progress(self.ucp_ep)
         if -1 != len:
+            #print("found something during probe wo progress", flush = True)
             self.alloc_host(len)
             self.internally_allocated = 1
             self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
@@ -461,6 +486,7 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
     client_ep = ucp_py_ep()
     client_ep.ucp_ep = client_ep_ptr
     listener_instance = (<object> lf)
+    #print("##################### {}".format(listener_instance))
     if not listener_instance.is_coroutine:
         (listener_instance.cb)(client_ep, listener_instance)
     else:
@@ -481,6 +507,8 @@ def init():
 
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
+
+    #print("Init: UCX_FILE_DESCRIPTOR = {}".format(UCX_FILE_DESCRIPTOR), flush = True)
 
     return rval
 
@@ -508,6 +536,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
 
     listener = ucp_listener()
     loop = asyncio.get_event_loop()
+    #print("loop id = {}".format(id(loop)))
 
     lf = ListenerFuture(py_func, is_coroutine)
     if is_coroutine:
