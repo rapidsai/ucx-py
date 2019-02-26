@@ -80,8 +80,6 @@ static void request_init(void *request)
     struct ucx_context *ctx = (struct ucx_context *) request;
     ctx->completed = 0;
     DEBUG_PRINT("%p initialized\n", request);
-    //fprintf(stderr, "%p initialized\n", request);
-    //fflush(stderr);
 }
 
 static void send_handle(void *request, ucs_status_t status)
@@ -89,8 +87,6 @@ static void send_handle(void *request, ucs_status_t status)
     struct ucx_context *context = (struct ucx_context *) request;
 
     context->completed = 1;
-    //fprintf(stderr, "%p send complete\n", request);
-    //fflush(stderr);
 
     DEBUG_PRINT("[0x%x] send handler called with status %d (%s)\n",
                 (unsigned int)pthread_self(), status,
@@ -115,8 +111,6 @@ static void recv_handle(void *request, ucs_status_t status,
 
     context->completed = 1;
     DEBUG_PRINT("recv complete %p\n", request);
-    //fprintf(stderr, "%p recv complete\n", request);
-    //fflush(stderr);
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
                 (unsigned int)pthread_self(), status, ucs_status_string(status),
@@ -145,9 +139,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     ucp_py_internal_ep_t *internal_ep;
     status = ucp_worker_progress(ucp_worker);
     DEBUG_PRINT("called ucp_worker_progress\n");
-    //fprintf(stderr, "called ucp_worker_progress pending %d\n",
-    //        ucp_py_ctx_head->num_probes_outstanding);
-    //fflush(stderr);
 
     while (cb_used_head.tqh_first != NULL) {
         //handle python callbacks
@@ -165,9 +156,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         assert(num_cb_free <= CB_Q_MAX_ENTRIES);
         assert(cb_free_head.tqh_first != NULL);
 
-        //fprintf(stderr, "got connection 1:. Will call py cb soon\n");
-        //fflush(stderr);
-        // call receive and wait for tag info before callback
         internal_ep = (ucp_py_internal_ep_t *) tmp_arg;
         request = ucp_tag_recv_nb(ucp_worker,
                                   internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
@@ -179,9 +167,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
                     UCS_PTR_STATUS(request));
             goto err_ep;
         }
-        //fprintf(stderr, "got connection 2:. Will call py cb soon len = %d\n",
-        //        TAG_STR_MAX_LEN);
-        //fflush(stderr);
         do {
             ucp_worker_progress(ucp_worker);
             //TODO: Workout if there are deadlock possibilities here
@@ -193,8 +178,6 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         request_init(request);
         ucp_request_free(request);
         accept_ep_counter++;
-        //fprintf(stderr, "got connection 3. Will call py cb soon\n");
-        //fflush(stderr);
 
         DEBUG_PRINT("calling python callback\n");
         tmp_pyx_cb((void *) tmp_arg, tmp_py_cb);
@@ -225,8 +208,6 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
 
     DEBUG_PRINT("returning request %p\n", request);
     DEBUG_PRINT("recv issued %p (%d)\n", request, request->completed);
-    //fprintf(stderr, "recv_nb %p len %d\n", request, length);
-    //fflush(stderr);
 
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to receive UCX data message (%u)\n",
@@ -326,14 +307,10 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
     } else {
-        //fprintf(stderr, "send complete\n");
-        //fflush(stderr);
         /* request is complete so no need to wait on request */
     }
 
     DEBUG_PRINT("returning request %p\n", request);
-    //fprintf(stderr, "send_nb %p len %d\n", request, length);
-    //fflush(stderr);
 
     return request;
 
@@ -371,16 +348,12 @@ int ucp_py_worker_drain_fd()
 {
     int ret = -1;
 
-    //fprintf(stderr, "starting drain\n");
-    //fflush(stderr);
     ucp_worker_signal(ucp_py_ctx_head->ucp_worker);
 #if 0
     do {
         ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
     } while ((ret == -1) && (errno == EINTR));
 #endif
-    //fprintf(stderr, "finished drain %d\n", ret);
-    //fflush(stderr);
 
     return ret;
 }
@@ -551,11 +524,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         /* request is complete so no need to wait on request */
     }
     connect_ep_counter++;
-    //fprintf(stderr, "send comp %d completed connection. got back ep\n",
-    //        TAG_STR_MAX_LEN);
-    //fflush(stderr);
 
-    //return (void *)ep_ptr;
     return (void *) internal_ep;
 
 err_ep:
@@ -671,8 +640,6 @@ int ucp_py_init()
     ucp_py_ctx_head->ev = ev;
 
     ucp_config_release(config);
-    //fprintf(stderr, "ucp_py_init\n");
-    //fflush(stderr);
     return 0;
 
  err_init:
@@ -701,8 +668,6 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
                             listener,
                             default_listener_port);
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
-    //fprintf(stderr, "created listener %p\n", listener);
-    //fflush(stderr);
 
     return (void *) listener;
 
@@ -714,8 +679,6 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
 int ucp_py_stop_listener(void *listener)
 {
     ucp_listener_destroy(*((ucp_listener_h *) listener));
-    //fprintf(stderr, "destroyed listener %p\n", listener);
-    //fflush(stderr);
     free(listener);
     return 0;
 }
@@ -725,8 +688,6 @@ int ucp_py_finalize()
     ucp_worker_destroy(ucp_py_ctx_head->ucp_worker);
     ucp_cleanup(ucp_py_ctx_head->ucp_context);
     free(np_free);
-    //fprintf(stderr, "ucp_py_finalize\n");
-    //fflush(stderr);
 
     DEBUG_PRINT("UCP resources released\n");
     return 0;
