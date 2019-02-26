@@ -65,7 +65,7 @@ def handle_msg(msg):
     fut = asyncio.Future()
     PENDING_MESSAGES[msg] = fut
 
-    if 1 == msg.check():
+    if msg.check():
         fut.set_result(msg)
         PENDING_MESSAGES.pop(msg)
 
@@ -106,7 +106,7 @@ def on_activity_cb():
     """
     dones = []
 
-    num_drains = ucp_py_worker_drain_fd()
+    ucp_py_worker_drain_fd()
 
     while 0 != ucp_py_worker_progress():
         dones = []
@@ -163,7 +163,7 @@ class ListenerFuture(concurrent.futures.Future):
         self.is_coroutine = is_coroutine
         self.coroutine = None
         self.ucp_listener = None
-        #self.future = asyncio.Future()
+        self.future = asyncio.Future()
         self._instances[id(self)] = self
         super(ListenerFuture, self).__init__()
 
@@ -355,12 +355,12 @@ cdef class ucp_msg:
         return ucp_comm_request(self)
 
     def check(self):
-        if 1 == self.ctx_ptr_set:
+        if self.ctx_ptr_set:
             return ucp_py_request_is_complete(self.ctx_ptr)
         else:
-            if 1 == self.is_blind:
+            if self.is_blind:
                 probe_length = self.probe_no_progress()
-                if 1 == self.ctx_ptr_set:
+                if self.ctx_ptr_set:
                     return ucp_py_request_is_complete(self.ctx_ptr)
                 else:
                     return 0
@@ -379,7 +379,7 @@ cdef class ucp_msg:
         return -1
 
     def query(self):
-        if 1 == self.ctx_ptr_set:
+        if self.ctx_ptr_set:
             return ucp_py_query_request(self.ctx_ptr)
         else:
             len = ucp_py_probe_query(self.ucp_ep)
@@ -393,7 +393,7 @@ cdef class ucp_msg:
             return 0
 
     def free_mem(self):
-        if 1 == self.internally_allocated and self.alloc_len > 0:
+        if self.internally_allocated and self.alloc_len > 0:
             if self.is_cuda:
                 self.free_cuda()
             else:
@@ -416,7 +416,7 @@ cdef class ucp_comm_request:
         self.done_state = 0
 
     def done(self):
-        if 0 == self.done_state and 1 == self.msg.query():
+        if 0 == self.done_state and self.msg.query():
             self.done_state = 1
         return self.done_state
 
@@ -479,7 +479,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     loop = asyncio.get_event_loop()
 
     lf = ListenerFuture(py_func, is_coroutine)
-    lf.future = asyncio.Future()
+    #lf.future = asyncio.Future()
     if is_coroutine:
         async def start():
             # TODO: see if this is actually needed...
