@@ -62,8 +62,8 @@ def handle_msg(msg):
     assert UCX_FILE_DESCRIPTOR > 0
     assert reader_added > 0
     fut = asyncio.Future()
-    print("in handle_msg {}".format(msg), flush = True)
 
+    """
     if 0 == msg.query():
         print("handle_msg isn't done {}".format(msg), flush = True)
         tmp = -1
@@ -85,8 +85,30 @@ def handle_msg(msg):
         print("finished handle_msg {}".format(msg), flush = True)
         fut.set_result(msg)
         return fut
-
+    """
     PENDING_MESSAGES[msg] = fut
+
+    if 1 == msg.check():
+        fut.set_result(msg)
+        PENDING_MESSAGES.pop(msg)
+
+    l = []
+    while -1 == ucp_py_worker_progress_wait():
+        while 0 != ucp_py_worker_progress():
+            pass
+        #res = ucp_py_worker_progress()
+        #l.append(res)
+        #if 0 != res:
+        dones = []
+        for m, ft in PENDING_MESSAGES.items():
+            completed = m.check()
+            if completed:
+                dones.append(m)
+                ft.set_result(m)
+
+        for m in dones:
+            PENDING_MESSAGES.pop(m)
+
     return fut
 
 def on_activity_cb():
@@ -109,18 +131,23 @@ def on_activity_cb():
     from the event loop when all outstanding messages have been processed.
     """
     dones = []
-    print("entry: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     num_drains = ucp_py_worker_drain_fd()
-    print("====================================================", flush = True)
 
     while 0 != ucp_py_worker_progress():
-        print("progress non-zero pending len = {}".format(len(PENDING_MESSAGES)), flush = True)
-        pass
-    print("====================================================", flush = True)
+        dones = []
+        for msg, fut in PENDING_MESSAGES.items():
+            completed = msg.check()
+            if completed:
+                dones.append(msg)
+                fut.set_result(msg)
 
+        for msg in dones:
+            PENDING_MESSAGES.pop(msg)
+
+    dones = []
     for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.query()
+        completed = msg.check()
         if completed:
             dones.append(msg)
             fut.set_result(msg)
@@ -128,21 +155,17 @@ def on_activity_cb():
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
 
-    print("past checks: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
-
     while -1 == ucp_py_worker_progress_wait():
-        if 0 != ucp_py_worker_progress():
+        while 0 != ucp_py_worker_progress():
             dones = []
             for msg, fut in PENDING_MESSAGES.items():
-                completed = msg.query()
+                completed = msg.check()
                 if completed:
                     dones.append(msg)
                     fut.set_result(msg)
 
             for msg in dones:
                 PENDING_MESSAGES.pop(msg)
-
-    print("exit: PENDING len = {}".format(len(PENDING_MESSAGES)), flush = True)
 
     #if not PENDING_MESSAGES:
     #    loop = asyncio.get_event_loop()
@@ -206,13 +229,9 @@ cdef class ucp_py_ep:
         """Blind receive operation"""
         recv_msg = ucp_msg(None, name=name)
         recv_msg.ucp_ep = self.ucp_ep
-        length = recv_msg.probe_no_progress()
-        if -1 != length: # in case something came before post
-             print("probe length {}".format(length), flush = True)
-             fut = handle_msg(recv_msg)
-             return fut
-        fut = handle_msg(recv_msg)
+        recv_msg.is_blind = 1
         ucp_py_ep_post_probe()
+        fut = handle_msg(recv_msg)
         return fut
 
     def recv_fast(self, ucp_msg msg, len):
@@ -300,6 +319,7 @@ cdef class ucp_msg:
     cdef buffer_region buf_reg
     cdef str _name
     cdef int _length
+    cdef int is_blind
 
     def __cinit__(self, buffer_region buf_reg, name='', length=-1):
         self._name = name
@@ -316,6 +336,7 @@ cdef class ucp_msg:
         self.alloc_len = -1
         self.comm_len = -1
         self.internally_allocated = 0
+        self.is_blind = 0
         return
 
     def __repr__(self):
@@ -368,12 +389,18 @@ cdef class ucp_msg:
         if 1 == self.ctx_ptr_set:
             return ucp_py_request_is_complete(self.ctx_ptr)
         else:
-            return 0
+            if 1 == self.is_blind:
+                probe_length = self.probe_no_progress()
+                if 1 == self.ctx_ptr_set:
+                    return ucp_py_request_is_complete(self.ctx_ptr)
+                else:
+                    return 0
+            else:
+                return 0
 
     def probe_no_progress(self):
         len = ucp_py_probe_query_wo_progress(self.ucp_ep)
         if -1 != len:
-            print("found something during probe wo progress", flush = True)
             self.alloc_host(len)
             self.internally_allocated = 1
             self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
@@ -454,8 +481,6 @@ def init():
 
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
-
-    print("Init: UCX_FILE_DESCRIPTOR = {}".format(UCX_FILE_DESCRIPTOR), flush = True)
 
     return rval
 
