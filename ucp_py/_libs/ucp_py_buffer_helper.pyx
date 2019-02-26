@@ -179,15 +179,6 @@ cdef class buffer_region:
         else:
             raise NotImplementedError("non-contiguous data not supported.")
 
-    def set_cuda_array_info(self, info):
-        """
-        Set all the info aside from the data pointer.
-        """
-        self._is_cuda = 1
-        self.shape = info['shape']
-        self.typestr = info['typestr']
-        # TODO: readonly
-
     # ------------------------------------------------------------------------
     # Manual memory management
 
