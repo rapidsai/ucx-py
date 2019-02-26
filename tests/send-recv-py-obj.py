@@ -19,6 +19,7 @@
 # wrapped in strings (to workaround contiguous memory requirement) or
 # strings wrapped in bytes object
 
+
 import argparse
 import asyncio
 import reprlib
@@ -37,7 +38,6 @@ def get_msg(base, obj_type):
         return memoryview(base)
     elif obj_type == "numpy":
         import numpy as np
-
         return np.frombuffer(base, dtype="u1")
     else:
         raise ValueError(obj_type)
@@ -107,6 +107,7 @@ async def talk_to_server(ip, port):
 
 
 parser = argparse.ArgumentParser()
+
 parser.add_argument("-s", "--server", help="enter server ip")
 parser.add_argument("-p", "--port", help="enter server port number")
 parser.add_argument(
