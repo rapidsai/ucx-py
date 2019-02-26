@@ -211,7 +211,6 @@ cdef class buffer_region:
 
     # ------------------------------------------------------------------------
     # Conversion
-
     def return_obj(self):
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")

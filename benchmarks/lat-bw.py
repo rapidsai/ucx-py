@@ -5,8 +5,6 @@ import ucp_py as ucp
 import time
 import argparse
 import asyncio
-import concurrent.futures
-import sys
 
 accept_cb_started = False
 new_client_ep = None
@@ -109,7 +107,9 @@ async def talk_to_server_async(ip, port):
         print("{}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat, max_iters),
                                               ((msg_len/(lat/2)) / 1000000)))
 
+    print("past iters")
     ucp.destroy_ep(ep)
+    print("past ep destroy")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--server', help='enter server ip', required=False)

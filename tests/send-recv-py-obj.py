@@ -68,6 +68,7 @@ def check(a, b, obj_type):
 
 
 async def talk_to_client(ep, listener):
+    print("about to send")
     base = b"0" * args.n_bytes
     send_msg = get_msg(base, args.object_type)
     await ep.send_obj(send_msg)
@@ -105,7 +106,6 @@ async def talk_to_server(ip, port):
 
     print("about to reply")
     await ep.send_obj(br)
-
     ucp.destroy_ep(ep)
     print("talk_to_server done")
 
