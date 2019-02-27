@@ -72,7 +72,6 @@ async def test_send_recv_numpy():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="hang")
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
     cuda_info = {

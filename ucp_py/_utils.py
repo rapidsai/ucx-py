@@ -65,11 +65,7 @@ def make_server(cuda_info=None):
                 import cupy
                 if 'typestr' in cuda_info:
                     obj.typestr = cuda_info['typestr']
-                if 'shape' in cuda_info:
-                    obj._shape = cuda_info['shape']
-                print(obj.__cuda_array_interface__)
                 obj = cupy.asarray(obj)
-                print(obj)
 
             await ep.send_obj(obj)
 
