@@ -83,7 +83,7 @@ cdef class buffer_region:
 
     def __init__(self):
         self._is_cuda = 0
-        self.typestr = None
+        self.typestr = "B"
         self.format = b"B"
         self.itemsize = 1
         self._readonly = False  # True?

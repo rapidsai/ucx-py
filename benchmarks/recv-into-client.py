@@ -47,10 +47,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
             else:
                 obj = await ep.recv_obj(n_bytes, cuda=cuda)
                 t1 = clock()
-                buf = obj.get_obj()
-                if cuda:
-                    buf.typestr = '|u1'
-                arr = np.asarray(buf)
+                arr = np.asarray(obj.get_obj())
                 t2 = clock()
 
             arr += 1
@@ -80,7 +77,6 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
 async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
     ep = ucp.get_endpoint(host.encode(), port)
     arr = np.zeros(n_bytes, dtype='u1')
-    cuda = np.__name__ = 'cupy'
 
     start = clock()
 
@@ -91,10 +87,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
         else:
             # This is failing right now
             msg = await ep.recv_obj(arr.nbytes, cuda=np.__name__ == 'cupy')
-            buf = msg.get_obj()
-            if cuda:
-                buf.typestr = "|u1"
-            arr = np.asarray(buf)
+            arr = np.asarray(msg.get_obj())
 
     stop = clock()
 
