@@ -20,7 +20,10 @@ def main(args=None):
     args = parse_args(args)
 
     if args.protocol == 'ucx':
-        client = Client("ucx://10.149.160.36:13337")
+        address = dask.config.get("distributed.comm.ucxaddress")
+        if address is None:
+            raise ValueError("Set distributed.comm.ucxaddress")
+        client = Client(address)
     else:
         kwargs = {'n_workers': 2, 'threads_per_worker': 40}
         kwargs['processes'] = args.protocol == 'tcp'

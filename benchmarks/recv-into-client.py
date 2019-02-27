@@ -62,7 +62,8 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
         if verbose:
             import pandas as pd
 
-            df = pd.DataFrame(times, columns=[recv, 'asarray', 'send', 'total'])
+            df = pd.DataFrame(times,
+                              columns=[recv, 'asarray', 'send', 'total'])
             print('\n')
             print(df)
 

@@ -7,6 +7,7 @@ cdef extern from "common.h":
     struct data_buf:
         void *buf
 
+import struct
 from libc.stdint cimport uintptr_t
 
 cdef extern from "buffer_ops.h":
@@ -96,6 +97,12 @@ cdef class buffer_region:
             return self.shape[0]
 
     @property
+    def nbytes(self):
+        format = self.format or 'B'
+        size = self.shape[0]
+        return struct.calcsize(format) * size
+
+    @property
     def is_cuda(self):
         return self._is_cuda
 
@@ -144,7 +151,7 @@ cdef class buffer_region:
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
         desc = {
-             'shape': self.shape,
+             'shape': tuple(self.shape),
              'typestr': self.typestr,
              'descr': [('', self.typestr)],  # this is surely wrong
              'data': (<Py_ssize_t>self.buf.buf, self.readonly),
