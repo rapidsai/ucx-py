@@ -25,25 +25,43 @@ def parse_args(args=None):
                         choices=['recv_into', 'recv_obj'])
     parser.add_argument("-o", "--object_type", default="numpy",
                         choices=['numpy', 'cupy'])
+    parser.add_argument("-v", "--verbose", default=False, action="store_true")
 
     return parser.parse_args()
 
 
-def serve(port, n_bytes, n_iter, recv, np):
+def serve(port, n_bytes, n_iter, recv, np, verbose):
     arr = np.zeros(n_bytes, dtype='u1')
 
     async def inc(ep, lf):
         nonlocal arr
+        times = []
 
         for i in range(n_iter):
+            t0 = clock()
             if recv == 'recv_into':
                 await ep.recv_into(arr, n_bytes)
+                t1 = t2 = clock()
             else:
                 # This is failing right now
                 obj = await ep.recv_obj(n_bytes, cuda=np.__name__ == 'cupy')
+                t1 = clock()
                 arr = np.asarray(obj.get_obj())
+                t2 = clock()
+
             arr += 1
             await ep.send_obj(arr)
+            t3 = clock()
+
+            times.append(
+                (t1 - t0, t2 - t1, t3 - t2)
+            )
+
+        if verbose:
+            import pandas as pd
+
+            df = pd.DataFrame(times, columns=[recv, 'asarray', 'send'])
+            print(df)
 
         ep.close()
         ucp.stop_listener(lf)
@@ -52,7 +70,7 @@ def serve(port, n_bytes, n_iter, recv, np):
     return lf.coroutine
 
 
-async def connect(host, port, n_bytes, n_iter, recv, np):
+async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
     ep = ucp.get_endpoint(host.encode(), port)
     arr = np.zeros(n_bytes, dtype='u1')
 
@@ -96,9 +114,10 @@ async def main(args=None):
 
     if args.server:
         await connect(args.server, args.port, args.n_bytes, args.n_iter,
-                      args.recv, xp)
+                      args.recv, xp, args.verbose)
     else:
-        await serve(args.port, args.n_bytes, args.n_iter, args.recv, xp)
+        await serve(args.port, args.n_bytes, args.n_iter,
+                    args.recv, xp, args.verbose)
 
     ucp.fin()
 
