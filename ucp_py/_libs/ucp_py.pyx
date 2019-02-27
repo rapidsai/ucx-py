@@ -247,13 +247,13 @@ cdef class ucp_py_ep:
             buf_reg.populate_ptr(buffer)
         return self._recv(buf_reg, nbytes, name)
 
-    def recv_obj(self, length, name='recv_obj', cuda=False):
+    def recv_obj(self, nbytes, name='recv_obj', cuda=False):
         """
         Recieve into a newly allocated block of memory.
 
         Parameters
         ----------
-        length : int
+        nbytes : int
             Number of bytes to receive
         name : str
             Identifier for the messages
@@ -286,12 +286,12 @@ cdef class ucp_py_ep:
         """
         buf_reg = buffer_region()
         if cuda:
-            buf_reg.alloc_cuda(length)
+            buf_reg.alloc_cuda(nbytes)
             buf_reg._is_cuda = 1
         else:
-            buf_reg.alloc_host(length)
+            buf_reg.alloc_host(nbytes)
 
-        return self._recv(buf_reg, length, name)
+        return self._recv(buf_reg, nbytes, name)
 
     def _send_obj_cuda(self, obj):
         buf_reg = buffer_region()
