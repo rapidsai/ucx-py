@@ -131,7 +131,7 @@ cdef class buffer_region:
         buffer.len = self.shape[0] * self.itemsize
         buffer.ndim = 1
         buffer.obj = self
-        buffer.readonly = 1  # TODO
+        buffer.readonly = 0  # TODO
         buffer.shape = shape2
         buffer.strides = strides
         buffer.suboffsets = NULL
