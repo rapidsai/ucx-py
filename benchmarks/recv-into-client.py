@@ -77,7 +77,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np):
     print(f"n_iter   | {n_iter}")
     print(f"n_bytes  | {format_bytes(n_bytes)}")
     print(f"recv     | {recv}")
-    print(f"object   | {np}")
+    print(f"object   | {np.__name__}")
     print("\n===================")
     print(format_bytes(2 * n_iter * arr.nbytes / took), '/ s')
     print("===================")
