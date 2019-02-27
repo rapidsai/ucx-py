@@ -91,3 +91,36 @@ async def test_send_recv_cupy():
     result.typestr = msg.__cuda_array_interface__['typestr']
     result = cupy.asarray(result)
     cupy.testing.assert_array_equal(msg, result)
+
+
+@pytest.mark.asyncio
+async def test_send_recv_into():
+    sink = bytearray(2)
+    async with echo_pair() as (_, client):
+        msg = b'hi'
+        await client.send_obj(b'2')
+        await client.send_obj(msg)
+
+        resp = await client.recv_into(sink, 2)
+        result = resp.get_obj()
+
+    assert result == b'hi'
+    assert sink == b'hi'
+
+
+@pytest.mark.asyncio
+async def test_send_recv_into_cuda():
+    cupy = pytest.importorskip("cupy")
+    sink = cupy.zeros(10, dtype='u1')
+    msg = cupy.arange(10, dtype='u1')
+
+    async with echo_pair() as (_, client):
+        await client.send_obj(str(msg.nbytes).encode())
+        await client.send_obj(msg)
+
+        resp = await client.recv_into(sink, msg.nbytes)
+        result = resp.get_obj()
+
+    result = cupy.asarray(result)
+    cupy.testing.assert_array_equal(result, msg)
+    cupy.testing.assert_array_equal(sink, msg)

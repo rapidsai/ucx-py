@@ -224,9 +224,32 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
+    def _recv(self, buffer_region buf_reg, int nbytes, name):
+        # helper for recv_obj, recv_into
+        msg = ucp_msg(buf_reg, name=name)
+        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, nbytes)
+        msg.ucp_ep = self.ucp_ep
+        msg.comm_len = nbytes
+        msg.ctx_ptr_set = 1
+
+        fut = handle_msg(msg)
+        return fut
+
+    def recv_into(self, buffer, nbytes, name='recv_into'):
+        """
+        Receive into an existing block of memory.
+        """
+        buf_reg = buffer_region()
+        buf_reg.shape[0] = nbytes
+        if hasattr(buffer, '__cuda_array_interface__'):
+            buf_reg.populate_cuda_ptr(buffer)
+        else:
+            buf_reg.populate_ptr(buffer)
+        return self._recv(buf_reg, nbytes, name)
+
     def recv_obj(self, length, name='recv_obj', cuda=False):
         """
-        Recieve into a newly allocated block of memeory.
+        Recieve into a newly allocated block of memory.
 
         Parameters
         ----------
@@ -268,23 +291,15 @@ cdef class ucp_py_ep:
         else:
             buf_reg.alloc_host(length)
 
-        internal_msg = ucp_msg(buf_reg, name=name)
-        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, length)
-        internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.comm_len = length
-        internal_msg.ctx_ptr_set = 1
+        return self._recv(buf_reg, length, name)
 
-        fut = handle_msg(internal_msg)
-        return fut
-
-    def _send_obj_cuda(self, obj, str name):
+    def _send_obj_cuda(self, obj):
         buf_reg = buffer_region()
         buf_reg.populate_cuda_ptr(obj)
         return buf_reg
 
-    def _send_obj_host(self, format_[:] obj, str name):
+    def _send_obj_host(self, format_[:] obj):
         buf_reg = buffer_region()
-        obj = memoryview(obj)
         buf_reg.populate_ptr(obj)
         return buf_reg
 
@@ -304,9 +319,9 @@ cdef class ucp_py_ep:
         ucp_comm_request object
         """
         if hasattr(msg, '__cuda_array_interface__'):
-            buf_reg = self._send_obj_cuda(msg, name)
+            buf_reg = self._send_obj_cuda(msg)
         else:
-            buf_reg = self._send_obj_host(msg, name)
+            buf_reg = self._send_obj_host(msg)
 
         if nbytes is None:
             if hasattr(msg, 'nbytes'):

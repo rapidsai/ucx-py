@@ -152,7 +152,11 @@ cdef class buffer_region:
         }
         return desc
 
-    cpdef populate_ptr(self, format_[:] pyobj):
+    def populate_ptr(self, format_[:] obj):
+        obj = memoryview(obj)
+        self._populate_ptr(obj)
+
+    cpdef _populate_ptr(self, format_[:] pyobj):
         self.shape = pyobj.shape
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
