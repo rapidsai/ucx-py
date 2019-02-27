@@ -9,7 +9,6 @@ from distributed.utils import format_bytes, parse_bytes
 from time import perf_counter as clock
 
 import ucp_py as ucp
-import numpy as np
 
 
 ucp.init()
@@ -24,11 +23,13 @@ def parse_args(args=None):
     parser.add_argument('--n-iter', default=10)
     parser.add_argument('-r', '--recv', default='recv_into',
                         choices=['recv_into', 'recv_obj'])
+    parser.add_argument("-o", "--object_type", default="numpy",
+                        choices=['numpy', 'cupy'])
 
     return parser.parse_args()
 
 
-def serve(port, n_bytes, n_iter, recv):
+def serve(port, n_bytes, n_iter, recv, np):
     arr = np.zeros(n_bytes, dtype='u1')
 
     async def inc(ep, lf):
@@ -50,7 +51,7 @@ def serve(port, n_bytes, n_iter, recv):
     return lf.coroutine
 
 
-async def connect(host, port, n_bytes, n_iter, recv):
+async def connect(host, port, n_bytes, n_iter, recv, np):
     ep = ucp.get_endpoint(host.encode(), port)
     arr = np.zeros(n_bytes, dtype='u1')
 
@@ -76,6 +77,7 @@ async def connect(host, port, n_bytes, n_iter, recv):
     print(f"n_iter   | {n_iter}")
     print(f"n_bytes  | {format_bytes(n_bytes)}")
     print(f"recv     | {recv}")
+    print(f"object   | {np}")
     print("\n===================")
     print(format_bytes(2 * n_iter * arr.nbytes / took), '/ s')
     print("===================")
@@ -85,12 +87,16 @@ async def connect(host, port, n_bytes, n_iter, recv):
 
 async def main(args=None):
     args = parse_args(args)
+    if args.object_type == 'numpy':
+        import numpy as xp
+    else:
+        import cupy as xp
 
     if args.server:
         await connect(args.server, args.port, args.n_bytes, args.n_iter,
-                      args.recv)
+                      args.recv, xp)
     else:
-        await serve(args.port, args.n_bytes, args.n_iter, args.recv)
+        await serve(args.port, args.n_bytes, args.n_iter, args.recv, xp)
 
     ucp.fin()
 
