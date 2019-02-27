@@ -37,6 +37,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
         nonlocal arr
         times = []
 
+        tstart = clock()
         for i in range(n_iter):
             t0 = clock()
             if recv == 'recv_into':
@@ -54,13 +55,15 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
             t3 = clock()
 
             times.append(
-                (t1 - t0, t2 - t1, t3 - t2)
+                (t1 - t0, t2 - t1, t3 - t2, t3 - tstart)
             )
+            tstart = t3
 
         if verbose:
             import pandas as pd
 
-            df = pd.DataFrame(times, columns=[recv, 'asarray', 'send'])
+            df = pd.DataFrame(times, columns=[recv, 'asarray', 'send', 'total'])
+            print('\n')
             print(df)
 
         ep.close()
