@@ -39,7 +39,8 @@ def serve(port, n_bytes, n_iter, recv, np):
             if recv == 'recv_into':
                 await ep.recv_into(arr, n_bytes)
             else:
-                obj = await ep.recv_obj(n_bytes)
+                # This is failing right now
+                obj = await ep.recv_obj(n_bytes, cuda=np.__name__ == 'cupy')
                 arr = np.asarray(obj.get_obj())
             arr += 1
             await ep.send_obj(arr)
@@ -61,7 +62,8 @@ async def connect(host, port, n_bytes, n_iter, recv, np):
         if recv == 'recv_into':
             await ep.recv_into(arr, arr.nbytes)
         else:
-            msg = await ep.recv_obj(arr.nbytes)
+            # This is failing right now
+            msg = await ep.recv_obj(arr.nbytes, cuda=np.__name__ == 'cupy')
             arr = np.asarray(msg.get_obj())
 
     stop = clock()
