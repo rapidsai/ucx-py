@@ -20,7 +20,7 @@ def parse_args(args=None):
     parser.add_argument("-p", "--port", default=13337, help="server port.",
                         type=int)
     parser.add_argument('-n', '--n-bytes', default='10 Mb', type=parse_bytes)
-    parser.add_argument('--n-iter', default=10)
+    parser.add_argument('--n-iter', default=10, type=int)
     parser.add_argument('-r', '--recv', default='recv_into',
                         choices=['recv_into', 'recv_obj'])
     parser.add_argument("-o", "--object_type", default="numpy",
