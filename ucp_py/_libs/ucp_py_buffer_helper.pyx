@@ -114,6 +114,12 @@ cdef class buffer_region:
     def readonly(self):
         return self._readonly
 
+    @property
+    def ptr(self):
+        if not self.is_set:
+            raise ValueError()
+        return <unsigned long long int>(self.buf.buf)
+
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
             Py_ssize_t strides[1]
