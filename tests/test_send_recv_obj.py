@@ -93,6 +93,35 @@ async def test_send_recv_cupy():
 
 
 @pytest.mark.asyncio
+async def test_send_recv_numba():
+    numba = pytest.importorskip('numba')
+    pytest.importorskip('numba.cuda')
+    import numpy as np
+
+    cuda_info = {
+        'shape': [2],
+        'typestr': '|u1'
+    }
+    async with echo_pair(cuda_info) as (_, client):
+        arr = np.array(memoryview(b"hi"), dtype='u1')
+        msg = numba.cuda.to_device(arr)
+
+        client.send_obj(b'2')
+        await client.send_obj(msg)
+        resp = await client.recv_obj(len(msg), cuda=True)
+        result = ucp.get_obj_from_msg(resp)
+
+    assert hasattr(result, '__cuda_array_interface__')
+    result.typestr = msg.__cuda_array_interface__['typestr']
+    result = numba.cuda.as_cuda_array(result)
+    assert isinstance(result, numba.cuda.devicearray.DeviceNDArray)
+    result = np.asarray(result, dtype='|u1')
+    msg = np.asarray(msg, dtype='|u1')
+
+    np.testing.assert_array_equal(msg, result)
+
+
+@pytest.mark.asyncio
 async def test_send_recv_into():
     sink = bytearray(2)
     async with echo_pair() as (_, client):
