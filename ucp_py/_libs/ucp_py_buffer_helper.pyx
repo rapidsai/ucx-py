@@ -51,8 +51,11 @@ ctypedef fused format_:
     const double
 
 
+HAS_CUDA = bool(UCX_HAS_CUDA)
+
+
 def cuda_check():
-    if not UCX_HAS_CUDA:
+    if not HAS_CUDA:
         raise ValueError("ucx-py was not compiled with CUDA support.")
 
 
