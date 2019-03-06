@@ -10,6 +10,6 @@ where to find it
 
 If you're building a GPU-enabled version, specify `--with-cud`
 
-    LDFLAGS="-L/path/to/ucx/install/lib -L/path/to/cuda" python setup.py build_ext -i --with-cuda
+    LDFLAGS="-L/path/to/ucx/install/lib -L/path/to/cuda/lib64" python setup.py build_ext -i --with-cuda
 
 As an alternative to `--with-cuda`, set the `UCX_PY_CUDA=1` environment variable
