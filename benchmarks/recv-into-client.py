@@ -19,18 +19,25 @@ def parse_args(args=None):
     parser.add_argument("-s", "--server", default=None, help='server address.')
     parser.add_argument("-p", "--port", default=13337, help="server port.",
                         type=int)
-    parser.add_argument('-n', '--n-bytes', default='10 Mb', type=parse_bytes)
-    parser.add_argument('--n-iter', default=10, type=int)
+    parser.add_argument('-n', '--n-bytes', default='10 Mb', type=parse_bytes,
+                        help="Message size. Default '10 Mb'.")
+    parser.add_argument('--n-iter', default=10, type=int,
+                        help="Numer of send / recv iterations (default 10).")
     parser.add_argument('-r', '--recv', default='recv_into',
-                        choices=['recv_into', 'recv_obj'])
+                        choices=['recv_into', 'recv_obj'],
+                        help="recv type.")
     parser.add_argument("-o", "--object_type", default="numpy",
-                        choices=['numpy', 'cupy'])
-    parser.add_argument("-v", "--verbose", default=False, action="store_true")
+                        choices=['numpy', 'cupy'],
+                        help="In-memory array type.")
+    parser.add_argument("-v", "--verbose", default=False, action="store_true",
+                        help="Whether to print timings per iteration.")
+    parser.add_argument("-i", "--inc", default=False, action="store_true",
+                        help="Whether to increment the array each iteration.")
 
     return parser.parse_args()
 
 
-def serve(port, n_bytes, n_iter, recv, np, verbose):
+def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
     arr = np.zeros(n_bytes, dtype='u1')
 
     async def inc(ep, lf):
@@ -50,7 +57,8 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
                 arr = np.asarray(obj.get_obj())
                 t2 = clock()
 
-            arr += 1
+            if increment:
+                arr += 1
             await ep.send_obj(arr)
             t3 = clock()
 
@@ -74,7 +82,8 @@ def serve(port, n_bytes, n_iter, recv, np, verbose):
     return lf.coroutine
 
 
-async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
+async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
+                  increment):
     ep = ucp.get_endpoint(host.encode(), port)
     arr = np.zeros(n_bytes, dtype='u1')
 
@@ -91,7 +100,9 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
 
     stop = clock()
 
-    expected = np.ones(n_bytes, dtype='u1') * n_iter
+    expected = np.ones(n_bytes, dtype='u1')
+    #            0 or n_iter
+    expected *= (int(increment) * n_iter)
     np.testing.assert_array_equal(arr, expected)
 
     took = stop - start
@@ -103,6 +114,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose):
     print(f"n_bytes  | {format_bytes(n_bytes)}")
     print(f"recv     | {recv}")
     print(f"object   | {np.__name__}")
+    print(f"inc      | {increment}")
     print("\n===================")
     print(format_bytes(2 * n_iter * arr.nbytes / took), '/ s')
     print("===================")
@@ -119,10 +131,10 @@ async def main(args=None):
 
     if args.server:
         await connect(args.server, args.port, args.n_bytes, args.n_iter,
-                      args.recv, xp, args.verbose)
+                      args.recv, xp, args.verbose, args.inc)
     else:
         await serve(args.port, args.n_bytes, args.n_iter,
-                    args.recv, xp, args.verbose)
+                    args.recv, xp, args.verbose, args.inc)
 
     ucp.fin()
 
