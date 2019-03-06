@@ -1,7 +1,6 @@
 import fcntl
 import socket
 import struct
-import sys
 
 
 def get_address(ifname='ib0'):
@@ -39,14 +38,38 @@ def get_address(ifname='ib0'):
     )[20:24])
 
 
-def sizeof(obj):
-    """
-    Get the size of an object, defined as
+def make_server(cuda_info=None):
+    async def echo_server(ep, lf):
+        """
+        Basic echo server for sized messages.
 
-    1. it's length
-    2. it's Python overhead
+        We expect the other endpoint to follow the pattern::
 
-    So this is appropriate for sequences where each element
-    is a byte (bytestrings or memoryviews).
-    """
-    return len(obj) + sys.getsizeof(obj[:0])
+        >>> await ep.send_obj(msg_size)  # size of the real message
+        >>> await ep.send_obj(obj)       # send the real message
+        >>> await ep.recv_obj(msg_size)  # receive the echo
+        """
+        from ucp_py._libs.ucp_py import destroy_ep, stop_listener
+
+        while True:
+            size_msg = await ep.recv_future()
+            size = int(size_msg.get_obj())
+
+            if not size:
+                break
+
+            msg = await ep.recv_obj(size, cuda=bool(cuda_info))
+            obj = msg.get_obj()
+
+            if cuda_info:
+                import cupy
+                if 'typestr' in cuda_info:
+                    obj.typestr = cuda_info['typestr']
+                obj = cupy.asarray(obj)
+
+            await ep.send_obj(obj)
+
+        destroy_ep(ep)
+        stop_listener(lf)
+
+    return echo_server

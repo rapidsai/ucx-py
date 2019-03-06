@@ -224,44 +224,119 @@ cdef class ucp_py_ep:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def recv_obj(self, msg, len, name='recv_obj'):
-        """Send msg is a contiguous python object
+    def _recv(self, buffer_region buf_reg, int nbytes, name):
+        # helper for recv_obj, recv_into
+        msg = ucp_msg(buf_reg, name=name)
+        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, nbytes)
+        msg.ucp_ep = self.ucp_ep
+        msg.comm_len = nbytes
+        msg.ctx_ptr_set = 1
+
+        fut = handle_msg(msg)
+        return fut
+
+    def recv_into(self, buffer, nbytes, name='recv_into'):
+        """
+        Receive into an existing block of memory.
+        """
+        buf_reg = buffer_region()
+        buf_reg.shape[0] = nbytes
+        if hasattr(buffer, '__cuda_array_interface__'):
+            buf_reg.populate_cuda_ptr(buffer)
+        else:
+            buf_reg.populate_ptr(buffer)
+        return self._recv(buf_reg, nbytes, name)
+
+    def recv_obj(self, nbytes, name='recv_obj', cuda=False):
+        """
+        Recieve into a newly allocated block of memory.
+
+        Parameters
+        ----------
+        nbytes : int
+            Number of bytes to receive
+        name : str
+            Identifier for the messages
+        cuda : bool, default False
+            Whether to recieve into host or device memory.
 
         Returns
         -------
-        python object that was sent
+        Future
+            A future. Upon completion of the recieve, the future will
+            become avaliable. Its result is a :class:`ucp_py_msg`. The
+            contents of the message can be objtained with
+            :meth:`get_obj_from_msg`.
+
+        Examples
+        --------
+        Request a length-1000 message into host memory.
+
+        >>> msg = await ep.recv_obj(1000)
+        >>> result = ucp.get_obj_from_msg(msg)
+        >>> result
+        <memory at 0x...>
+
+        Request a length-1000 message into GPU  memory.
+
+        >>> msg = await ep.recv_obj(1000, cuda=True)
+        >>> result = ucp.get_obj_from_msg(msg)
+        >>> result
+        <ucp_py._libs.ucp_py.buffer_region at 0x...>
         """
         buf_reg = buffer_region()
-        buf_reg.populate_ptr(msg)
-        buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg, name=name)
-        internal_msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, internal_msg.buf, len)
-        internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.comm_len = len
-        internal_msg.ctx_ptr_set = 1
+        if cuda:
+            buf_reg.alloc_cuda(nbytes)
+            buf_reg._is_cuda = 1
+        else:
+            buf_reg.alloc_host(nbytes)
 
-        fut = handle_msg(internal_msg)
-        return fut
+        return self._recv(buf_reg, nbytes, name)
 
-    def send_obj(self, msg, len, name='send_obj'):
-        """Send msg is a contiguous python object
+    def _send_obj_cuda(self, obj):
+        buf_reg = buffer_region()
+        buf_reg.populate_cuda_ptr(obj)
+        return buf_reg
+
+    def _send_obj_host(self, format_[:] obj):
+        buf_reg = buffer_region()
+        buf_reg.populate_ptr(obj)
+        return buf_reg
+
+    def send_obj(self, msg, nbytes=None, name='send_obj'):
+        """Send an object as a message.
+
+        Parameters
+        ----------
+        msg : object
+            An object implementing the buffer protocol or the
+            ``_cuda_array_interface__``.
+        name : str
+            An identifier for the message.
 
         Returns
         -------
         ucp_comm_request object
         """
+        if hasattr(msg, '__cuda_array_interface__'):
+            buf_reg = self._send_obj_cuda(msg)
+        else:
+            buf_reg = self._send_obj_host(msg)
 
-        buf_reg = buffer_region()
-        buf_reg.populate_ptr(msg)
-        buf_reg.is_cuda = 0 # for now but it does not matter
-        internal_msg = ucp_msg(buf_reg, name=name, length=len)
-        # TODO: do this here or there?
+        if nbytes is None:
+            if hasattr(msg, 'nbytes'):
+                nbytes = msg.nbytes
+            elif hasattr(msg, 'dtype') and hasattr(msg, 'size'):
+                nbytes = msg.dtype.itemsize * msg.size
+            else:
+                nbytes = len(msg)
+
+        internal_msg = ucp_msg(buf_reg, name=name, length=nbytes)
         internal_msg.ucp_ep = self.ucp_ep
-        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, len)
-        # internal_comm_req = internal_msg.get_comm_request(len)
-        internal_msg.comm_len = len
+
+        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, nbytes)
+        internal_msg.comm_len = nbytes
         internal_msg.ctx_ptr_set = 1
-        # get_comm_request
 
         fut = handle_msg(internal_msg)
         return fut
@@ -299,7 +374,6 @@ cdef class ucp_msg:
             return
         else:
             self.buf = buf_reg.buf
-            self.is_cuda = buf_reg.is_cuda
             self.buf_reg = buf_reg
         self.ctx_ptr_set = 0
         self.alloc_len = -1
@@ -319,17 +393,19 @@ cdef class ucp_msg:
     def length(self):
         return self._length
 
+    @property
+    def is_cuda(self):
+        return self.buf_reg.is_cuda
+
     def alloc_host(self, len):
         self.buf_reg.alloc_host(len)
         self.buf = self.buf_reg.buf
         self.alloc_len = len
-        self.is_cuda = 0
 
     def alloc_cuda(self, len):
         self.buf_reg.alloc_cuda(len)
         self.buf = self.buf_reg.buf
         self.alloc_len = len
-        self.is_cuda = 1
 
     def set_mem(self, c, len):
         if 0 == self.is_cuda:
@@ -403,7 +479,27 @@ cdef class ucp_msg:
         return self.comm_len
 
     def get_obj(self):
-        return self.buf_reg.return_obj()
+        """
+        Get the object recieved in this message.
+
+        Returns
+        -------
+        obj: memoryview or buffer_region
+            For CPU receives, this returns a memoryview on the buffer.
+            For GPU receives, this returns a `buffer_region`, which
+            implements the CUDA array interface. Note that the metadata
+            like ``typestr`` and ``shape`` may be incorrect. This will
+            need to be manually fixed before consuming the buffer.
+        """
+        if self.buf_reg._is_cuda:
+            return self.buf_reg
+        else:
+            return memoryview(self.buf_reg)
+
+    def get_buffer_region(self):
+        # TODO: public property
+        return self.buf_reg
+
 
 cdef class ucp_comm_request:
     """A class that represents a communication request"""
