@@ -40,8 +40,7 @@ ext_modules = cythonize([
         "ucp_py._libs.ucp_py",
         sources=[
             "ucp_py/_libs/ucp_py.pyx",
-            "ucp_py/_libs/ucp_py_ucp_fxns_wrapper.pyx",
-            "ucp_py/_libs/ucp_py_buffer_helper.pyx",
+            "ucp_py/_libs/ucp_py_ucp_fxns_wrapper.pxd",
             "ucp_py/_libs/src/buffer_ops.c",
             "ucp_py/_libs/src/ucp_py_ucp_fxns.c",
         ],

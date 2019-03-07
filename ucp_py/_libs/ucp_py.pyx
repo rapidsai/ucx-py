@@ -7,8 +7,8 @@ import time
 import sys
 from weakref import WeakValueDictionary
 
-cdef extern from "src/ucp_py_ucp_fxns.h":
-    ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
+# cdef extern from "src/ucp_py_ucp_fxns.h":
+#     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
@@ -20,8 +20,9 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     cdef struct data_buf:
         void* buf
 
-include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
+cimport ucp_wrappers
+
 
 # Handling for outstanding messages.
 # When a message is send, requested, or when we await a connection,
@@ -70,8 +71,8 @@ def handle_msg(msg):
         PENDING_MESSAGES.pop(msg)
 
     l = []
-    while -1 == ucp_py_worker_progress_wait():
-        while 0 != ucp_py_worker_progress():
+    while -1 == ucp_wrappers.ucp_py_worker_progress_wait():
+        while 0 != ucp_wrappers.ucp_py_worker_progress():
             pass
         dones = []
         for m, ft in PENDING_MESSAGES.items():
@@ -106,9 +107,9 @@ def on_activity_cb():
     """
     dones = []
 
-    ucp_py_worker_drain_fd()
+    ucp_wrappers.ucp_py_worker_drain_fd()
 
-    while 0 != ucp_py_worker_progress():
+    while 0 != ucp_wrappers.ucp_py_worker_progress():
         dones = []
         for msg, fut in PENDING_MESSAGES.items():
             completed = msg.check()
@@ -129,8 +130,8 @@ def on_activity_cb():
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
 
-    while -1 == ucp_py_worker_progress_wait():
-        while 0 != ucp_py_worker_progress():
+    while -1 == ucp_wrappers.ucp_py_worker_progress_wait():
+        while 0 != ucp_wrappers.ucp_py_worker_progress():
             dones = []
             for msg, fut in PENDING_MESSAGES.items():
                 completed = msg.check()
@@ -170,7 +171,7 @@ class ListenerFuture(concurrent.futures.Future):
 
     def done(self):
         if False == self.done_state:
-            ucp_py_worker_progress()
+            ucp_wrappers.ucp_py_worker_progress()
         return self.done_state
 
     def result(self):
@@ -192,7 +193,7 @@ cdef class ucp_py_ep:
         return
 
     def connect(self, ip, port):
-        self.ucp_ep = ucp_py_get_ep(ip, port)
+        self.ucp_ep = ucp_wrappers.ucp_py_get_ep(ip, port)
         return
 
     def recv_future(self, name='recv-future'):
@@ -200,7 +201,7 @@ cdef class ucp_py_ep:
         recv_msg = ucp_msg(None, name=name)
         recv_msg.ucp_ep = self.ucp_ep
         recv_msg.is_blind = 1
-        ucp_py_ep_post_probe()
+        ucp_wrappers.ucp_py_ep_post_probe()
         fut = handle_msg(recv_msg)
         return fut
 
@@ -211,7 +212,7 @@ cdef class ucp_py_ep:
         -------
         ucp_comm_request object
         """
-        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, len)
+        msg.ctx_ptr = ucp_wrappers.ucp_py_recv_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
     def send_fast(self, ucp_msg msg, len):
@@ -222,13 +223,13 @@ cdef class ucp_py_ep:
         ucp_comm_request object
         """
 
-        msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
+        msg.ctx_ptr = ucp_wrappers.ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
         return msg.get_comm_request(len)
 
     def _recv(self, buffer_region buf_reg, int nbytes, name):
         # helper for recv_obj, recv_into
         msg = ucp_msg(buf_reg, name=name)
-        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, nbytes)
+        msg.ctx_ptr = ucp_wrappers.ucp_py_recv_nb(self.ucp_ep, msg.buf, nbytes)
         msg.ucp_ep = self.ucp_ep
         msg.comm_len = nbytes
         msg.ctx_ptr_set = 1
@@ -335,7 +336,9 @@ cdef class ucp_py_ep:
         internal_msg = ucp_msg(buf_reg, name=name, length=nbytes)
         internal_msg.ucp_ep = self.ucp_ep
 
-        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, nbytes)
+        internal_msg.ctx_ptr = ucp_wrappers.ucp_py_ep_send_nb(
+            self.ucp_ep, internal_msg.buf, nbytes
+        )
         internal_msg.comm_len = nbytes
         internal_msg.ctx_ptr_set = 1
 
@@ -343,10 +346,11 @@ cdef class ucp_py_ep:
         return fut
 
     def close(self):
-        return ucp_py_put_ep(self.ucp_ep)
+        return ucp_wrappers.ucp_py_put_ep(self.ucp_ep)
 
 cdef class ucp_listener:
     cdef void* listener_ptr
+
 
 cdef class ucp_msg:
     """A class that represents the message associated with a
@@ -434,23 +438,23 @@ cdef class ucp_msg:
 
     def check(self):
         if self.ctx_ptr_set:
-            return ucp_py_request_is_complete(self.ctx_ptr)
+            return ucp_wrappers.ucp_py_request_is_complete(self.ctx_ptr)
         else:
             if self.is_blind:
                 probe_length = self.probe_wo_progress()
                 if self.ctx_ptr_set:
-                    return ucp_py_request_is_complete(self.ctx_ptr)
+                    return ucp_wrappers.ucp_py_request_is_complete(self.ctx_ptr)
                 else:
                     return 0
             else:
                 return 0
 
     def probe_wo_progress(self):
-        len = ucp_py_probe_query_wo_progress(self.ucp_ep)
+        len = ucp_wrappers.ucp_py_probe_query_wo_progress(self.ucp_ep)
         if -1 != len:
             self.alloc_host(len)
             self.internally_allocated = 1
-            self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
+            self.ctx_ptr = ucp_wrappers.ucp_py_recv_nb(self.ucp_ep, self.buf, len)
             self.comm_len = len
             self.ctx_ptr_set = 1
             return len
@@ -458,16 +462,16 @@ cdef class ucp_msg:
 
     def query(self):
         if self.ctx_ptr_set:
-            return ucp_py_query_request(self.ctx_ptr)
+            return ucp_wrappers.ucp_py_query_request(self.ctx_ptr)
         else:
-            len = ucp_py_probe_query(self.ucp_ep)
+            len = ucp_wrappers.ucp_py_probe_query(self.ucp_ep)
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
-                self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
+                self.ctx_ptr = ucp_wrappers.ucp_py_recv_nb(self.ucp_ep, self.buf, len)
                 self.comm_len = len
                 self.ctx_ptr_set = 1
-                return ucp_py_query_request(self.ctx_ptr)
+                return ucp_wrappers.ucp_py_query_request(self.ctx_ptr)
             return 0
 
     def free_mem(self):
@@ -544,10 +548,10 @@ def init():
     """
     global UCX_FILE_DESCRIPTOR
 
-    rval = ucp_py_init()
+    rval = ucp_wrappers.ucp_py_init()
 
     while UCX_FILE_DESCRIPTOR == -1:
-        UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
+        UCX_FILE_DESCRIPTOR = ucp_wrappers.ucp_py_worker_progress_wait()
 
     return rval
 
@@ -594,7 +598,8 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         reader_added = 1
 
     port = listener_port
-    listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
+    listener.listener_ptr = ucp_wrappers.ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
+
     if <void *> NULL != listener.listener_ptr:
         lf.ucp_listener = listener
         lf.port = port
@@ -618,7 +623,7 @@ def stop_listener(lf):
     if lf.is_coroutine:
         lf.future.set_result(None)
     listener = lf.ucp_listener
-    ucp_py_stop_listener(listener.listener_ptr)
+    ucp_wrappers.ucp_py_stop_listener(listener.listener_ptr)
     #reader_added = 0
 
 def fin():
@@ -633,7 +638,7 @@ def fin():
     0 if resources freed successfully
     """
 
-    return ucp_py_finalize()
+    return ucp_wrappers.ucp_py_finalize()
 
 
 def get_endpoint(peer_ip, peer_port):
@@ -676,7 +681,7 @@ def progress():
     None
     """
 
-    ucp_py_worker_progress()
+    ucp_wrappers.ucp_py_worker_progress()
 
 def destroy_ep(ucp_ep):
     """Destroy an existing endpoint connection to a peer

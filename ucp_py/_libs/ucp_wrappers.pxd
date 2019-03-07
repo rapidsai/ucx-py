@@ -1,5 +1,6 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
+# cython: language_level=3
 
 cdef extern from "src/common.h":
     struct data_buf:
@@ -9,6 +10,10 @@ cdef extern from "src/common.h":
 cdef extern from "src/ucp_py_ucp_fxns.h":
     struct ucx_context:
         int completed
+
+cdef extern from "src/ucp_py_ucp_fxns.h":
+    ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
+
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_worker_progress()

@@ -9,3 +9,4 @@ dask-worker-space
 __pytestcache__
 __pycache__
 *.egg-info/
+.pytest_cache
