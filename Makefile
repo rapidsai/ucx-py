@@ -9,6 +9,11 @@ install:
 	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i --with-cuda
 	python3 -m pip install -e .
 
+install-cpu:
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i
+	python3 -m pip install -e .
+
+
 clean:
 	rm -rf build
 	rm -rf ucp_py/_libs/*.c

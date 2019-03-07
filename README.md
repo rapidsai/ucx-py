@@ -2,14 +2,17 @@
 
 ## Building ucx-py from source.
 
-First, install the build dependencies, UCX and Cython (and optionally cuda).
-If UCX is installed somewhere special, set `LDFLAGS` to instruct the linker
-where to find it
+Ensure you have the build dependencies installed
 
-    CFLAGS=-I../ucx/install/include LDFLAGS=-L/../ucx/install/lib python setup.py build_ext -i
+1. UCX
+2. Cython
+3. CUDA (optional)
 
-If you're building a GPU-enabled version, specify `--with-cud`
+Then run
 
-    LDFLAGS="-L/../ucx/install/lib -L/path/to/cuda/lib64" python setup.py build_ext -i --with-cuda
+    make install
 
-As an alternative to `--with-cuda`, set the `UCX_PY_CUDA=1` environment variable
+to build with CUDA support. To build without CUDA, run
+
+This assumes that UCX is available in the "standard" place (next to this directory)
+and that CUDA is avaiable in `/usr/local/cuda`.
