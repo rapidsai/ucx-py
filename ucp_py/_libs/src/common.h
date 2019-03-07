@@ -31,5 +31,10 @@ do {                                                \
             fprintf(stderr, "cuda error: %s\n", cudaGetErrorString(cuda_err)); \
         }                                                               \
     } while(0)
+#endif
 
+#ifdef UCX_PY_CUDA
+#define UCX_HAS_CUDA 1
+#else
+#define UCX_HAS_CUDA 0
 #endif

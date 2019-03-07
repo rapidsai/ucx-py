@@ -7,14 +7,14 @@ import time
 import sys
 from weakref import WeakValueDictionary
 
-cdef extern from "ucp_py_ucp_fxns.h":
+cdef extern from "src/ucp_py_ucp_fxns.h":
     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
         pass
 
-cdef extern from "ucp_py_ucp_fxns.h":
+cdef extern from "src/ucp_py_ucp_fxns.h":
     cdef struct ucx_context:
         int completed
     cdef struct data_buf:
@@ -415,9 +415,10 @@ cdef class ucp_msg:
 
     def check_mem(self, c, len):
         if 0 == self.is_cuda:
-             return check_host_buffer(self.buf, c, len)
+            return check_host_buffer(self.buf, c, len)
         else:
-             return check_cuda_buffer(self.buf, c, len)
+            cuda_check()
+            return check_cuda_buffer(self.buf, c, len)
 
     def free_host(self):
         self.buf_reg.free_host()
@@ -689,7 +690,9 @@ def destroy_ep(ucp_ep):
     return ucp_ep.close()
 
 def set_cuda_dev(dev):
+    cuda_check()
     return set_device(dev)
+
 
 def get_obj_from_msg(msg):
     """Get object associated with a received ucp_msg

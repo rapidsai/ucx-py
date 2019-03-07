@@ -1,21 +1,30 @@
 CC = gcc
-UCX_PY_UCX_PATH ?= /usr/local
-UCX_PY_CUDA_PATH ?= /usr/local/cuda
+UCX_PATH  ?= "$(abspath $(shell pwd))/../ucx/install"
+CUDA_PATH ?= "/usr/local/cuda"
 
-CPPFLAGS := -I$(UCX_PY_CUDA_PATH)/include -I$(UCX_PY_UCX_PATH)/include
-LDFLAGS := -L$(UCX_PY_CUDA_PATH)/lib64 -lcuda -L$(UCX_PY_UCX_PATH)/lib -lucp -luct -lucm -lucs
+CFLAGS  = "-I$(UCX_PATH)/include -I$(CUDA_PATH)/include"
+LDFLAGS = "-L$(UCX_PATH)/lib -L$(CUDA_PATH)/lib64"
 
-ucp_py/_libs/libucp_py_ucp_fxns.a: ucp_py/_libs/ucp_py_ucp_fxns.o ucp_py/_libs/buffer_ops.o
-	ar rcs $@ $^
-
-ucp_py/_libs/%.o: ucp_py/_libs/%.c
-	$(CC) -shared -fPIC $(CPPFLAGS) -c $^ -o $@ $(LDFLAGS)
-
-install: ucp_py/_libs/libucp_py_ucp_fxns.a
-	python3 setup.py build_ext && \
+install:
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i --with-cuda
 	python3 -m pip install -e .
 
+install-cpu:
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i
+	python3 -m pip install -e .
+
+
 clean:
-	rm ucp_py/_libs/*.o ucp_py/_libs/*.a
-	rm -rf ucp_py/_libs/build ucp_py/_libs/ucx_py.egg-info
-	rm ucp_py/_libs/ucp_py.c
+	rm -rf build
+	rm -rf ucp_py/_libs/*.c
+	rm -rf ucp_py/_libs/*.so
+	rm -rf *.egg-info
+
+test:
+	python3 -m pytest tests
+
+conda-packages:
+	conda build --numpy=1.14 --python=3.7 ucx
+	conda build --numpy=1.14 --python=3.7 ucx-gpu
+	conda build --numpy=1.14 --python=3.7 ucx-py     -c defaults -c conda-forge
+	conda build --numpy=1.14 --python=3.7 ucx-py-gpu -c defaults -c conda-forge

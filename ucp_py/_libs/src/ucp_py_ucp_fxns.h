@@ -23,19 +23,18 @@ typedef struct ucp_py_internal_ep {
     ucp_tag_t recv_tag;
 } ucp_py_internal_ep_t;
 
-int ucp_py_init();
+int ucp_py_init(void);
 void *ucp_py_listen(listener_accept_cb_func, void *, int);
 int ucp_py_stop_listener(void *);
 int ucp_py_finalize(void);
 void *ucp_py_get_ep(char *, int);
 int ucp_py_put_ep(void *);
-
-int ucp_py_worker_progress();
-int ucp_py_worker_progress_wait();
-int ucp_py_worker_drain_fd();
+int ucp_py_worker_progress(void);
+int ucp_py_worker_progress_wait(void);
+int ucp_py_worker_drain_fd(void);
 struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf, int length);
 struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *buf, int length);
-int ucp_py_ep_post_probe();
+int ucp_py_ep_post_probe(void);
 int ucp_py_probe_query(void *ep_ptr);
 int ucp_py_probe_query_wo_progress(void *internal_ep);
 int ucp_py_probe_wait(void *ep_ptr);

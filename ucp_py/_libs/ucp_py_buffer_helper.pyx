@@ -10,18 +10,29 @@ cdef extern from "common.h":
 import struct
 from libc.stdint cimport uintptr_t
 
-cdef extern from "buffer_ops.h":
+# TODO: pxd files
+
+
+cdef extern from "src/common.h":
+    struct data_buf:
+        void *buf
+    cdef int UCX_HAS_CUDA
+
+
+cdef extern from "src/buffer_ops.h":
     int set_device(int)
     data_buf* populate_buffer_region(void *)
     data_buf* populate_buffer_region_with_ptr(unsigned long long int)
     void* return_ptr_from_buf(data_buf*)
     data_buf* allocate_host_buffer(int)
-    data_buf* allocate_cuda_buffer(int)
     int free_host_buffer(data_buf*)
-    int free_cuda_buffer(data_buf*)
     int set_host_buffer(data_buf*, int, int)
-    int set_cuda_buffer(data_buf*, int, int)
     int check_host_buffer(data_buf*, int, int)
+
+    # cuda
+    data_buf* allocate_cuda_buffer(int)
+    int free_cuda_buffer(data_buf*)
+    int set_cuda_buffer(data_buf*, int, int)
     int check_cuda_buffer(data_buf*, int, int)
 
 
@@ -38,6 +49,14 @@ ctypedef fused format_:
     const unsigned long long
     const float
     const double
+
+
+HAS_CUDA = bool(UCX_HAS_CUDA)
+
+
+def cuda_check():
+    if not HAS_CUDA:
+        raise ValueError("ucx-py was not compiled with CUDA support.")
 
 
 cdef class buffer_region:
@@ -178,7 +197,7 @@ cdef class buffer_region:
         self.itemsize = pyobj.itemsize
 
         if pyobj.shape[0] > 0:
-            self.buf = populate_buffer_region(&(pyobj[0]))
+            self.buf = populate_buffer_region(<void *>&(pyobj[0]))
         else:
             self.buf = populate_buffer_region(NULL)
 
@@ -205,6 +224,7 @@ cdef class buffer_region:
         self.shape[0] = len
 
     def alloc_cuda(self, len):
+        cuda_check()
         self.buf = allocate_cuda_buffer(len)
         self._is_cuda = 1
         self.shape[0] = len
@@ -213,6 +233,7 @@ cdef class buffer_region:
         free_host_buffer(self.buf)
 
     def free_cuda(self):
+        cuda_check()
         free_cuda_buffer(self.buf)
 
     # ------------------------------------------------------------------------

@@ -1,0 +1,52 @@
+{% set name = "ucx" %}
+{% set version = "1.5.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/openucx/ucx/releases/download/v{{ version }}/ucx-{{ version }}.tar.gz
+  sha256: 84f6e4fa5740afebb9b1c8bb405c07206e58c56f83120dcfcd8dc89e4b7d7458
+
+build:
+  number: 4
+  skip: True  # [not linux]
+  missing_dso_whitelist:
+      - libibverbs.so
+      - libibverbs.so.1
+      - libnl-route-3.so.200
+      - libnl-3.so.200
+      - /usr/lib/libibverbs.so
+      - /usr/lib/libibverbs.so.1
+      - /usr/lib/librdmacm.so
+  # TODO: zeromq has a run_exports pin_subpackage
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - make
+    - automake
+    - autoconf
+    - libtool
+    - pkg-config
+
+test:
+  commands:
+    - ${PREFIX}/bin/ucx_info -v
+
+about:
+  home: http://github.com/openucx/ucx
+  license: BSD-3-Clause
+  license_family: BSD
+  license_file: LICENSE
+  summary: 'Unified Communication X.'
+
+  description: |
+    Unifided Communication X.
+
+  dev_url: https://github.com/openucx/ucx
+
+extra:
+  recipe-maintainers:
+    - TomAugspurger

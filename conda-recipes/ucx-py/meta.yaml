@@ -1,0 +1,54 @@
+{% set name = "ucx-py" %}
+{% set version = "1.5.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ../../
+
+build:
+  number: 4
+  script: {{ PYTHON  }} -m pip install --no-deps --ignore-installed .
+  skip: True  # [not linux]
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+  host:
+    - python
+    - pip
+    - cython
+    - ucx==1.5.0
+  run:
+    - python
+    - ucx==1.5.0
+
+test:
+  requires:
+      - pytest
+      - pytest-asyncio>=0.10.0
+      - numpy
+  source_files:
+      - tests/
+  commands:
+      - python -m pytest -vs tests
+  imports:
+    - ucp_py
+
+about:
+  home: http://github.com/openucx/ucx
+  license: BSD-3-Clause
+  license_family: BSD
+  # license_file: LICENSE
+  summary: 'Unified Communication X.'
+
+  description: |
+    Unifided Communication X.
+
+  dev_url: https://github.com/openucx/ucx
+
+extra:
+  recipe-maintainers:
+    - TomAugspurger

@@ -1,9 +1,9 @@
 *.*~
 build
-ucp_py/_libs/ucp_py.c
 *.so
 ucp_py/_libs/*.a
 ucp_py/_libs/*.o
+ucp_py/_libs/*.c
 
 dask-worker-space
 __pytestcache__
