@@ -427,6 +427,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
         TAILQ_REMOVE(&cb_free_head, np, entries);
         np->pyx_cb = context->pyx_cb;
         np->py_cb = context->py_cb;
+        np->port = context->port;
         //np->arg = ep_ptr;
         np->arg = internal_ep;
         TAILQ_INSERT_TAIL(&cb_used_head, np, entries);
