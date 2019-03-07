@@ -15,4 +15,6 @@ Then run
 to build with CUDA support. To build without CUDA, run
 
 This assumes that UCX is available in the "standard" place (next to this directory)
-and that CUDA is avaiable in `/usr/local/cuda`.
+and that CUDA is avaiable in `/usr/local/cuda`. If not, specify them like
+
+    UCX_PATH=/path/to/ucx/ CUDA_PATH=/path/to/cuda make install
