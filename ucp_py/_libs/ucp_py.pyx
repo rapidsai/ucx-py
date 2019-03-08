@@ -158,6 +158,7 @@ class ListenerFuture(concurrent.futures.Future):
 
     def __init__(self, cb, is_coroutine=False):
         self.done_state = False
+        self.port = -1
         self.result_state = None
         self.cb = cb
         self.is_coroutine = is_coroutine
@@ -571,6 +572,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     """
     global UCX_FILE_DESCRIPTOR
     global reader_added
+    cdef int port
 
     listener = ucp_listener()
     loop = asyncio.get_event_loop()
@@ -591,9 +593,11 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
         reader_added = 1
 
-    listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, listener_port)
+    port = listener_port
+    listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
     if <void *> NULL != listener.listener_ptr:
         lf.ucp_listener = listener
+        lf.port = port
     return lf
 
 

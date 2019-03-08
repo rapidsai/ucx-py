@@ -33,12 +33,14 @@
 
 
 #define CB_Q_MAX_ENTRIES 256
+#define MAX_LISTEN_RETRIES 256
 
 TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
 struct entry {
     void *py_cb;                    /* pointer to python callback */
     listener_accept_cb_func pyx_cb; /* pointer to Cython callback */
     void *arg;                      /* argument to python callback */
+    int port;                       /* port used by the listener */
     TAILQ_ENTRY(entry) entries;
 } *np, *np_used, *np_free;
 int num_cb_free, num_cb_used;
@@ -51,6 +53,7 @@ int num_cb_free, num_cb_used;
 typedef struct ucx_listener_ctx {
     listener_accept_cb_func pyx_cb;
     void *py_cb;
+    int port;
 } ucx_listener_ctx_t;
 
 /* UCP Py wrapper Context */
@@ -134,6 +137,7 @@ unsigned long djb2_hash(char *str)
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     void *tmp_py_cb;
+    int tmp_port = -1;
     listener_accept_cb_func tmp_pyx_cb;
     void *tmp_arg;
     ucs_status_t status = 0;
@@ -150,9 +154,11 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
         tmp_pyx_cb = np->pyx_cb;
         tmp_arg = np->arg;
         tmp_py_cb = np->py_cb;
+        tmp_port = np->port;
         TAILQ_REMOVE(&cb_used_head, np, entries);
         np->pyx_cb = NULL;
         np->py_cb = NULL;
+        np->port = -1;
         np->arg = NULL;
         TAILQ_INSERT_TAIL(&cb_free_head, np, entries);
         num_cb_free++;
@@ -175,7 +181,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
             //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
-        sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, default_listener_port);
+        sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, tmp_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
         request_init(request);
@@ -421,6 +427,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
         TAILQ_REMOVE(&cb_free_head, np, entries);
         np->pyx_cb = context->pyx_cb;
         np->py_cb = context->py_cb;
+        np->port = context->port;
         //np->arg = ep_ptr;
         np->arg = internal_ep;
         TAILQ_INSERT_TAIL(&cb_used_head, np, entries);
@@ -439,25 +446,38 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
 }
 
 static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
-                          ucp_listener_h *listener, uint16_t listener_port)
+                          ucp_listener_h *listener, int *port)
 {
     struct sockaddr_in listen_addr;
     ucp_listener_params_t params;
     ucs_status_t status;
+    int retry = 0;
 
-    set_listen_addr(&listen_addr, listener_port);
+    while (retry < MAX_LISTEN_RETRIES) {
+	
+        set_listen_addr(&listen_addr, *port);
 
-    params.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
-                                UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
-    params.sockaddr.addr      = (const struct sockaddr*)&listen_addr;
-    params.sockaddr.addrlen   = sizeof(listen_addr);
-    params.accept_handler.cb  = listener_accept_cb;
-    params.accept_handler.arg = context;
+	context->port             = *port;
+	params.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
+	                            UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
+	params.sockaddr.addr      = (const struct sockaddr*)&listen_addr;
+	params.sockaddr.addrlen   = sizeof(listen_addr);
+	params.accept_handler.cb  = listener_accept_cb;
+	params.accept_handler.arg = context;
 
-    status = ucp_listener_create(ucp_worker, &params, listener);
-    if (status != UCS_OK) {
-        ERROR_PRINT("failed to listen (%s)\n", ucs_status_string(status));
+        status = ucp_listener_create(ucp_worker, &params, listener);
+        if (status != UCS_OK) {
+            DEBUG_PRINT("failed to listen (%s) at %d\n", ucs_status_string(status), *port);
+        } else {
+            goto done;
+        }
+        
+        retry++;
+	*port = *port + 1;
+	DEBUG_PRINT("retrying with port %d\n", *port);
     }
+    
+ done:
 
     return status;
 }
@@ -644,7 +664,7 @@ int ucp_py_init(void)
     return -1;
 }
 
-void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
+void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int *port)
 {
     ucs_status_t status;
     ucp_listener_h *listener;
@@ -652,14 +672,15 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int port)
     ucp_py_ctx_head->listener_context.pyx_cb = pyx_cb;
     ucp_py_ctx_head->listener_context.py_cb = py_cb;
     ucp_py_ctx_head->listens = 1;
-    default_listener_port = (port == -1 ? default_listener_port : port);
+    *port = (*port == -1) ? default_listener_port : *port;
 
     listener = (ucp_listener_h *) malloc(sizeof(ucp_listener_h));
 
     status = start_listener(ucp_py_ctx_head->ucp_worker,
                             &ucp_py_ctx_head->listener_context,
                             listener,
-                            default_listener_port);
+                            port);
+    default_listener_port = *port + 1;
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
     return (void *) listener;

@@ -15,7 +15,7 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_worker_progress_wait()
     int ucp_py_worker_drain_fd()
     int ucp_py_init()
-    void *ucp_py_listen(listener_accept_cb_func, void *, int)
+    void *ucp_py_listen(listener_accept_cb_func, void *, int *)
     int ucp_py_stop_listener(void *)
     int ucp_py_finalize()
     void* ucp_py_get_ep(char *, int)
