@@ -395,7 +395,7 @@ void set_listen_addr(struct sockaddr_in *listen_addr, uint16_t listener_port)
     memset(listen_addr, 0, sizeof(struct sockaddr_in));
     listen_addr->sin_family      = AF_INET;
     listen_addr->sin_addr.s_addr = INADDR_ANY;
-    listen_addr->sin_port        = listener_port;
+    listen_addr->sin_port        = htons(listener_port);
 }
 
 void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
@@ -404,7 +404,7 @@ void set_connect_addr(const char *address_str, struct sockaddr_in *connect_addr,
     memset(connect_addr, 0, sizeof(struct sockaddr_in));
     connect_addr->sin_family      = AF_INET;
     connect_addr->sin_addr.s_addr = inet_addr(address_str);
-    connect_addr->sin_port        = listener_port;
+    connect_addr->sin_port        = htons(listener_port);
 }
 
 static void listener_accept_cb(ucp_ep_h ep, void *arg)
