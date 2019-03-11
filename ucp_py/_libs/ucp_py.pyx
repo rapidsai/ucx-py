@@ -7,9 +7,6 @@ import time
 import sys
 from weakref import WeakValueDictionary
 
-# cdef extern from "src/ucp_py_ucp_fxns.h":
-#     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
-
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
         pass
