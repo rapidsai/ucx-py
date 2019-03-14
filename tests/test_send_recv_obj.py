@@ -7,21 +7,15 @@ import ucp_py as ucp
 
 address = ucp.get_address()
 ucp.init()
-# workaround for segfault when creating, destroying, and creating
-# a listener at the same address:port.
-PORT_COUNTER = itertools.count(13337)
 
 
 @asynccontextmanager
 async def echo_pair(cuda_info=None):
     loop = asyncio.get_event_loop()
-    port = next(PORT_COUNTER)
-
     listener = ucp.start_listener(ucp.make_server(cuda_info),
-                                  port,
                                   is_coroutine=True)
     t = loop.create_task(listener.coroutine)
-    client = ucp.get_endpoint(address.encode(), port)
+    client = ucp.get_endpoint(address.encode(), listener.port)
     try:
         yield listener, client
     finally:
@@ -61,7 +55,6 @@ async def test_send_recv_numpy():
     async with echo_pair() as (_, client):
         msg = np.frombuffer(memoryview(b"hi"), dtype='u1')
 
-        # import pdb; pdb.set_trace()
         await client.send_obj(b'2')
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg))
