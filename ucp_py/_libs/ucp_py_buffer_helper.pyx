@@ -208,6 +208,10 @@ cdef class buffer_region:
         self._is_cuda = 1
         self.typestr = info['typestr']
         ptr_int, is_readonly = info['data']
+        if ptr_int is None:
+            # Workaround for numba giving None, rather than an int.
+            # https://github.com/cupy/cupy/issues/2104 for more info.
+            ptr_int = 0
         self._readonly = is_readonly
 
         if len(info.get('strides', ())) <= 1:
