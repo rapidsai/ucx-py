@@ -20,11 +20,17 @@ extra_compile_args = []
 
 
 class build_ext(_build_ext):
-    user_options = ([('with-cuda', None, 'build the Cuda extension')] +
-                    _build_ext.user_options)
+    user_options = ([
+        ('with-cuda', None, 'build the Cuda extension'),
+        ('with-prof', None, 'build with profiling'),
+    ] + _build_ext.user_options)
 
     with_cuda = strtobool(
         os.environ.get("UCX_PY_WITH_CUDA", '0')
+    )
+
+    with_prof = strtobool(
+        os.environ.get("UCX_PY_WITH_PROF", '0')
     )
 
     def run(self):
@@ -32,6 +38,9 @@ class build_ext(_build_ext):
             module = ext_modules[0]
             module.libraries.extend(['cuda', 'cudart'])
             module.extra_compile_args.append('-DUCX_PY_CUDA')
+        if self.with_prof:
+            module = ext_modules[0]
+            module.extra_compile_args.append('-DUCX_PY_PROF')
         _build_ext.run(self)
 
 

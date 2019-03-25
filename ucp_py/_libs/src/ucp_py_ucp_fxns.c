@@ -31,6 +31,8 @@
 #include <cuda_runtime.h>
 #endif
 
+#define UCP_SEND 0
+#define UCP_RECV 1
 
 #define CB_Q_MAX_ENTRIES 256
 #define MAX_LISTEN_RETRIES 256
@@ -81,6 +83,21 @@ static pid_t my_pid = -1;
 static int connect_ep_counter = 0;
 static int accept_ep_counter = 0;
 
+#ifdef UCX_PY_PROF
+static double get_latency(struct ucx_context *context)
+{
+    double latency = -1;
+    struct timeval start, stop;
+
+    start = context->start;
+    stop  = context->stop;
+    latency = (stop.tv_usec - start.tv_usec) +
+	(1E+6 * (stop.tv_sec - start.tv_sec));
+
+    return latency;
+}
+#endif
+
 static void request_init(void *request)
 {
     struct ucx_context *ctx = (struct ucx_context *) request;
@@ -93,6 +110,12 @@ static void send_handle(void *request, ucs_status_t status)
     struct ucx_context *context = (struct ucx_context *) request;
 
     context->completed = 1;
+
+#ifdef UCX_PY_PROF
+    gettimeofday(&(context->stop), NULL);
+    printf("finished send of %d in %lf us\n", context->length, get_latency(context));
+#endif
+
 
     DEBUG_PRINT("[0x%x] send handler called with status %d (%s)\n",
                 (unsigned int)pthread_self(), status,
@@ -117,6 +140,11 @@ static void recv_handle(void *request, ucs_status_t status,
 
     context->completed = 1;
     DEBUG_PRINT("recv complete %p\n", request);
+
+#ifdef UCX_PY_PROF
+    gettimeofday(&(context->stop), NULL);
+    printf("finished recv of %d in %lf us\n", context->length, get_latency(context));
+#endif
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
                 (unsigned int)pthread_self(), status, ucs_status_string(status),
@@ -220,6 +248,12 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
         goto err_ep;
     }
 
+#ifdef UCX_PY_PROF
+    gettimeofday(&(request->start), NULL);
+    request->length = length;
+    request->type   = UCP_RECV;
+#endif
+
     return request;
 
 err_ep:
@@ -294,7 +328,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     DEBUG_PRINT("EP send : %p\n", int_ep->ep_ptr);
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
-
+    
     tag = int_ep->send_tag;
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
@@ -304,10 +338,17 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
+
+#ifdef UCX_PY_PROF
+	gettimeofday(&(request->start), NULL);
+	request->length = length;
+	request->type   = UCP_SEND;
+#endif
+    
     } else {
         /* request is complete so no need to wait on request */
     }
-
+    
     DEBUG_PRINT("returning request %p\n", request);
 
     return request;

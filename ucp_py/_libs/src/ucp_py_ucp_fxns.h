@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <ucp/api/ucp.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include "common.h"
 #define HNAME_MAX_LEN 256
@@ -14,6 +15,12 @@ typedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data);
 
 struct ucx_context {
     int             completed;
+#ifdef UCX_PY_PROF
+    int             length;
+    int             type;
+    struct timeval  start;
+    struct timeval  stop;
+#endif
 };
 
 typedef struct ucp_py_internal_ep {
