@@ -19,3 +19,5 @@ def test_multiple_listeners():
 
     lf1.coroutine.close()
     lf2.coroutine.close()
+    ucp.stop_listener(lf1)
+    ucp.stop_listener(lf2)
