@@ -113,7 +113,7 @@ static void send_handle(void *request, ucs_status_t status)
 
 #ifdef UCX_PY_PROF
     gettimeofday(&(context->stop), NULL);
-    printf("finished send of %d in %lf us\n", context->length, get_latency(context));
+    fprintf(stderr, "finished send of %d in %lf us\n", context->length, get_latency(context));
 #endif
 
 
@@ -143,7 +143,7 @@ static void recv_handle(void *request, ucs_status_t status,
 
 #ifdef UCX_PY_PROF
     gettimeofday(&(context->stop), NULL);
-    printf("finished recv of %d in %lf us\n", context->length, get_latency(context));
+    fprintf(stderr, "finished recv of %d in %lf us\n", context->length, get_latency(context));
 #endif
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
