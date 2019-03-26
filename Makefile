@@ -6,11 +6,11 @@ CFLAGS  = "-I$(UCX_PATH)/include -I$(CUDA_PATH)/include"
 LDFLAGS = "-L$(UCX_PATH)/lib -L$(CUDA_PATH)/lib64"
 
 install:
-	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i --with-cuda
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python3 setup.py build_ext -i --with-cuda
 	python3 -m pip install -e .
 
 install-cpu:
-	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python setup.py build_ext -i
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python3 setup.py build_ext -i
 	python3 -m pip install -e .
 
 
