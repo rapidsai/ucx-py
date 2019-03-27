@@ -5,6 +5,8 @@ CUDA_PATH ?= "/usr/local/cuda"
 CFLAGS  = "-I$(UCX_PATH)/include -I$(CUDA_PATH)/include"
 LDFLAGS = "-L$(UCX_PATH)/lib -L$(CUDA_PATH)/lib64"
 
+PYTHON ?= python3
+
 install:
 	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i --with-cuda
 	$(PYTHON) -m pip install -e .
