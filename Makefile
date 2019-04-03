@@ -13,6 +13,12 @@ install-cpu:
 	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) python3 setup.py build_ext -i
 	python3 -m pip install -e .
 
+conda-install:
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i --with-cuda install
+
+conda-install-cpu:
+	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i install
+
 
 clean:
 	rm -rf build
