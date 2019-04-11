@@ -36,6 +36,7 @@
 
 #define CB_Q_MAX_ENTRIES 256
 #define MAX_LISTEN_RETRIES 256
+#define MAX_LISTENERS 256
 
 TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
 struct entry {
@@ -61,13 +62,14 @@ typedef struct ucx_listener_ctx {
 /* UCP Py wrapper Context */
 typedef struct ucp_py_ctx {
     ucp_context_h ucp_context;
-    ucx_listener_ctx_t listener_context;
+    ucx_listener_ctx_t listener_context[MAX_LISTENERS];
     ucp_worker_h ucp_worker;
     ucp_listener_h listener;
     int listens;
     int num_probes_outstanding;
     int epoll_fd_local;
     int epoll_fd;
+    int num_listeners;
     struct epoll_event ev;
 } ucp_py_ctx_t;
 
@@ -209,6 +211,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
             //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
+	DEBUG_PRINT("%s %d\n", internal_ep->ep_tag_str, tmp_port);
         sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, tmp_port);
         internal_ep->send_tag = djb2_hash(tmp_str);
         internal_ep->recv_tag = djb2_hash(internal_ep->ep_tag_str);
@@ -235,6 +238,7 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
     DEBUG_PRINT("receiving %p\n", recv_buf->buf);
 
     tag = int_ep->recv_tag;
+    DEBUG_PRINT("recv_nb tag = %d\n", tag);
     request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
@@ -277,10 +281,12 @@ int ucp_py_ep_probe(void *internal_ep)
     DEBUG_PRINT("probing..\n");
 
     tag = int_ep->recv_tag;
+    DEBUG_PRINT("probing for msg with tag = %d\n", tag);
     msg_tag = ucp_tag_probe_nb(ucp_py_ctx_head->ucp_worker, tag,
                                default_tag_mask, 0, &info_tag);
     if (msg_tag != NULL) {
         /* Message arrived */
+	DEBUG_PRINT("found msg with tag = %d\n", tag);
         ucp_py_ctx_head->num_probes_outstanding--;
         return info_tag.length;
     }
@@ -330,6 +336,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     DEBUG_PRINT("sending %p\n", send_buf->buf);
     
     tag = int_ep->send_tag;
+    DEBUG_PRINT("send_nb tag = %d\n", tag);
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
@@ -469,6 +476,7 @@ static void listener_accept_cb(ucp_ep_h ep, void *arg)
         np->pyx_cb = context->pyx_cb;
         np->py_cb = context->py_cb;
         np->port = context->port;
+	DEBUG_PRINT("listener port received = %d\n", np->port);
         //np->arg = ep_ptr;
         np->arg = internal_ep;
         TAILQ_INSERT_TAIL(&cb_used_head, np, entries);
@@ -505,6 +513,8 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
 	params.sockaddr.addrlen   = sizeof(listen_addr);
 	params.accept_handler.cb  = listener_accept_cb;
 	params.accept_handler.arg = context;
+	
+	DEBUG_PRINT("listener port assigned = %d\n", context->port);
 
         status = ucp_listener_create(ucp_worker, &params, listener);
         if (status != UCS_OK) {
@@ -550,11 +560,12 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                     ucs_status_string(status));
     }
     internal_ep->ep_ptr = ep_ptr;
-    sprintf(internal_ep->ep_tag_str, "%s:%u:%d", my_hostname,
-            (unsigned int) my_pid, connect_ep_counter);
+    sprintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
+            (unsigned int) my_pid, connect_ep_counter, listener_port);
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
     internal_ep->recv_tag = djb2_hash(tmp_str);
+    DEBUG_PRINT("sending tag %s\n", internal_ep->ep_tag_str);
 
     request = ucp_tag_send_nb(*ep_ptr, internal_ep->ep_tag_str, TAG_STR_MAX_LEN,
                               ucp_dt_make_contig(1), exch_tag,
@@ -635,6 +646,7 @@ int ucp_py_init(void)
     if (NULL == ucp_py_ctx_head) goto err_py_init;
 
     ucp_py_ctx_head->listens = 0;
+    ucp_py_ctx_head->num_listeners = 0;
     ucp_py_ctx_head->num_probes_outstanding = 0;
 
     ucp_get_version(&a, &b, &c);
@@ -709,19 +721,24 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int *port)
 {
     ucs_status_t status;
     ucp_listener_h *listener;
+    int listener_idx;
 
-    ucp_py_ctx_head->listener_context.pyx_cb = pyx_cb;
-    ucp_py_ctx_head->listener_context.py_cb = py_cb;
+    if (ucp_py_ctx_head->num_listeners >= MAX_LISTENERS) return NULL;
+    
+    listener_idx = ucp_py_ctx_head->num_listeners;
+    ucp_py_ctx_head->listener_context[listener_idx].pyx_cb = pyx_cb;
+    ucp_py_ctx_head->listener_context[listener_idx].py_cb = py_cb;
     ucp_py_ctx_head->listens = 1;
     *port = (*port == -1) ? default_listener_port : *port;
 
     listener = (ucp_listener_h *) malloc(sizeof(ucp_listener_h));
 
     status = start_listener(ucp_py_ctx_head->ucp_worker,
-                            &ucp_py_ctx_head->listener_context,
+                            &ucp_py_ctx_head->listener_context[listener_idx],
                             listener,
                             port);
     default_listener_port = *port + 1;
+    ucp_py_ctx_head->num_listeners += 1;
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);
 
     return (void *) listener;
