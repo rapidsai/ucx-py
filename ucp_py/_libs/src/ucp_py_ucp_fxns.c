@@ -174,7 +174,20 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     char tmp_str[TAG_STR_MAX_LEN];
     struct ucx_context *request = 0;
     ucp_py_internal_ep_t *internal_ep;
+    
+#ifdef UCX_PY_PROF
+    struct timeval s, e;
+    double lat;
+    gettimeofday(&s, NULL);
+#endif
+    
     status = ucp_worker_progress(ucp_worker);
+    
+#ifdef UCX_PY_PROF
+    gettimeofday(&e, NULL);
+    lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
+    fprintf(stderr, "progress %lf us\n", lat);
+#endif
     DEBUG_PRINT("called ucp_worker_progress\n");
 
     while (cb_used_head.tqh_first != NULL) {
@@ -373,6 +386,11 @@ int ucp_py_worker_progress(void)
 int ucp_py_worker_progress_wait(void)
 {
     ucs_status_t status;
+#ifdef UCX_PY_PROF
+    struct timeval s, e;
+    double lat;
+    gettimeofday(&s, NULL);
+#endif
 
     /* Need to prepare ucp_worker before epoll_wait */
     status = ucp_worker_arm(ucp_py_ctx_head->ucp_worker);
@@ -384,6 +402,12 @@ int ucp_py_worker_progress_wait(void)
         printf("ucp_worker_arm error\n");
         goto err;
     }
+    
+#ifdef UCX_PY_PROF
+    gettimeofday(&e, NULL);
+    lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
+    fprintf(stderr, "wait %lf us\n", lat);
+#endif
 
     return ucp_py_ctx_head->epoll_fd_local;
  err:
@@ -393,12 +417,23 @@ int ucp_py_worker_progress_wait(void)
 int ucp_py_worker_drain_fd()
 {
     int ret = -1;
+#ifdef UCX_PY_PROF
+    struct timeval s, e;
+    double lat;
+    gettimeofday(&s, NULL);
+#endif
 
     ucp_worker_signal(ucp_py_ctx_head->ucp_worker);
 #if 0
     do {
         ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
     } while ((ret == -1) && (errno == EINTR));
+#endif
+    
+#ifdef UCX_PY_PROF
+    gettimeofday(&e, NULL);
+    lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
+    fprintf(stderr, "drain %lf us\n", lat);
 #endif
 
     return ret;
