@@ -22,8 +22,8 @@ conda-install-cpu:
 
 clean:
 	rm -rf build
-	rm -rf ucp_py/_libs/*.c
-	rm -rf ucp_py/_libs/*.so
+	rm -rf ucp/_libs/*.c
+	rm -rf ucp/_libs/*.so
 	rm -rf *.egg-info
 
 test:

@@ -19,7 +19,7 @@
 # wrapped in strings (to workaround contiguous memory requirement) or
 # strings wrapped in bytes object
 
-import ucp_py as ucp
+import ucp
 import time
 import argparse
 import asyncio

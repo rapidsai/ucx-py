@@ -1,6 +1,6 @@
 import pytest
 
-import ucp_py as ucp
+import ucp
 
 
 def test_set_read():

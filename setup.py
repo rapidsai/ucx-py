@@ -46,29 +46,29 @@ class build_ext(_build_ext):
 
 ext_modules = cythonize([
     Extension(
-        "ucp_py._libs.ucp_py",
+        "ucp._libs.ucp_py",
         sources=[
-            "ucp_py/_libs/ucp_py.pyx",
-            "ucp_py/_libs/ucp_py_ucp_fxns_wrapper.pyx",
-            "ucp_py/_libs/ucp_py_buffer_helper.pyx",
-            "ucp_py/_libs/src/buffer_ops.c",
-            "ucp_py/_libs/src/ucp_py_ucp_fxns.c",
+            "ucp/_libs/ucp_py.pyx",
+            "ucp/_libs/ucp_py_ucp_fxns_wrapper.pyx",
+            "ucp/_libs/ucp_py_buffer_helper.pyx",
+            "ucp/_libs/src/buffer_ops.c",
+            "ucp/_libs/src/ucp_py_ucp_fxns.c",
         ],
         depends=[
-            "ucp_py/_libs/src/common.h",
-            "ucp_py/_libs/src/buffer_ops.h",
-            "ucp_py/_libs/src/ucp_py_ucp_fxns.h",
+            "ucp/_libs/src/common.h",
+            "ucp/_libs/src/buffer_ops.h",
+            "ucp/_libs/src/ucp_py_ucp_fxns.h",
         ],
-        include_dirs=['ucp_py/_libs/src'],
-        library_dirs=['ucp_py/_libs/src'],
+        include_dirs=['ucp/_libs/src'],
+        library_dirs=['ucp/_libs/src'],
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
 ])
 
 setup(
-    name='ucx_py',
-    packages=['ucp_py'],
+    name='ucp',
+    packages=['ucp'],
     ext_modules=ext_modules,
     cmdclass={
         'build_ext': build_ext,

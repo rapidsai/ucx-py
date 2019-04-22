@@ -1,4 +1,4 @@
-import ucp_py as ucp
+import ucp
 import asyncio
 
 ucp.init()

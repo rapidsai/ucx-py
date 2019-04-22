@@ -17,7 +17,7 @@
 # 2. When connection is established, first recv and then send `ucp_msg`
 #    object to and from server respectively
 
-import ucp_py as ucp
+import ucp
 import time
 import argparse
 import asyncio
