@@ -1,6 +1,6 @@
 import pytest
 
-import ucp_py as ucp
+import ucp
 
 
 pytestmark = pytest.mark.skipif(ucp.HAS_CUDA, reason="has CUDA")

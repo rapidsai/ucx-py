@@ -23,7 +23,7 @@ import argparse
 import asyncio
 import reprlib
 
-import ucp_py as ucp
+import ucp
 
 
 def get_msg(base, obj_type):

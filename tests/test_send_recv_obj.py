@@ -3,7 +3,7 @@ import itertools
 import pytest
 from contextlib import asynccontextmanager
 
-import ucp_py as ucp
+import ucp
 
 address = ucp.get_address()
 ucp.init()

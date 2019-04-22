@@ -1,7 +1,7 @@
 import asyncio
 import argparse
 import sys
-import ucp_py as ucp
+import ucp
 
 client_msg = b'hi'
 server_msg = b'ih'

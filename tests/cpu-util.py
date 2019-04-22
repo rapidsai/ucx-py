@@ -1,5 +1,5 @@
 import asyncio
-import ucp_py as ucp
+import ucp
 
 
 async def handler(ep):

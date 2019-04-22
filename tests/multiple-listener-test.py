@@ -1,5 +1,5 @@
 import asyncio
-import ucp_py as ucp
+import ucp
 
 def make_server(value):
     assert isinstance(value, bytes)

@@ -4,7 +4,7 @@
 # Description: Check latency between client and server. Execution
 # command must specify if the benchmark is run intra-node.
 
-import ucp_py as ucp
+import ucp
 import time
 import argparse
 import asyncio

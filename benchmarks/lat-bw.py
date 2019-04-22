@@ -1,7 +1,7 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import ucp_py as ucp
+import ucp
 import time
 import argparse
 import asyncio

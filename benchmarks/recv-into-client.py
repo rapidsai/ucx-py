@@ -8,7 +8,7 @@ import asyncio
 from distributed.utils import format_bytes, parse_bytes
 from time import perf_counter as clock
 
-import ucp_py as ucp
+import ucp
 
 
 ucp.init()
