@@ -2,15 +2,16 @@ import ucp
 import asyncio
 
 async def tmp():
-    ep1 = ucp.get_endpoint(b'192.168.40.20', 13337)
-    ep2 = ucp.get_endpoint(b'192.168.40.20', 13338)
+    addr = ucp.get_address().encode('utf-8')
+    ep1 = ucp.get_endpoint(addr, 13337)
+    ep2 = ucp.get_endpoint(addr, 13338)
 
     await ep1.send_obj(b'hi')
     print("past send1")
     recv_ft1 = ep1.recv_future()
     await recv_ft1
     print("past recv1")
-    
+
     await ep2.send_obj(b'hi')
     recv_ft2 = ep2.recv_future()
     await recv_ft2
