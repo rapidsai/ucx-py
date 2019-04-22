@@ -125,8 +125,8 @@ async def test_send_recv_into():
         resp = await client.recv_into(sink, 2)
         result = resp.get_obj()
 
-    assert result == b'hi'
-    assert sink == b'hi'
+    assert bytes(result) == b'hi'
+    assert bytes(sink) == b'hi'
 
 
 @pytest.mark.asyncio

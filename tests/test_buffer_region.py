@@ -8,7 +8,7 @@ def test_set_read():
     buffer_region = ucp.buffer_region()
     buffer_region.populate_ptr(obj)
     res = memoryview(buffer_region)
-    assert res == obj
+    assert bytes(res) == bytes(obj)
     assert res.tobytes() == obj.tobytes()
 
     # our properties
