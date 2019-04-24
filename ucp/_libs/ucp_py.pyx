@@ -600,8 +600,6 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(('', 0))
         addr = s.getsockname()
-        #print('random port requested')
-        #print(addr[1])
         s.close()
         port = addr[1]
 
