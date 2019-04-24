@@ -614,7 +614,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
 
         num_tries += 1
         if num_tries > max_tries:
-            return None
+            raise NameError('Unable to bind to an open port after {max_tries} attempts')
 
 def stop_listener(lf):
     """Stop listening for incoming connections
