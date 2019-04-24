@@ -594,6 +594,17 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         reader_added = 1
 
     port = listener_port
+    if 0 == port:
+        """ Ref https://unix.stackexchange.com/a/132524"""
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', 0))
+        addr = s.getsockname()
+        #print('random port requested')
+        #print(addr[1])
+        s.close()
+        port = addr[1]
+
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
     if <void *> NULL != listener.listener_ptr:
         lf.ucp_listener = listener
