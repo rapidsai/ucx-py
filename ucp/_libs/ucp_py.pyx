@@ -597,6 +597,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     max_tries = 10000 # Arbitrary for now
     num_tries = 0
     while True:
+	    
         if 0 == port:
             """ Ref https://unix.stackexchange.com/a/132524"""
             import socket
@@ -614,7 +615,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
 
         num_tries += 1
         if num_tries > max_tries:
-            raise NameError('Unable to bind to an open port after {max_tries} attempts')
+            raise NameError('Unable to bind to an open port after {} attempts'.format(max_tries))
 
 def stop_listener(lf):
     """Stop listening for incoming connections
