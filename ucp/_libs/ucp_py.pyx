@@ -343,7 +343,8 @@ cdef class EndPoint:
         return fut
 
     def close(self):
-        return ucp_py_put_ep(self.ep)
+        if -1 == ucp_py_put_ep(self.ep):
+            raise NameError('Failed to close endpoint')
 
 cdef class UCPListener:
     cdef void* listener_ptr
@@ -691,7 +692,7 @@ def destroy_ep(ep):
     0 if successful
     """
 
-    return ep.close()
+    ep.close()
 
 def set_cuda_dev(dev):
     cuda_check()
