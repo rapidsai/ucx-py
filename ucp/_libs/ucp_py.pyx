@@ -595,12 +595,28 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         reader_added = 1
 
     port = listener_port
-    listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
-    if <void *> NULL != listener.listener_ptr:
-        lf.ucp_listener = listener
-        lf.port = port
-    return lf
+    max_tries = 10000 # Arbitrary for now
+    num_tries = 0
+    while True:
+	    
+        if 0 == port:
+            """ Ref https://unix.stackexchange.com/a/132524"""
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(('', 0))
+            addr = s.getsockname()
+            s.close()
+            port = addr[1]
 
+        listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
+        if <void *> NULL != listener.listener_ptr:
+            lf.ucp_listener = listener
+            lf.port = port
+            return lf
+
+        num_tries += 1
+        if num_tries > max_tries:
+            raise NameError('Unable to bind to an open port after {} attempts'.format(max_tries))
 
 def stop_listener(lf):
     """Stop listening for incoming connections
