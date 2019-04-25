@@ -49,7 +49,7 @@ def make_server(cuda_info=None):
         >>> await ep.send_obj(obj)       # send the real message
         >>> await ep.recv_obj(msg_size)  # receive the echo
         """
-        from ucp_py._libs.ucp_py import destroy_ep, stop_listener
+        from ucp._libs.ucp_py import destroy_ep, stop_listener
 
         while True:
             size_msg = await ep.recv_future()
