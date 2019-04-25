@@ -59,7 +59,7 @@ def cuda_check():
         raise ValueError("ucx-py was not compiled with CUDA support.")
 
 
-cdef class buffer_region:
+cdef class BufferRegion:
     """
     A compatability layer for
 
