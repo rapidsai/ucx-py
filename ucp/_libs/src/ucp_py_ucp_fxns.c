@@ -638,7 +638,7 @@ int ucp_py_put_ep(void *internal_ep)
     ep_ptr = int_ep->ep_ptr;
 
     DEBUG_PRINT("try ep close %p\n", ep_ptr);
-    close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE);
+    close_req = ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FLUSH);
 
     if (UCS_PTR_IS_PTR(close_req)) {
         do {
@@ -650,6 +650,7 @@ int ucp_py_put_ep(void *internal_ep)
         ucp_request_free(close_req);
     } else if (UCS_PTR_STATUS(close_req) != UCS_OK) {
         ERROR_PRINT("failed to close ep %p\n", (void*)*ep_ptr);
+        return -1;
     }
 
     free(ep_ptr);

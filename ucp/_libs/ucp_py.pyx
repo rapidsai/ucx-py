@@ -343,7 +343,8 @@ cdef class ucp_py_ep:
         return fut
 
     def close(self):
-        return ucp_py_put_ep(self.ucp_ep)
+        if -1 == ucp_py_put_ep(self.ucp_ep):
+            raise NameError('Failed to close endpoint')
 
 cdef class ucp_listener:
     cdef void* listener_ptr
