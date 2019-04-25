@@ -692,7 +692,7 @@ def destroy_ep(ucp_ep):
     0 if successful
     """
 
-    return ucp_ep.close()
+    ucp_ep.close()
 
 def set_cuda_dev(dev):
     cuda_check()
