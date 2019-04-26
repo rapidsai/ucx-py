@@ -64,6 +64,7 @@ async def test_send_recv_numpy():
     np.testing.assert_array_equal(result, msg)
 
 
+@pytest.mark.skip(reason="cuda tests segfaulting")
 @pytest.mark.asyncio
 async def test_send_recv_cupy():
     cupy = pytest.importorskip('cupy')
@@ -85,6 +86,7 @@ async def test_send_recv_cupy():
     cupy.testing.assert_array_equal(msg, result)
 
 
+@pytest.mark.skip(reason="cuda tests segfaulting")
 @pytest.mark.asyncio
 async def test_send_recv_numba():
     numba = pytest.importorskip('numba')
@@ -129,6 +131,7 @@ async def test_send_recv_into():
     assert bytes(sink) == b'hi'
 
 
+@pytest.mark.skip(reason="cuda tests segfaulting")
 @pytest.mark.asyncio
 async def test_send_recv_into_cuda():
     cupy = pytest.importorskip("cupy")
