@@ -37,6 +37,7 @@ include "ucp_py_buffer_helper.pyx"
 PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
+UCP_INITIALIZED = False
 
 def handle_msg(msg):
     """
@@ -544,8 +545,14 @@ def init():
     0 if initialization was successful
     """
     global UCX_FILE_DESCRIPTOR
+    global UCP_INITIALIZED
+
+    if UCP_INITIALIZED:
+        return 0
 
     rval = ucp_py_init()
+    if 0 == rval:
+        UCP_INITIALIZED = True
 
     while UCX_FILE_DESCRIPTOR == -1:
         UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
@@ -649,8 +656,11 @@ def fin():
     -------
     0 if resources freed successfully
     """
+    global UCP_INITIALIZED
 
-    return ucp_py_finalize()
+    if UCP_INITIALIZED:
+        UCP_INITIALIZED = False
+        return ucp_py_finalize()
 
 
 def get_endpoint(peer_ip, peer_port):
