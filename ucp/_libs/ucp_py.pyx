@@ -34,7 +34,7 @@ include "ucp_py_buffer_helper.pyx"
 # Right now, get_endpoint just throws the endpoint to handle_msg,
 # which we've hacked up to handle them.
 
-PENDING_MESSAGES = {}  # type: Dict[ucp_msg, Future]
+PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
 
@@ -46,7 +46,7 @@ def handle_msg(msg):
 
     Parameters
     ----------
-    msg : ucp_msg
+    msg : Message
         The message representing the sent or recv'd objeect
 
     Returns
@@ -148,10 +148,10 @@ class ListenerFuture(concurrent.futures.Future):
     # TODO: I think this can be simplified a lot. AFAICT, this serves
     # three roles:
     # 1. Provide a simple box for passing `cb` down to `accept_callback`,
-    #    the `cdef void *` function that gives `cb` the ucp_ep.
+    #    the `cdef void *` function that gives `cb` the ep.
     # 2. Provides the user something to await. I wonder if we can return
     #    a Future.
-    # 3. We attach `ucp_listener` to this as well. Not sure if important
+    # 3. We attach `listener` to this as well. Not sure if important
     #    still.
 
     _instances = WeakValueDictionary()
@@ -163,7 +163,7 @@ class ListenerFuture(concurrent.futures.Future):
         self.cb = cb
         self.is_coroutine = is_coroutine
         self.coroutine = None
-        self.ucp_listener = None
+        self.listener = None
         self.future = asyncio.Future()
         self._instances[id(self)] = self
         super(ListenerFuture, self).__init__()
@@ -181,55 +181,55 @@ class ListenerFuture(concurrent.futures.Future):
     def __del__(self):
         pass
 
-cdef class ucp_py_ep:
+cdef class Endpoint:
     """A class that represents an endpoint connected to a peer
     """
 
-    cdef void* ucp_ep
+    cdef void* ep
     cdef int ptr_set
 
     def __cinit__(self):
         return
 
     def connect(self, ip, port):
-        self.ucp_ep = ucp_py_get_ep(ip, port)
+        self.ep = ucp_py_get_ep(ip, port)
         return
 
     def recv_future(self, name='recv-future'):
         """Blind receive operation"""
-        recv_msg = ucp_msg(None, name=name)
-        recv_msg.ucp_ep = self.ucp_ep
+        recv_msg = Message(None, name=name)
+        recv_msg.ep = self.ep
         recv_msg.is_blind = 1
         ucp_py_ep_post_probe()
         fut = handle_msg(recv_msg)
         return fut
 
-    def recv_fast(self, ucp_msg msg, len):
+    def recv_fast(self, Message msg, len):
         """Receive msg allocated using buffer region class
 
         Returns
         -------
-        ucp_comm_request object
+        CommRequest object
         """
-        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, len)
+        msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def send_fast(self, ucp_msg msg, len):
+    def send_fast(self, Message msg, len):
         """Send msg generated using buffer region class
 
         Returns
         -------
-        ucp_comm_request object
+        CommRequest object
         """
 
-        msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, msg.buf, len)
+        msg.ctx_ptr = ucp_py_ep_send_nb(self.ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def _recv(self, buffer_region buf_reg, int nbytes, name):
+    def _recv(self, BufferRegion buf_reg, int nbytes, name):
         # helper for recv_obj, recv_into
-        msg = ucp_msg(buf_reg, name=name)
-        msg.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, msg.buf, nbytes)
-        msg.ucp_ep = self.ucp_ep
+        msg = Message(buf_reg, name=name)
+        msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, nbytes)
+        msg.ep = self.ep
         msg.comm_len = nbytes
         msg.ctx_ptr_set = 1
 
@@ -240,7 +240,7 @@ cdef class ucp_py_ep:
         """
         Receive into an existing block of memory.
         """
-        buf_reg = buffer_region()
+        buf_reg = BufferRegion()
         buf_reg.shape[0] = nbytes
         if hasattr(buffer, '__cuda_array_interface__'):
             buf_reg.populate_cuda_ptr(buffer)
@@ -265,7 +265,7 @@ cdef class ucp_py_ep:
         -------
         Future
             A future. Upon completion of the recieve, the future will
-            become avaliable. Its result is a :class:`ucp_py_msg`. The
+            become avaliable. Its result is a :class:`Message`. The
             contents of the message can be objtained with
             :meth:`get_obj_from_msg`.
 
@@ -283,9 +283,9 @@ cdef class ucp_py_ep:
         >>> msg = await ep.recv_obj(1000, cuda=True)
         >>> result = ucp.get_obj_from_msg(msg)
         >>> result
-        <ucp_py._libs.ucp_py.buffer_region at 0x...>
+        <ucp_py._libs.ucp_py.BufferRegion at 0x...>
         """
-        buf_reg = buffer_region()
+        buf_reg = BufferRegion()
         if cuda:
             buf_reg.alloc_cuda(nbytes)
             buf_reg._is_cuda = 1
@@ -295,12 +295,12 @@ cdef class ucp_py_ep:
         return self._recv(buf_reg, nbytes, name)
 
     def _send_obj_cuda(self, obj):
-        buf_reg = buffer_region()
+        buf_reg = BufferRegion()
         buf_reg.populate_cuda_ptr(obj)
         return buf_reg
 
     def _send_obj_host(self, format_[:] obj):
-        buf_reg = buffer_region()
+        buf_reg = BufferRegion()
         buf_reg.populate_ptr(obj)
         return buf_reg
 
@@ -317,7 +317,7 @@ cdef class ucp_py_ep:
 
         Returns
         -------
-        ucp_comm_request object
+        CommRequest object
         """
         if hasattr(msg, '__cuda_array_interface__'):
             buf_reg = self._send_obj_cuda(msg)
@@ -332,10 +332,10 @@ cdef class ucp_py_ep:
             else:
                 nbytes = len(msg)
 
-        internal_msg = ucp_msg(buf_reg, name=name, length=nbytes)
-        internal_msg.ucp_ep = self.ucp_ep
+        internal_msg = Message(buf_reg, name=name, length=nbytes)
+        internal_msg.ep = self.ep
 
-        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ucp_ep, internal_msg.buf, nbytes)
+        internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ep, internal_msg.buf, nbytes)
         internal_msg.comm_len = nbytes
         internal_msg.ctx_ptr_set = 1
 
@@ -343,13 +343,13 @@ cdef class ucp_py_ep:
         return fut
 
     def close(self):
-        if -1 == ucp_py_put_ep(self.ucp_ep):
+        if -1 == ucp_py_put_ep(self.ep):
             raise NameError('Failed to close endpoint')
 
-cdef class ucp_listener:
+cdef class Listener:
     cdef void* listener_ptr
 
-cdef class ucp_msg:
+cdef class Message:
     """A class that represents the message associated with a
     communication request
     """
@@ -357,22 +357,22 @@ cdef class ucp_msg:
     cdef ucx_context* ctx_ptr
     cdef int ctx_ptr_set
     cdef data_buf* buf
-    cdef void* ucp_ep
+    cdef void* ep
     cdef int is_cuda
     cdef int alloc_len
     cdef int comm_len
     cdef int internally_allocated
-    cdef buffer_region buf_reg
+    cdef BufferRegion buf_reg
     cdef str _name
     cdef int _length
     cdef int is_blind
 
-    def __cinit__(self, buffer_region buf_reg, name='', length=-1):
+    def __cinit__(self, BufferRegion buf_reg, name='', length=-1):
         self._name = name
         self._length = length
 
         if buf_reg is None:
-            self.buf_reg = buffer_region()
+            self.buf_reg = BufferRegion()
             return
         else:
             self.buf = buf_reg.buf
@@ -385,7 +385,7 @@ cdef class ucp_msg:
         return
 
     def __repr__(self):
-        return f'<ucp_msg {self.name}>'
+        return f'<Message {self.name}>'
 
     @property
     def name(self):
@@ -431,7 +431,7 @@ cdef class ucp_msg:
     def get_comm_request(self, len):
         self.comm_len = len
         self.ctx_ptr_set = 1
-        return ucp_comm_request(self)
+        return CommRequest(self)
 
     def check(self):
         if self.ctx_ptr_set:
@@ -447,11 +447,11 @@ cdef class ucp_msg:
                 return 0
 
     def probe_wo_progress(self):
-        len = ucp_py_probe_query_wo_progress(self.ucp_ep)
+        len = ucp_py_probe_query_wo_progress(self.ep)
         if -1 != len:
             self.alloc_host(len)
             self.internally_allocated = 1
-            self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
+            self.ctx_ptr = ucp_py_recv_nb(self.ep, self.buf, len)
             self.comm_len = len
             self.ctx_ptr_set = 1
             return len
@@ -461,11 +461,11 @@ cdef class ucp_msg:
         if self.ctx_ptr_set:
             return ucp_py_query_request(self.ctx_ptr)
         else:
-            len = ucp_py_probe_query(self.ucp_ep)
+            len = ucp_py_probe_query(self.ep)
             if -1 != len:
                 self.alloc_host(len)
                 self.internally_allocated = 1
-                self.ctx_ptr = ucp_py_recv_nb(self.ucp_ep, self.buf, len)
+                self.ctx_ptr = ucp_py_recv_nb(self.ep, self.buf, len)
                 self.comm_len = len
                 self.ctx_ptr_set = 1
                 return ucp_py_query_request(self.ctx_ptr)
@@ -487,9 +487,9 @@ cdef class ucp_msg:
 
         Returns
         -------
-        obj: memoryview or buffer_region
+        obj: memoryview or BufferRegion
             For CPU receives, this returns a memoryview on the buffer.
-            For GPU receives, this returns a `buffer_region`, which
+            For GPU receives, this returns a `BufferRegion`, which
             implements the CUDA array interface. Note that the metadata
             like ``typestr`` and ``shape`` may be incorrect. This will
             need to be manually fixed before consuming the buffer.
@@ -504,13 +504,13 @@ cdef class ucp_msg:
         return self.buf_reg
 
 
-cdef class ucp_comm_request:
+cdef class CommRequest:
     """A class that represents a communication request"""
 
-    cdef ucp_msg msg
+    cdef Message msg
     cdef int done_state
 
-    def __cinit__(self, ucp_msg msg):
+    def __cinit__(self, Message msg):
         self.msg = msg
         self.done_state = 0
 
@@ -526,8 +526,8 @@ cdef class ucp_comm_request:
 
 
 cdef void accept_callback(void *client_ep_ptr, void *lf):
-    client_ep = ucp_py_ep()
-    client_ep.ucp_ep = client_ep_ptr
+    client_ep = Endpoint()
+    client_ep.ep = client_ep_ptr
     listener_instance = (<object> lf)
     if not listener_instance.is_coroutine:
         (listener_instance.cb)(client_ep, listener_instance)
@@ -575,7 +575,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     global reader_added
     cdef int port
 
-    listener = ucp_listener()
+    listener = Listener()
     loop = asyncio.get_event_loop()
 
     lf = ListenerFuture(py_func, is_coroutine)
@@ -598,7 +598,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     max_tries = 10000 # Arbitrary for now
     num_tries = 0
     while True:
-	    
+
         if 0 == port:
             """ Ref https://unix.stackexchange.com/a/132524"""
             import socket
@@ -610,7 +610,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
 
         listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
         if <void *> NULL != listener.listener_ptr:
-            lf.ucp_listener = listener
+            lf.listener = listener
             lf.port = port
             return lf
 
@@ -631,10 +631,10 @@ def stop_listener(lf):
     """
 
     global reader_added
-    cdef ucp_listener listener
+    cdef Listener listener
     if lf.is_coroutine:
         lf.future.set_result(None)
-    listener = lf.ucp_listener
+    listener = lf.listener
     ucp_py_stop_listener(listener.listener_ptr)
     #reader_added = 0
 
@@ -665,13 +665,13 @@ def get_endpoint(peer_ip, peer_port):
 
     Returns
     -------
-    An endpoint object of class `ucp_py_ep` on which methods like
+    An endpoint object of class `Endpoint` on which methods like
     `send_msg` and `recv_msg` may be called
     """
     global UCX_FILE_DESCRIPTOR
     global reader_added
 
-    ep = ucp_py_ep()
+    ep = Endpoint()
     ep.connect(peer_ip, peer_port)
 
     if 0 == reader_added:
@@ -695,12 +695,12 @@ def progress():
 
     ucp_py_worker_progress()
 
-def destroy_ep(ucp_ep):
+def destroy_ep(ep):
     """Destroy an existing endpoint connection to a peer
 
     Parameters
     ----------
-    ucp_ep: ucp_py_ep
+    ep: Endpoint
         endpoint to peer
 
     Returns
@@ -708,7 +708,7 @@ def destroy_ep(ucp_ep):
     0 if successful
     """
 
-    ucp_ep.close()
+    ep.close()
 
 def set_cuda_dev(dev):
     cuda_check()
@@ -716,13 +716,13 @@ def set_cuda_dev(dev):
 
 
 def get_obj_from_msg(msg):
-    """Get object associated with a received ucp_msg
+    """Get object associated with a received Message
 
     Parameters
     ----------
-    msg: ucp_msg
+    msg: Message
         msg received from `recv_msg` or `recv_future` methods of
-        ucp_py_ep
+        Endpoint
 
     Returns
     -------

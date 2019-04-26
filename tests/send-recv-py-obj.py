@@ -28,7 +28,7 @@ import ucp
 
 def get_msg(base, obj_type):
     """
-    Construct the message from bytes or a buffer_region.
+    Construct the message from bytes or a BufferRegion.
     """
     if obj_type == "bytes":
         return bytes(base)
