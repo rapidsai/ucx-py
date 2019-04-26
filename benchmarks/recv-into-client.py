@@ -75,6 +75,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
             print('\n')
             print(df)
 
+        await ep.send_obj(np.ones(1))
         ep.close()
         ucp.stop_listener(lf)
 
@@ -119,6 +120,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
     print(format_bytes(2 * n_iter * arr.nbytes / took), '/ s')
     print("===================")
 
+    await ep.recv_future()
     ep.close()
 
 
