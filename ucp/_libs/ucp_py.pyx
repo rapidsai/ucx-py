@@ -151,7 +151,7 @@ class ListenerFuture(concurrent.futures.Future):
     #    the `cdef void *` function that gives `cb` the ep.
     # 2. Provides the user something to await. I wonder if we can return
     #    a Future.
-    # 3. We attach `ucp_listener` to this as well. Not sure if important
+    # 3. We attach `listener` to this as well. Not sure if important
     #    still.
 
     _instances = WeakValueDictionary()
@@ -163,7 +163,7 @@ class ListenerFuture(concurrent.futures.Future):
         self.cb = cb
         self.is_coroutine = is_coroutine
         self.coroutine = None
-        self.ucp_listener = None
+        self.listener = None
         self.future = asyncio.Future()
         self._instances[id(self)] = self
         super(ListenerFuture, self).__init__()
@@ -597,7 +597,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     port = listener_port
     listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
     if <void *> NULL != listener.listener_ptr:
-        lf.ucp_listener = listener
+        lf.listener = listener
         lf.port = port
     return lf
 
@@ -618,7 +618,7 @@ def stop_listener(lf):
     cdef UCPListener listener
     if lf.is_coroutine:
         lf.future.set_result(None)
-    listener = lf.ucp_listener
+    listener = lf.listener
     ucp_py_stop_listener(listener.listener_ptr)
     #reader_added = 0
 
