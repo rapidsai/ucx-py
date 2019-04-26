@@ -2,19 +2,19 @@
 # See file LICENSE for terms.
 #
 # Description: 2-process test that tests the functionality of sending
-# and receiving UCPMessage objects populated using buffer_region
+# and receiving Message objects populated using buffer_region
 # objects. buffer_region objects encapsulate the actual buffers which
 # are transferred.
 #
 # Server Steps:
 # 1. activate listener
 # 2. Obtains the coroutine that accepts incoming connection -> coro
-# 3. When connection is established, first send a `UCPMessage` object and
+# 3. When connection is established, first send a `Message` object and
 #    then receive
 #
 # Client Steps:
 # 1. Obtains the coroutine that connects to server -> coro
-# 2. When connection is established, first recv and then send `UCPMessage`
+# 2. When connection is established, first recv and then send `Message`
 #    object to and from server respectively
 
 import ucp
@@ -41,7 +41,7 @@ async def talk_to_client(ep):
     send_buffer_region = ucp.BufferRegion()
     send_buffer_region.alloc_cuda(1 << msg_log)
 
-    send_msg = ucp.UCPMessage(send_buffer_region)
+    send_msg = ucp.Message(send_buffer_region)
 
     recv_msg = None
     recv_buffer_region = None
@@ -50,7 +50,7 @@ async def talk_to_client(ep):
     if not args.blind_recv:
         recv_buffer_region = ucp.BufferRegion()
         recv_buffer_region.alloc_cuda(1 << msg_log)
-        recv_msg = ucp.UCPMessage(recv_buffer_region)
+        recv_msg = ucp.Message(recv_buffer_region)
 
     if args.use_fast:
         send_req = await ep.send_fast(send_msg, 1 << msg_log)
@@ -100,9 +100,9 @@ async def talk_to_server(ip, port):
     if not args.blind_recv:
         recv_buffer_region = ucp.BufferRegion()
         recv_buffer_region.alloc_cuda(1 << msg_log)
-        recv_msg = ucp.UCPMessage(recv_buffer_region)
+        recv_msg = ucp.Message(recv_buffer_region)
 
-    send_msg = ucp.UCPMessage(send_buffer_region)
+    send_msg = ucp.Message(send_buffer_region)
 
     if not args.blind_recv:
         if args.use_fast:

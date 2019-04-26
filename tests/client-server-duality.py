@@ -38,7 +38,7 @@ async def talk_to_client(ep, listener):
     send_buffer_region = ucp.BufferRegion()
     send_buffer_region.alloc_host(1 << msg_log)
 
-    send_msg = ucp.UCPMessage(send_buffer_region)
+    send_msg = ucp.Message(send_buffer_region)
 
     recv_msg = None
     recv_buffer_region = None
@@ -47,7 +47,7 @@ async def talk_to_client(ep, listener):
     if not args.blind_recv:
         recv_buffer_region = ucp.BufferRegion()
         recv_buffer_region.alloc_host(1 << msg_log)
-        recv_msg = ucp.UCPMessage(recv_buffer_region)
+        recv_msg = ucp.Message(recv_buffer_region)
 
     if args.check_data:
         send_msg.set_mem(0, 1 << msg_log)
@@ -93,7 +93,7 @@ async def talk_to_server(ip, port):
     send_buffer_region = ucp.BufferRegion()
     send_buffer_region.alloc_host(1 << msg_log)
 
-    send_msg = ucp.UCPMessage(send_buffer_region)
+    send_msg = ucp.Message(send_buffer_region)
 
     recv_msg = None
     recv_buffer_region = None
@@ -102,7 +102,7 @@ async def talk_to_server(ip, port):
     if not args.blind_recv:
         recv_buffer_region = ucp.BufferRegion()
         recv_buffer_region.alloc_host(1 << msg_log)
-        recv_msg = ucp.UCPMessage(recv_buffer_region)
+        recv_msg = ucp.Message(recv_buffer_region)
 
     if args.check_data:
         send_msg.set_mem(1, 1 << msg_log)

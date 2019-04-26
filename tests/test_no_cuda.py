@@ -23,6 +23,6 @@ def test_set_cuda_dev_raises():
     with pytest.raises(ValueError, match=msg):
         ucp.set_cuda_dev(0)
 
-# No test for UCPMessage.check_mem, as I think it's impossible
-# to construct a UCPMessage with a CUDA BufferRegion without
+# No test for Message.check_mem, as I think it's impossible
+# to construct a Message with a CUDA BufferRegion without
 # CUDA.

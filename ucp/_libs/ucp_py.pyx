@@ -34,7 +34,7 @@ include "ucp_py_buffer_helper.pyx"
 # Right now, get_endpoint just throws the endpoint to handle_msg,
 # which we've hacked up to handle them.
 
-PENDING_MESSAGES = {}  # type: Dict[UCPMessage, Future]
+PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
 
@@ -46,7 +46,7 @@ def handle_msg(msg):
 
     Parameters
     ----------
-    msg : UCPMessage
+    msg : Message
         The message representing the sent or recv'd objeect
 
     Returns
@@ -181,7 +181,7 @@ class ListenerFuture(concurrent.futures.Future):
     def __del__(self):
         pass
 
-cdef class EndPoint:
+cdef class Endpoint:
     """A class that represents an endpoint connected to a peer
     """
 
@@ -197,14 +197,14 @@ cdef class EndPoint:
 
     def recv_future(self, name='recv-future'):
         """Blind receive operation"""
-        recv_msg = UCPMessage(None, name=name)
+        recv_msg = Message(None, name=name)
         recv_msg.ep = self.ep
         recv_msg.is_blind = 1
         ucp_py_ep_post_probe()
         fut = handle_msg(recv_msg)
         return fut
 
-    def recv_fast(self, UCPMessage msg, len):
+    def recv_fast(self, Message msg, len):
         """Receive msg allocated using buffer region class
 
         Returns
@@ -214,7 +214,7 @@ cdef class EndPoint:
         msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def send_fast(self, UCPMessage msg, len):
+    def send_fast(self, Message msg, len):
         """Send msg generated using buffer region class
 
         Returns
@@ -227,7 +227,7 @@ cdef class EndPoint:
 
     def _recv(self, BufferRegion buf_reg, int nbytes, name):
         # helper for recv_obj, recv_into
-        msg = UCPMessage(buf_reg, name=name)
+        msg = Message(buf_reg, name=name)
         msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, nbytes)
         msg.ep = self.ep
         msg.comm_len = nbytes
@@ -265,7 +265,7 @@ cdef class EndPoint:
         -------
         Future
             A future. Upon completion of the recieve, the future will
-            become avaliable. Its result is a :class:`UCPMessage`. The
+            become avaliable. Its result is a :class:`Message`. The
             contents of the message can be objtained with
             :meth:`get_obj_from_msg`.
 
@@ -332,7 +332,7 @@ cdef class EndPoint:
             else:
                 nbytes = len(msg)
 
-        internal_msg = UCPMessage(buf_reg, name=name, length=nbytes)
+        internal_msg = Message(buf_reg, name=name, length=nbytes)
         internal_msg.ep = self.ep
 
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ep, internal_msg.buf, nbytes)
@@ -346,10 +346,10 @@ cdef class EndPoint:
         if -1 == ucp_py_put_ep(self.ep):
             raise NameError('Failed to close endpoint')
 
-cdef class UCPListener:
+cdef class Listener:
     cdef void* listener_ptr
 
-cdef class UCPMessage:
+cdef class Message:
     """A class that represents the message associated with a
     communication request
     """
@@ -385,7 +385,7 @@ cdef class UCPMessage:
         return
 
     def __repr__(self):
-        return f'<UCPMessage {self.name}>'
+        return f'<Message {self.name}>'
 
     @property
     def name(self):
@@ -507,10 +507,10 @@ cdef class UCPMessage:
 cdef class CommRequest:
     """A class that represents a communication request"""
 
-    cdef UCPMessage msg
+    cdef Message msg
     cdef int done_state
 
-    def __cinit__(self, UCPMessage msg):
+    def __cinit__(self, Message msg):
         self.msg = msg
         self.done_state = 0
 
@@ -526,7 +526,7 @@ cdef class CommRequest:
 
 
 cdef void accept_callback(void *client_ep_ptr, void *lf):
-    client_ep = EndPoint()
+    client_ep = Endpoint()
     client_ep.ep = client_ep_ptr
     listener_instance = (<object> lf)
     if not listener_instance.is_coroutine:
@@ -575,7 +575,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     global reader_added
     cdef int port
 
-    listener = UCPListener()
+    listener = Listener()
     loop = asyncio.get_event_loop()
 
     lf = ListenerFuture(py_func, is_coroutine)
@@ -631,7 +631,7 @@ def stop_listener(lf):
     """
 
     global reader_added
-    cdef UCPListener listener
+    cdef Listener listener
     if lf.is_coroutine:
         lf.future.set_result(None)
     listener = lf.listener
@@ -665,13 +665,13 @@ def get_endpoint(peer_ip, peer_port):
 
     Returns
     -------
-    An endpoint object of class `EndPoint` on which methods like
+    An endpoint object of class `Endpoint` on which methods like
     `send_msg` and `recv_msg` may be called
     """
     global UCX_FILE_DESCRIPTOR
     global reader_added
 
-    ep = EndPoint()
+    ep = Endpoint()
     ep.connect(peer_ip, peer_port)
 
     if 0 == reader_added:
@@ -700,7 +700,7 @@ def destroy_ep(ep):
 
     Parameters
     ----------
-    ep: EndPoint
+    ep: Endpoint
         endpoint to peer
 
     Returns
@@ -716,13 +716,13 @@ def set_cuda_dev(dev):
 
 
 def get_obj_from_msg(msg):
-    """Get object associated with a received UCPMessage
+    """Get object associated with a received Message
 
     Parameters
     ----------
-    msg: UCPMessage
+    msg: Message
         msg received from `recv_msg` or `recv_future` methods of
-        EndPoint
+        Endpoint
 
     Returns
     -------
