@@ -28,7 +28,7 @@ import ucp
 
 def get_msg(base, obj_type):
     """
-    Construct the message from bytes or a buffer_region.
+    Construct the message from bytes or a BufferRegion.
     """
     if obj_type == "bytes":
         return bytes(base)
@@ -45,6 +45,13 @@ def get_msg(base, obj_type):
             return cupy.asarray(memoryview(base), dtype="u1")
         else:
             return cupy.asarray(base)
+    elif obj_type == "numba":
+        import numba
+        import numba.cuda
+        import numpy as np
+        np_arr = np.frombuffer(base, dtype="u1")
+        numba_arr = numba.cuda.to_device(np_arr)
+        return numba_arr
     else:
         raise ValueError(obj_type)
 
@@ -63,6 +70,14 @@ def check(a, b, obj_type):
         import cupy
 
         cupy.testing.assert_array_equal(a, b)
+    elif obj_type == "numba":
+        import numba
+        import numba.cuda
+        import numpy as np
+
+        np_a = a.copy_to_host()
+        np_b = b.copy_to_host()
+        np.testing.assert_array_equal(np_a, np_b)
     else:
         raise ValueError(obj_type)
 
@@ -117,7 +132,7 @@ parser.add_argument(
     "-o",
     "--object_type",
     help="Send object type. Default = bytes",
-    choices=["bytes", "memoryview", "numpy", "cupy"],
+    choices=["bytes", "memoryview", "numpy", "cupy", "numba"],
     default="bytes",
 )
 parser.add_argument(

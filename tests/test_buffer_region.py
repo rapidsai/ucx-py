@@ -5,7 +5,7 @@ import ucp
 
 def test_set_read():
     obj = memoryview(b'hi')
-    buffer_region = ucp.buffer_region()
+    buffer_region = ucp.BufferRegion()
     buffer_region.populate_ptr(obj)
     res = memoryview(buffer_region)
     assert bytes(res) == bytes(obj)
@@ -24,7 +24,7 @@ def test_numpy(dtype, data):
     np = pytest.importorskip("numpy")
     arr = np.ones(10, dtype)
 
-    buffer_region = ucp.buffer_region()
+    buffer_region = ucp.BufferRegion()
 
     if data:
         buffer_region.populate_ptr(arr.data)
@@ -42,7 +42,7 @@ def test_cupy(dtype):
     cupy = pytest.importorskip('cupy')
     arr = cupy.ones(10, dtype)
 
-    buffer_region = ucp.buffer_region()
+    buffer_region = ucp.BufferRegion()
     buffer_region.populate_cuda_ptr(arr)
 
     result = cupy.asarray(buffer_region)
