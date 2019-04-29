@@ -46,9 +46,11 @@ def get_avg_us(lat, max_iters):
     return (lat / 2) / max_iters * 1_000_000
 
 
-async def recv(ep, size):
+async def recv(ep, size, recv_obj=None):
     if args.blind_recv:
         resp = await ep.recv_future()
+    elif args.recv_into:
+        resp = await ep.recv_into(recv_obj, size)
     else:
         resp = await ep.recv_obj(size)
 
@@ -62,16 +64,17 @@ async def talk_to_client_async(ep, listener):
     for i in range(msg_log):
         msg_len = 2 ** i
         send_obj = b'0' * msg_len
+        recv_obj = b'0' * msg_len
 
         for j in range(warmup_iters):
             await ep.send_obj(send_obj)
-            await recv(ep, msg_len)
+            await recv(ep, msg_len, recv_obj)
 
         start = time.time()
 
         for j in range(max_iters):
             await ep.send_obj(send_obj)
-            await recv(ep, msg_len)
+            await recv(ep, msg_len, recv_obj)
 
         end = time.time()
         lat = end - start
@@ -91,15 +94,16 @@ async def talk_to_server_async(ip, port):
     for i in range(msg_log):
         msg_len = 2 ** i
         send_obj = b'0' * msg_len
+        recv_obj = b'0' * msg_len
 
         for j in range(warmup_iters):
-            await recv(ep, msg_len)
+            await recv(ep, msg_len, recv_obj)
             await ep.send_obj(send_obj)
 
         start = time.time()
 
         for j in range(max_iters):
-            await recv(ep, msg_len)
+            await recv(ep, msg_len, recv_obj)
             await ep.send_obj(send_obj)
 
         end = time.time()
@@ -119,6 +123,7 @@ parser.add_argument('-m', '--mem_type', help='host/cuda (default = host)', requi
 parser.add_argument('-a', '--use_asyncio', help='use asyncio execution (default = false)', action="store_true")
 # parser.add_argument('-f', '--use_fast', help='use fast send/recv (default = false)', action="store_true")
 parser.add_argument('-b', '--blind_recv', help='use blind recv (default = false)', action="store_true")
+parser.add_argument('-r', '--recv_into', help='use recv_into (default = false)', action="store_true")
 parser.add_argument('-w', '--wait', help='wait after every send/recv (default = false)', action="store_true")
 args = parser.parse_args()
 
