@@ -194,6 +194,8 @@ cdef class Endpoint:
 
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
+        if <void *> NULL == self.ep:
+            raise NameError('Failed to connect to remote endpoint')
         return
 
     def recv_future(self, name='recv-future'):
