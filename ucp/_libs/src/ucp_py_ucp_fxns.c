@@ -274,7 +274,7 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
     return request;
 
 err_ep:
-    ucp_ep_destroy(*((ucp_ep_h *) int_ep->ep_ptr));
+    ucp_ep_close_nb(*((ucp_ep_h *) int_ep->ep_ptr), UCP_EP_CLOSE_MODE_FLUSH);
     return request;
 }
 
@@ -374,7 +374,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     return request;
 
 err_ep:
-    ucp_ep_destroy(*((ucp_ep_h *) int_ep->ep_ptr));
+    ucp_ep_close_nb(*((ucp_ep_h *) int_ep->ep_ptr), UCP_EP_CLOSE_MODE_FLUSH);
     return request;
 }
 
@@ -593,6 +593,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     if (status != UCS_OK) {
         ERROR_PRINT("failed to connect to %s (%s)\n", ip,
                     ucs_status_string(status));
+	return NULL;
     }
     internal_ep->ep_ptr = ep_ptr;
     sprintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
@@ -625,8 +626,10 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     return (void *) internal_ep;
 
 err_ep:
-    ucp_ep_destroy(*ep_ptr);
-    exit(-1);
+    if (UCS_PTR_IS_ERR(ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FLUSH))) {
+        ERROR_PRINT("failed to close ep (%s)\n", ucs_status_string(status));
+    }
+    return NULL;
 }
 
 int ucp_py_put_ep(void *internal_ep)
