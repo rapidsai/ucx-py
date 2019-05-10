@@ -5,6 +5,9 @@ import concurrent.futures
 import asyncio
 import time
 import sys
+import logging
+import os
+import socket
 from weakref import WeakValueDictionary
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
@@ -38,6 +41,40 @@ PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
 UCP_INITIALIZED = False
+LOGGER = None
+
+def ucp_logger(fxn):
+
+    """
+    Ref https://realpython.com/python-logging
+    Ref https://realpython.com/primer-on-python-decorators
+    """
+
+    global LOGGER
+    log_level='WARNING'
+    LOGGER = logging.getLogger(__name__)
+    f_handler = logging.FileHandler('/tmp/ucxpy-' + socket.gethostname() + '-' + str(os.getpid()) + '.log')
+    f_handler.setLevel(logging.DEBUG)
+    f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    f_handler.setFormatter(f_format)
+    LOGGER.addHandler(f_handler)
+    LOGGER.setLevel(logging.getLevelName(log_level))
+    if (None != os.environ.get('UCXPY_LOG_LEVEL')):
+        LOGGER.setLevel(logging.getLevelName(os.environ.get('UCXPY_LOG_LEVEL')))
+        def wrapper(*args, **kwargs):
+            args_repr = [repr(a) for a in args]
+            kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+            signature = ", ".join(args_repr + kwargs_repr)
+            LOGGER.debug(f"Calling {fxn.__name__}({signature})")
+            rval = fxn(*args, **kwargs)
+            LOGGER.debug(f"{fxn.__name__!r} returned {rval!r}")
+            return rval
+    else:
+        return fxn
+    LOGGER.debug('done with ucxpy init')
+    
+
+    return wrapper
 
 def handle_msg(msg):
     """
@@ -86,6 +123,7 @@ def handle_msg(msg):
 
     return fut
 
+@ucp_logger
 def on_activity_cb():
     """
     Advance any outstanding messages.
@@ -198,6 +236,7 @@ cdef class Endpoint:
             raise NameError('Failed to connect to remote endpoint')
         return
 
+    @ucp_logger
     def recv_future(self, name='recv-future'):
         """Blind receive operation"""
         recv_msg = Message(None, name=name)
@@ -239,6 +278,7 @@ cdef class Endpoint:
         fut = handle_msg(msg)
         return fut
 
+    @ucp_logger
     def recv_into(self, buffer, nbytes, name='recv_into'):
         """
         Receive into an existing block of memory.
@@ -251,6 +291,7 @@ cdef class Endpoint:
             buf_reg.populate_ptr(buffer)
         return self._recv(buf_reg, nbytes, name)
 
+    @ucp_logger
     def recv_obj(self, nbytes, name='recv_obj', cuda=False):
         """
         Recieve into a newly allocated block of memory.
@@ -307,6 +348,7 @@ cdef class Endpoint:
         buf_reg.populate_ptr(obj)
         return buf_reg
 
+    @ucp_logger
     def send_obj(self, msg, nbytes=None, name='send_obj'):
         """Send an object as a message.
 
@@ -548,6 +590,7 @@ def init():
     """
     global UCX_FILE_DESCRIPTOR
     global UCP_INITIALIZED
+    global LOGGER
 
     if UCP_INITIALIZED:
         return 0
@@ -561,6 +604,7 @@ def init():
 
     return rval
 
+@ucp_logger
 def start_listener(py_func, listener_port = -1, is_coroutine = False):
     """Start listener to accept incoming connections
 
@@ -647,6 +691,7 @@ def stop_listener(lf):
     ucp_py_stop_listener(listener.listener_ptr)
     #reader_added = 0
 
+@ucp_logger
 def fin():
     """Release ucp resources like ucp_context and ucp_worker
 
@@ -664,7 +709,7 @@ def fin():
         UCP_INITIALIZED = False
         return ucp_py_finalize()
 
-
+@ucp_logger
 def get_endpoint(peer_ip, peer_port):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
@@ -707,6 +752,7 @@ def progress():
 
     ucp_py_worker_progress()
 
+@ucp_logger
 def destroy_ep(ep):
     """Destroy an existing endpoint connection to a peer
 
