@@ -233,8 +233,8 @@ cdef class Endpoint:
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
         if <void *> NULL == self.ep:
-            return -1
-        return 0
+            return False
+        return True
 
     @ucp_logger
     def recv_future(self, name='recv-future'):
@@ -710,7 +710,7 @@ def fin():
         return ucp_py_finalize()
 
 @ucp_logger
-async def get_endpoint(peer_ip, peer_port, timeout=10):
+async def get_endpoint(peer_ip, peer_port, timeout=None):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
     Parameters
@@ -729,18 +729,29 @@ async def get_endpoint(peer_ip, peer_port, timeout=10):
     global reader_added
 
     ep = Endpoint()
-    deadline = time.time() + timeout
     connection_established = False
-    while time.time() <= deadline:
-        if -1 == ep.connect(peer_ip, peer_port):
-            await asyncio.sleep(1)
+    ref_time = time.time()
+
+    def past_deadline(now):
+        if timeout is None:
+            return False
+        else:
+            if now < ref_time + timeout:
+                return False
+            else:
+                return True
+
+    while True:
+        if not ep.connect(peer_ip, peer_port):
+            await asyncio.sleep(0.1)
         else:
             connection_established = True
+
+        if past_deadline(time.time()) or connection_established:
             break
 
     if not connection_established:
-        raise NameError('Timeout in connection establishment attempt')
-        return None
+        raise TimeoutError
 
     if 0 == reader_added:
         loop = asyncio.get_event_loop()

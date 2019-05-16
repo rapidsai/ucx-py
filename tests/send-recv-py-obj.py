@@ -110,7 +110,7 @@ async def talk_to_client(ep, listener):
 
 async def talk_to_server(ip, port):
     # recv, send
-    ep = await ucp.get_endpoint(ip, port)
+    ep = await ucp.get_endpoint(ip, port, timeout=10)
 
     if not args.blind_recv:
         recv_req = await ep.recv_obj(args.n_bytes)
