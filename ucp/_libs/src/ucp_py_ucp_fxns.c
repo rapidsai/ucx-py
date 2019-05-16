@@ -38,9 +38,6 @@
 #define MAX_LISTEN_RETRIES 256
 #define MAX_LISTENERS 256
 
-#define EP_CONN_DEFAULT_RETRY_PERIOD 10
-#define EP_CONN_MAX_RETRIES          100
-
 #define EP_CONN_INIT   0
 #define EP_CONN_FAILED 1
 
@@ -76,7 +73,6 @@ typedef struct ucp_py_ctx {
     int epoll_fd_local;
     int epoll_fd;
     int num_listeners;
-    int connection_retry_period;
     struct epoll_event ev;
 } ucp_py_ctx_t;
 
@@ -593,7 +589,6 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     char tmp_str[TAG_STR_MAX_LEN];
     ucp_err_handler_t ep_err_hanlder;
     int connection_status = EP_CONN_INIT;
-    int num_retries = 0;
 
     ep_err_hanlder.cb = ep_err_handler_cb;
     ep_err_hanlder.arg = &connection_status;
@@ -611,7 +606,6 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
     ep_params.sockaddr.addrlen = sizeof(connect_addr);
 
- retry:
     status = ucp_ep_create(ucp_py_ctx_head->ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
         ERROR_PRINT("failed to connect to %s (%s)\n", ip,
@@ -632,20 +626,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
 	if (EP_CONN_FAILED == connection_status) {
-            ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
-            request_init(request);
-            ucp_request_free(request);
-            printf("connection failed. Retrying in %d seconds\n",
-                        ucp_py_ctx_head->connection_retry_period);
-            connection_status = EP_CONN_INIT;
-            sleep(ucp_py_ctx_head->connection_retry_period);
-            if (num_retries < EP_CONN_MAX_RETRIES) {
-                num_retries++;
-                goto retry;
-            }
-            else {
-                goto err_ep;
-            }
+	    goto conn_attempt_failed;
         }
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
@@ -653,21 +634,8 @@ void *ucp_py_get_ep(char *ip, int listener_port)
         do {
             status = ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
             if (EP_CONN_FAILED == connection_status) {
-                ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
-                request_init(request);
-                ucp_request_free(request);
-                printf("connection failed. Retrying in %d seconds\n",
-                            ucp_py_ctx_head->connection_retry_period);
-                connection_status = EP_CONN_INIT;
-                sleep(ucp_py_ctx_head->connection_retry_period);
-                if (num_retries < EP_CONN_MAX_RETRIES) {
-                    num_retries++;
-                    goto retry;
-                }
-                else {
-                    goto err_ep;
-                }
-            }
+		goto conn_attempt_failed;
+	    }
             //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
@@ -680,8 +648,13 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 
     return (void *) internal_ep;
 
-err_ep:
-    if (UCS_PTR_IS_ERR(ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FLUSH))) {
+ conn_attempt_failed:
+    ucp_request_cancel(ucp_py_ctx_head->ucp_worker, request);
+    request_init(request);
+    ucp_request_free(request);
+
+ err_ep:
+    if (UCS_PTR_IS_ERR(ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE))) {
         ERROR_PRINT("failed to close ep (%s)\n", ucs_status_string(status));
     }
     return NULL;
@@ -799,14 +772,6 @@ int ucp_py_init(void)
     ucp_py_ctx_head->epoll_fd = epoll_fd;
     ucp_py_ctx_head->epoll_fd_local = epoll_fd_local;
     ucp_py_ctx_head->ev = ev;
-    ucp_py_ctx_head->connection_retry_period = EP_CONN_DEFAULT_RETRY_PERIOD;
-    env_str = getenv("UCXPY_CONN_RETRY_PERIOD");
-    if (NULL != env_str) {
-	ucp_py_ctx_head->connection_retry_period = atoi(env_str);
-	if (ucp_py_ctx_head->connection_retry_period < 0) {
-	    ucp_py_ctx_head->connection_retry_period = EP_CONN_DEFAULT_RETRY_PERIOD;
-	}
-    }
 
     ucp_config_release(config);
     return 0;
