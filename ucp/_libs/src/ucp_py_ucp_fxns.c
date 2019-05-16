@@ -702,7 +702,6 @@ int ucp_py_init(void)
     int err = 0;
     int epoll_fd_local = 0, epoll_fd = 0;
     struct epoll_event ev;
-    char *env_str;
     ev.data.u64 = 0;
 
     if (0 != gethostname(my_hostname, HNAME_MAX_LEN)) goto err_py_init;
