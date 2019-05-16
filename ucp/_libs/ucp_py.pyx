@@ -710,7 +710,7 @@ def fin():
         return ucp_py_finalize()
 
 @ucp_logger
-async def get_endpoint(peer_ip, peer_port, timeout=5):
+async def get_endpoint(peer_ip, peer_port, timeout=10):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
     Parameters
@@ -729,11 +729,18 @@ async def get_endpoint(peer_ip, peer_port, timeout=5):
     global reader_added
 
     ep = Endpoint()
-    while True:
+    deadline = time.time() + timeout
+    connection_established = False
+    while time.time() <= deadline:
         if -1 == ep.connect(peer_ip, peer_port):
-            await asyncio.sleep(timeout)
+            await asyncio.sleep(1)
         else:
+            connection_established = True
             break
+
+    if not connection_established:
+        raise NameError('Timeout in connection establishment attempt')
+        return None
 
     if 0 == reader_added:
         loop = asyncio.get_event_loop()
