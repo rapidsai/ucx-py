@@ -233,8 +233,8 @@ cdef class Endpoint:
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
         if <void *> NULL == self.ep:
-            raise NameError('Failed to connect to remote endpoint')
-        return
+            return False
+        return True
 
     @ucp_logger
     def recv_future(self, name='recv-future'):
@@ -710,7 +710,7 @@ def fin():
         return ucp_py_finalize()
 
 @ucp_logger
-def get_endpoint(peer_ip, peer_port):
+async def get_endpoint(peer_ip, peer_port, timeout=None):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
     Parameters
@@ -729,7 +729,29 @@ def get_endpoint(peer_ip, peer_port):
     global reader_added
 
     ep = Endpoint()
-    ep.connect(peer_ip, peer_port)
+    connection_established = False
+    ref_time = time.time()
+
+    def past_deadline(now):
+        if timeout is None:
+            return False
+        else:
+            if now < ref_time + timeout:
+                return False
+            else:
+                return True
+
+    while True:
+        if not ep.connect(peer_ip, peer_port):
+            await asyncio.sleep(0.1)
+        else:
+            connection_established = True
+
+        if past_deadline(time.time()) or connection_established:
+            break
+
+    if not connection_established:
+        raise TimeoutError
 
     if 0 == reader_added:
         loop = asyncio.get_event_loop()
