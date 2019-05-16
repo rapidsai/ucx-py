@@ -38,6 +38,10 @@
 #define MAX_LISTEN_RETRIES 256
 #define MAX_LISTENERS 256
 
+#define EP_CONN_DEFAULT_RETRY_PERIOD 10
+#define EP_CONN_INIT   0
+#define EP_CONN_FAILED 1
+
 TAILQ_HEAD(tailhead, entry) cb_free_head, cb_used_head;
 struct entry {
     void *py_cb;                    /* pointer to python callback */
@@ -70,6 +74,7 @@ typedef struct ucp_py_ctx {
     int epoll_fd_local;
     int epoll_fd;
     int num_listeners;
+    int connection_retry_period;
     struct epoll_event ev;
 } ucp_py_ctx_t;
 
@@ -568,6 +573,13 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
     return status;
 }
 
+static void ep_err_handler_cb(void *arg, ucp_ep_h ep, ucs_status_t status)
+{
+    int *connection_status = arg;
+    DEBUG_PRINT(stderr, "Inside ep_err_handler_cb %d\n", *connection_status);
+    *connection_status = EP_CONN_FAILED;
+}
+
 void *ucp_py_get_ep(char *ip, int listener_port)
 {
     ucp_ep_params_t ep_params;
@@ -577,18 +589,26 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     ucp_py_internal_ep_t *internal_ep;
     struct ucx_context *request = 0;
     char tmp_str[TAG_STR_MAX_LEN];
+    ucp_err_handler_t ep_err_hanlder;
+    int connection_status = EP_CONN_INIT;
 
+    ep_err_hanlder.cb = ep_err_handler_cb;
+    ep_err_hanlder.arg = &connection_status;
+    
     internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     set_connect_addr(ip, &connect_addr, (uint16_t) listener_port);
     ep_params.field_mask       = UCP_EP_PARAM_FIELD_FLAGS     |
                                  UCP_EP_PARAM_FIELD_SOCK_ADDR |
+                                 UCP_EP_PARAM_FIELD_ERR_HANDLER |
                                  UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
     ep_params.err_mode         = UCP_ERR_HANDLING_MODE_PEER;
     ep_params.flags            = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
+    ep_params.err_handler      = ep_err_hanlder;
     ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
     ep_params.sockaddr.addrlen = sizeof(connect_addr);
 
+ retry:
     status = ucp_ep_create(ucp_py_ctx_head->ucp_worker, &ep_params, ep_ptr);
     if (status != UCS_OK) {
         ERROR_PRINT("failed to connect to %s (%s)\n", ip,
@@ -608,11 +628,31 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
+	if (EP_CONN_FAILED == connection_status) {
+	    ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
+	    request_init(request);
+	    ucp_request_free(request);
+	    DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
+			ucp_py_ctx_head->connection_retry_period);
+	    connection_status = EP_CONN_INIT;
+	    sleep(ucp_py_ctx_head->connection_retry_period);
+	    goto retry;
+	}
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
         do {
-            ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
+            status = ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
+            if (EP_CONN_FAILED == connection_status) {
+		ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
+		request_init(request);
+		ucp_request_free(request);
+                DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
+			    ucp_py_ctx_head->connection_retry_period);
+                connection_status = EP_CONN_INIT;
+		sleep(ucp_py_ctx_head->connection_retry_period);
+                goto retry;
+            }
             //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
         } while (status == UCS_INPROGRESS);
@@ -674,6 +714,7 @@ int ucp_py_init(void)
     int err = 0;
     int epoll_fd_local = 0, epoll_fd = 0;
     struct epoll_event ev;
+    char *env_str;
     ev.data.u64 = 0;
 
     if (0 != gethostname(my_hostname, HNAME_MAX_LEN)) goto err_py_init;
@@ -743,6 +784,14 @@ int ucp_py_init(void)
     ucp_py_ctx_head->epoll_fd = epoll_fd;
     ucp_py_ctx_head->epoll_fd_local = epoll_fd_local;
     ucp_py_ctx_head->ev = ev;
+    ucp_py_ctx_head->connection_retry_period = EP_CONN_DEFAULT_RETRY_PERIOD;
+    env_str = getenv("UCXPY_CONN_RETRY_PERIOD");
+    if (NULL != env_str) {
+	ucp_py_ctx_head->connection_retry_period = atoi(env_str);
+	if (ucp_py_ctx_head->connection_retry_period < 0) {
+	    ucp_py_ctx_head->connection_retry_period = EP_CONN_DEFAULT_RETRY_PERIOD;
+	}
+    }
 
     ucp_config_release(config);
     return 0;
