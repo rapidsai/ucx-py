@@ -635,7 +635,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
             ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
             request_init(request);
             ucp_request_free(request);
-            DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
+            printf("connection failed. Retrying in %d seconds\n",
                         ucp_py_ctx_head->connection_retry_period);
             connection_status = EP_CONN_INIT;
             sleep(ucp_py_ctx_head->connection_retry_period);
@@ -656,7 +656,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                 ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
                 request_init(request);
                 ucp_request_free(request);
-                DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
+                printf("connection failed. Retrying in %d seconds\n",
                             ucp_py_ctx_head->connection_retry_period);
                 connection_status = EP_CONN_INIT;
                 sleep(ucp_py_ctx_head->connection_retry_period);
