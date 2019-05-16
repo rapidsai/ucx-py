@@ -39,6 +39,8 @@
 #define MAX_LISTENERS 256
 
 #define EP_CONN_DEFAULT_RETRY_PERIOD 10
+#define EP_CONN_MAX_RETRIES          100
+
 #define EP_CONN_INIT   0
 #define EP_CONN_FAILED 1
 
@@ -591,6 +593,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     char tmp_str[TAG_STR_MAX_LEN];
     ucp_err_handler_t ep_err_hanlder;
     int connection_status = EP_CONN_INIT;
+    int num_retries = 0;
 
     ep_err_hanlder.cb = ep_err_handler_cb;
     ep_err_hanlder.arg = &connection_status;
@@ -629,29 +632,41 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     if (UCS_PTR_IS_ERR(request)) {
         fprintf(stderr, "unable to send UCX data message\n");
 	if (EP_CONN_FAILED == connection_status) {
-	    ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
-	    request_init(request);
-	    ucp_request_free(request);
-	    DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
-			ucp_py_ctx_head->connection_retry_period);
-	    connection_status = EP_CONN_INIT;
-	    sleep(ucp_py_ctx_head->connection_retry_period);
-	    goto retry;
-	}
+            ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
+            request_init(request);
+            ucp_request_free(request);
+            DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
+                        ucp_py_ctx_head->connection_retry_period);
+            connection_status = EP_CONN_INIT;
+            sleep(ucp_py_ctx_head->connection_retry_period);
+            if (num_retries < EP_CONN_MAX_RETRIES) {
+                num_retries++;
+                goto retry;
+            }
+            else {
+                goto err_ep;
+            }
+        }
         goto err_ep;
     } else if (UCS_PTR_STATUS(request) != UCS_OK) {
         DEBUG_PRINT("UCX data message was scheduled for send\n");
         do {
             status = ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
             if (EP_CONN_FAILED == connection_status) {
-		ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
-		request_init(request);
-		ucp_request_free(request);
+                ucp_request_cancel(ucp_py_ctx_head->ucp_worker, &request);
+                request_init(request);
+                ucp_request_free(request);
                 DEBUG_PRINT("connection failed. Retrying in %d seconds\n",
-			    ucp_py_ctx_head->connection_retry_period);
+                            ucp_py_ctx_head->connection_retry_period);
                 connection_status = EP_CONN_INIT;
-		sleep(ucp_py_ctx_head->connection_retry_period);
-                goto retry;
+                sleep(ucp_py_ctx_head->connection_retry_period);
+                if (num_retries < EP_CONN_MAX_RETRIES) {
+                    num_retries++;
+                    goto retry;
+                }
+                else {
+                    goto err_ep;
+                }
             }
             //TODO: Workout if there are deadlock possibilities here
             status = ucp_request_check_status(request);
