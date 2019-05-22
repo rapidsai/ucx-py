@@ -692,6 +692,7 @@ def stop_listener(lf):
         lf.future.set_result(None)
     listener = lf.listener
     ucp_py_stop_listener(listener.listener_ptr)
+    listener_futures.remove(lf)
     #reader_added = 0
 
 @ucp_logger
