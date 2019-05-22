@@ -42,6 +42,7 @@ UCX_FILE_DESCRIPTOR = -1
 reader_added = 0
 UCP_INITIALIZED = False
 LOGGER = None
+listener_futures = set()
 
 def ucp_logger(fxn):
 
@@ -665,6 +666,9 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
         if <void *> NULL != listener.listener_ptr:
             lf.listener = listener
             lf.port = port
+            assert(lf not in listener_futures)
+            listener_futures.add(lf) # hold a reference to avoid garbage collection; TODO: possible leak
+                                     # TODO: possible leak
             return lf
 
         num_tries += 1
@@ -689,6 +693,7 @@ def stop_listener(lf):
         lf.future.set_result(None)
     listener = lf.listener
     ucp_py_stop_listener(listener.listener_ptr)
+    listener_futures.remove(lf)
     #reader_added = 0
 
 @ucp_logger
