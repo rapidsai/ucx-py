@@ -5,7 +5,8 @@ cd /home/akvenkatesh/ucx-py
 source setup.sh
 source ucx-setup.sh
 
-IP=`ip addr show bond0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`
+iface=$3
+IP=`ip addr show ${iface} | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`
 echo "starting ucx dask scheduler at $IP"
 echo "export UCX_DASK_SCHEDULER=${IP}" > ucx-dask-ip
 

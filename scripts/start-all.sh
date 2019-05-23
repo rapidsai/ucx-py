@@ -1,10 +1,18 @@
 #!/bin/bash
 
+# One way to run this script:
+# 
+# $ bash scripts/start-all.sh bond0
+# if bond0 is the name of interface associated with IB network
+
 set -x
 
 max_workers=4
 sched_port=13337
 worker_start_port=13338
+iface=$1
+echo "starting scheduler and workers using ${iface} ..."
+sleep 2
 
 get_cvd () {
     
@@ -38,7 +46,7 @@ echo $CUDA_VISIBLE_DEVICES
 
 get_cvd 0 $max_workers $CUDA_VISIBLE_DEVICES
 
-bash scripts/start-ucx-dask-gpu-scheduler.sh $cvd_str $sched_port &
+bash scripts/start-ucx-dask-gpu-scheduler.sh $cvd_str $sched_port $iface &
 echo "$!" >> active-dask-procs
 sleep 2
 
@@ -50,7 +58,7 @@ do
     idx=$((i - 1))
     get_cvd $idx $max_workers $CUDA_VISIBLE_DEVICES
     echo $cvd_str
-    bash scripts/start-ucx-dask-gpu-worker.sh $cvd_str $sched_port $worker_start_port &
+    bash scripts/start-ucx-dask-gpu-worker.sh $cvd_str $sched_port $worker_start_port $iface &
     echo "$!" >> active-dask-procs
     sleep 2
     worker_start_port=$((worker_start_port + 1))
