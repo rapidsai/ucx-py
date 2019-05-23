@@ -77,6 +77,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
 
         await ep.send_obj(np.ones(1))
         await ep.recv_future()
+        await asyncio.sleep(2)
         ep.close()
         ucp.stop_listener(lf)
 
@@ -134,9 +135,15 @@ async def main(args=None):
         import cupy as xp
 
     if args.server:
+        if args.object_type == 'cupy':
+            xp.cuda.runtime.setDevice(0)
+            print(xp.cuda.runtime.getDevice())
         await connect(args.server, args.port, args.n_bytes, args.n_iter,
                       args.recv, xp, args.verbose, args.inc)
     else:
+        if args.object_type == 'cupy':
+            xp.cuda.runtime.setDevice(1)
+            print(xp.cuda.runtime.getDevice())
         await serve(args.port, args.n_bytes, args.n_iter,
                     args.recv, xp, args.verbose, args.inc)
 
