@@ -15,13 +15,12 @@ async def echo_pair(cuda_info=None):
     listener = ucp.start_listener(ucp.make_server(cuda_info),
                                   is_coroutine=True)
     t = loop.create_task(listener.coroutine)
-    client = ucp.get_endpoint(address.encode(), listener.port)
+    client = await ucp.get_endpoint(address.encode(), listener.port)
     try:
         yield listener, client
     finally:
-        t.cancel()
+        ucp.stop_listener(listener)
         ucp.destroy_ep(client)
-
 
 @pytest.mark.asyncio
 async def test_send_recv_bytes():
