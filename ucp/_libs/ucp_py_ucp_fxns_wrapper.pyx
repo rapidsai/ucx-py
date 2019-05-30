@@ -30,3 +30,5 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_query_request(ucx_context*)
     int ucp_py_request_is_complete(ucx_context*)
     char *ucp_get_ep_tag_str(void*)
+    int ucp_ep_tag_is_send_tag(void*)
+    int ucp_ep_tag_is_recv_tag(void*)

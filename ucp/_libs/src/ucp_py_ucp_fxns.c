@@ -172,6 +172,22 @@ char *ucp_get_ep_tag_str(void *internal_ep)
     return (char *) ((ucp_py_internal_ep_t *)(internal_ep))->ep_tag_str;
 }
 
+int ucp_ep_tag_is_send_tag(void *internal_ep)
+{
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *)internal_ep;
+    char *tag_str = (char *) (int_ep->ep_tag_str);
+    int rval = (int_ep->send_tag == djb2_hash(tag_str)) ? 1 : 0;
+    return rval;
+}
+
+int ucp_ep_tag_is_recv_tag(void *internal_ep)
+{
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *)internal_ep;
+    char *tag_str = (char *) (int_ep->ep_tag_str);
+    int rval = (int_ep->recv_tag == djb2_hash(tag_str)) ? 1 : 0;
+    return rval;
+}
+
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     void *tmp_py_cb;

@@ -243,31 +243,31 @@ cdef class Endpoint:
     def local_ip(self):
         client_tag_str = ucp_get_ep_tag_str(self.ep)
         client_tag_str = str(client_tag_str.decode())
-        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+        if 1 == ucp_ep_tag_is_send_tag(self.ep):
             return client_tag_str.split(':')[2]
-        else:
+        else: # listener
             return client_tag_str.split(':')[1]
 
     def local_port(self):
         client_tag_str = ucp_get_ep_tag_str(self.ep)
         client_tag_str = str(client_tag_str.decode())
-        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
-            return 'invalid'
+        if 1 == ucp_ep_tag_is_send_tag(self.ep):
+            return None
         else:
-            return client_tag_str.split(':')[5]
+            return int(client_tag_str.split(':')[5])
 
     def remote_port(self):
         client_tag_str = ucp_get_ep_tag_str(self.ep)
         client_tag_str = str(client_tag_str.decode())
-        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
-            return client_tag_str.split(':')[5]
+        if 1 == ucp_ep_tag_is_send_tag(self.ep):
+            return int(client_tag_str.split(':')[5])
         else:
-            return 'invalid'
+            return None
 
     def remote_ip(self):
         client_tag_str = ucp_get_ep_tag_str(self.ep)
         client_tag_str = str(client_tag_str.decode())
-        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+        if 1 == ucp_ep_tag_is_send_tag(self.ep):
             return client_tag_str.split(':')[1]
         else:
             return client_tag_str.split(':')[2]
