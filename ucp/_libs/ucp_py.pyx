@@ -234,11 +234,11 @@ cdef class Endpoint:
 
     @property
     def local_address(self):
-        return [self.local_ip(), self.local_port()]
+        return (self.local_ip(), self.local_port())
 
     @property
     def remote_address(self):
-        return [self.remote_ip(), self.remote_port()]
+        return (self.remote_ip(), self.remote_port())
 
     def local_ip(self):
         client_tag_str = ucp_get_ep_tag_str(self.ep)
