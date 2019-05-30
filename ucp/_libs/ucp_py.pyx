@@ -8,6 +8,7 @@ import sys
 import logging
 import os
 import socket
+from pyroute2 import IPRoute
 from weakref import WeakValueDictionary
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
@@ -231,8 +232,46 @@ cdef class Endpoint:
     def __cinit__(self):
         return
 
-    def connect(self, ip, port):
-        self.ep = ucp_py_get_ep(ip, port)
+    def local_address(self):
+        return [self.local_ip(), self.local_port()]
+
+    def remote_address(self):
+        return [self.remote_ip(), self.remote_port()]
+
+    def local_ip(self):
+        client_tag_str = ucp_get_ep_tag_str(self.ep)
+        client_tag_str = str(client_tag_str.decode())
+        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+            return client_tag_str.split(':')[2]
+        else:
+            return client_tag_str.split(':')[1]
+
+    def local_port(self):
+        client_tag_str = ucp_get_ep_tag_str(self.ep)
+        client_tag_str = str(client_tag_str.decode())
+        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+            return 'invalid'
+        else:
+            return client_tag_str.split(':')[5]
+
+    def remote_port(self):
+        client_tag_str = ucp_get_ep_tag_str(self.ep)
+        client_tag_str = str(client_tag_str.decode())
+        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+            return client_tag_str.split(':')[5]
+        else:
+            return 'invalid'
+
+    def remote_ip(self):
+        client_tag_str = ucp_get_ep_tag_str(self.ep)
+        client_tag_str = str(client_tag_str.decode())
+        if str(client_tag_str.split(':')[3]) == str(os.getpid()):
+            return client_tag_str.split(':')[1]
+        else:
+            return client_tag_str.split(':')[2]
+
+    def connect(self, ip, port, my_ip):
+        self.ep = ucp_py_get_ep(ip, port, my_ip)
         if <void *> NULL == self.ep:
             return False
         return True
@@ -735,6 +774,12 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
 
     ep = Endpoint()
     connection_established = False
+    ipr = IPRoute()
+    route = ipr.route('get', dst=peer_ip.decode())
+    my_ip = None
+    for attr in route[0]['attrs']:
+        if attr[0] == 'RTA_PREFSRC':
+            my_ip = attr[1]
     ref_time = time.time()
 
     def past_deadline(now):
@@ -747,7 +792,7 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
                 return True
 
     while True:
-        if not ep.connect(peer_ip, peer_port):
+        if not ep.connect(peer_ip, peer_port, my_ip.encode()):
             await asyncio.sleep(0.1)
         else:
             connection_established = True

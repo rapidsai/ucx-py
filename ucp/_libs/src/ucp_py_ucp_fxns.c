@@ -167,6 +167,11 @@ unsigned long djb2_hash(char *str)
     return hash;
 }
 
+char *ucp_get_ep_tag_str(void *internal_ep)
+{
+    return (char *) ((ucp_py_internal_ep_t *)(internal_ep))->ep_tag_str;
+}
+
 static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
 {
     void *tmp_py_cb;
@@ -578,7 +583,7 @@ static void ep_err_handler_cb(void *arg, ucp_ep_h ep, ucs_status_t status)
     *connection_status = EP_CONN_FAILED;
 }
 
-void *ucp_py_get_ep(char *ip, int listener_port)
+void *ucp_py_get_ep(char *ip, int listener_port, char *my_ip)
 {
     ucp_ep_params_t ep_params;
     struct sockaddr_in connect_addr;
@@ -613,7 +618,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 	return NULL;
     }
     internal_ep->ep_ptr = ep_ptr;
-    sprintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
+    sprintf(internal_ep->ep_tag_str, "%s:%s:%s:%u:%d:%d", my_hostname, ip, my_ip,
             (unsigned int) my_pid, connect_ep_counter, listener_port);
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
