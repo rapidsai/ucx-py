@@ -232,9 +232,11 @@ cdef class Endpoint:
     def __cinit__(self):
         return
 
+    @property
     def local_address(self):
         return [self.local_ip(), self.local_port()]
 
+    @property
     def remote_address(self):
         return [self.remote_ip(), self.remote_port()]
 
