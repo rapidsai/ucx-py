@@ -74,7 +74,7 @@ def ucp_logger(fxn):
     else:
         return fxn
     LOGGER.debug('done with ucxpy init')
-    
+
 
     return wrapper
 
@@ -271,6 +271,12 @@ cdef class Endpoint:
             return client_tag_str.split(':')[1]
         else:
             return client_tag_str.split(':')[2]
+
+    def __str__(self):
+        return "<Endpoint -- local:%s:%s  remote:%s:%s>" % (self.local_address + self.remote_address)
+
+    def __repr__(self):
+        return str(self)
 
     def connect(self, ip, port, my_ip):
         self.ep = ucp_py_get_ep(ip, port, my_ip)
