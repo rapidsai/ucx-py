@@ -87,7 +87,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
 
 async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
                   increment):
-    ep = ucp.get_endpoint(host.encode(), port)
+    ep = await ucp.get_endpoint(host.encode(), port)
     arr = np.zeros(n_bytes, dtype='u1')
 
     start = clock()
