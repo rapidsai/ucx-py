@@ -5,22 +5,22 @@ from contextlib import asynccontextmanager
 
 import ucp
 
-address = ucp.get_address()
-ucp.init()
-
 
 @asynccontextmanager
 async def echo_pair(cuda_info=None):
+    ucp.init()
     loop = asyncio.get_event_loop()
     listener = ucp.start_listener(ucp.make_server(cuda_info),
                                   is_coroutine=True)
-    t = loop.create_task(listener.coroutine)
+    #t = loop.create_task(listener.coroutine) # ucx-py internally does this
+    address = ucp.get_address()
     client = await ucp.get_endpoint(address.encode(), listener.port)
     try:
         yield listener, client
     finally:
         ucp.stop_listener(listener)
         ucp.destroy_ep(client)
+        ucp.fin()
 
 @pytest.mark.asyncio
 async def test_send_recv_bytes():

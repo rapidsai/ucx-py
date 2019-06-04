@@ -47,3 +47,4 @@ int ucp_py_probe_query_wo_progress(void *internal_ep);
 int ucp_py_probe_wait(void *ep_ptr);
 int ucp_py_query_request(struct ucx_context *request);
 int ucp_py_request_is_complete(struct ucx_context *request);
+int ucp_py_worker_get_epoll_fd(void);

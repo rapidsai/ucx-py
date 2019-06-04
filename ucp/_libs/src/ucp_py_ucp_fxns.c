@@ -386,6 +386,11 @@ int ucp_py_worker_progress(void)
     return ucp_ipy_worker_progress(ucp_py_ctx_head->ucp_worker);
 }
 
+int ucp_py_worker_get_epoll_fd(void)
+{
+    return ucp_py_ctx_head->epoll_fd_local;
+}
+
 int ucp_py_worker_progress_wait(void)
 {
     ucs_status_t status;

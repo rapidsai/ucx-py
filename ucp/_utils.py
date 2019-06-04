@@ -70,6 +70,6 @@ def make_server(cuda_info=None):
             await ep.send_obj(obj)
 
         destroy_ep(ep)
-        stop_listener(lf)
+        ucp.stop_listener(lf)
 
     return echo_server
