@@ -97,7 +97,6 @@ def handle_msg(msg):
         The ``.result`` will be the original `msg`.
     """
     global reader_added
-    loop = asyncio.get_event_loop()
     assert UCX_FILE_DESCRIPTOR > 0
     assert reader_added > 0
 
@@ -592,6 +591,7 @@ def init():
     global UCX_FILE_DESCRIPTOR
     global UCP_INITIALIZED
     global LOGGER
+    global reader_added
 
     if UCP_INITIALIZED:
         return 0
@@ -600,8 +600,14 @@ def init():
     if 0 == rval:
         UCP_INITIALIZED = True
 
-    while UCX_FILE_DESCRIPTOR == -1:
-        UCX_FILE_DESCRIPTOR = ucp_py_worker_progress_wait()
+    UCX_FILE_DESCRIPTOR = ucp_py_worker_get_epoll_fd()
+
+    assert 0 == reader_added
+    if 0 == reader_added:
+        assert UCX_FILE_DESCRIPTOR > 0
+        loop = asyncio.get_event_loop()
+        loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
+        reader_added = 1
 
     return rval
 
@@ -625,8 +631,6 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     -------
     0 if listener successfully started
     """
-    global UCX_FILE_DESCRIPTOR
-    global reader_added
     cdef int port
 
     listener = Listener()
@@ -641,12 +645,6 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
             await lf.future
             #await loop.create_future()
         lf.coroutine = start()
-
-    # TODO: it's not clear that this does anything...
-    if 0 == reader_added:
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
-        reader_added = 1
 
     port = listener_port
     max_tries = 10000 # Arbitrary for now
@@ -687,14 +685,12 @@ def stop_listener(lf):
     None
     """
 
-    global reader_added
     cdef Listener listener
     if lf.is_coroutine:
         lf.future.set_result(None)
     listener = lf.listener
     ucp_py_stop_listener(listener.listener_ptr)
     listener_futures.remove(lf)
-    #reader_added = 0
 
 @ucp_logger
 def fin():
@@ -709,6 +705,14 @@ def fin():
     0 if resources freed successfully
     """
     global UCP_INITIALIZED
+    global UCX_FILE_DESCRIPTOR
+    global reader_added
+
+    if 1 == reader_added:
+        loop = asyncio.get_event_loop()
+        assert UCX_FILE_DESCRIPTOR > 0
+        loop.remove_reader(UCX_FILE_DESCRIPTOR)
+        reader_added = 0
 
     if UCP_INITIALIZED:
         UCP_INITIALIZED = False
@@ -730,8 +734,6 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
     An endpoint object of class `Endpoint` on which methods like
     `send_msg` and `recv_msg` may be called
     """
-    global UCX_FILE_DESCRIPTOR
-    global reader_added
 
     ep = Endpoint()
     connection_established = False
@@ -758,11 +760,6 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
     if not connection_established:
         raise TimeoutError
 
-    if 0 == reader_added:
-        loop = asyncio.get_event_loop()
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
-        reader_added = 1
     return ep
 
 def progress():
