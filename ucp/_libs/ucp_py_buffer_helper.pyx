@@ -9,6 +9,7 @@ cdef extern from "common.h":
 
 import struct
 from libc.stdint cimport uintptr_t
+from libc.stdlib cimport malloc, free
 
 # TODO: pxd files
 
@@ -90,12 +91,14 @@ cdef class BufferRegion:
     """
     cdef public:
         str typestr
-        object shape
         Py_ssize_t itemsize
         bytes format
+        int ndim
 
     cdef:
         data_buf* buf
+        Py_ssize_t* _shape
+        Py_ssize_t* _strides
         int _is_cuda  # TODO: change -> bint
         bint _readonly
         uintptr_t cupy_ptr
@@ -107,18 +110,36 @@ cdef class BufferRegion:
         self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
-        self.shape = [0]
+        self.ndim = 1
+        self._shape = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
+        self._shape[0] = 0
+        self._strides = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
+        self._strides[0] = 1
+
+    def __dealloc__(self):
+        free(self._shape)
+        free(self._strides)
 
     def __len__(self):
         if not self.is_set:
             return 0
         else:
-            return self.shape[0]
+            return self._shape[0]
+
+    @property
+    def shape(self):
+        return tuple(<Py_ssize_t[:self.ndim]>self._shape)
+
+    @property
+    def strides(self):
+        return tuple(<Py_ssize_t[:self.ndim]>self._strides)
 
     @property
     def nbytes(self):
         format = self.format or 'B'
-        size = self.shape[0]
+        size = 1
+        for i in range(self.ndim):
+            size *= self._shape[i]
         return struct.calcsize(format) * size
 
     @property
@@ -141,31 +162,25 @@ cdef class BufferRegion:
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
-            Py_ssize_t strides[1]
-            Py_ssize_t shape2[1]
             empty = b''
 
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
 
-        strides[0] = <Py_ssize_t>self.itemsize
-        assert len(self.shape)
-        if self.shape[0] == 0:
+        if self._shape[0] == 0:
             buffer.buf = <void *>empty
         else:
             buffer.buf = <void *>&(self.buf.buf[0])
 
-        shape2[0] = self.shape[0]
-
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = self.shape[0] * self.itemsize
+        buffer.len = self._shape[0] * self.itemsize
         buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = 0  # TODO
-        buffer.shape = shape2
-        buffer.strides = strides
+        buffer.shape = self._shape
+        buffer.strides = self._strides
         buffer.suboffsets = NULL
 
     # ------------------------------------------------------------------------
