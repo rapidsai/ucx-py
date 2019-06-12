@@ -17,11 +17,16 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
         pass
 
+    ctypedef struct ucp_worker_h:
+        pass
+
 cdef extern from "src/ucp_py_ucp_fxns.h":
     cdef struct ucx_context:
         int completed
     cdef struct data_buf:
         void* buf
+
+    cdef ucp_worker_h *get_worker()
 
 include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
@@ -43,6 +48,10 @@ reader_added = 0
 UCP_INITIALIZED = False
 LOGGER = None
 listener_futures = set()
+
+
+def get_ucp_worker():
+    return <size_t>get_worker()
 
 def ucp_logger(fxn):
 
@@ -229,6 +238,9 @@ cdef class Endpoint:
 
     def __cinit__(self):
         return
+
+    def get_ep(self):
+        return <size_t>self.ep
 
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
