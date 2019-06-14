@@ -112,13 +112,20 @@ cdef class BufferRegion:
         self.buf = NULL
         self.ndim = 1
         self._shape = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
-        self._shape[0] = 0
+        for i in range(self.ndim):
+            self._shape[i] = 0
         self._strides = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
-        self._strides[0] = 1
+        for i in range(self.ndim):
+            self._strides[i] = 1
 
     def __dealloc__(self):
+        self.ndim = 1
         free(self._shape)
+        self._shape = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
+        self._shape[0] = 0
         free(self._strides)
+        self._strides = <Py_ssize_t*>malloc(sizeof(Py_ssize_t) * self.ndim)
+        self._strides[0] = 1
 
     def __len__(self):
         if not self.is_set:
