@@ -51,25 +51,20 @@ def make_server(cuda_info=None):
         """
         from ucp._libs.ucp_py import destroy_ep, stop_listener
 
-        while True:
-            size_msg = await ep.recv_future()
-            size = int(size_msg.get_obj())
+        size_msg = await ep.recv_future()
+        size = int(size_msg.get_obj())
 
-            if not size:
-                break
+        msg = await ep.recv_obj(size, cuda=bool(cuda_info))
+        obj = msg.get_obj()
 
-            msg = await ep.recv_obj(size, cuda=bool(cuda_info))
-            obj = msg.get_obj()
+        if cuda_info:
+            import cupy
+            if 'typestr' in cuda_info:
+                obj.typestr = cuda_info['typestr']
+            obj = cupy.asarray(obj)
 
-            if cuda_info:
-                import cupy
-                if 'typestr' in cuda_info:
-                    obj.typestr = cuda_info['typestr']
-                obj = cupy.asarray(obj)
-
-            await ep.send_obj(obj)
-
+        await ep.send_obj(obj)
         destroy_ep(ep)
-        ucp.stop_listener(lf)
+        stop_listener(lf)
 
     return echo_server

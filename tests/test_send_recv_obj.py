@@ -18,8 +18,8 @@ async def echo_pair(cuda_info=None):
     try:
         yield listener, client
     finally:
-        ucp.stop_listener(listener)
         ucp.destroy_ep(client)
+        await t
         ucp.fin()
 
 
