@@ -12,7 +12,7 @@ async def echo_pair(cuda_info=None):
     loop = asyncio.get_event_loop()
     listener = ucp.start_listener(ucp.make_server(cuda_info),
                                   is_coroutine=True)
-    #t = loop.create_task(listener.coroutine) # ucx-py internally does this
+    t = loop.create_task(listener.coroutine)
     address = ucp.get_address()
     client = await ucp.get_endpoint(address.encode(), listener.port)
     try:
