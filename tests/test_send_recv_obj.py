@@ -4,7 +4,7 @@ import pytest
 from contextlib import asynccontextmanager
 
 import ucp
-
+msg_sizes = [2 ** i for i in range(0, 25, 4)]
 
 @asynccontextmanager
 async def echo_pair(cuda_info=None):
@@ -12,35 +12,42 @@ async def echo_pair(cuda_info=None):
     loop = asyncio.get_event_loop()
     listener = ucp.start_listener(ucp.make_server(cuda_info),
                                   is_coroutine=True)
-    #t = loop.create_task(listener.coroutine) # ucx-py internally does this
+    t = loop.create_task(listener.coroutine)
     address = ucp.get_address()
     client = await ucp.get_endpoint(address.encode(), listener.port)
     try:
         yield listener, client
     finally:
-        ucp.stop_listener(listener)
         ucp.destroy_ep(client)
+        await t
         ucp.fin()
 
-@pytest.mark.asyncio
-async def test_send_recv_bytes():
-    async with echo_pair() as (_, client):
-        msg = b"hi"
 
-        await client.send_obj(b'2')
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_bytes(size):
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+
+    async with echo_pair() as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg))
         result = ucp.get_obj_from_msg(resp)
 
     assert result.tobytes() == msg
 
-
 @pytest.mark.asyncio
-async def test_send_recv_memoryview():
-    async with echo_pair() as (_, client):
-        msg = memoryview(b"hi")
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_memoryview(size):
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+    msg = memoryview(msg)
 
-        await client.send_obj(b'2')
+    async with echo_pair() as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg))
         result = ucp.get_obj_from_msg(resp)
@@ -49,12 +56,17 @@ async def test_send_recv_memoryview():
 
 
 @pytest.mark.asyncio
-async def test_send_recv_numpy():
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_numpy(size):
     np = pytest.importorskip('numpy')
-    async with echo_pair() as (_, client):
-        msg = np.frombuffer(memoryview(b"hi"), dtype='u1')
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+    msg = memoryview(msg)
+    msg = np.frombuffer(msg, dtype='u1')
 
-        await client.send_obj(b'2')
+    async with echo_pair() as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg))
         result = ucp.get_obj_from_msg(resp)
@@ -64,16 +76,22 @@ async def test_send_recv_numpy():
 
 
 @pytest.mark.asyncio
-async def test_send_recv_cupy():
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_cupy(size):
     cupy = pytest.importorskip('cupy')
     cuda_info = {
-        'shape': [2],
+        'shape': [size],
         'typestr': '|u1'
     }
-    async with echo_pair(cuda_info) as (_, client):
-        msg = cupy.array(memoryview(b"hi"), dtype='u1')
+    np = pytest.importorskip('numpy')
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+    msg = memoryview(msg)
+    msg = cupy.array(msg, dtype='u1')
 
-        client.send_obj(b'2')
+    async with echo_pair(cuda_info) as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg), cuda=True)
         result = ucp.get_obj_from_msg(resp)
@@ -85,20 +103,25 @@ async def test_send_recv_cupy():
 
 
 @pytest.mark.asyncio
-async def test_send_recv_numba():
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_numba(size):
     numba = pytest.importorskip('numba')
     pytest.importorskip('numba.cuda')
     import numpy as np
 
     cuda_info = {
-        'shape': [2],
+        'shape': [size],
         'typestr': '|u1'
     }
-    async with echo_pair(cuda_info) as (_, client):
-        arr = np.array(memoryview(b"hi"), dtype='u1')
-        msg = numba.cuda.to_device(arr)
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+    msg = memoryview(msg)
+    arr = np.array(msg, dtype='u1')
+    msg = numba.cuda.to_device(arr)
 
-        client.send_obj(b'2')
+    async with echo_pair(cuda_info) as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
         resp = await client.recv_obj(len(msg), cuda=True)
         result = ucp.get_obj_from_msg(resp)
@@ -114,25 +137,30 @@ async def test_send_recv_numba():
 
 
 @pytest.mark.asyncio
-async def test_send_recv_into():
-    sink = bytearray(2)
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_into(size):
+    sink = bytearray(size)
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+
     async with echo_pair() as (_, client):
-        msg = b'hi'
-        await client.send_obj(b'2')
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
 
-        resp = await client.recv_into(sink, 2)
+        resp = await client.recv_into(sink, size)
         result = resp.get_obj()
 
-    assert result == b'hi'
-    assert sink == b'hi'
+    assert result == bytes(x, encoding='utf-8')
+    assert sink == bytes(x, encoding='utf-8')
 
 
 @pytest.mark.asyncio
-async def test_send_recv_into_cuda():
+@pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_into_cuda(size):
     cupy = pytest.importorskip("cupy")
-    sink = cupy.zeros(10, dtype='u1')
-    msg = cupy.arange(10, dtype='u1')
+    sink = cupy.zeros(size, dtype='u1')
+    msg = cupy.arange(size, dtype='u1')
 
     async with echo_pair() as (_, client):
         await client.send_obj(str(msg.nbytes).encode())
