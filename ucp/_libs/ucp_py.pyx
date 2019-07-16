@@ -249,7 +249,6 @@ cdef class Endpoint:
         if <void *> NULL == self.ep:
             return False
 
-        print("EP Connected: " + str(<size_t>self.ep))
         return True
 
     @ucp_logger
