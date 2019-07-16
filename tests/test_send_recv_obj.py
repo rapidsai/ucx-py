@@ -23,6 +23,7 @@ async def echo_pair(cuda_info=None):
         await t
         ucp.fin()
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 async def test_send_recv_bytes(size):
@@ -120,7 +121,6 @@ async def test_send_recv_numba(size):
     arr = np.array(msg, dtype='u1')
     msg = numba.cuda.to_device(arr)
 
-    breakpoint()
     async with echo_pair(cuda_info) as (_, client):
         await client.send_obj(bytes(str(size), encoding='utf-8'))
         await client.send_obj(msg)
