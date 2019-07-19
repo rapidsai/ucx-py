@@ -59,6 +59,11 @@ def make_server(cuda_info=None):
 
         if cuda_info:
             import cupy
+            if 'shape' in cuda_info:
+                 # this is critical -- incoming shape is often
+                 # the size of the buffer which is not the same
+                # as shape
+                obj.shape = cuda_info['shape']
             if 'typestr' in cuda_info:
                 obj.typestr = cuda_info['typestr']
             obj = cupy.asarray(obj)
