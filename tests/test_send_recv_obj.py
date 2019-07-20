@@ -77,27 +77,30 @@ async def test_send_recv_numpy(size, dtype):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
-async def test_send_recv_cupy(size):
+@pytest.mark.parametrize("dtype", dtypes)
+async def test_send_recv_cupy(size, dtype):
     cupy = pytest.importorskip('cupy')
     cuda_info = {
         'shape': [size],
-        'typestr': '|u1'
+        'typestr': dtype
     }
     np = pytest.importorskip('numpy')
     x = "a"
     x = x * size
     msg = bytes(x, encoding='utf-8')
     msg = memoryview(msg)
-    msg = cupy.array(msg, dtype='u1')
+    msg = cupy.array(msg, dtype=dtype)
+    gpu_alloc_size = msg.dtype.itemsize * msg.size
 
     async with echo_pair(cuda_info) as (_, client):
-        await client.send_obj(bytes(str(size), encoding='utf-8'))
+        await client.send_obj(bytes(str(gpu_alloc_size), encoding='utf-8'))
         await client.send_obj(msg)
-        resp = await client.recv_obj(len(msg), cuda=True)
+        resp = await client.recv_obj(gpu_alloc_size, cuda=True)
         result = ucp.get_obj_from_msg(resp)
 
     assert hasattr(result, '__cuda_array_interface__')
     result.typestr = msg.__cuda_array_interface__['typestr']
+    result.shape = msg.shape
     result = cupy.asarray(result)
     cupy.testing.assert_array_equal(msg, result)
 
