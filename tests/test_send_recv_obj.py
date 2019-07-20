@@ -291,20 +291,26 @@ async def test_send_recv_cudf(event_loop, g):
     ucp.destroy_ep(uu.client)
     ucp.fin()
 
+
 @pytest.mark.asyncio
-async def test_send_recv_rmm_small():
+@pytest.mark.parametrize("size", msg_sizes)
+@pytest.mark.parametrize("dtype", dtypes)
+async def test_send_recv_rmm(size, dtype):
     numba = pytest.importorskip('numba')
-    pytest.importorskip('numba.cuda')
+    np = pytest.importorskip('numpy')
     librmm_cffi = pytest.importorskip('librmm_cffi')
     rmm = librmm_cffi.librmm
-    np = pytest.importorskip('numpy')
-    dtype = "|u1"
-    dtype = "<i4"
+    import numpy as np
 
-    size = 3
-    cuda_info = {'shape': [size], 'typestr': dtype}
-    arr = np.arange(size, dtype=dtype)
-    # msg = numba.cuda.to_device(arr)
+    cuda_info = {
+        'shape': [size],
+        'typestr': dtype
+    }
+    x = "a"
+    x = x * size
+    msg = bytes(x, encoding='utf-8')
+    msg = memoryview(msg)
+    arr = np.array(msg, dtype=dtype)
     msg = rmm.to_device(arr)
     gpu_alloc_size = msg.dtype.itemsize * msg.size
 
@@ -318,45 +324,9 @@ async def test_send_recv_rmm_small():
     result.typestr = msg.__cuda_array_interface__['typestr']
     result.shape = msg.shape
     n_result = numba.cuda.as_cuda_array(result)
-    print(n_result.__cuda_array_interface__)
     assert isinstance(n_result, numba.cuda.devicearray.DeviceNDArray)
+    nn_result = np.asarray(n_result, dtype=dtype)
+    msg = np.asarray(msg, dtype=dtype)
+    np.testing.assert_array_equal(msg, nn_result)
 
-    n_arr = np.asarray(n_result, dtype=dtype)
-    np.testing.assert_array_equal(n_arr, arr)
 
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("size", msg_sizes)
-async def test_send_recv_rmm(size):
-    numba = pytest.importorskip('numba')
-    pytest.importorskip('numba.cuda')
-    librmm_cffi = pytest.importorskip('librmm_cffi')
-    rmm = librmm_cffi.librmm
-    np = pytest.importorskip('numpy')
-
-    cuda_info = {
-        'shape': [size],
-        'typestr': '<i8'
-    }
-    #x = "a"
-    #x = x * size
-    #msg = bytes(x, encoding='utf-8')
-    #msg = memoryview(msg)
-    arr = np.arange(size, dtype='<i8')
-    msg = rmm.to_device(arr)
-    # breakpoint()
-
-    async with echo_pair(cuda_info) as (_, client):
-        await client.send_obj(bytes(str(msg.alloc_size), encoding='utf-8'))
-        await client.send_obj(msg)
-        resp = await client.recv_obj(len(msg), cuda=True)
-        result = ucp.get_obj_from_msg(resp)
-
-    # breakpoint()
-    assert hasattr(result, '__cuda_array_interface__')
-    result.typestr = msg.__cuda_array_interface__['typestr']
-    new_device_arr = numba.cuda.as_cuda_array(result)
-    assert isinstance(new_device_arr, numba.cuda.devicearray.DeviceNDArray)
-    new_arr = np.asarray(new_device_arr, dtype='|u1')
-
-    np.testing.assert_array_equal(arr, new_arr)
