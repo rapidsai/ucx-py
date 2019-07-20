@@ -59,20 +59,18 @@ async def test_send_recv_memoryview(size):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
-async def test_send_recv_numpy(size):
+@pytest.mark.parametrize("dtype", dtypes)
+async def test_send_recv_numpy(size, dtype):
     np = pytest.importorskip('numpy')
-    x = "a"
-    x = x * size
-    msg = bytes(x, encoding='utf-8')
-    msg = memoryview(msg)
-    msg = np.frombuffer(msg, dtype='u1')
+    msg = np.arange(size, dtype=dtype)
+    alloc_size = msg.nbytes
 
     async with echo_pair() as (_, client):
-        await client.send_obj(bytes(str(size), encoding='utf-8'))
+        await client.send_obj(bytes(str(alloc_size), encoding='utf-8'))
         await client.send_obj(msg)
-        resp = await client.recv_obj(len(msg))
+        resp = await client.recv_obj(alloc_size)
         result = ucp.get_obj_from_msg(resp)
-        result = np.frombuffer(result, 'u1')
+        result = np.frombuffer(result, dtype)
 
     np.testing.assert_array_equal(result, msg)
 
