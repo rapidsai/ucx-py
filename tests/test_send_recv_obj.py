@@ -189,6 +189,8 @@ async def test_send_recv_into_cuda(size):
     ]
 )
 async def test_send_recv_cudf(event_loop, g):
+    # requires numba=0.45 (.nbytes)
+    # or fix nbytes in distributed
     cudf = pytest.importorskip('cudf')
     deserialize = pytest.importorskip("distributed.protocol").deserialize
     serialize = pytest.importorskip("distributed.protocol").serialize
@@ -244,9 +246,6 @@ async def test_send_recv_cudf(event_loop, g):
                 frame = ucp.get_obj_from_msg(resp)
                 frames.append(frame)
 
-            print(frames)
-            res = cudf.Series(frames[-2]).to_pandas()
-            print(res)
             return frames
 
     class UCXListener:
@@ -279,16 +278,20 @@ async def test_send_recv_cudf(event_loop, g):
 
     ucx_header = pickle.loads(frames[0])
     ucx_index = bytes(frames[1])
+    original_devicendarray = cdf.to_gpu_array()
     cudf_buffer = frames[2]
+    cudf_buffer.shape = original_devicendarray.__cuda_array_interface__['shape']
+    cudf_buffer.typestr = original_devicendarray.__cuda_array_interface__['typestr']
     ucx_bytes_leftovers = bytes(frames[3])
     ucx_received_frames = [ucx_index, cudf_buffer, ucx_bytes_leftovers]
     res = cuda_deserialize(ucx_header, ucx_received_frames)
-    res.to_pandas()# fails with NoneType
-    assert res.to_pandas() == cdf.to_pandas()
-    # assert cudf.Series(cudf_buffer).to_array() == cdf.to_array() failes with
-    # cudaMEmcpyDtoD
+
+    from dask.dataframe.utils import assert_eq
+    assert_eq(res, cdf)
 
     ucp.destroy_ep(uu.client)
+    ucp.stop_listener(uu.ucp_server)
+    ucp.destroy_ep(ucx.ep)
     ucp.fin()
 
 
