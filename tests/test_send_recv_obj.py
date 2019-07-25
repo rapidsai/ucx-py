@@ -1,3 +1,4 @@
+import time
 import asyncio
 import functools
 import itertools
@@ -192,14 +193,10 @@ async def test_send_recv_cudf(event_loop, g):
     # requires numba=0.45 (.nbytes)
     # or fix nbytes in distributed
     cudf = pytest.importorskip('cudf')
-    deserialize = pytest.importorskip("distributed.protocol").deserialize
-    serialize = pytest.importorskip("distributed.protocol").serialize
+
     import struct
     from distributed.utils import nbytes
     import pickle
-
-    cuda_serialize = functools.partial(serialize, serializers=["cuda"])
-    cuda_deserialize = functools.partial(deserialize, deserializers=["cuda"])
 
     cdf = g(cudf)
 
@@ -208,7 +205,7 @@ async def test_send_recv_cudf(event_loop, g):
             self.ep = ep
 
         async def write(self, cdf):
-            header, _frames = cuda_serialize(cdf)
+            header, _frames = cdf.serialize()
             frames = [pickle.dumps(header)] + _frames
 
             is_gpus = b"".join([struct.pack("?", hasattr(frame, "__cuda_array_interface__")) for frame in frames])
@@ -279,20 +276,19 @@ async def test_send_recv_cudf(event_loop, g):
     ucx_header = pickle.loads(frames[0])
     ucx_index = bytes(frames[1])
     original_devicendarray = cdf.to_gpu_array()
-    cudf_buffer = frames[2]
-    cudf_buffer.shape = original_devicendarray.__cuda_array_interface__['shape']
-    cudf_buffer.typestr = original_devicendarray.__cuda_array_interface__['typestr']
-    ucx_bytes_leftovers = bytes(frames[3])
-    ucx_received_frames = [ucx_index, cudf_buffer, ucx_bytes_leftovers]
-    res = cuda_deserialize(ucx_header, ucx_received_frames)
+    cudf_buffer = frames[2:]
+    ucx_received_frames = [ucx_index] + cudf_buffer
+    typ = type(cdf)
+    res = typ.deserialize(ucx_header, ucx_received_frames)
 
     from dask.dataframe.utils import assert_eq
     assert_eq(res, cdf)
-
     ucp.destroy_ep(uu.client)
     ucp.stop_listener(uu.ucp_server)
-    ucp.destroy_ep(ucx.ep)
     ucp.fin()
+
+    # let UCP shutdown
+    time.sleep(1)
 
 
 @pytest.mark.asyncio
