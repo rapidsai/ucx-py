@@ -24,16 +24,16 @@ cdef extern from "src/buffer_ops.h":
     data_buf* populate_buffer_region(void *)
     data_buf* populate_buffer_region_with_ptr(unsigned long long int)
     void* return_ptr_from_buf(data_buf*)
-    data_buf* allocate_host_buffer(int)
+    data_buf* allocate_host_buffer(ssize_t)
     int free_host_buffer(data_buf*)
-    int set_host_buffer(data_buf*, int, int)
-    int check_host_buffer(data_buf*, int, int)
+    int set_host_buffer(data_buf*, int, ssize_t)
+    int check_host_buffer(data_buf*, int, ssize_t)
 
     # cuda
-    data_buf* allocate_cuda_buffer(int)
+    data_buf* allocate_cuda_buffer(ssize_t)
     int free_cuda_buffer(data_buf*)
-    int set_cuda_buffer(data_buf*, int, int)
-    int check_cuda_buffer(data_buf*, int, int)
+    int set_cuda_buffer(data_buf*, int, ssize_t)
+    int check_cuda_buffer(data_buf*, int, ssize_t)
 
 
 ctypedef fused format_:
@@ -49,6 +49,8 @@ ctypedef fused format_:
     const unsigned long long
     const float
     const double
+    const size_t
+    const ssize_t
 
 
 HAS_CUDA = bool(UCX_HAS_CUDA)
