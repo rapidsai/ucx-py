@@ -3,8 +3,8 @@ import asyncio
 
 async def tmp():
     addr = ucp.get_address().encode('utf-8')
-    ep1 = ucp.get_endpoint(addr, 13337)
-    ep2 = ucp.get_endpoint(addr, 13338)
+    ep1 = await ucp.get_endpoint(addr, 13337)
+    ep2 = await ucp.get_endpoint(addr, 13338)
 
     await ep1.send_obj(b'hi')
     print("past send1")

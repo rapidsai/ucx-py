@@ -187,6 +187,7 @@ async def test_send_recv_into_cuda(size):
         lambda cudf: cudf.Series([1, 2, 3]),
         lambda cudf: cudf.Series([1, 2, 3], index=[4, 5, 6]),
         lambda cudf: cudf.Series([1, None, 3]),
+        lambda cudf: cudf.DataFrame({'a': range(2**26)}),
     ]
 )
 async def test_send_recv_cudf(event_loop, g):
@@ -216,6 +217,7 @@ async def test_send_recv_cudf(event_loop, g):
             print("Sending meta...")
             await self.ep.send_obj(meta)
             for idx, frame in enumerate(frames):
+                breakpoint()
                 print("Sending frame: ", idx)
                 await self.ep.send_obj(frame)
 
@@ -269,6 +271,7 @@ async def test_send_recv_cudf(event_loop, g):
     uu.address = ucp.get_address()
     uu.client = await ucp.get_endpoint(uu.address.encode(), 13337)
     ucx = UCX(uu.client)
+    breakpoint()
     await ucx.write(cdf)
     await asyncio.sleep(1)
     frames = await uu.comm.read()
@@ -326,6 +329,78 @@ async def test_send_recv_rmm(size, dtype):
     assert isinstance(n_result, numba.cuda.devicearray.DeviceNDArray)
     nn_result = np.asarray(n_result, dtype=dtype)
     msg = np.asarray(msg, dtype=dtype)
+    breakpoint()
     np.testing.assert_array_equal(msg, nn_result)
 
 
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dtype", dtypes)
+async def test_send_recv_zero(dtype):
+    numba = pytest.importorskip('numba')
+    pytest.importorskip('numba.cuda')
+    import numpy as np
+
+    cuda_info = {
+        'shape': [0],
+        'typestr': dtype
+    }
+    arr = np.array([], dtype=dtype)
+    msg = numba.cuda.to_device(arr)
+    gpu_alloc_size = msg.dtype.itemsize * msg.size
+
+    async with echo_pair(cuda_info) as (_, client):
+        await client.send_obj(bytes(str(gpu_alloc_size), encoding='utf-8'))
+        await client.send_obj(msg)
+        breakpoint()
+        resp = await client.recv_obj(gpu_alloc_size, cuda=True)
+        breakpoint()
+        result = ucp.get_obj_from_msg(resp)
+
+    assert hasattr(result, '__cuda_array_interface__')
+    result.typestr = msg.__cuda_array_interface__['typestr']
+    result.shape = msg.shape
+    n_result = numba.cuda.as_cuda_array(result)
+    assert isinstance(n_result, numba.cuda.devicearray.DeviceNDArray)
+    nn_result = np.asarray(n_result, dtype=dtype)
+    msg = np.asarray(msg, dtype=dtype)
+    np.testing.assert_array_equal(msg, nn_result)
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [2**N for N in range(26,30)])
+async def test_send_recv_large_data(size):
+    # 2**26 * 8 bytes ~.5 GB
+    # 2**27 * 8 bytes ~1 GB
+    # 2**28 * 8 bytes ~2 GB
+    # 2**29 * 8 bytes ~4 GB
+
+    numba = pytest.importorskip('numba')
+    pytest.importorskip('numba.cuda')
+    import numpy as np
+    dtype = 'f8'
+
+    cuda_info = {
+        'shape': [size],
+        'typestr': dtype
+    }
+    import cupy
+    msg = cupy.arange(size, dtype=dtype)
+    print("Size in Bytes: ", msg.nbytes)
+    # msg = numba.cuda.to_device(arr)
+    gpu_alloc_size = msg.dtype.itemsize * msg.size
+
+    async with echo_pair(cuda_info) as (_, client):
+        await client.send_obj(bytes(str(gpu_alloc_size), encoding='utf-8'))
+        await client.send_obj(msg)
+        resp = await client.recv_obj(gpu_alloc_size, cuda=True)
+        result = ucp.get_obj_from_msg(resp)
+
+    assert hasattr(result, '__cuda_array_interface__')
+    result.typestr = msg.__cuda_array_interface__['typestr']
+    result.shape = msg.shape
+    result = cupy.asarray(result)
+    cupy.testing.assert_array_equal(msg, result)

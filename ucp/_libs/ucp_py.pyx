@@ -73,7 +73,7 @@ def ucp_logger(fxn):
     else:
         return fxn
     LOGGER.debug('done with ucxpy init')
-    
+
 
     return wrapper
 
@@ -97,8 +97,8 @@ def handle_msg(msg):
         The ``.result`` will be the original `msg`.
     """
     global reader_added
-    assert UCX_FILE_DESCRIPTOR > 0
-    assert reader_added > 0
+    assert UCX_FILE_DESCRIPTOR > 0, ("UCX_FILE_DESCRIPTOR", UCX_FILE_DESCRIPTOR)
+    assert reader_added > 0, ("reader_added", reader_added)
 
     fut = asyncio.Future()
     PENDING_MESSAGES[msg] = fut

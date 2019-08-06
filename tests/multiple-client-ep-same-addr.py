@@ -62,7 +62,10 @@ async def talk_to_client(ep, listener):
     if args.validate:
         send_string = 'a' * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
-    send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
+    size = sys.getsizeof(send_msg)
+    msg = bytes(send_msg, encoding='utf-8')
+    await ep.send_obj(bytes(str(size), encoding='utf-8'))
+    await ep.send_obj(msg)
     recv_msg = None
 
     print("about to recv")
@@ -72,7 +75,8 @@ async def talk_to_client(ep, listener):
         if args.validate:
             recv_string = 'b' * (2 ** max_msg_log)
         recv_msg = get_msg(recv_string, args.object_type)
-        recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
+        resp = await ep.recv_obj(sys.getsizeof(recv_msg))
+        result = ucp.get_obj_from_msg(resp)
     else:
         recv_req = await ep.recv_future()
         recv_msg = ucp.get_obj_from_msg(recv_req)
@@ -100,8 +104,8 @@ async def talk_to_server(ip, port):
         start_string += " + blind recv"
     print(start_string)
 
-    ep1 = ucp.get_endpoint(ip, port)
-    ep2 = ucp.get_endpoint(ip, port)
+    ep1 = await ucp.get_endpoint(ip, port)
+    ep2 = await ucp.get_endpoint(ip, port)
     recv_msg = None
 
     if not args.blind_recv:
@@ -113,13 +117,17 @@ async def talk_to_server(ip, port):
             recv_string2 = 'c' * (2 ** max_msg_log)
         recv_msg1 = get_msg(recv_string1, args.object_type)
         recv_msg2 = get_msg(recv_string2, args.object_type)
-        recv_req1 = await ep1.recv_obj(recv_msg1, sys.getsizeof(recv_msg1))
-        recv_req2 = await ep2.recv_obj(recv_msg2, sys.getsizeof(recv_msg2))
+        # recv_req1 = await ep1.recv_obj(recv_msg1, sys.getsizeof(recv_msg1))
+        resp = await ep1.recv_obj(sys.getsizeof(recv_msg1))
+        recv_req1 = ucp.get_obj_from_msg(resp)
+        # recv_req2 = await ep2.recv_obj(recv_msg2, sys.getsizeof(recv_msg2))
+        resp = await ep2.recv_obj(sys.getsizeof(recv_msg2))
+        recv_req2 = ucp.get_obj_from_msg(resp)
     else:
         recv_req1 = await ep1.recv_future()
-        recv_req2 = await ep2.recv_future()
+        # recv_req2 = await ep2.recv_future()
         recv_msg1 = ucp.get_obj_from_msg(recv_req1)
-        recv_msg2 = ucp.get_obj_from_msg(recv_req2)
+        # recv_msg2 = ucp.get_obj_from_msg(recv_req2)
 
     print("about to send")
 
@@ -130,19 +138,27 @@ async def talk_to_server(ip, port):
     send_string2 = "hello from ucx client ep1 @" + socket.gethostname()
     if args.validate:
         send_string = 'd' * (2 ** max_msg_log)
-    send_msg1 = get_msg(send_string1, args.object_type)
-    send_msg2 = get_msg(send_string2, args.object_type)
-    send_req1 = await ep1.send_obj(send_msg1, sys.getsizeof(send_msg1))
-    send_req2 = await ep2.send_obj(send_msg2, sys.getsizeof(send_msg2))
 
-    if not args.validate:
-        print_msg("client sent: ", send_msg1, args.object_type)
-        print_msg("client sent: ", send_msg2, args.object_type)
-        print_msg("client received: ", recv_msg1, args.object_type)
-        print_msg("client received: ", recv_msg2, args.object_type)
-    else:
-        assert(recv_msg1 == get_msg('a' * (2 ** max_msg_log), args.object_type))
-        assert(recv_msg2 == get_msg('a' * (2 ** max_msg_log), args.object_type))
+    for ep, send_string in [(ep1, send_string1), (ep2, send_string2)]:
+
+        send_msg = get_msg(send_string, args.object_type)
+        size = sys.getsizeof(send_msg)
+        msg = bytes(send_msg, encoding='utf-8')
+
+        await ep2.send_obj(bytes(str(size), encoding='utf-8'))
+        await ep2.send_obj(msg)
+
+    # send_req1 = await ep1.send_obj(send_msg1, sys.getsizeof(send_msg1))
+    # send_req2 = await ep2.send_obj(send_msg2, sys.getsizeof(send_msg2))
+
+    # if not args.validate:
+    #     print_msg("client sent: ", send_msg1, args.object_type)
+    #     print_msg("client sent: ", send_msg2, args.object_type)
+    #     print_msg("client received: ", recv_msg1, args.object_type)
+    #     print_msg("client received: ", recv_msg2, args.object_type)
+    # else:
+    #     assert(recv_msg1 == get_msg('a' * (2 ** max_msg_log), args.object_type))
+    #     assert(recv_msg2 == get_msg('a' * (2 ** max_msg_log), args.object_type))
 
     ucp.destroy_ep(ep1)
     ucp.destroy_ep(ep2)
