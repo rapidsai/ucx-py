@@ -217,11 +217,11 @@ async def test_send_recv_cudf(event_loop, g):
             print("Sending meta...")
             await self.ep.send_obj(meta)
             for idx, frame in enumerate(frames):
-                breakpoint()
                 print("Sending frame: ", idx)
                 await self.ep.send_obj(frame)
 
         async def read(self):
+            print("Receiving frames...")
             await asyncio.sleep(1)
             print("Receiving frames...")
             resp = await self.ep.recv_future()
@@ -271,7 +271,6 @@ async def test_send_recv_cudf(event_loop, g):
     uu.address = ucp.get_address()
     uu.client = await ucp.get_endpoint(uu.address.encode(), 13337)
     ucx = UCX(uu.client)
-    breakpoint()
     await ucx.write(cdf)
     await asyncio.sleep(1)
     frames = await uu.comm.read()
@@ -329,7 +328,6 @@ async def test_send_recv_rmm(size, dtype):
     assert isinstance(n_result, numba.cuda.devicearray.DeviceNDArray)
     nn_result = np.asarray(n_result, dtype=dtype)
     msg = np.asarray(msg, dtype=dtype)
-    breakpoint()
     np.testing.assert_array_equal(msg, nn_result)
 
 
@@ -354,9 +352,7 @@ async def test_send_recv_zero(dtype):
     async with echo_pair(cuda_info) as (_, client):
         await client.send_obj(bytes(str(gpu_alloc_size), encoding='utf-8'))
         await client.send_obj(msg)
-        breakpoint()
         resp = await client.recv_obj(gpu_alloc_size, cuda=True)
-        breakpoint()
         result = ucp.get_obj_from_msg(resp)
 
     assert hasattr(result, '__cuda_array_interface__')
