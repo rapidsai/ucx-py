@@ -118,7 +118,7 @@ static void send_handle(void *request, ucs_status_t status)
 
 #ifdef UCX_PY_PROF
     gettimeofday(&(context->stop), NULL);
-    fprintf(stderr, "finished send of %d in %lf us\n", context->length, get_latency(context));
+    fprintf(stderr, "finished send of %ld in %lf us\n", context->length, get_latency(context));
 #endif
 
 
@@ -148,7 +148,7 @@ static void recv_handle(void *request, ucs_status_t status,
 
 #ifdef UCX_PY_PROF
     gettimeofday(&(context->stop), NULL);
-    fprintf(stderr, "finished recv of %d in %lf us\n", context->length, get_latency(context));
+    fprintf(stderr, "finished recv of %ld in %lf us\n", context->length, get_latency(context));
 #endif
 
     DEBUG_PRINT("[0x%x] receive handler called with status %d (%s), length %lu\n",
@@ -245,7 +245,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     exit(-1);
 }
 
-struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, int length)
+struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, ssize_t length)
 {
     ucp_tag_t tag;
     struct ucx_context *request = 0;
@@ -255,7 +255,7 @@ struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf,
 
     tag = int_ep->recv_tag;
     DEBUG_PRINT("recv_nb tag = %d\n", tag);
-    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, length,
+    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, (size_t) length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
 
@@ -341,7 +341,7 @@ int ucp_py_probe_query_wo_progress(void *internal_ep)
 }
 
 struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
-                                      int length)
+                                      ssize_t length)
 {
     ucp_tag_t tag;
     struct ucx_context *request = 0;
@@ -350,10 +350,11 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
     DEBUG_PRINT("EP send : %p\n", int_ep->ep_ptr);
 
     DEBUG_PRINT("sending %p\n", send_buf->buf);
+
     
     tag = int_ep->send_tag;
     DEBUG_PRINT("send_nb tag = %d\n", tag);
-    request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, length,
+    request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, (size_t) length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
