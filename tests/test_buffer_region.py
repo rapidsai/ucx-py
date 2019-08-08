@@ -47,3 +47,13 @@ def test_cupy(dtype):
 
     result = cupy.asarray(buffer_region)
     cupy.testing.assert_array_equal(result, arr)
+
+def test_numba_empty():
+    numba = pytest.importorskip('numba')
+    import numba.cuda  # noqa
+    arr = numba.cuda.device_array(0)
+    br = ucp.BufferRegion()
+    br.populate_cuda_ptr(arr)
+
+    assert len(br) == 0
+    assert br.__cuda_array_interface__['data'][0] == 0
