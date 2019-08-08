@@ -213,7 +213,9 @@ cdef class BufferRegion:
         self._readonly = is_readonly
 
         if len(info.get('strides', ())) <= 1:
-            self.buf = populate_buffer_region_with_ptr(ptr_int)
+            # Workaround for numba giving None, rather than an int.
+            # https://github.com/cupy/cupy/issues/2104 for more info.
+            self.buf = populate_buffer_region_with_ptr(ptr_int or 0)
         else:
             raise NotImplementedError("non-contiguous data not supported.")
 
