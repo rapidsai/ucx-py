@@ -25,8 +25,6 @@ async def test_send_recv_cudf(event_loop, g):
     from distributed.utils import nbytes
     import pickle
 
-    cdf = g(cudf)
-
     class UCX:
         def __init__(self, ep):
             self.ep = ep
@@ -47,10 +45,8 @@ async def test_send_recv_cudf(event_loop, g):
             for idx, frame in enumerate(frames):
                 await self.ep.send_obj(frame)
 
-        async def read(self):
-            return await self.queue.get()
 
-        async def _read(self):
+        async def read(self):
             await asyncio.sleep(1)
             print("Receiving frames...")
             resp = await self.ep.recv_future()
@@ -85,8 +81,6 @@ async def test_send_recv_cudf(event_loop, g):
                 print("starting server...")
                 ucx = UCX(ep)
                 self.comm = ucx
-                frames = await self.comm._read()
-                await self.comm.queue.put(frames)
 
             ucp.init()
             loop = asyncio.get_event_loop()
@@ -102,20 +96,18 @@ async def test_send_recv_cudf(event_loop, g):
     uu.address = ucp.get_address()
     uu.client = await ucp.get_endpoint(uu.address.encode(), 13337)
     ucx = UCX(uu.client)
-    await asyncio.sleep(1)
-    await ucx.write(cdf)
-    frames = await uu.comm.read()
-
+    await asyncio.sleep(.2)
+    msg = g(cudf)
+    frames, _ = await asyncio.gather(uu.comm.read(), ucx.write(msg))
     ucx_header = pickle.loads(frames[0])
     ucx_index = bytes(frames[1])
-    # original_devicendarray = cdf.to_gpu_array()
     cudf_buffer = frames[2:]
     ucx_received_frames = [ucx_index] + cudf_buffer
-    typ = type(cdf)
+    typ = type(msg)
     res = typ.deserialize(ucx_header, ucx_received_frames)
 
     from dask.dataframe.utils import assert_eq
-    assert_eq(res, cdf)
+    assert_eq(res, msg)
     ucp.destroy_ep(uu.client)
     ucp.stop_listener(uu.ucp_server)
     ucp.fin()
@@ -157,9 +149,6 @@ async def test_send_recv_cupy(event_loop, size):
                 await self.ep.send_obj(frame)
 
         async def read(self):
-            return await self.queue.get()
-
-        async def _read(self):
             await asyncio.sleep(1)
             print("Receiving frames...")
             resp = await self.ep.recv_future()
@@ -194,8 +183,6 @@ async def test_send_recv_cupy(event_loop, size):
                 print("starting server...")
                 ucx = UCX(ep)
                 self.comm = ucx
-                frames = await self.comm._read()
-                await self.comm.queue.put(frames)
 
             ucp.init()
             loop = asyncio.get_event_loop()
@@ -211,10 +198,9 @@ async def test_send_recv_cupy(event_loop, size):
     uu.address = ucp.get_address()
     uu.client = await ucp.get_endpoint(uu.address.encode(), 13337)
     ucx = UCX(uu.client)
-    await asyncio.sleep(1)
+    await asyncio.sleep(.2)
     msg = cupy.arange(size)
-    await ucx.write(msg)
-    frames = await uu.comm.read()
+    frames, _ = await asyncio.gather(uu.comm.read(), ucx.write(msg))
     header = pickle.loads(frames[0])
     frames = frames[1:]
     res = deserialize(header, frames, deserializers=("cuda", "dask", "pickle", "error"))
