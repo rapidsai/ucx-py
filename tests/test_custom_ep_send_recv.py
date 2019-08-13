@@ -3,6 +3,7 @@ import pytest
 
 import ucp
 import time
+import numpy as np
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -12,8 +13,13 @@ import time
         lambda cudf: cudf.Series([1, 2, 3], index=[4, 5, 6]),
         lambda cudf: cudf.Series([1, None, 3]),
         lambda cudf: cudf.Series(range(2**13)),
+        lambda cudf: cudf.DataFrame({'a':  np.random.random(1200000)}),
         lambda cudf: cudf.DataFrame({'a': range(2**20)}),
         lambda cudf: cudf.DataFrame({'a': range(2**26)}),
+        lambda cudf: cudf.Series(),
+        lambda cudf: cudf.DataFrame(),
+        lambda cudf: cudf.DataFrame({'a': [], 'b': []}),
+        lambda cudf: cudf.DataFrame({'a': [1.0], 'b': [2.0]}),
     ]
 )
 async def test_send_recv_cudf(event_loop, g):
