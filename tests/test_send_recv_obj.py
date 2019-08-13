@@ -1,3 +1,4 @@
+import pickle
 import asyncio
 import pytest
 from contextlib import asynccontextmanager
@@ -207,3 +208,27 @@ async def test_send_recv_large_data(size):
     result.shape = msg.shape
     result = cupy.asarray(result)
     cupy.testing.assert_array_equal(msg, result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "thing",
+    [
+        [],
+        {},
+        {'op': 'stream-start'}
+
+    ]
+)
+async def test_send_recv_python_things(thing):
+    import msgpack
+    msg = msgpack.dumps(thing)
+    size = len(msg)
+    async with echo_pair() as (_, client):
+        await client.send_obj(bytes(str(size), encoding='utf-8'))
+        await client.send_obj(msg)
+        resp = await client.recv_obj(len(msg))
+        result = ucp.get_obj_from_msg(resp)
+
+    assert result.tobytes() == msg
