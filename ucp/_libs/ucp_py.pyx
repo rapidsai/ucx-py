@@ -73,7 +73,7 @@ def ucp_logger(fxn):
     else:
         return fxn
     LOGGER.debug('done with ucxpy init')
-    
+
 
     return wrapper
 

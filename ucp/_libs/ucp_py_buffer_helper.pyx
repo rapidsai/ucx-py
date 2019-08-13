@@ -9,6 +9,7 @@ cdef extern from "common.h":
 
 import struct
 from libc.stdint cimport uintptr_t
+import numpy as np
 
 # TODO: pxd files
 
@@ -157,13 +158,13 @@ cdef class BufferRegion:
         else:
             buffer.buf = <void *>&(self.buf.buf[0])
 
-        shape2[0] = self.shape[0]
+        shape2[0] = np.prod(self.shape)
 
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = self.shape[0] * self.itemsize
-        buffer.ndim = 1
+        buffer.len = np.prod(self.shape) * self.itemsize
+        buffer.ndim = len(self.shape)
         buffer.obj = self
         buffer.readonly = 0  # TODO
         buffer.shape = shape2
