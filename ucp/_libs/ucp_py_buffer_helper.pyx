@@ -9,6 +9,7 @@ cdef extern from "common.h":
 
 import struct
 from libc.stdint cimport uintptr_t
+import numpy as np
 
 # TODO: pxd files
 
@@ -24,16 +25,16 @@ cdef extern from "src/buffer_ops.h":
     data_buf* populate_buffer_region(void *)
     data_buf* populate_buffer_region_with_ptr(unsigned long long int)
     void* return_ptr_from_buf(data_buf*)
-    data_buf* allocate_host_buffer(int)
+    data_buf* allocate_host_buffer(ssize_t)
     int free_host_buffer(data_buf*)
-    int set_host_buffer(data_buf*, int, int)
-    int check_host_buffer(data_buf*, int, int)
+    int set_host_buffer(data_buf*, int, ssize_t)
+    int check_host_buffer(data_buf*, int, ssize_t)
 
     # cuda
-    data_buf* allocate_cuda_buffer(int)
+    data_buf* allocate_cuda_buffer(ssize_t)
     int free_cuda_buffer(data_buf*)
-    int set_cuda_buffer(data_buf*, int, int)
-    int check_cuda_buffer(data_buf*, int, int)
+    int set_cuda_buffer(data_buf*, int, ssize_t)
+    int check_cuda_buffer(data_buf*, int, ssize_t)
 
 
 ctypedef fused format_:
@@ -49,6 +50,8 @@ ctypedef fused format_:
     const unsigned long long
     const float
     const double
+    const size_t
+    const ssize_t
 
 
 HAS_CUDA = bool(UCX_HAS_CUDA)
@@ -155,13 +158,13 @@ cdef class BufferRegion:
         else:
             buffer.buf = <void *>&(self.buf.buf[0])
 
-        shape2[0] = self.shape[0]
+        shape2[0] = np.prod(self.shape)
 
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = self.shape[0] * self.itemsize
-        buffer.ndim = 1
+        buffer.len = np.prod(self.shape) * self.itemsize
+        buffer.ndim = len(self.shape)
         buffer.obj = self
         buffer.readonly = 0  # TODO
         buffer.shape = shape2
@@ -211,7 +214,9 @@ cdef class BufferRegion:
         self._readonly = is_readonly
 
         if len(info.get('strides', ())) <= 1:
-            self.buf = populate_buffer_region_with_ptr(ptr_int)
+            # Workaround for numba giving None, rather than an int.
+            # https://github.com/cupy/cupy/issues/2104 for more info.
+            self.buf = populate_buffer_region_with_ptr(ptr_int or 0)
         else:
             raise NotImplementedError("non-contiguous data not supported.")
 

@@ -42,34 +42,34 @@ def make_server(cuda_info=None):
     async def echo_server(ep, lf):
         """
         Basic echo server for sized messages.
-
         We expect the other endpoint to follow the pattern::
-
         >>> await ep.send_obj(msg_size)  # size of the real message
         >>> await ep.send_obj(obj)       # send the real message
         >>> await ep.recv_obj(msg_size)  # receive the echo
         """
         from ucp._libs.ucp_py import destroy_ep, stop_listener
 
-        while True:
-            size_msg = await ep.recv_future()
-            size = int(size_msg.get_obj())
+        size_msg = await ep.recv_future()
+        size = int(size_msg.get_obj())
+        msg = await ep.recv_obj(size, cuda=bool(cuda_info))
+        obj = msg.get_obj()
+        nbytes = None
 
-            if not size:
-                break
+        if cuda_info:
+            import cupy
+            import numpy as np
+            if 'shape' in cuda_info:
+                 # this is critical -- incoming shape is often
+                 # the size of the buffer which is not the same
+                 # as shape
+                obj.shape = cuda_info['shape']
+            if 'typestr' in cuda_info:
+                obj.typestr = cuda_info['typestr']
+		        # get the true value of the size of the buffer
+                nbytes = np.dtype(obj.__cuda_array_interface__['typestr']).itemsize * len(obj)
 
-            msg = await ep.recv_obj(size, cuda=bool(cuda_info))
-            obj = msg.get_obj()
-
-            if cuda_info:
-                import cupy
-                if 'typestr' in cuda_info:
-                    obj.typestr = cuda_info['typestr']
-                obj = cupy.asarray(obj)
-
-            await ep.send_obj(obj)
-
+        await ep.send_obj(obj, nbytes=nbytes)
         destroy_ep(ep)
-        ucp.stop_listener(lf)
+        stop_listener(lf)
 
     return echo_server

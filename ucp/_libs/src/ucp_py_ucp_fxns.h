@@ -16,7 +16,7 @@ typedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data);
 struct ucx_context {
     int             completed;
 #ifdef UCX_PY_PROF
-    int             length;
+    ssize_t         length;
     int             type;
     struct timeval  start;
     struct timeval  stop;
@@ -39,8 +39,8 @@ int ucp_py_put_ep(void *);
 int ucp_py_worker_progress(void);
 int ucp_py_worker_progress_wait(void);
 int ucp_py_worker_drain_fd(void);
-struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf, int length);
-struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *buf, int length);
+struct ucx_context *ucp_py_ep_send_nb(void *ep_ptr, struct data_buf *send_buf, ssize_t length);
+struct ucx_context *ucp_py_recv_nb(void *ep_ptr, struct data_buf *buf, ssize_t length);
 int ucp_py_ep_post_probe(void);
 int ucp_py_probe_query(void *ep_ptr);
 int ucp_py_probe_query_wo_progress(void *internal_ep);

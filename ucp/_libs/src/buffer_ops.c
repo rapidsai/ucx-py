@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #ifdef UCX_PY_CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -34,26 +36,26 @@ void *return_ptr_from_buf(struct data_buf *db)
     return (void *) db->buf;
 }
 
-struct data_buf *allocate_host_buffer(int length)
+struct data_buf *allocate_host_buffer(ssize_t length)
 {
     struct data_buf *db = NULL;
     db = (struct data_buf *) malloc(sizeof(struct data_buf));
-    db->buf = (void *) malloc(length);
+    db->buf = (void *) malloc((size_t) length);
     DEBUG_PRINT("allocated %p\n", db->buf);
     return db;
 }
 
-int set_host_buffer(struct data_buf *db, int c, int length)
+int set_host_buffer(struct data_buf *db, int c, ssize_t length)
 {
     memset((void *)db->buf, c, (size_t) length);
     return 0;
 }
 
 
-int check_host_buffer(struct data_buf *db, int c, int length)
+int check_host_buffer(struct data_buf *db, int c, ssize_t length)
 {
     char *tmp;
-    int i;
+    ssize_t i;
     int errs = 0;
 
     tmp = (char *)db->buf;
@@ -73,7 +75,7 @@ int free_host_buffer(struct data_buf *db)
 }
 
 #ifdef UCX_PY_CUDA
-struct data_buf *allocate_cuda_buffer(int length)
+struct data_buf *allocate_cuda_buffer(ssize_t length)
 {
     struct data_buf *db = NULL;
     db = (struct data_buf *) malloc(sizeof(struct data_buf));
@@ -89,20 +91,20 @@ int set_device(int device)
 }
 
 
-int set_cuda_buffer(struct data_buf *db, int c, int length)
+int set_cuda_buffer(struct data_buf *db, int c, ssize_t length)
 {
     cudaMemset((void *)db->buf, c, (size_t) length);
     return 0;
 }
 
-int check_cuda_buffer(struct data_buf *db, int c, int length)
+int check_cuda_buffer(struct data_buf *db, int c, ssize_t length)
 {
     char *tmp;
-    int i;
+    ssize_t i;
     int errs = 0;
 
-    tmp = (char *) malloc(sizeof(char) * length);
-    cudaMemcpy((void *) tmp, (void *) db->buf, length, cudaMemcpyDeviceToHost);
+    tmp = (char *) malloc(sizeof(char) * ((size_t) length));
+    cudaMemcpy((void *) tmp, (void *) db->buf, (size_t) length, cudaMemcpyDeviceToHost);
 
     for (i = 0; i < length; i++) {
         if (c != (int) tmp[i]) errs++;
@@ -118,7 +120,7 @@ int free_cuda_buffer(struct data_buf *db)
     return 0;
 }
 #else
-struct data_buf *allocate_cuda_buffer(int length)
+struct data_buf *allocate_cuda_buffer(ssize_t length)
 {
     struct data_buf *db = NULL;
     return db;
@@ -129,11 +131,11 @@ int set_device(int device)
     return -1;
 }
 
-int set_cuda_buffer(struct data_buf *db, int c, int length)
+int set_cuda_buffer(struct data_buf *db, int c, ssize_t length)
 {
     return -1;
 }
-int check_cuda_buffer(struct data_buf *db, int c, int length)
+int check_cuda_buffer(struct data_buf *db, int c, ssize_t length)
 {
     return -1;
 

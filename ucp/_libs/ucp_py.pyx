@@ -84,7 +84,7 @@ def ucp_logger(fxn):
     else:
         return fxn
     LOGGER.debug('done with ucxpy init')
-    
+
 
     return wrapper
 
@@ -282,7 +282,7 @@ cdef class Endpoint:
         msg.ctx_ptr = ucp_py_ep_send_nb(self.ep, msg.buf, len)
         return msg.get_comm_request(len)
 
-    def _recv(self, BufferRegion buf_reg, int nbytes, name):
+    def _recv(self, BufferRegion buf_reg, ssize_t nbytes, name):
         # helper for recv_obj, recv_into
         msg = Message(buf_reg, name=name)
         msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, nbytes)
@@ -313,7 +313,7 @@ cdef class Endpoint:
 
         Parameters
         ----------
-        nbytes : int
+        nbytes : ssize_t
             Number of bytes to receive
         name : str
             Identifier for the messages
@@ -419,12 +419,12 @@ cdef class Message:
     cdef data_buf* buf
     cdef void* ep
     cdef int is_cuda
-    cdef int alloc_len
-    cdef int comm_len
+    cdef ssize_t alloc_len
+    cdef ssize_t comm_len
     cdef int internally_allocated
     cdef BufferRegion buf_reg
     cdef str _name
-    cdef int _length
+    cdef ssize_t _length
     cdef int is_blind
 
     def __cinit__(self, BufferRegion buf_reg, name='', length=-1):

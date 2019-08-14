@@ -1,5 +1,15 @@
 # Python Bindings for UCX
 
+## Installing preliminary Conda packages.
+
+Some preliminary Conda packages can be installed as so.
+
+```
+conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=9.2 ucx-proc=*=gpu ucx ucx-py python=3.7
+```
+
+All of the recipes used can be found here: https://github.com/jakirkham/staged-recipes/tree/17005b662e392672de7a82778b07eb4dec8b5ad9/recipes
+
 ## Building ucx-py from source.
 
 Ensure you have the build dependencies installed
