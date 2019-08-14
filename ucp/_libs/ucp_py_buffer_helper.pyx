@@ -100,11 +100,13 @@ cdef class BufferRegion:
     cdef:
         data_buf* buf
         int _is_cuda  # TODO: change -> bint
+        int _mem_allocated # TODO: change -> bint
         bint _readonly
         uintptr_t cupy_ptr
 
     def __init__(self):
         self._is_cuda = 0
+        self._mem_allocated = 0
         self.typestr = "B"
         self.format = b"B"
         self.itemsize = 1
@@ -226,12 +228,14 @@ cdef class BufferRegion:
     def alloc_host(self, Py_ssize_t len):
         self.buf = allocate_host_buffer(len)
         self._is_cuda = 0
+        self._mem_allocated = 1
         self.shape[0] = len
 
     def alloc_cuda(self, len):
         cuda_check()
         self.buf = allocate_cuda_buffer(len)
         self._is_cuda = 1
+        self._mem_allocated = 1
         self.shape[0] = len
 
     def free_host(self):
@@ -240,6 +244,13 @@ cdef class BufferRegion:
     def free_cuda(self):
         cuda_check()
         free_cuda_buffer(self.buf)
+
+    def __dealloc__(self):
+        if self._mem_allocated == 1:
+            if self._is_cuda == 1:
+                self.free_cuda()
+            else:
+                self.free_host()
 
     # ------------------------------------------------------------------------
     # Conversion
