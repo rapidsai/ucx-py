@@ -192,7 +192,8 @@ cdef class BufferRegion:
         self._populate_ptr(obj)
 
     cpdef _populate_ptr(self, format_[:] pyobj):
-        self.shape = pyobj.shape
+        # Notice, `len(memoryview.shape)` might not equal `memoryview.ndim`
+        self.shape = [pyobj.shape[i] for i in range(pyobj.ndim)]
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
         if hasattr(pyobj.base, 'format'):
