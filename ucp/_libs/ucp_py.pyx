@@ -27,9 +27,6 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     cdef struct data_buf:
         void* buf
 
-    cdef void *get_worker()
-    cdef void *get_ep_ptr(void *ep)
-
 include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
 
