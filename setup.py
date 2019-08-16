@@ -16,8 +16,7 @@ from Cython.Distutils import build_ext as _build_ext
 libraries = [
     'ucp', 'uct', 'ucm', 'ucs'
 ]
-extra_compile_args = []
-
+extra_compile_args=['-std=c++11']
 
 class build_ext(_build_ext):
     user_options = ([

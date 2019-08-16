@@ -30,3 +30,7 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_query_request(ucx_context*)
     int ucp_py_request_is_complete(ucx_context*)
     int ucp_py_worker_get_epoll_fd()
+
+    void *get_worker()
+    void *get_ep_ptr(void * ep)
+

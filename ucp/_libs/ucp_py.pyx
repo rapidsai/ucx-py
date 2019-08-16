@@ -9,12 +9,16 @@ import logging
 import os
 import socket
 from weakref import WeakValueDictionary
+from cython.operator cimport dereference as deref
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
+        pass
+
+    ctypedef struct ucp_worker_h:
         pass
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
@@ -43,6 +47,10 @@ reader_added = 0
 UCP_INITIALIZED = False
 LOGGER = None
 listener_futures = set()
+
+
+def get_ucp_worker():
+    return <size_t>get_worker()
 
 def ucp_logger(fxn):
 
@@ -230,10 +238,14 @@ cdef class Endpoint:
     def __cinit__(self):
         return
 
+    def get_ep(self):
+        return <size_t>get_ep_ptr(self.ep)
+
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
         if <void *> NULL == self.ep:
             return False
+
         return True
 
     @ucp_logger
