@@ -158,7 +158,7 @@ cdef class BufferRegion:
             buffer.buf = <void *>&(self.buf.buf[0])
 
         shape2[0] = self.shape[0]
-        for s in self.shape:
+        for s in self.shape[1:]:
             shape2[0] *= s
 
         buffer.format = self.format
