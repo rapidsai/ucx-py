@@ -2,10 +2,11 @@
 
 ## Installing preliminary Conda packages.
 
-Some preliminary Conda packages can be installed as so.
+Some preliminary Conda packages can be installed as so. Replace `<CUDA
+version>` with either `9.2` or `10.0`.
 
 ```
-conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=9.2 ucx-proc=*=gpu ucx ucx-py python=3.7
+conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
 ```
 
 All of the recipes used can be found here: https://github.com/jakirkham/staged-recipes/tree/17005b662e392672de7a82778b07eb4dec8b5ad9/recipes
