@@ -94,7 +94,7 @@ async def generate_cuda_obj(cuda_type="cupy"):
             # cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[10,13,15,20,25])
             # size = 2**12
             # cdf = cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)}, index=np.random.randint(size, size=size))
-            cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[1, 2, 5, None, 6])
+            cdf = cudf.DataFrame({"a": range(5), "b": [1.2, None, 2, 3, 4]}, index=[1, 2, 5, None, 6])
             print(cdf.head().to_pandas())
             header, _frames = cdf.serialize()
             frames = [pickle.dumps(header)] + _frames
