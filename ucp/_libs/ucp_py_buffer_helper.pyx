@@ -163,7 +163,7 @@ cdef class BufferRegion:
         buffer.format = self.format
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
-        buffer.len = np.prod(self.shape) * self.itemsize
+        buffer.len = shape2[0] * self.itemsize
         buffer.ndim = len(self.shape)
         buffer.obj = self
         buffer.readonly = 0  # TODO
