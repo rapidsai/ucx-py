@@ -7,7 +7,8 @@ import time
 import ucp
 import struct
 import multiprocessing
-from distributed.utils import nbytes
+import numpy as np
+from distributed.utils import nbytes, log_errors
 
 
 async def get_ep(name, port):
@@ -15,6 +16,7 @@ async def get_ep(name, port):
     ep = await ucp.get_endpoint(addr, port)
     print(name, ep)
     return ep
+
 
 
 def client(env, port):
@@ -58,8 +60,8 @@ def client(env, port):
         typ = pickle.loads(header["type"])
         cuda_obj = typ.deserialize(header, frames)
 
-        print(cuda_obj, len(cuda_obj))
-        asyncio.sleep(5)
+        print(cuda_obj, len(cuda_obj), type(cuda_obj))
+        asyncio.sleep(1)
         # how should we confirm data is on two GPUs ?
         await ep.send_obj(b"OK")
         print("Shutting Down Client...")
@@ -74,22 +76,28 @@ async def generate_cuda_obj(cuda_type="cupy"):
     generate cuda object and return serialized version
     # if there is an error here it never bubbles up
     """
-    if cuda_type == "cupy":
-        import cupy
-        import distributed
+    with log_errors():
+        if cuda_type == "cupy":
+            import cupy
+            import distributed
 
-        data = cupy.arange(10)
-        frames = await distributed.comm.utils.to_frames(
-            data, serializers=("cuda", "pickle")
-        )
-    if cuda_type == "cudf":
-        import cudf
-
-        asyncio.sleep(0.01)
-        cdf = cudf.DataFrame({"a": range(5), "b": range(5)})
-        cdf = cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
-        header, _frames = cdf.serialize()
-        frames = [pickle.dumps(header)] + _frames
+            data = cupy.arange(10)
+            frames = await distributed.comm.utils.to_frames(
+                data, serializers=("cuda", "pickle")
+            )
+        if cuda_type == "cudf":
+            import cudf
+            import numpy as np
+            asyncio.sleep(0.01)
+            # cdf = cudf.DataFrame({"a": range(5), "b": range(5)})
+            # cdf = cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
+            # cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[10,13,15,20,25])
+            # size = 2**12
+            # cdf = cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)}, index=np.random.randint(size, size=size))
+            cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[1, 2, 5, None, 6])
+            print(cdf.head().to_pandas())
+            header, _frames = cdf.serialize()
+            frames = [pickle.dumps(header)] + _frames
 
     return frames
 
@@ -152,11 +160,11 @@ def test_send_recv_cudf(event_loop):
         "UCX_RNDV_SCHEME": "put_zcopy",
         "UCX_MEMTYPE_CACHE": "n",
         "UCX_TLS": "rc,cuda_copy",
-        "CUDA_VISIBLE_DEVICES": "1",
+        "CUDA_VISIBLE_DEVICES": "0",
     }
     env1 = base_env.copy()
     env2 = base_env.copy()
-    env2["CUDA_VISIBLE_DEVICES"] = "5"
+    env2["CUDA_VISIBLE_DEVICES"] = "3"
 
     port = 15338
     server_process = multiprocessing.Process(
