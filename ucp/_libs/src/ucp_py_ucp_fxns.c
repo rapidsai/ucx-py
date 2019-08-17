@@ -103,6 +103,10 @@ static double get_latency(struct ucx_context *context)
 }
 #endif
 
+
+
+
+
 static void request_init(void *request)
 {
     struct ucx_context *ctx = (struct ucx_context *) request;
@@ -243,6 +247,17 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
  err_ep:
     printf("listener_accept_cb\n");
     exit(-1);
+}
+
+void *get_worker() {
+    return (void*)ucp_py_ctx_head->ucp_worker;
+
+}
+
+void *get_ep_ptr(void* ep) {
+    ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t*)ep;
+    ucp_ep_h *ret_ep = int_ep->ep_ptr;
+    return (void*)ret_ep;
 }
 
 struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, ssize_t length)
