@@ -110,8 +110,7 @@ cdef class BufferRegion:
         self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
-        self.shape = [0]
-
+        self.shape = (0,)
     def __len__(self):
         if not self.is_set:
             return 0
@@ -193,7 +192,7 @@ cdef class BufferRegion:
 
     cpdef _populate_ptr(self, format_[:] pyobj):
         # Notice, `len(memoryview.shape)` might not equal `memoryview.ndim`
-        self.shape = [pyobj.shape[i] for i in range(pyobj.ndim)]
+        self.shape = tuple([pyobj.shape[i] for i in range(pyobj.ndim)])
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
         if hasattr(pyobj.base, 'format'):
