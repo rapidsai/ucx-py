@@ -226,18 +226,18 @@ cdef class BufferRegion:
     # ------------------------------------------------------------------------
     # Manual memory management
 
-    def alloc_host(self, Py_ssize_t len):
-        self.buf = allocate_host_buffer(len)
+    def alloc_host(self, Py_ssize_t length):
+        self.buf = allocate_host_buffer(length)
         self._is_cuda = 0
         self._mem_allocated = 1
-        self.shape[0] = len
+        self.shape = (length,)
 
-    def alloc_cuda(self, len):
+    def alloc_cuda(self, length):
         cuda_check()
-        self.buf = allocate_cuda_buffer(len)
+        self.buf = allocate_cuda_buffer(length)
         self._is_cuda = 1
         self._mem_allocated = 1
-        self.shape[0] = len
+        self.shape = (length,)
 
     def free_host(self):
         free_host_buffer(self.buf)
