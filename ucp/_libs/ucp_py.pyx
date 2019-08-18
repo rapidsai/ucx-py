@@ -296,7 +296,7 @@ cdef class Endpoint:
         Receive into an existing block of memory.
         """
         buf_reg = BufferRegion()
-        buf_reg.shape[0] = nbytes
+        buf_reg.shape = (nbytes,)
         if hasattr(buffer, '__cuda_array_interface__'):
             buf_reg.populate_cuda_ptr(buffer)
         else:
