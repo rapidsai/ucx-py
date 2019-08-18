@@ -156,7 +156,7 @@ cdef class BufferRegion:
         if self.shape[0] == 0:
             buffer.buf = <void *>empty
         else:
-            buffer.buf = <void *>&(self.buf.buf[0])
+            buffer.buf = <void *>(self.buf.buf)
 
         shape2[0] = self.shape[0]
         for s in self.shape[1:]:
