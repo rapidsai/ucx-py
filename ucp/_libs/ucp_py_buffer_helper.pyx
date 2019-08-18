@@ -147,7 +147,6 @@ cdef class BufferRegion:
         cdef:
             Py_ssize_t *strides = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
             Py_ssize_t *shape2 = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
-            empty = b''
 
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
@@ -155,7 +154,7 @@ cdef class BufferRegion:
         strides[0] = <Py_ssize_t>self.itemsize
         assert len(self.shape)
         if self.shape[0] == 0:
-            buffer.buf = <void *>empty
+            buffer.buf = NULL
         else:
             buffer.buf = <void *>(self.buf.buf)
 
