@@ -9,6 +9,7 @@ cdef extern from "common.h":
 
 import struct
 from libc.stdint cimport uintptr_t
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 
 # TODO: pxd files
 
@@ -144,8 +145,8 @@ cdef class BufferRegion:
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
-            Py_ssize_t strides[1]
-            Py_ssize_t shape2[1]
+            Py_ssize_t *strides = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
+            Py_ssize_t *shape2 = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
             empty = b''
 
         if not self.is_set:
@@ -166,12 +167,16 @@ cdef class BufferRegion:
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
         buffer.len = shape2[0] * self.itemsize
-        buffer.ndim = len(shape2)
+        buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = 0  # TODO
         buffer.shape = shape2
         buffer.strides = strides
         buffer.suboffsets = NULL
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        PyMem_Free(buffer.shape)
+        PyMem_Free(buffer.strides)
 
     # ------------------------------------------------------------------------
     @property
