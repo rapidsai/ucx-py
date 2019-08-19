@@ -269,12 +269,7 @@ cdef class Endpoint:
         """
         Receive into an existing block of memory.
         """
-        buf_reg = BufferRegion()
-        buf_reg.shape = (nbytes,)
-        if hasattr(buffer, '__cuda_array_interface__'):
-            buf_reg.populate_cuda_ptr(buffer)
-        else:
-            buf_reg.populate_ptr(buffer)
+        buf_reg = BufferRegion.fromBuffer(buffer)
         return self._recv(buf_reg, nbytes, name)
 
     @ucp_logger
@@ -325,14 +320,10 @@ cdef class Endpoint:
         return self._recv(buf_reg, nbytes, name)
 
     def _send_obj_cuda(self, obj):
-        buf_reg = BufferRegion()
-        buf_reg.populate_cuda_ptr(obj)
-        return buf_reg
+        return BufferRegion.fromBuffer(obj)
 
     def _send_obj_host(self, format_[:] obj):
-        buf_reg = BufferRegion()
-        buf_reg.populate_ptr(obj)
-        return buf_reg
+        return BufferRegion.fromBuffer(obj)
 
     @ucp_logger
     def send_obj(self, msg, nbytes=None, name='send_obj'):
