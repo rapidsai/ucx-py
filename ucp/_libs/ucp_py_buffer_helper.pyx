@@ -9,6 +9,7 @@ cdef extern from "common.h":
 
 import struct
 from libc.stdint cimport uintptr_t
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 
 # TODO: pxd files
 
@@ -111,8 +112,7 @@ cdef class BufferRegion:
         self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
-        self.shape = [0]
-
+        self.shape = (0,)
     def __len__(self):
         if not self.is_set:
             return 0
@@ -145,9 +145,8 @@ cdef class BufferRegion:
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
-            Py_ssize_t strides[1]
-            Py_ssize_t shape2[1]
-            empty = b''
+            Py_ssize_t *strides = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
+            Py_ssize_t *shape2 = <Py_ssize_t*>PyMem_Malloc(sizeof(Py_ssize_t))
 
         if not self.is_set:
             raise ValueError("This buffer region's memory has not been set.")
@@ -155,9 +154,9 @@ cdef class BufferRegion:
         strides[0] = <Py_ssize_t>self.itemsize
         assert len(self.shape)
         if self.shape[0] == 0:
-            buffer.buf = <void *>empty
+            buffer.buf = NULL
         else:
-            buffer.buf = <void *>&(self.buf.buf[0])
+            buffer.buf = <void *>(self.buf.buf)
 
         shape2[0] = self.shape[0]
         for s in self.shape[1:]:
@@ -167,12 +166,16 @@ cdef class BufferRegion:
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
         buffer.len = shape2[0] * self.itemsize
-        buffer.ndim = len(self.shape)
+        buffer.ndim = 1
         buffer.obj = self
         buffer.readonly = 0  # TODO
         buffer.shape = shape2
         buffer.strides = strides
         buffer.suboffsets = NULL
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        PyMem_Free(buffer.shape)
+        PyMem_Free(buffer.strides)
 
     # ------------------------------------------------------------------------
     @property
@@ -195,7 +198,8 @@ cdef class BufferRegion:
         self._populate_ptr(obj)
 
     cpdef _populate_ptr(self, format_[:] pyobj):
-        self.shape = pyobj.shape
+        # Notice, `len(memoryview.shape)` might not equal `memoryview.ndim`
+        self.shape = tuple([pyobj.shape[i] for i in range(pyobj.ndim)])
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
         if hasattr(pyobj.base, 'format'):
@@ -226,18 +230,18 @@ cdef class BufferRegion:
     # ------------------------------------------------------------------------
     # Manual memory management
 
-    def alloc_host(self, Py_ssize_t len):
-        self.buf = allocate_host_buffer(len)
+    def alloc_host(self, Py_ssize_t length):
+        self.buf = allocate_host_buffer(length)
         self._is_cuda = 0
         self._mem_allocated = 1
-        self.shape[0] = len
+        self.shape = (length,)
 
-    def alloc_cuda(self, len):
+    def alloc_cuda(self, length):
         cuda_check()
-        self.buf = allocate_cuda_buffer(len)
+        self.buf = allocate_cuda_buffer(length)
         self._is_cuda = 1
         self._mem_allocated = 1
-        self.shape[0] = len
+        self.shape = (length,)
 
     def free_host(self):
         free_host_buffer(self.buf)
