@@ -104,6 +104,7 @@ cdef class BufferRegion:
     @classmethod
     def fromBuffer(cls, obj):
         if hasattr(obj, "__cuda_array_interface__"):
+            cuda_check()
             ret = BufferRegion()
             ret._populate_cuda_ptr(obj)
             return ret
@@ -111,6 +112,24 @@ cdef class BufferRegion:
             ret = BufferRegion()
             ret._populate_ptr(obj)
             return ret            
+
+    @classmethod
+    def newBuffer(cls, nbytes, cuda=False):
+        ret = BufferRegion()
+        if cuda:
+            cuda_check()
+            ret.buf = malloc_cuda(nbytes)
+            ret._is_cuda = 1
+        else:
+            ret.buf = malloc_host(nbytes)
+            ret._is_cuda = 0
+        ret._mem_allocated = 1
+        ret.shape = (nbytes,)
+        ret.typestr = "B"
+        ret.format = b"B"
+        ret.itemsize = 1
+        ret._is_set = 1
+        return ret
 
     def __len__(self):
         if not self.is_set:

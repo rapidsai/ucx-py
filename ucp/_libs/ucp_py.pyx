@@ -310,13 +310,7 @@ cdef class Endpoint:
         >>> result
         <ucp_py._libs.ucp_py.BufferRegion at 0x...>
         """
-        buf_reg = BufferRegion()
-        if cuda:
-            buf_reg.alloc_cuda(nbytes)
-            buf_reg._is_cuda = 1
-        else:
-            buf_reg.alloc_host(nbytes)
-
+        buf_reg = BufferRegion.newBuffer(nbytes, cuda=cuda)
         return self._recv(buf_reg, nbytes, name)
 
     def _send_obj_cuda(self, obj):
@@ -421,15 +415,15 @@ cdef class Message:
     def is_cuda(self):
         return self.buf_reg.is_cuda
 
-    def alloc_host(self, len):
-        self.buf_reg.alloc_host(len)
+    def alloc_host(self, length):
+        self.buf_reg = BufferRegion.newBuffer(length, cuda=False)
         self.buf = self.buf_reg.buf
-        self.alloc_len = len
+        self.alloc_len = length
 
-    def alloc_cuda(self, len):
-        self.buf_reg.alloc_cuda(len)
+    def alloc_cuda(self, length):
+        self.buf_reg = BufferRegion.newBuffer(length, cuda=True)
         self.buf = self.buf_reg.buf
-        self.alloc_len = len
+        self.alloc_len = length
 
     def free_host(self):
         self.buf_reg.free_host()
