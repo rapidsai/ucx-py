@@ -43,17 +43,18 @@ include "ucp_py_buffer_helper.pyx"
 
 PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
-reader_added = 0
-UCP_INITIALIZED = False
 LOGGER = None
 listener_futures = set()
+
+def initialized():
+    global UCX_FILE_DESCRIPTOR
+    return UCX_FILE_DESCRIPTOR >= 0
 
 
 def get_ucp_worker():
     return <size_t>get_worker()
 
 def ucp_logger(fxn):
-
     """
     Ref https://realpython.com/python-logging
     Ref https://realpython.com/primer-on-python-decorators
@@ -104,9 +105,7 @@ def handle_msg(msg):
         a. the message has finished being sent or received.
         The ``.result`` will be the original `msg`.
     """
-    global reader_added
-    assert UCX_FILE_DESCRIPTOR > 0
-    assert reader_added > 0
+    assert initialized()
 
     fut = asyncio.Future()
     PENDING_MESSAGES[msg] = fut
@@ -594,34 +593,22 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
 
 
 def init():
-    """Initiates ucp resources like ucp_context and ucp_worker
-
-    Returns
-    -------
-    0 if initialization was successful
-    """
+    """Initiates ucp resources like ucp_context and ucp_worker"""
     global UCX_FILE_DESCRIPTOR
-    global UCP_INITIALIZED
-    global LOGGER
-    global reader_added
 
-    if UCP_INITIALIZED:
-        return 0
+    if initialized():
+        return
 
     rval = ucp_py_init()
-    if 0 == rval:
-        UCP_INITIALIZED = True
+    if rval != 0:
+        raise RuntimeError("UCX-Py init(): ucp_py_init() failed!")
 
     UCX_FILE_DESCRIPTOR = ucp_py_worker_get_epoll_fd()
+    if UCX_FILE_DESCRIPTOR < 0:
+        raise RuntimeError("UCX-Py init(): ucp_py_worker_get_epoll_fd() failed!")
 
-    assert 0 == reader_added
-    if 0 == reader_added:
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop = asyncio.get_event_loop()
-        loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
-        reader_added = 1
-
-    return rval
+    loop = asyncio.get_event_loop()
+    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
 
 @ucp_logger
 def start_listener(py_func, listener_port = -1, is_coroutine = False):
@@ -706,29 +693,18 @@ def stop_listener(lf):
 
 @ucp_logger
 def fin():
-    """Release ucp resources like ucp_context and ucp_worker
+    """Release ucp resources like ucp_context and ucp_worker    """
+    if not initialized():
+        return
 
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    0 if resources freed successfully
-    """
-    global UCP_INITIALIZED
     global UCX_FILE_DESCRIPTOR
-    global reader_added
 
-    if 1 == reader_added:
-        loop = asyncio.get_event_loop()
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop.remove_reader(UCX_FILE_DESCRIPTOR)
-        reader_added = 0
-
-    if UCP_INITIALIZED:
-        UCP_INITIALIZED = False
-        return ucp_py_finalize()
+    loop = asyncio.get_event_loop()
+    loop.remove_reader(UCX_FILE_DESCRIPTOR)
+    UCX_FILE_DESCRIPTOR = -1
+    err = ucp_py_finalize()
+    if err != 0:
+        raise RuntimeError("UCX-Py fin(): ucp_py_finalize() failed!")
 
 @ucp_logger
 async def get_endpoint(peer_ip, peer_port, timeout=None):
