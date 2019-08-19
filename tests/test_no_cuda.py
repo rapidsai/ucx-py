@@ -2,7 +2,6 @@ import pytest
 
 import ucp
 
-
 pytestmark = pytest.mark.skipif(ucp.HAS_CUDA, reason="has CUDA")
 msg = 'not compiled with CUDA'
 
