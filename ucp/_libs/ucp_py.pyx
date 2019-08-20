@@ -1,7 +1,6 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 # cython: language_level=3
-import concurrent.futures
 import asyncio
 import time
 import sys
@@ -187,7 +186,7 @@ def on_activity_cb():
             for msg in dones:
                 PENDING_MESSAGES.pop(msg)
 
-class ListenerFuture(concurrent.futures.Future):
+class ListenerFuture(asyncio.futures.Future):
     """A class to keep listener alive and invoke callbacks on incoming
     connections
     """
