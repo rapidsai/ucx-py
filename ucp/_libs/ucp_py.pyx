@@ -49,6 +49,17 @@ def initialized():
     global UCX_FILE_DESCRIPTOR
     return UCX_FILE_DESCRIPTOR >= 0
 
+def update_pending_messages():
+    """Checking for finished futures in `PENDING_MESSAGES`"""
+    dones = []
+    for msg, fut in PENDING_MESSAGES.items():
+        completed = msg.check()
+        if completed:
+            dones.append(msg)
+            fut.set_result(msg)
+
+    for msg in dones:
+        PENDING_MESSAGES.pop(msg)
 
 def get_ucp_worker():
     return <size_t>get_worker()
@@ -117,15 +128,7 @@ def handle_msg(msg):
     while -1 == ucp_py_worker_progress_wait():
         while 0 != ucp_py_worker_progress():
             pass
-        dones = []
-        for m, ft in PENDING_MESSAGES.items():
-            completed = m.check()
-            if completed:
-                dones.append(m)
-                ft.set_result(m)
-
-        for m in dones:
-            PENDING_MESSAGES.pop(m)
+        update_pending_messages()
 
     return fut
 
@@ -149,42 +152,17 @@ def on_activity_cb():
     To avoid consuming resources unnecessarily, this callback is removed
     from the event loop when all outstanding messages have been processed.
     """
-    dones = []
 
     ucp_py_worker_drain_fd()
 
     while 0 != ucp_py_worker_progress():
-        dones = []
-        for msg, fut in PENDING_MESSAGES.items():
-            completed = msg.check()
-            if completed:
-                dones.append(msg)
-                fut.set_result(msg)
+        update_pending_messages()
 
-        for msg in dones:
-            PENDING_MESSAGES.pop(msg)
-
-    dones = []
-    for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.check()
-        if completed:
-            dones.append(msg)
-            fut.set_result(msg)
-
-    for msg in dones:
-        PENDING_MESSAGES.pop(msg)
+    update_pending_messages()
 
     while -1 == ucp_py_worker_progress_wait():
         while 0 != ucp_py_worker_progress():
-            dones = []
-            for msg, fut in PENDING_MESSAGES.items():
-                completed = msg.check()
-                if completed:
-                    dones.append(msg)
-                    fut.set_result(msg)
-
-            for msg in dones:
-                PENDING_MESSAGES.pop(msg)
+            update_pending_messages()
 
 class ListenerFuture(asyncio.futures.Future):
     """A class to keep listener alive and invoke callbacks on incoming
