@@ -1,7 +1,9 @@
-import ucp
 import asyncio
+import contextlib
+import pytest
 
-ucp.init()
+import ucp
+from utils import ucp_init
 
 
 async def hello(ep, listener):
@@ -10,7 +12,7 @@ async def hello(ep, listener):
     ucp.stop_listener(listener)
 
 
-def test_multiple_listeners():
+def test_multiple_listeners(ucp_init):
     lf1 = ucp.start_listener(hello, is_coroutine=True)
     lf2 = ucp.start_listener(hello, is_coroutine=True)
     assert lf1.port > 0
@@ -21,3 +23,4 @@ def test_multiple_listeners():
     lf2.coroutine.close()
     ucp.stop_listener(lf1)
     ucp.stop_listener(lf2)
+    print("HELLO")
