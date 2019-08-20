@@ -53,6 +53,7 @@ def update_pending_messages():
     """Checking for finished futures in `PENDING_MESSAGES`"""
     dones = []
     for msg, fut in PENDING_MESSAGES.items():
+        assert(not fut.done())
         completed = msg.check()
         if completed:
             dones.append(msg)
