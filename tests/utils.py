@@ -20,7 +20,8 @@ def set_env():
 def ucp_init():
     try:
         set_env()
-        yield ucp.init()
+        ucp.init()
+        yield
     finally:
         ucp.fin()
         assert ucp._libs.ucp_py.reader_added == 0
