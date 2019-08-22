@@ -113,7 +113,7 @@ async def test_send_recv_cudf(event_loop, g):
     msg = g(cudf)
     frames, _ = await asyncio.gather(uu.comm.read(), ucx.write(msg))
     ucx_header = pickle.loads(frames[0])
-    ucx_index = bytes(frames[1])
+    ucx_index = frames[1]
     cudf_buffer = frames[2:]
     ucx_received_frames = [ucx_index] + cudf_buffer
     typ = type(msg)
