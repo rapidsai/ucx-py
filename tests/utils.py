@@ -24,4 +24,3 @@ def ucp_init():
         yield
     finally:
         ucp.fin()
-        assert ucp._libs.ucp_py.reader_added == 0
