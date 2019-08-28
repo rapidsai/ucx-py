@@ -2,6 +2,8 @@
 
 # Detailed Build and instructions
 
+The following instructions assume you'll be using `ucx-py` on a CUDA enabled system. The instructions assume you're using CUDA 9.2 for unspecific reasons. Change the `CUDA_HOME` environment variable, and the environment created and used by `conda` to `cudf_dev_10.0.yml` in order to support CUDA 10.
+
 ## Using Dask, Cudf, and UCX together ##
 
 These three libraries provide a powerful combination of MPI tools. Using them involves using the correct dependencies, in the correct order:
