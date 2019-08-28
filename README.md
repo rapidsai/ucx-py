@@ -4,9 +4,11 @@
 
 The following instructions assume you'll be using `ucx-py` on a CUDA enabled system. The instructions assume you're using CUDA 9.2 for unspecific reasons. Change the `CUDA_HOME` environment variable, and the environment created and used by `conda` to `cudf_dev_10.0.yml` in order to support CUDA 10.
 
+All of the recipes used can be found here: https://github.com/jakirkham/staged-recipes/tree/ad6f8c51e9b08f34b800b19e9e15dd80cee6f7ea/recipes
+
 ## Using Dask, Cudf, and UCX together ##
 
-These three libraries provide a powerful combination of MPI tools. Using them involves using the correct dependencies, in the correct order:
+These three libraries provide a powerful combination of HPC message passing tools. Using them involves using the correct dependencies, in the correct order:
 
 ## NVIDIA repositories ##
 
@@ -28,16 +30,20 @@ These three libraries provide a powerful combination of MPI tools. Using them in
     pip install -e .
     cd ..
 
-### dask-cuda ###
+### dask distributed ###
 
-    git clone git@github.com:rapidsai/dask-cuda.git
-    cd dask-cuda
+    git clone git@github.com:dask/distributed.git
+    cd distributed
     pip install -e .
     cd ..
 
-### Conda Dependencies ###
+### dask-cuda ###
 
-    conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cupy
+    conda install -c rapidsai dask-cuda
+
+### conda-forge Dependencies ###
+
+    conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cupy distributed
 
 ### UCX ###
 
