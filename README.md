@@ -64,7 +64,7 @@ dask-cuda
 
 ### Conda Dependencies ###
 
-    conda install -c conda-forge automake make cmake libtool pkg-config pytest-asncio cupy
+    conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cupy
 
 ### UCX ###
 
