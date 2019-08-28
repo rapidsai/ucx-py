@@ -634,7 +634,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 	return NULL;
     }
     internal_ep->ep_ptr = ep_ptr;
-    s*rintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
+    sprintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
             (unsigned int) my_pid, connect_ep_counter, listener_port);
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
