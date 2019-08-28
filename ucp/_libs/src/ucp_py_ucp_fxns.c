@@ -195,7 +195,7 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
     fprintf(stderr, "progress %lf us\n", lat);
 #endif
-    // DEBUG_PRINT("called ucp_worker_progress\n");
+    DEBUG_PRINT("called ucp_worker_progress\n");
 
     while (cb_used_head.tqh_first != NULL) {
         //handle python callbacks
@@ -601,7 +601,6 @@ static void ep_err_handler_cb(void *arg, ucp_ep_h ep, ucs_status_t status)
 
 void *ucp_py_get_ep(char *ip, int listener_port)
 {
-    ERROR_PRINT("run ucp_py_get_ep")
     ucp_ep_params_t ep_params;
     struct sockaddr_in connect_addr;
     ucs_status_t status;
@@ -635,7 +634,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 	return NULL;
     }
     internal_ep->ep_ptr = ep_ptr;
-    sprintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
+    s*rintf(internal_ep->ep_tag_str, "%s:%u:%d:%d", my_hostname,
             (unsigned int) my_pid, connect_ep_counter, listener_port);
     internal_ep->send_tag = djb2_hash(internal_ep->ep_tag_str);
     sprintf(tmp_str, "%s:%d", internal_ep->ep_tag_str, listener_port);
@@ -826,8 +825,6 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int *port)
                             &ucp_py_ctx_head->listener_context[listener_idx],
                             listener,
                             port);
-    DEBUG_PRINT("status %d\n", status);
-    DEBUG_PRINT("port %d\n", *port);
     default_listener_port = *port + 1;
     ucp_py_ctx_head->num_listeners += 1;
     CHKERR_JUMP(UCS_OK != status, "failed to start listener", err_worker);

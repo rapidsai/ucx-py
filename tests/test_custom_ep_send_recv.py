@@ -207,7 +207,6 @@ async def test_send_recv_cupy(event_loop, size):
             self.ucp_server = ucp.start_listener(
                 serve_forever, listener_port=13337, is_coroutine=True
             )
-            print(self.ucp_server)
             t = loop.create_task(self.ucp_server.coroutine)
             self._t = t
 

@@ -608,6 +608,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     0 if listener successfully started
     """
     cdef int port
+
     listener = Listener()
     loop = asyncio.get_event_loop()
 
@@ -624,7 +625,6 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
     port = listener_port
     max_tries = 10000 # Arbitrary for now
     num_tries = 0
-
     while True:
 
         if 0 == port:
@@ -635,7 +635,7 @@ def start_listener(py_func, listener_port = -1, is_coroutine = False):
             addr = s.getsockname()
             s.close()
             port = addr[1]
-        
+
         listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
         if <void *> NULL != listener.listener_ptr:
             lf.listener = listener
