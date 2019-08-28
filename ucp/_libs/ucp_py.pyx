@@ -218,9 +218,7 @@ cdef class Endpoint:
         return <size_t>get_ep_ptr(self.ep)
 
     def connect(self, ip, port):
-        print('hang on connect')
         self.ep = ucp_py_get_ep(ip, port)
-        print('did not hang on connect')
         if <void *> NULL == self.ep:
             return False
 
@@ -590,7 +588,7 @@ def init():
     loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
 
 @ucp_logger
-def start_listener(py_func, listener_port = {'port':-1}, is_coroutine = False):
+def start_listener(py_func, listener_port = -1, is_coroutine = False):
     """Start listener to accept incoming connections
 
     Parameters
@@ -623,7 +621,7 @@ def start_listener(py_func, listener_port = {'port':-1}, is_coroutine = False):
             #await loop.create_future()
         lf.coroutine = start()
 
-    port = listener_port['port']
+    port = listener_port
     max_tries = 10000 # Arbitrary for now
     num_tries = 0
 
@@ -638,16 +636,10 @@ def start_listener(py_func, listener_port = {'port':-1}, is_coroutine = False):
             s.close()
             port = addr[1]
         
-        print('assigning listener_ptr')
         listener.listener_ptr = ucp_py_listen(accept_callback, <void *>lf, <int *> &port)
-        print('assigned listener_ptr')
-        print(port)
         if <void *> NULL != listener.listener_ptr:
             lf.listener = listener
             lf.port = port
-            if listener_port['port'] != port:
-                raise NameError('Unable to listen on port %d.', listener_port['port'])
-            listener_port['port'] = port
             assert(lf not in listener_futures)
             listener_futures.add(lf) # hold a reference to avoid garbage collection; TODO: possible leak
                                      # TODO: possible leak
@@ -722,7 +714,6 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
                 return True
 
     while True:
-        print(peer_ip, peer_port)
         if not ep.connect(peer_ip, peer_port):
             await asyncio.sleep(0.1)
         else:

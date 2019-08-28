@@ -99,7 +99,7 @@ async def test_send_recv_cudf(event_loop, g):
             loop = asyncio.get_event_loop()
 
             self.ucp_server = ucp.start_listener(
-                serve_forever, listener_port=ucx_port, is_coroutine=True
+                serve_forever, listener_port=13337, is_coroutine=True
             )
             t = loop.create_task(self.ucp_server.coroutine)
             self._t = t
@@ -107,7 +107,7 @@ async def test_send_recv_cudf(event_loop, g):
     uu = UCXListener()
     uu.start()
     uu.address = ucp.get_address()
-    uu.client = await ucp.get_endpoint(uu.address.encode(), ucx_port['port'])
+    uu.client = await ucp.get_endpoint(uu.address.encode(), uu.ucp_server.port)
     ucx = UCX(uu.client)
     await asyncio.sleep(0.2)
     msg = g(cudf)
@@ -126,8 +126,6 @@ async def test_send_recv_cudf(event_loop, g):
 
     # let UCP shutdown
     time.sleep(1)
-
-ucx_port = {'port': 13337}
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", [2 ** N for N in [5, 8, 13, 26, 28]])
@@ -206,18 +204,17 @@ async def test_send_recv_cupy(event_loop, size):
             ucp.init()
             loop = asyncio.get_event_loop()
 
-            breakpoint()
             self.ucp_server = ucp.start_listener(
-                serve_forever, listener_port=ucx_port, is_coroutine=True
+                serve_forever, listener_port=13337, is_coroutine=True
             )
-            print(ucx_port)
+            print(self.ucp_server)
             t = loop.create_task(self.ucp_server.coroutine)
             self._t = t
 
     uu = UCXListener()
     uu.start()
     uu.address = ucp.get_address()
-    uu.client = await ucp.get_endpoint(uu.address.encode(), ucx_port['port'])
+    uu.client = await ucp.get_endpoint(uu.address.encode(), uu.ucp_server.port)
     ucx = UCX(uu.client)
     await asyncio.sleep(0.2)
     msg = cupy.arange(size)
