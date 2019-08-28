@@ -127,6 +127,7 @@ async def test_send_recv_cudf(event_loop, g):
     # let UCP shutdown
     time.sleep(1)
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", [2 ** N for N in [5, 8, 13, 26, 28]])
 async def test_send_recv_cupy(event_loop, size):
