@@ -5,7 +5,7 @@ struct data_buf {
     void            *buf;
 };
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
