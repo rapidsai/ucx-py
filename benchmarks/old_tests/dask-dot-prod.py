@@ -12,6 +12,8 @@ def parse_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--protocol", choices=['ucx', 'tcp', 'inproc'],
                         default="ucx")
+    parser.add_argument("-s", "--server", default=None, help='server address.')
+    parser.add_argument("-n", "--port", default="13337")
 
     return parser.parse_args(args)
 
@@ -20,10 +22,8 @@ def main(args=None):
     args = parse_args(args)
 
     if args.protocol == 'ucx':
-        address = dask.config.get("distributed.comm.ucxaddress")
-        if address is None:
-            raise ValueError("Set distributed.comm.ucxaddress")
-        client = Client(address)
+        sched_str = "ucx://"+ args.server + ":" + args.port
+        client = Client(sched_str)
     else:
         kwargs = {'n_workers': 2, 'threads_per_worker': 40}
         kwargs['processes'] = args.protocol == 'tcp'

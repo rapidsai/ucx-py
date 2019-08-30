@@ -163,6 +163,7 @@ loop = asyncio.get_event_loop()
 if server:
     listener = ucp.start_listener(talk_to_client, is_coroutine=True)
     coro = listener.coroutine
+    print(f'listening at port {listener.port}')
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 

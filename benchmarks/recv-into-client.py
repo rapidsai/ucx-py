@@ -2,6 +2,30 @@
 Benchmark recv_into.
 
 A client server pair take turns incrementing their arrays.
+
+Sample run:
+===========
+
+server:
+python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 
+
+client:
+python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 -s A.B.C.D
+
+Output (not NVLINK):
+====================
+
+Roundtrip benchmark
+-------------------
+n_iter   | 10
+n_bytes  | 1000.00 MB
+recv     | recv_into
+object   | cupy
+inc      | False
+
+===================
+12.59 GB / s
+===================
 """
 import argparse
 import asyncio
@@ -78,7 +102,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
         await ep.send_obj(np.ones(1))
         await ep.recv_future()
         await asyncio.sleep(2)
-        ep.close()
+        ucp.destroy_ep(ep)
         ucp.stop_listener(lf)
 
     lf = ucp.start_listener(inc, port, is_coroutine=True)
@@ -87,7 +111,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
 
 async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
                   increment):
-    ep = await ucp.get_endpoint(host.encode(), port)
+    ep = await ucp.get_endpoint(host.encode(), port, timeout=10)
     arr = np.zeros(n_bytes, dtype='u1')
 
     start = clock()
@@ -124,10 +148,10 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
 
     await ep.recv_future()
     await ep.send_obj(np.ones(1))
-    ep.close()
+    ucp.destroy_ep(ep)
 
 
-async def main(args=None):
+def main(args=None):
     args = parse_args(args)
     if args.object_type == 'numpy':
         import numpy as xp
@@ -138,17 +162,19 @@ async def main(args=None):
         if args.object_type == 'cupy':
             xp.cuda.runtime.setDevice(0)
             print(xp.cuda.runtime.getDevice())
-        await connect(args.server, args.port, args.n_bytes, args.n_iter,
+        return connect(args.server, args.port, args.n_bytes, args.n_iter,
                       args.recv, xp, args.verbose, args.inc)
     else:
         if args.object_type == 'cupy':
             xp.cuda.runtime.setDevice(1)
             print(xp.cuda.runtime.getDevice())
-        await serve(args.port, args.n_bytes, args.n_iter,
+        return serve(args.port, args.n_bytes, args.n_iter,
                     args.recv, xp, args.verbose, args.inc)
 
     ucp.fin()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    loop.close()

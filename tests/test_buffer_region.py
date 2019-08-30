@@ -4,11 +4,11 @@ import ucp
 
 
 def test_set_read():
-    obj = memoryview(b'hi')
+    obj = memoryview(b"hi")
     buffer_region = ucp.BufferRegion()
     buffer_region.populate_ptr(obj)
     res = memoryview(buffer_region)
-    assert res == obj
+    assert bytes(res) == bytes(obj)
     assert res.tobytes() == obj.tobytes()
 
     # our properties
@@ -16,9 +16,7 @@ def test_set_read():
     assert buffer_region.shape[0] == 2
 
 
-@pytest.mark.parametrize("dtype", [
-    'u1', 'u8', 'i1', 'i8', 'f4', 'f8'
-])
+@pytest.mark.parametrize("dtype", ["u1", "u8", "i1", "i8", "f4", "f8"])
 @pytest.mark.parametrize("data", [True, False])
 def test_numpy(dtype, data):
     np = pytest.importorskip("numpy")
@@ -35,11 +33,9 @@ def test_numpy(dtype, data):
     np.testing.assert_array_equal(result, arr)
 
 
-@pytest.mark.parametrize('dtype', [
-    'u1', 'u8', 'i1', 'i8', 'f4', 'f8'
-])
+@pytest.mark.parametrize("dtype", ["u1", "u8", "i1", "i8", "f4", "f8"])
 def test_cupy(dtype):
-    cupy = pytest.importorskip('cupy')
+    cupy = pytest.importorskip("cupy")
     arr = cupy.ones(10, dtype)
 
     buffer_region = ucp.BufferRegion()
@@ -48,12 +44,14 @@ def test_cupy(dtype):
     result = cupy.asarray(buffer_region)
     cupy.testing.assert_array_equal(result, arr)
 
+
 def test_numba_empty():
-    numba = pytest.importorskip('numba')
+    numba = pytest.importorskip("numba")
     import numba.cuda  # noqa
+
     arr = numba.cuda.device_array(0)
     br = ucp.BufferRegion()
     br.populate_cuda_ptr(arr)
 
     assert len(br) == 0
-    assert br.__cuda_array_interface__['data'][0] == 0
+    assert br.__cuda_array_interface__["data"][0] == 0

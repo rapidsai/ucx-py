@@ -1,7 +1,6 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 # cython: language_level=3
-import concurrent.futures
 import asyncio
 import time
 import sys
@@ -9,12 +8,16 @@ import logging
 import os
 import socket
 from weakref import WeakValueDictionary
+from cython.operator cimport dereference as deref
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
 
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_ep_h:
+        pass
+
+    ctypedef struct ucp_worker_h:
         pass
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
@@ -39,13 +42,29 @@ include "ucp_py_buffer_helper.pyx"
 
 PENDING_MESSAGES = {}  # type: Dict[Message, Future]
 UCX_FILE_DESCRIPTOR = -1
-reader_added = 0
-UCP_INITIALIZED = False
 LOGGER = None
 listener_futures = set()
 
-def ucp_logger(fxn):
+def initialized():
+    global UCX_FILE_DESCRIPTOR
+    return UCX_FILE_DESCRIPTOR >= 0
 
+def update_pending_messages():
+    """Checking for finished futures in `PENDING_MESSAGES`"""
+    dones = []
+    for msg, fut in PENDING_MESSAGES.items():
+        if fut.done():
+            dones.append(msg)
+        elif msg.check():
+            dones.append(msg)
+            fut.set_result(msg)
+    for msg in dones:
+        PENDING_MESSAGES.pop(msg)
+
+def get_ucp_worker():
+    return <size_t>get_worker()
+
+def ucp_logger(fxn):
     """
     Ref https://realpython.com/python-logging
     Ref https://realpython.com/primer-on-python-decorators
@@ -96,9 +115,7 @@ def handle_msg(msg):
         a. the message has finished being sent or received.
         The ``.result`` will be the original `msg`.
     """
-    global reader_added
-    assert UCX_FILE_DESCRIPTOR > 0
-    assert reader_added > 0
+    assert initialized()
 
     fut = asyncio.Future()
     PENDING_MESSAGES[msg] = fut
@@ -111,15 +128,7 @@ def handle_msg(msg):
     while -1 == ucp_py_worker_progress_wait():
         while 0 != ucp_py_worker_progress():
             pass
-        dones = []
-        for m, ft in PENDING_MESSAGES.items():
-            completed = m.check()
-            if completed:
-                dones.append(m)
-                ft.set_result(m)
-
-        for m in dones:
-            PENDING_MESSAGES.pop(m)
+        update_pending_messages()
 
     return fut
 
@@ -143,44 +152,19 @@ def on_activity_cb():
     To avoid consuming resources unnecessarily, this callback is removed
     from the event loop when all outstanding messages have been processed.
     """
-    dones = []
 
     ucp_py_worker_drain_fd()
 
     while 0 != ucp_py_worker_progress():
-        dones = []
-        for msg, fut in PENDING_MESSAGES.items():
-            completed = msg.check()
-            if completed:
-                dones.append(msg)
-                fut.set_result(msg)
+        update_pending_messages()
 
-        for msg in dones:
-            PENDING_MESSAGES.pop(msg)
-
-    dones = []
-    for msg, fut in PENDING_MESSAGES.items():
-        completed = msg.check()
-        if completed:
-            dones.append(msg)
-            fut.set_result(msg)
-
-    for msg in dones:
-        PENDING_MESSAGES.pop(msg)
+    update_pending_messages()
 
     while -1 == ucp_py_worker_progress_wait():
         while 0 != ucp_py_worker_progress():
-            dones = []
-            for msg, fut in PENDING_MESSAGES.items():
-                completed = msg.check()
-                if completed:
-                    dones.append(msg)
-                    fut.set_result(msg)
+            update_pending_messages()
 
-            for msg in dones:
-                PENDING_MESSAGES.pop(msg)
-
-class ListenerFuture(concurrent.futures.Future):
+class ListenerFuture(asyncio.futures.Future):
     """A class to keep listener alive and invoke callbacks on incoming
     connections
     """
@@ -230,10 +214,14 @@ cdef class Endpoint:
     def __cinit__(self):
         return
 
+    def get_ep(self):
+        return <size_t>get_ep_ptr(self.ep)
+
     def connect(self, ip, port):
         self.ep = ucp_py_get_ep(ip, port)
         if <void *> NULL == self.ep:
             return False
+
         return True
 
     @ucp_logger
@@ -284,7 +272,7 @@ cdef class Endpoint:
         Receive into an existing block of memory.
         """
         buf_reg = BufferRegion()
-        buf_reg.shape[0] = nbytes
+        buf_reg.shape = (nbytes,)
         if hasattr(buffer, '__cuda_array_interface__'):
             buf_reg.populate_cuda_ptr(buffer)
         else:
@@ -582,34 +570,22 @@ cdef void accept_callback(void *client_ep_ptr, void *lf):
 
 
 def init():
-    """Initiates ucp resources like ucp_context and ucp_worker
-
-    Returns
-    -------
-    0 if initialization was successful
-    """
+    """Initiates ucp resources like ucp_context and ucp_worker"""
     global UCX_FILE_DESCRIPTOR
-    global UCP_INITIALIZED
-    global LOGGER
-    global reader_added
 
-    if UCP_INITIALIZED:
-        return 0
+    if initialized():
+        return
 
     rval = ucp_py_init()
-    if 0 == rval:
-        UCP_INITIALIZED = True
+    if rval != 0:
+        raise RuntimeError("UCX-Py init(): ucp_py_init() failed!")
 
     UCX_FILE_DESCRIPTOR = ucp_py_worker_get_epoll_fd()
+    if UCX_FILE_DESCRIPTOR < 0:
+        raise RuntimeError("UCX-Py init(): ucp_py_worker_get_epoll_fd() failed!")
 
-    assert 0 == reader_added
-    if 0 == reader_added:
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop = asyncio.get_event_loop()
-        loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
-        reader_added = 1
-
-    return rval
+    loop = asyncio.get_event_loop()
+    loop.add_reader(UCX_FILE_DESCRIPTOR, on_activity_cb)
 
 @ucp_logger
 def start_listener(py_func, listener_port = -1, is_coroutine = False):
@@ -694,29 +670,18 @@ def stop_listener(lf):
 
 @ucp_logger
 def fin():
-    """Release ucp resources like ucp_context and ucp_worker
+    """Release ucp resources like ucp_context and ucp_worker    """
+    if not initialized():
+        return
 
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    0 if resources freed successfully
-    """
-    global UCP_INITIALIZED
     global UCX_FILE_DESCRIPTOR
-    global reader_added
 
-    if 1 == reader_added:
-        loop = asyncio.get_event_loop()
-        assert UCX_FILE_DESCRIPTOR > 0
-        loop.remove_reader(UCX_FILE_DESCRIPTOR)
-        reader_added = 0
-
-    if UCP_INITIALIZED:
-        UCP_INITIALIZED = False
-        return ucp_py_finalize()
+    loop = asyncio.get_event_loop()
+    loop.remove_reader(UCX_FILE_DESCRIPTOR)
+    UCX_FILE_DESCRIPTOR = -1
+    err = ucp_py_finalize()
+    if err != 0:
+        raise RuntimeError("UCX-Py fin(): ucp_py_finalize() failed!")
 
 @ucp_logger
 async def get_endpoint(peer_ip, peer_port, timeout=None):
