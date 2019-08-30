@@ -1,15 +1,18 @@
 import os
 import asyncio
 import pytest
-import pickle
+import cloudpickle
 import time
 
 import ucp
 import struct
 import multiprocessing
 import numpy as np
-from distributed.utils import nbytes, log_errors
 
+import dask.dataframe as dd
+from distributed.utils import nbytes, log_errors
+from distributed.protocol import to_serialize
+from distributed.comm.utils import to_frames, from_frames
 
 async def get_ep(name, port):
     addr = ucp.get_address().encode()
@@ -18,8 +21,11 @@ async def get_ep(name, port):
     return ep
 
 
+def create_cuda_context():
+    import numba.cuda
+    numba.cuda.current_context()
 
-def client(env, port):
+def client(env, port, func):
     # wait for server to come up
     # receive cudf object
     # deserialize
@@ -27,7 +33,10 @@ def client(env, port):
     # send receipt
 
     os.environ.update(env)
-    print("ENV CLIENT: ", os.environ)
+
+    # must create context before importing
+    # cudf/cupy/etc
+    create_cuda_context()
     ucp.init()
 
     async def read():
@@ -56,60 +65,53 @@ def client(env, port):
             frame = ucp.get_obj_from_msg(resp)
             frames.append(frame)
 
-        header = pickle.loads(frames[0])
-        frames = frames[1:]  #
-        typ = pickle.loads(header["type"])
-        cuda_obj = typ.deserialize(header, frames)
+        msg = await from_frames(frames)
 
-        print(cuda_obj, len(cuda_obj), type(cuda_obj))
-        asyncio.sleep(1)
         # how should we confirm data is on two GPUs ?
         await ep.send_obj(b"OK")
         print("Shutting Down Client...")
         ucp.destroy_ep(ep)
         ucp.fin()
+        return msg['data']
 
-    asyncio.get_event_loop().run_until_complete(read())
+    # BUG in pynvml -- will uncomment when resolved
+    # import pynvml
+    # pynvml.nvmlInit()
 
+    # try:
+    #     cuda_dev_id = int(os.environ['CUDA_VISIBLE_DEVICES'].split(',')[0])
+    # except:
+    #     cuda_dev_id = 0
+    # nlinks = pynvml.NVML_NVLINK_MAX_LINKS
+    # ngpus = pynvml.nvmlDeviceGetCount()
+    # handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
 
-async def generate_cuda_obj(cuda_type="cupy"):
-    """
-    generate cuda object and return serialized version
-    # if there is an error here it never bubbles up
-    """
-    with log_errors():
-        if cuda_type == "cupy":
-            import cupy
-            import distributed
+    # for i in range(nlinks):
+    #     print(i, pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 1))
 
-            data = cupy.arange(10)
-            frames = await distributed.comm.utils.to_frames(
-                data, serializers=("cuda", "pickle")
-            )
-        if cuda_type == "cudf":
-            import cudf
-            import numpy as np
-            asyncio.sleep(0.01)
-            # cdf = cudf.DataFrame({"a": range(5), "b": range(5)})
-            # cdf = cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
-            # cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[10,13,15,20,25])
-            size = 2**12
-            cdf = cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)}, index=np.random.randint(size, size=size))
-            # cdf = cudf.DataFrame({"a": range(5), "b": [1.2, None, 2, 3, 4]}, index=[1, 2, 5, None, 6])
-            print(cdf.head().to_pandas())
-            header, _frames = cdf.serialize()
-            frames = [pickle.dumps(header)] + _frames
+    rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
+    cuda_obj_generator = cloudpickle.loads(func)
+    pure_cuda_obj = cuda_obj_generator()
+    print(type(rx_cuda_obj), type(pure_cuda_obj))
 
-    return frames
+    from cudf.tests.utils import assert_eq
+    # shape = rx_cuda_obj.shape
+    assert_eq(rx_cuda_obj, pure_cuda_obj)
+    # if len(shape) == 1:
+
+    #     np.testing.assert_equal(rx_cuda_obj, pure_cuda_obj)
+    # else:
+    #     dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def server(env, port):
+
+def server(env, port, func):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
 
     os.environ.update(env)
-    print("ENV SERVER: ", os.environ)
+    create_cuda_context()
 
     async def f(lisitener_port):
         ucp.init()
@@ -118,9 +120,13 @@ def server(env, port):
         # to connect
         async def write(ep, li):
             await asyncio.sleep(0.1)
-            frames = await generate_cuda_obj("cudf")
-            print("Generated CUDA Data")
-            # print(frames)
+
+            print("CREATING CUDA OBJECT IN SERVER...")
+            cuda_obj_generator = cloudpickle.loads(func)
+            cuda_obj = cuda_obj_generator()
+            msg = {"data": to_serialize(cuda_obj)}
+            frames = await to_frames(msg)
+
             is_gpus = b"".join(
                 [
                     struct.pack("?", hasattr(frame, "__cuda_array_interface__"))
@@ -142,7 +148,6 @@ def server(env, port):
             assert obj == b"OK"
             print("Shutting Down Server...")
             ucp.stop_listener(li)
-            ucp.fin()
 
         loop = asyncio.get_event_loop()
         listener = ucp.start_listener(
@@ -157,23 +162,55 @@ def server(env, port):
     loop.run_until_complete(f(port))
 
 
-def test_send_recv_cudf(event_loop):
+# cdf = cudf.DataFrame({"a": range(5), "b": range(5)})
+# cdf = cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
+# cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[10,13,15,20,25])
+
+def column():
+    import cudf
+    return cudf.Series(np.arange(10000))._column
+
+def series():
+    import cudf
+    return cudf.Series(np.arange(10000)),
+
+def cupy():
+    import cupy
+    return cupy.arange(10),
+
+
+@pytest.mark.parametrize("cuda_obj_generator", [
+    column,
+    series,
+    cupy
+    ]
+)
+def test_send_recv_cudf(cuda_obj_generator):
     base_env = {
         "UCX_RNDV_SCHEME": "put_zcopy",
         "UCX_MEMTYPE_CACHE": "n",
         "UCX_TLS": "rc,cuda_copy,cuda_ipc",
-        "CUDA_VISIBLE_DEVICES": "6,2",
+        "CUDA_VISIBLE_DEVICES": "0,1",
     }
     env1 = base_env.copy()
     env2 = base_env.copy()
-    env2["CUDA_VISIBLE_DEVICES"] = "2,6"
+    env2["CUDA_VISIBLE_DEVICES"] = "1,0"
 
     port = 15338
+    # serialize functiona and send to client and server
+    # server will use the return value of the contents,
+    # serialize the values, then send to client.
+    # client will compare return values the deserialize the
+    # data sent from the server
+
+    func = cloudpickle.dumps(cuda_obj_generator)
+
+    # breakpoint()
     server_process = multiprocessing.Process(
-        name="server", target=server, args=[env1, port]
+        name="server", target=server, args=[env1, port, func]
     )
     client_process = multiprocessing.Process(
-        name="client", target=client, args=[env2, port]
+        name="client", target=client, args=[env2, port, func]
     )
 
     server_process.start()
@@ -182,4 +219,11 @@ def test_send_recv_cudf(event_loop):
     server_process.join()
     client_process.join()
 
-    ucp.fin()
+
+# nlinks = pynvml.NVML_NVLINK_MAX_LINKS
+# ngpus = pynvml.nvmlDeviceGetCount()
+# handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(ngpus)]
+
+# for gpu in range(ngpus):
+#     for i in range(nlinks):
+#         print(i, pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handles[gpu], i, 1))
