@@ -24,6 +24,7 @@ async def get_ep(name, port):
 
 def create_cuda_context():
     import numba.cuda
+
     numba.cuda.current_context()
 
 
@@ -40,6 +41,7 @@ def client(env, port, func):
     # cudf/cupy/etc
     create_cuda_context()
     ucp.init()
+    before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
         ep = await get_ep("client", port)
@@ -75,38 +77,33 @@ def client(env, port, func):
         ucp.fin()
         return msg["data"]
 
-    # BUG in pynvml -- will uncomment when resolved
-    # import pynvml
-    # pynvml.nvmlInit()
-
-    # try:
-    #     cuda_dev_id = int(os.environ['CUDA_VISIBLE_DEVICES'].split(',')[0])
-    # except:
-    #     cuda_dev_id = 0
-    # nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    # ngpus = pynvml.nvmlDeviceGetCount()
-    # handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
-
-    # for i in range(nlinks):
-    #     print(i, pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 1))
-
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
+    # nvlink only measures in KBs
+    num_bytes = nbytes(rx_cuda_obj)
+    if num_bytes > 1000:
+        rx, tx = total_nvlink_transfer()
+        print(
+            f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} -- TOTAL DATA: {num_bytes}"
+        )
+        assert rx > before_rx
+
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
     print(type(rx_cuda_obj), type(pure_cuda_obj))
 
     from cudf.tests.utils import assert_eq
     import cupy
+
     print("Test Received CUDA Object vs Pure CUDA Object")
     if hasattr(rx_cuda_obj, "shape"):
         shape = rx_cuda_obj.shape
     else:
         # handle an sr._column object
         shape = (1,)
-    # if len(shape) == 1:
-    #     cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
-    # else:
-    #     dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
+    if len(shape) == 1:
+        cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
+    else:
+        dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(env, port, func):
@@ -129,7 +126,7 @@ def server(env, port, func):
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
             msg = {"data": to_serialize(cuda_obj)}
-            frames = await to_frames(msg)
+            frames = await to_frames(msg, serializers=("cuda", "pickle"))
 
             is_gpus = b"".join(
                 [
@@ -166,21 +163,26 @@ def server(env, port, func):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(f(port))
 
+
 def dataframe():
     import cudf
     import numpy as np
-    size = 2**12
-    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)}, index=np.random.randint(size, size=size))
+
+    size = 2 ** 12
+    return cudf.DataFrame(
+        {"a": np.random.random(size), "b": np.random.random(size)},
+        index=np.random.randint(size, size=size),
+    )
 
 
 def column():
     import cudf
-    return cudf.Series(np.arange(100000))._column
+    return cudf.Series(np.arange(10000))._column
 
 
 def series():
     import cudf
-    return cudf.Series(np.arange(100000))
+    return cudf.Series(np.arange(10000))
 
 
 def empty_dataframe():
@@ -193,7 +195,9 @@ def cupy():
     return cupy.arange(10)
 
 
-@pytest.mark.parametrize("cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy])
+@pytest.mark.parametrize(
+    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
+)
 def test_send_recv_cudf(cuda_obj_generator):
     base_env = {
         "UCX_RNDV_SCHEME": "put_zcopy",
@@ -232,10 +236,22 @@ def test_send_recv_cudf(cuda_obj_generator):
     assert client_process.exitcode is 0
 
 
-# nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-# ngpus = pynvml.nvmlDeviceGetCount()
-# handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(ngpus)]
+def total_nvlink_transfer():
+    import pynvml
 
-# for gpu in range(ngpus):
-#     for i in range(nlinks):
-#         print(i, pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handles[gpu], i, 1))
+    pynvml.nvmlInit()
+
+    try:
+        cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
+    except:
+        cuda_dev_id = 0
+    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
+    # ngpus = pynvml.nvmlDeviceGetCount()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
+    rx = 0
+    tx = 0
+    for i in range(nlinks):
+        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 1)
+        rx += transfer["rx"]
+        tx += transfer["tx"]
+    return rx, tx
