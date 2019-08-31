@@ -14,6 +14,7 @@ from distributed.utils import nbytes, log_errors
 from distributed.protocol import to_serialize
 from distributed.comm.utils import to_frames, from_frames
 
+
 async def get_ep(name, port):
     addr = ucp.get_address().encode()
     ep = await ucp.get_endpoint(addr, port)
@@ -24,6 +25,7 @@ async def get_ep(name, port):
 def create_cuda_context():
     import numba.cuda
     numba.cuda.current_context()
+
 
 def client(env, port, func):
     # wait for server to come up
@@ -72,7 +74,7 @@ def client(env, port, func):
         print("Shutting Down Client...")
         ucp.destroy_ep(ep)
         ucp.fin()
-        return msg['data']
+        return msg["data"]
 
     # BUG in pynvml -- will uncomment when resolved
     # import pynvml
@@ -95,14 +97,18 @@ def client(env, port, func):
     print(type(rx_cuda_obj), type(pure_cuda_obj))
 
     from cudf.tests.utils import assert_eq
-    # shape = rx_cuda_obj.shape
-    assert_eq(rx_cuda_obj, pure_cuda_obj)
-    # if len(shape) == 1:
+    import cupy
 
-    #     np.testing.assert_equal(rx_cuda_obj, pure_cuda_obj)
-    # else:
-    #     dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
+    if hasattr(rx_cuda_obj, "shape"):
+        shape = rx_cuda_obj.shape
+    else:
+        # handle an sr._column object
+        shape = (1,)
 
+    if len(shape) == 1:
+        cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
+    else:
+        dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(env, port, func):
@@ -162,29 +168,27 @@ def server(env, port, func):
     loop.run_until_complete(f(port))
 
 
-# cdf = cudf.DataFrame({"a": range(5), "b": range(5)})
-# cdf = cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
-# cdf = cudf.DataFrame({"a": range(5), "b": range(5)}, index=[10,13,15,20,25])
-
 def column():
     import cudf
     return cudf.Series(np.arange(10000))._column
 
+
 def series():
     import cudf
-    return cudf.Series(np.arange(10000)),
+    return cudf.Series(np.arange(10000))
+
+
+def empty_dataframe():
+    import cudf
+    return cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
+
 
 def cupy():
     import cupy
-    return cupy.arange(10),
+    return cupy.arange(10)
 
 
-@pytest.mark.parametrize("cuda_obj_generator", [
-    column,
-    series,
-    cupy
-    ]
-)
+@pytest.mark.parametrize("cuda_obj_generator", [column, empty_dataframe, series, cupy])
 def test_send_recv_cudf(cuda_obj_generator):
     base_env = {
         "UCX_RNDV_SCHEME": "put_zcopy",
@@ -197,9 +201,9 @@ def test_send_recv_cudf(cuda_obj_generator):
     env2["CUDA_VISIBLE_DEVICES"] = "1,0"
 
     port = 15338
-    # serialize functiona and send to client and server
+    # serialize function and send to the client and server
     # server will use the return value of the contents,
-    # serialize the values, then send to client.
+    # serialize the values, then send serialized values to client.
     # client will compare return values the deserialize the
     # data sent from the server
 
@@ -213,11 +217,14 @@ def test_send_recv_cudf(cuda_obj_generator):
         name="client", target=client, args=[env2, port, func]
     )
 
-    server_process.start()
-    client_process.start()
+    a = server_process.start()
+    b = client_process.start()
 
-    server_process.join()
-    client_process.join()
+    c = server_process.join()
+    d = client_process.join()
+
+    assert server_process.exitcode is 0
+    assert client_process.exitcode is 0
 
 
 # nlinks = pynvml.NVML_NVLINK_MAX_LINKS
