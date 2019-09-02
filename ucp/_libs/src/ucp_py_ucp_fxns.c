@@ -260,17 +260,17 @@ void *get_ep_ptr(void* ep) {
     return (void*)ret_ep;
 }
 
-struct ucx_context *ucp_py_recv_nb(void *internal_ep, struct data_buf *recv_buf, ssize_t length)
+struct ucx_context *ucp_py_recv_nb(void *internal_ep, void *recv_buf, ssize_t length)
 {
     ucp_tag_t tag;
     struct ucx_context *request = 0;
     ucp_py_internal_ep_t *int_ep = (ucp_py_internal_ep_t *) internal_ep;
 
-    DEBUG_PRINT("receiving %p\n", recv_buf->buf);
+    DEBUG_PRINT("receiving %p\n", recv_buf);
 
     tag = int_ep->recv_tag;
     DEBUG_PRINT("recv_nb tag = %d\n", tag);
-    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf->buf, (size_t) length,
+    request = ucp_tag_recv_nb(ucp_py_ctx_head->ucp_worker, recv_buf, (size_t) length,
                               ucp_dt_make_contig(1), tag, default_tag_mask,
                               recv_handle);
 
@@ -355,7 +355,7 @@ int ucp_py_probe_query_wo_progress(void *internal_ep)
     return probed_length;
 }
 
-struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_buf,
+struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, void *send_buf,
                                       ssize_t length)
 {
     ucp_tag_t tag;
@@ -364,12 +364,12 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, struct data_buf *send_b
 
     DEBUG_PRINT("EP send : %p\n", int_ep->ep_ptr);
 
-    DEBUG_PRINT("sending %p\n", send_buf->buf);
+    DEBUG_PRINT("sending %p\n", send_buf);
 
     
     tag = int_ep->send_tag;
     DEBUG_PRINT("send_nb tag = %d\n", tag);
-    request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf->buf, (size_t) length,
+    request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf, (size_t) length,
                               ucp_dt_make_contig(1), tag,
                               send_handle);
     if (UCS_PTR_IS_ERR(request)) {
