@@ -101,6 +101,36 @@ cdef class BufferRegion:
         self.shape = (0,)
         self._is_set = 0
 
+    @classmethod
+    def from_buffer(cls, obj):
+        if hasattr(obj, "__cuda_array_interface__"):
+            cuda_check()
+            ret = BufferRegion()
+            ret._populate_cuda_ptr(obj)
+            return ret
+        else:
+            ret = BufferRegion()
+            ret._populate_ptr(obj)
+            return ret            
+
+    @classmethod
+    def new_buffer(cls, nbytes, cuda=False):
+        ret = BufferRegion()
+        if cuda:
+            cuda_check()
+            ret.buf = malloc_cuda(nbytes)
+            ret._is_cuda = 1
+        else:
+            ret.buf = malloc_host(nbytes)
+            ret._is_cuda = 0
+        ret._mem_allocated = 1
+        ret.shape = (nbytes,)
+        ret.typestr = "B"
+        ret.format = b"B"
+        ret.itemsize = 1
+        ret._is_set = 1
+        return ret
+
     def __len__(self):
         if not self.is_set:
             return 0
@@ -181,11 +211,11 @@ cdef class BufferRegion:
         }
         return desc
 
-    def populate_ptr(self, format_[:] obj):
+    def _populate_ptr(self, format_[:] obj):
         obj = memoryview(obj)
-        self._populate_ptr(obj)
+        self._populate_ptr2(obj)
 
-    cpdef _populate_ptr(self, format_[:] pyobj):
+    cpdef _populate_ptr2(self, format_[:] pyobj):
         # Notice, `len(memoryview.shape)` might not equal `memoryview.ndim`
         self.shape = tuple([pyobj.shape[i] for i in range(pyobj.ndim)])
         self._is_cuda  = 0
@@ -200,7 +230,7 @@ cdef class BufferRegion:
             self.buf = NULL
         self._is_set = 1
 
-    def populate_cuda_ptr(self, pyobj):
+    def _populate_cuda_ptr(self, pyobj):
         info = pyobj.__cuda_array_interface__
 
         self.shape = info['shape']
