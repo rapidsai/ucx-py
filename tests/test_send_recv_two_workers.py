@@ -195,8 +195,12 @@ def cupy():
     return cupy.arange(10)
 
 
+def raise_error():
+    raise Exception
+
+
 @pytest.mark.parametrize(
-    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
+    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy, raise_error]
 )
 def test_send_recv_cudf(cuda_obj_generator):
     base_env = {
