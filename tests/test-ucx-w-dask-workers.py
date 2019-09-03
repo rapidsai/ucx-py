@@ -7,6 +7,8 @@ import dask.dataframe as dd
 from distributed import Scheduler, Worker, Client, Nanny, wait
 from distributed.utils import log_errors
 
+from cudf.tests.utils import assert_eq
+
 #async with Nanny(s.address, protocol='ucx', nthreads=1,
 # nanny is really a worker running on a defined CUDA DEVICE
 protocol = 'ucx'
@@ -46,39 +48,35 @@ async def f(cudf_obj_generator):
                         print(f"SETTING CUDA CONTEXT ON WORKERS: {w.worker_address} / {w2.worker_address}")
                         out = await c.run(set_nb_context, workers=[w.worker_address, w2.worker_address])
                         print(set_nb_context())
-                        # def get_env(x=None):
-                        #     import os
-                        #     return os.environ
-                        # out = await c.run(get_env, workers=[w.worker_address, w2.worker_address])
-                        # print(out)
 
                         print("Creating and Mapping CUDA Objects")
                         # offset worker two for unique hash names inside of dask
                         N = 100
                         left = c.map(cudf_obj_generator,
-                                        range(N), workers=[w.worker_address])
+                                     range(N), workers=[w.worker_address])
                         right = c.map(cudf_obj_generator,
                                         range(1, N+1), workers=[w2.worker_address])
-                        await wait(left)
-                        await wait(right)
                         print("Gather CUDA Objects")
                         futures = c.map(lambda x, y: (x,y), left, right, priority=10)
                         results = await c.gather(futures, asynchronous=True)
-                        print(await c.who_has(asynchronous=True))
-                        print(results)
+
+                        for i in range(N):
+                            assert_eq(results[i][0], cudf_obj_generator(i))
+                            assert_eq(results[i][1], cudf_obj_generator(i))
+
                         print("ALL DONE!")
 
 
 def column(x):
     import cudf
     import numpy as np
-    return cudf.Series(np.arange(10000))._column
+    return cudf.Series(np.arange(10_000_000))._column
 
 
 def series(x):
     import cudf
     import numpy as np
-    return cudf.Series(np.arange(10000))
+    return cudf.Series(np.arange(100_000))
 
 
 def dataframe(x):
