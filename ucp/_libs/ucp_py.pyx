@@ -269,7 +269,7 @@ cdef class Endpoint:
         """
         Receive into an existing block of memory.
         """
-        buf_reg = BufferRegion.fromBuffer(buffer)
+        buf_reg = BufferRegion.from_buffer(buffer)
         return self._recv(buf_reg, nbytes, name)
 
     @ucp_logger
@@ -310,14 +310,14 @@ cdef class Endpoint:
         >>> result
         <ucp_py._libs.ucp_py.BufferRegion at 0x...>
         """
-        buf_reg = BufferRegion.newBuffer(nbytes, cuda=cuda)
+        buf_reg = BufferRegion.new_buffer(nbytes, cuda=cuda)
         return self._recv(buf_reg, nbytes, name)
 
     def _send_obj_cuda(self, obj):
-        return BufferRegion.fromBuffer(obj)
+        return BufferRegion.from_buffer(obj)
 
     def _send_obj_host(self, format_[:] obj):
-        return BufferRegion.fromBuffer(obj)
+        return BufferRegion.from_buffer(obj)
 
     @ucp_logger
     def send_obj(self, msg, nbytes=None, name='send_obj'):
@@ -416,12 +416,12 @@ cdef class Message:
         return self.buf_reg.is_cuda
 
     def alloc_host(self, length):
-        self.buf_reg = BufferRegion.newBuffer(length, cuda=False)
+        self.buf_reg = BufferRegion.new_buffer(length, cuda=False)
         self.buf = self.buf_reg.buf
         self.alloc_len = length
 
     def alloc_cuda(self, length):
-        self.buf_reg = BufferRegion.newBuffer(length, cuda=True)
+        self.buf_reg = BufferRegion.new_buffer(length, cuda=True)
         self.buf = self.buf_reg.buf
         self.alloc_len = length
 

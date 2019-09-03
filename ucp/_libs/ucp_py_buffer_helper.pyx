@@ -102,7 +102,7 @@ cdef class BufferRegion:
         self._is_set = 0
 
     @classmethod
-    def fromBuffer(cls, obj):
+    def from_buffer(cls, obj):
         if hasattr(obj, "__cuda_array_interface__"):
             cuda_check()
             ret = BufferRegion()
@@ -114,7 +114,7 @@ cdef class BufferRegion:
             return ret            
 
     @classmethod
-    def newBuffer(cls, nbytes, cuda=False):
+    def new_buffer(cls, nbytes, cuda=False):
         ret = BufferRegion()
         if cuda:
             cuda_check()

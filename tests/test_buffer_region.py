@@ -5,7 +5,7 @@ import ucp
 
 def test_set_read():
     obj = memoryview(b'hi')
-    buffer_region = ucp.BufferRegion.fromBuffer(obj)
+    buffer_region = ucp.BufferRegion.from_buffer(obj)
     res = memoryview(buffer_region)
     assert bytes(res) == bytes(obj)
     assert res.tobytes() == obj.tobytes()
@@ -21,7 +21,7 @@ def test_numpy(dtype, data):
     np = pytest.importorskip("numpy")
     arr = np.ones(10, dtype)
 
-    buffer_region = ucp.BufferRegion.fromBuffer(arr)
+    buffer_region = ucp.BufferRegion.from_buffer(arr)
     result = np.asarray(buffer_region)
     np.testing.assert_array_equal(result, arr)
 
@@ -31,7 +31,7 @@ def test_cupy(dtype):
     cupy = pytest.importorskip("cupy")
     arr = cupy.ones(10, dtype)
 
-    buffer_region = ucp.BufferRegion.fromBuffer(arr)
+    buffer_region = ucp.BufferRegion.from_buffer(arr)
 
     result = cupy.asarray(buffer_region)
     cupy.testing.assert_array_equal(result, arr)
@@ -42,7 +42,7 @@ def test_numba_empty():
     import numba.cuda  # noqa
 
     arr = numba.cuda.device_array(0)
-    br = ucp.BufferRegion.fromBuffer(arr)
+    br = ucp.BufferRegion.from_buffer(arr)
 
     assert len(br) == 0
     assert br.__cuda_array_interface__["data"][0] == 0
