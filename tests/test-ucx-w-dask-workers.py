@@ -1,3 +1,4 @@
+import os
 import pytest
 from distributed.utils import format_bytes
 import numpy as np
@@ -10,8 +11,6 @@ from distributed.utils import log_errors
 # nanny is really a worker running on a defined CUDA DEVICE
 protocol = 'ucx'
 interface = 'ib0'  # Ff changing CUDA_VISIBLE_DEVICES CHECK IB Controller
-import os
-
 
 w_env = {
     "UCX_RNDV_SCHEME": "put_zcopy",
@@ -93,13 +92,14 @@ def dataframe(x):
     )
 
 
+mark_is_not_dgx = not os.path.isfile("/etc/dgx-release")
 
+@pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cudf_obj_generator", [
     column,
     series,
     dataframe
-    ]
-)
+])
 async def test_send_recv_cuda(event_loop, cudf_obj_generator):
     await f(cudf_obj_generator)
