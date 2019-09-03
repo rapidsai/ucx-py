@@ -2,10 +2,6 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
-cdef extern from "src/common.h":
-    struct data_buf:
-        void *buf
-
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
     struct ucx_context:
@@ -21,8 +17,8 @@ cdef extern from "src/ucp_py_ucp_fxns.h":
     int ucp_py_finalize()
     void* ucp_py_get_ep(char *, int)
     int ucp_py_put_ep(void *)
-    ucx_context* ucp_py_ep_send_nb(void*, data_buf*, size_t)
-    ucx_context* ucp_py_recv_nb(void*, data_buf*, size_t)
+    ucx_context* ucp_py_ep_send_nb(void*, void*, size_t)
+    ucx_context* ucp_py_recv_nb(void*, void*, size_t)
     int ucp_py_ep_post_probe()
     int ucp_py_probe_query(void*)
     int ucp_py_probe_query_wo_progress(void*)

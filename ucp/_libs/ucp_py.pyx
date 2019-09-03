@@ -23,8 +23,6 @@ cdef extern from "ucp/api/ucp.h":
 cdef extern from "src/ucp_py_ucp_fxns.h":
     cdef struct ucx_context:
         int completed
-    cdef struct data_buf:
-        void* buf
 
 include "ucp_py_ucp_fxns_wrapper.pyx"
 include "ucp_py_buffer_helper.pyx"
@@ -389,7 +387,7 @@ cdef class Message:
 
     cdef ucx_context* ctx_ptr
     cdef int ctx_ptr_set
-    cdef data_buf* buf
+    cdef void* buf
     cdef void* ep
     cdef int is_cuda
     cdef ssize_t alloc_len
@@ -441,19 +439,6 @@ cdef class Message:
         self.buf_reg.alloc_cuda(len)
         self.buf = self.buf_reg.buf
         self.alloc_len = len
-
-    def set_mem(self, c, len):
-        if 0 == self.is_cuda:
-             set_host_buffer(self.buf, c, len)
-        else:
-             set_cuda_buffer(self.buf, c, len)
-
-    def check_mem(self, c, len):
-        if 0 == self.is_cuda:
-            return check_host_buffer(self.buf, c, len)
-        else:
-            cuda_check()
-            return check_cuda_buffer(self.buf, c, len)
 
     def free_host(self):
         self.buf_reg.free_host()

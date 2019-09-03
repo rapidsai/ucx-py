@@ -2,39 +2,24 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
-
-cdef extern from "common.h":
-    struct data_buf:
-        void *buf
-
 import struct
 from libc.stdint cimport uintptr_t
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 
 # TODO: pxd files
 
 
 cdef extern from "src/common.h":
-    struct data_buf:
-        void *buf
     cdef int UCX_HAS_CUDA
 
 
 cdef extern from "src/buffer_ops.h":
+    void* malloc_host(size_t length)
+    void* malloc_cuda(size_t length)
+    void free_host(void* mem_ptr)
+    void free_cuda(void* mem)
     int set_device(int)
-    data_buf* populate_buffer_region(void *)
-    data_buf* populate_buffer_region_with_ptr(unsigned long long int)
-    void* return_ptr_from_buf(data_buf*)
-    data_buf* allocate_host_buffer(ssize_t)
-    int free_host_buffer(data_buf*)
-    int set_host_buffer(data_buf*, int, ssize_t)
-    int check_host_buffer(data_buf*, int, ssize_t)
-
-    # cuda
-    data_buf* allocate_cuda_buffer(ssize_t)
-    int free_cuda_buffer(data_buf*)
-    int set_cuda_buffer(data_buf*, int, ssize_t)
-    int check_cuda_buffer(data_buf*, int, ssize_t)
 
 
 ctypedef fused format_:
@@ -96,9 +81,10 @@ cdef class BufferRegion:
         object shape
         Py_ssize_t itemsize
         bytes format
+        int _is_set
 
     cdef:
-        data_buf* buf
+        void* buf
         int _is_cuda  # TODO: change -> bint
         int _mem_allocated # TODO: change -> bint
         bint _readonly
@@ -113,6 +99,8 @@ cdef class BufferRegion:
         self._readonly = False  # True?
         self.buf = NULL
         self.shape = (0,)
+        self._is_set = 0
+
     def __len__(self):
         if not self.is_set:
             return 0
@@ -131,7 +119,7 @@ cdef class BufferRegion:
 
     @property
     def is_set(self):
-        return self.buf is not NULL
+        return self._is_set == 1
 
     @property
     def readonly(self):
@@ -140,8 +128,8 @@ cdef class BufferRegion:
     @property
     def ptr(self):
         if not self.is_set:
-            raise ValueError()
-        return <unsigned long long int>(self.buf.buf)
+            raise ValueError("This buffer region's memory has not been set.")
+        return <size_t>(self.buf)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef:
@@ -156,7 +144,7 @@ cdef class BufferRegion:
         if self.shape[0] == 0:
             buffer.buf = NULL
         else:
-            buffer.buf = <void *>(self.buf.buf)
+            buffer.buf = self.buf
 
         shape2[0] = self.shape[0]
         for s in self.shape[1:]:
@@ -188,7 +176,7 @@ cdef class BufferRegion:
              'shape': tuple(self.shape),
              'typestr': self.typestr,
              'descr': [('', self.typestr)],  # this is surely wrong
-             'data': (<Py_ssize_t>self.buf.buf, self.readonly),
+             'data': (PyLong_FromVoidPtr(self.buf), self.readonly),
              'version': 0,
         }
         return desc
@@ -207,9 +195,10 @@ cdef class BufferRegion:
         self.itemsize = pyobj.itemsize
 
         if pyobj.shape[0] > 0:
-            self.buf = populate_buffer_region(<void *>&(pyobj[0]))
+            self.buf = <void *>&(pyobj[0])
         else:
-            self.buf = populate_buffer_region(NULL)
+            self.buf = NULL
+        self._is_set = 1
 
     def populate_cuda_ptr(self, pyobj):
         info = pyobj.__cuda_array_interface__
@@ -219,11 +208,15 @@ cdef class BufferRegion:
         self.typestr = info['typestr']
         ptr_int, is_readonly = info['data']
         self._readonly = is_readonly
+        self._is_set = 1
 
         if len(info.get('strides', ())) <= 1:
             # Workaround for numba giving None, rather than an int.
             # https://github.com/cupy/cupy/issues/2104 for more info.
-            self.buf = populate_buffer_region_with_ptr(ptr_int or 0)
+            if ptr_int:
+                self.buf = PyLong_AsVoidPtr(ptr_int)
+            else:
+                self.buf = NULL
         else:
             raise NotImplementedError("non-contiguous data not supported.")
 
@@ -231,24 +224,30 @@ cdef class BufferRegion:
     # Manual memory management
 
     def alloc_host(self, Py_ssize_t length):
-        self.buf = allocate_host_buffer(length)
+        self.buf = malloc_host(length)
         self._is_cuda = 0
         self._mem_allocated = 1
         self.shape = (length,)
+        self._is_set = 1
 
     def alloc_cuda(self, length):
         cuda_check()
-        self.buf = allocate_cuda_buffer(length)
+        self.buf = malloc_cuda(length)
         self._is_cuda = 1
         self._mem_allocated = 1
         self.shape = (length,)
+        self._is_set = 1
 
     def free_host(self):
-        free_host_buffer(self.buf)
+        if self.buf != NULL:
+            free_host(self.buf)
+        self._is_set = 0
 
     def free_cuda(self):
         cuda_check()
-        free_cuda_buffer(self.buf)
+        if self.buf != NULL:
+            free_cuda(self.buf)
+        self._is_set = 0
 
     def __dealloc__(self):
         if self._mem_allocated == 1:
@@ -257,9 +256,3 @@ cdef class BufferRegion:
             else:
                 self.free_host()
 
-    # ------------------------------------------------------------------------
-    # Conversion
-    def return_obj(self):
-        if not self.is_set:
-            raise ValueError("This buffer region's memory has not been set.")
-        return <object> return_ptr_from_buf(self.buf)
