@@ -70,7 +70,7 @@ async def f(cudf_obj_generator):
 def column(x):
     import cudf
     import numpy as np
-    return cudf.Series(np.arange(10_000_000))._column
+    return cudf.Series(np.arange(100_000))._column
 
 
 def series(x):
@@ -89,6 +89,11 @@ def dataframe(x):
         index=np.random.randint(size, size=size),
     )
 
+def cupy(x):
+    import numpy as np
+    import cupy as cp
+
+    return cp.asarray(np.arange(100_000))
 
 mark_is_not_dgx = not os.path.isfile("/etc/dgx-release")
 
@@ -97,6 +102,7 @@ mark_is_not_dgx = not os.path.isfile("/etc/dgx-release")
 @pytest.mark.parametrize("cudf_obj_generator", [
     column,
     series,
+    cupy,
     dataframe
 ])
 async def test_send_recv_cuda(event_loop, cudf_obj_generator):
