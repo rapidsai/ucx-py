@@ -4,6 +4,7 @@
 
 import struct
 from libc.stdint cimport uintptr_t
+from libc.string cimport strcpy, strlen
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 
@@ -47,6 +48,32 @@ def cuda_check():
         raise ValueError("ucx-py was not compiled with CUDA support.")
 
 
+def typestr_from_memoryview(memview):
+    """Returns the typestr that corresponds to the format string of `memview`"""
+    import numpy
+    return numpy.array(memview, copy=False).dtype.str
+
+
+def format_from_typestr(typestr):
+    """Returns the format string (See Python's Buffer Protocol) that corresponds to `typestr`"""
+    import numpy
+    return memoryview(numpy.array(1, dtype=typestr)).format
+
+
+def itemsize_from_typestr(typestr):
+    """Returns the number of bytes a item of dtype `typestr` represends"""
+    import numpy
+    return numpy.dtype(typestr).itemsize
+
+
+cdef char *alloc_and_copy_str(py_str):
+    """Returns a newly allocated C-string, which is a copy of `py_str`"""
+    cdef char* c_str = py_str
+    cdef char* ret = <char*>PyMem_Malloc(strlen(c_str)+1)
+    strcpy(ret, c_str)
+    return ret
+                
+
 cdef class BufferRegion:
     """
     A compatability layer for
@@ -71,16 +98,14 @@ cdef class BufferRegion:
     Properties
     ----------
     shape : Tuple[int]
-    typestr : str
+    typestr : str  (always in NumPy's typestr format)
     version : int
     is_cuda : bool
     is_set : bool
     """
     cdef public:
-        str typestr
         object shape
         Py_ssize_t itemsize
-        bytes format
         int _is_set
 
     cdef:
@@ -89,12 +114,12 @@ cdef class BufferRegion:
         int _mem_allocated # TODO: change -> bint
         bint _readonly
         uintptr_t cupy_ptr
+        str _typestr
 
     def __init__(self):
         self._is_cuda = 0
         self._mem_allocated = 0
-        self.typestr = "B"
-        self.format = b"B"
+        self._typestr = "B"
         self.itemsize = 1
         self._readonly = False  # True?
         self.buf = NULL
@@ -125,8 +150,7 @@ cdef class BufferRegion:
             ret._is_cuda = 0
         ret._mem_allocated = 1
         ret.shape = (nbytes,)
-        ret.typestr = "B"
-        ret.format = b"B"
+        ret._typestr = "B"
         ret.itemsize = 1
         ret._is_set = 1
         return ret
@@ -138,10 +162,17 @@ cdef class BufferRegion:
             return self.shape[0]
 
     @property
+    def typestr(self):
+        return self._typestr
+
+    @typestr.setter
+    def typestr(self, typestr):
+        nbytes = self.nbytes
+        self._typestr = typestr
+
+    @property
     def nbytes(self):
-        format = self.format or 'B'
-        size = self.shape[0]
-        return struct.calcsize(format) * size
+        return itemsize_from_typestr(self._typestr) * self.shape[0]
 
     @property
     def is_cuda(self):
@@ -180,7 +211,8 @@ cdef class BufferRegion:
         for s in self.shape[1:]:
             shape2[0] *= s
 
-        buffer.format = self.format
+        format_utf8 = format_from_typestr(self._typestr).encode('utf-8')
+        buffer.format = alloc_and_copy_str(format_utf8)
         buffer.internal = NULL
         buffer.itemsize = self.itemsize
         buffer.len = shape2[0] * self.itemsize
@@ -192,6 +224,7 @@ cdef class BufferRegion:
         buffer.suboffsets = NULL
 
     def __releasebuffer__(self, Py_buffer *buffer):
+        PyMem_Free(buffer.format)
         PyMem_Free(buffer.shape)
         PyMem_Free(buffer.strides)
 
@@ -204,8 +237,8 @@ cdef class BufferRegion:
             raise ValueError("This buffer region's memory has not been set.")
         desc = {
              'shape': tuple(self.shape),
-             'typestr': self.typestr,
-             'descr': [('', self.typestr)],  # this is surely wrong
+             'typestr': self._typestr,
+             'descr': [('', self._typestr)],  # this is surely wrong
              'data': (PyLong_FromVoidPtr(self.buf), self.readonly),
              'version': 0,
         }
@@ -221,7 +254,7 @@ cdef class BufferRegion:
         self._is_cuda  = 0
         # TODO: We may not have a `.format` here. Not sure how to handle.
         if hasattr(pyobj.base, 'format'):
-            self.format = pyobj.base.format.encode()
+            self._typestr = typestr_from_memoryview(pyobj.base)
         self.itemsize = pyobj.itemsize
 
         if pyobj.shape[0] > 0:
@@ -235,7 +268,7 @@ cdef class BufferRegion:
 
         self.shape = info['shape']
         self._is_cuda = 1
-        self.typestr = info['typestr']
+        self._typestr = info['typestr']
         ptr_int, is_readonly = info['data']
         self._readonly = is_readonly
         self._is_set = 1
