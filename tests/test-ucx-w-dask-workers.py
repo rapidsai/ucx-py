@@ -116,7 +116,12 @@ async def h(left_n_rows):
                                 numba.cuda.current_context()
                             except Exception:
                                 print("FAILED EXCEPTION!")
-
+                                
+                        out = await c.run(
+                            set_nb_context,
+                            workers=[w1.worker_address, w2.worker_address]
+                        )
+                        
                         # left = dd.concat([
                         #     da.random.random(left_n_rows).to_dask_dataframe(columns='x'),
                         #     da.random.randint(0, 10, size=left_n_rows).to_dask_dataframe(columns='id'),
@@ -127,17 +132,15 @@ async def h(left_n_rows):
 
                         # out = await left.repartition(npartitions=10).persist()
 
-                        out = await c.run(set_nb_context, workers=[w1.worker_address, w2.worker_address])
+
                         future = c.submit(dataframe, left_n_rows)
 
-                        print(left_n_rows)
                         npartitions = 10
                         results = []
                         for i in range(npartitions):
                             start = i * (left_n_rows // npartitions)
                             end = (i + 1) * (left_n_rows // npartitions)
                             worker = (w1.worker_address, w2.worker_address)[i % 2]
-                            print(start, end, worker)
                             results.append(c.submit(lambda x: x.iloc[start:end], future, workers=[worker]))
 
                         del future
