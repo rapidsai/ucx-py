@@ -65,7 +65,90 @@ async def f(cudf_obj_generator):
                             assert_eq(results[i][1], cudf_obj_generator(i))
 
                         print("ALL DONE!")
+                        
+async def g():
+    async with Scheduler(protocol=protocol, interface=interface,
+    dashboard_address=':8789') as s:
+        async with Nanny(s.address, protocol=protocol, nthreads=1,
+                memory_limit='32GB', interface=interface,
+                env=w_env,
+                ) as w1:
+            async with Nanny(s.address, protocol=protocol,memory_limit='32gb',
+                    env=w_env_2, interface=interface,
+                    nthreads=1) as w2:
+                async with Client(s.address, asynchronous=True) as c:
+                    with log_errors():
+                        import dask.array as da
+                        import dask_cudf
+                        import numpy as np
+                        import cudf
 
+                        n_rows = 500_000_000
+                        chunks = n_rows // 10
+
+                        res_x = dask_cudf.from_cudf(cudf.Series(np.random.rand(n_rows)), npartitions=n_rows // chunks)
+                        res_y = dask_cudf.from_cudf(cudf.Series(np.random.rand(n_rows)), npartitions=n_rows // chunks)
+
+                        res_x = res_x.persist(workers=[w1.worker_address])
+                        res_y = res_y.persist(workers=[w2.worker_address])
+                        
+                        res = (res_x + res_y).persist()
+                        out = await c.compute(res.head(compute=False))
+                        print(out)
+
+async def h():
+    async with Scheduler(protocol=protocol, interface=interface,
+    dashboard_address=':8789') as s:
+        async with Nanny(s.address, protocol=protocol, nthreads=1,
+                memory_limit='32GB', interface=interface,
+                env=w_env,
+                ) as w1:
+            async with Nanny(s.address, protocol=protocol,memory_limit='32gb',
+                    env=w_env_2, interface=interface,
+                    nthreads=1) as w2:
+                async with Client(s.address, asynchronous=True) as c:
+                    with log_errors():
+                        import dask.array as da
+                        import dask_cudf
+                        import numpy as np
+                        import cudf
+
+                        left_n_rows = 500_000_000
+                        right_n_rows = 50_000_000
+                        n_keys = 1_000_000
+                        
+                        # left = dd.concat([
+                        #     da.random.random(left_n_rows).to_dask_dataframe(columns='x'),
+                        #     da.random.randint(0, n_keys, size=left_n_rows).to_dask_dataframe(columns='id'),
+                        # ], axis=1)
+
+                        # right = dd.concat([
+                        #     da.random.random(right_n_rows).to_dask_dataframe(columns='x'),
+                        #     da.random.randint(0, n_keys, size=right_n_rows).to_dask_dataframe(columns='id'),
+                        # ], axis=1)
+
+                        # left = left.map_partitions(cudf.from_pandas).persist(workers=[w1.worker_address])
+                        # right = right.map_partitions(cudf.from_pandas).persist(workers=[w2.worker_address])
+
+                        left = dask_cudf.from_cudf(cudf.DataFrame(
+                            {'x': np.random.rand(left_n_rows),
+                             'id': np.random.randint(0, n_keys, left_n_rows)
+                            }),
+                            npartitions=10)
+                    
+                        right = dask_cudf.from_cudf(cudf.DataFrame(
+                            {'x': np.random.rand(right_n_rows),
+                             'id': np.random.randint(0, n_keys, right_n_rows)
+                            }),
+                            npartitions=10)
+
+                        left = left.persist(workers=[w1.worker_address])
+                        right = right.persist(workers=[w2.worker_address])
+                                                
+                        out = left.merge(right, on=['id'], left_index=False)  # this is lazy
+                        await out.persist()
+
+                        
 
 def column(x):
     import cudf
@@ -107,3 +190,12 @@ mark_is_not_dgx = not os.path.isfile("/etc/dgx-release")
 ])
 async def test_send_recv_cuda(event_loop, cudf_obj_generator):
     await f(cudf_obj_generator)
+
+@pytest.mark.asyncio
+async def test_dask_array_map_partitions():
+    await g()
+
+
+@pytest.mark.asyncio
+async def test_dask_array_join():
+    await h()
