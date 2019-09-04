@@ -110,6 +110,13 @@ async def h(left_n_rows):
                         import cupy
                         import cudf
 
+                        def set_nb_context(x=None):
+                            import numba.cuda
+                            try:
+                                numba.cuda.current_context()
+                            except Exception:
+                                print("FAILED EXCEPTION!")
+
                         # left = dd.concat([
                         #     da.random.random(left_n_rows).to_dask_dataframe(columns='x'),
                         #     da.random.randint(0, 10, size=left_n_rows).to_dask_dataframe(columns='id'),
@@ -118,27 +125,24 @@ async def h(left_n_rows):
                         # left = await left.map_partitions(cudf.from_pandas).persist(workers=[w1.worker_address])
                         # print(f"Left npartitions: {left.npartitions}")
 
-                        # out = await left.repartition(npartitions=2).persist()
-
-                        def set_nb_context(x=None):
-                            import numba.cuda
-                            try:
-                                numba.cuda.current_context()
-                            except Exception:
-                                print("FAILED EXCEPTION!")
+                        # out = await left.repartition(npartitions=10).persist()
 
                         out = await c.run(set_nb_context, workers=[w1.worker_address, w2.worker_address])
                         future = c.submit(dataframe, left_n_rows)
-                        a = c.submit(lambda x: x.iloc[left_n_rows//2:], future, workers=[
-                            w1.worker_address])
-                        b = c.submit(lambda x: x.iloc[:left_n_rows//2], future, workers=[
-                            w2.worker_address])
-                        
-                        del future
-                        await a
-                        await b
 
-                        
+                        print(left_n_rows)
+                        npartitions = 10
+                        results = []
+                        for i in range(npartitions):
+                            start = i * (left_n_rows // npartitions)
+                            end = (i + 1) * (left_n_rows // npartitions)
+                            worker = (w1.worker_address, w2.worker_address)[i % 2]
+                            print(start, end, worker)
+                            results.append(c.submit(lambda x: x.iloc[start:end], future, workers=[worker]))
+
+                        del future
+                        for result in results:
+                            await result
                         
 def column(x):
     import cudf
@@ -152,11 +156,10 @@ def series(x):
     return cudf.Series(np.arange(100_000))
 
 
-def dataframe(x):
+def dataframe(size):
     import cudf
     import numpy as np
-
-    size = 2 ** 12
+    
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
