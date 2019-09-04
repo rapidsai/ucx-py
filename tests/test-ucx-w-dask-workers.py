@@ -60,10 +60,6 @@ async def f(cudf_obj_generator):
                         futures = c.map(lambda x, y: (x,y), left, right, priority=10)
                         results = await c.gather(futures, asynchronous=True)
 
-                        for i in range(N):
-                            assert_eq(results[i][0], cudf_obj_generator(i))
-                            assert_eq(results[i][1], cudf_obj_generator(i))
-
                         print("ALL DONE!")
                         
 async def g():
@@ -96,7 +92,7 @@ async def g():
                         out = await c.compute(res.head(compute=False))
                         print(out)
 
-async def h():
+async def h(left_n_rows):
     async with Scheduler(protocol=protocol, interface=interface,
     dashboard_address=':8789') as s:
         async with Nanny(s.address, protocol=protocol, nthreads=1,
@@ -111,45 +107,39 @@ async def h():
                         import dask.array as da
                         import dask_cudf
                         import numpy as np
+                        import cupy
                         import cudf
 
-                        left_n_rows = 500_000_000
-                        right_n_rows = 50_000_000
-                        n_keys = 1_000_000
-                        
                         # left = dd.concat([
                         #     da.random.random(left_n_rows).to_dask_dataframe(columns='x'),
-                        #     da.random.randint(0, n_keys, size=left_n_rows).to_dask_dataframe(columns='id'),
+                        #     da.random.randint(0, 10, size=left_n_rows).to_dask_dataframe(columns='id'),
                         # ], axis=1)
 
-                        # right = dd.concat([
-                        #     da.random.random(right_n_rows).to_dask_dataframe(columns='x'),
-                        #     da.random.randint(0, n_keys, size=right_n_rows).to_dask_dataframe(columns='id'),
-                        # ], axis=1)
+                        # left = await left.map_partitions(cudf.from_pandas).persist(workers=[w1.worker_address])
+                        # print(f"Left npartitions: {left.npartitions}")
 
-                        # left = left.map_partitions(cudf.from_pandas).persist(workers=[w1.worker_address])
-                        # right = right.map_partitions(cudf.from_pandas).persist(workers=[w2.worker_address])
+                        # out = await left.repartition(npartitions=2).persist()
 
-                        left = dask_cudf.from_cudf(cudf.DataFrame(
-                            {'x': np.random.rand(left_n_rows),
-                             'id': np.random.randint(0, n_keys, left_n_rows)
-                            }),
-                            npartitions=10)
-                    
-                        right = dask_cudf.from_cudf(cudf.DataFrame(
-                            {'x': np.random.rand(right_n_rows),
-                             'id': np.random.randint(0, n_keys, right_n_rows)
-                            }),
-                            npartitions=10)
+                        def set_nb_context(x=None):
+                            import numba.cuda
+                            try:
+                                numba.cuda.current_context()
+                            except Exception:
+                                print("FAILED EXCEPTION!")
 
-                        left = left.persist(workers=[w1.worker_address])
-                        right = right.persist(workers=[w2.worker_address])
-                                                
-                        out = left.merge(right, on=['id'], left_index=False)  # this is lazy
-                        await out.persist()
+                        out = await c.run(set_nb_context, workers=[w1.worker_address, w2.worker_address])
+                        future = c.submit(dataframe, left_n_rows)
+                        a = c.submit(lambda x: x.iloc[left_n_rows//2:], future, workers=[
+                            w1.worker_address])
+                        b = c.submit(lambda x: x.iloc[:left_n_rows//2], future, workers=[
+                            w2.worker_address])
+                        
+                        del future
+                        await a
+                        await b
 
                         
-
+                        
 def column(x):
     import cudf
     import numpy as np
@@ -176,7 +166,7 @@ def cupy(x):
     import numpy as np
     import cupy as cp
 
-    return cp.asarray(np.arange(100_000))
+    return cp.asarray(np.arange(100_000_000))
 
 mark_is_not_dgx = not os.path.isfile("/etc/dgx-release")
 
@@ -195,7 +185,9 @@ async def test_send_recv_cuda(event_loop, cudf_obj_generator):
 async def test_dask_array_map_partitions():
     await g()
 
-
+@pytest.mark.parametrize(
+    "left_n_rows",
+    [100, 10_000, 100_000, 500_000, 1_000_000, 10_000_000, 100_000_000, 500_000_000])
 @pytest.mark.asyncio
-async def test_dask_array_join():
-    await h()
+async def test_dask_array_join(left_n_rows):
+    await h(left_n_rows)
