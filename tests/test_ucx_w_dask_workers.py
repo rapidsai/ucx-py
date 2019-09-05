@@ -2,6 +2,7 @@ import asyncio
 import os
 import pytest
 
+import cupy as cp
 import pandas as pd
 import numpy as np
 import dask.dataframe as dd
@@ -118,6 +119,11 @@ async def test_dask_array_repartition(event_loop, size, npartitions):
 
 @pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
 @pytest.mark.asyncio
+@pytest.mark.parametrize("cudf_obj", [
+    'column',
+    'series',
+    'dataframe'
+])
 @pytest.mark.parametrize("size", [
     100,
     1_000,
@@ -136,22 +142,18 @@ async def test_dask_array_repartition(event_loop, size, npartitions):
     10,
     100
 ])
-async def test_futures_repartition(event_loop, size, npartitions):
+async def test_futures_repartition(event_loop, cudf_obj, size, npartitions):
     async with dgx_ucx_cluster() as (s, w1, w2, c):
         future = c.submit(
-            cudf.DataFrame,
-            {
-                'a': np.random.rand(size),
-                'b': np.random.rand(size)
-            }
+            cudf_obj_generators[cudf_obj],
+            size
         )
         results = []
         for i in range(npartitions):
             start = i * (size // npartitions)
             end = (i + 1) * (size // npartitions)
             worker = (w1.worker_address, w2.worker_address)[i % 2]
-            print(worker)
-            results.append(c.submit(lambda x: x.iloc[start:end], future, workers=[worker]))
+            results.append(c.submit(lambda x: x[start:end], future, workers=[worker]))
 
         for result in results:
             await result

@@ -37,6 +37,7 @@ async def dgx_ucx_cluster(
         protocol='ucx',
         interface='ib0',
         cuda_visible_devices=(0,1),
+        dashboard_address='8789'
 ):
     d1, d2 = cuda_visible_devices
     worker_1_env = {
@@ -52,7 +53,7 @@ async def dgx_ucx_cluster(
     async with Scheduler(
             protocol=protocol,
             interface=interface,
-            dashboard_address=':8789'
+            dashboard_address=f":{dashboard_address}"
     ) as s:
         async with Nanny(
                 s.address,
