@@ -2,9 +2,13 @@ import asyncio
 import os
 import pytest
 
+import pandas as pd
 import numpy as np
 import dask.dataframe as dd
+import dask.array as da
+import dask_cudf
 
+import cudf
 from cudf.tests.utils import assert_eq
 
 from .utils import dgx_ucx_cluster, cudf_obj_generators
@@ -67,10 +71,6 @@ async def test_send_recv_objects(event_loop, cudf_obj, size, num_objects):
 ])
 async def test_dask_array_sum(event_loop, size):
     async with dgx_ucx_cluster() as (s, w1, w2, c):
-        import dask.array as da
-        import dask_cudf
-        import numpy as np
-        import cudf
 
         size = 500_000_000
         chunks = size // 10
@@ -106,9 +106,14 @@ async def test_dask_array_sum(event_loop, size):
 ])
 async def test_dask_array_repartition(event_loop, size, npartitions):
     async with dgx_ucx_cluster() as (s, w1, w2, c):
-        df = dd.from_pandas(dataframe(size))
+        df = dd.from_pandas(
+            pd.DataFrame({'a': np.random.rand(size),
+                          'b': np.random.rand(size)}),
+            npartitions = 1
+        )
+        print(df.npartitions)
         df = await df.map_partitions(cudf.from_pandas).persist(workers=[w1.worker_address])
-        out = await df.repartition(npartitions).persist()
+        out = await df.repartition(npartitions=npartitions).persist()
 
 
 @pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
@@ -116,6 +121,7 @@ async def test_dask_array_repartition(event_loop, size, npartitions):
 @pytest.mark.parametrize("size", [
     100,
     1_000,
+    2_000,
     10_000,
     100_000,
     500_000,
@@ -132,15 +138,21 @@ async def test_dask_array_repartition(event_loop, size, npartitions):
 ])
 async def test_futures_repartition(event_loop, size, npartitions):
     async with dgx_ucx_cluster() as (s, w1, w2, c):
-        future = c.submit(dataframe, left_n_rows)
-
+        future = c.submit(
+            cudf.DataFrame,
+            {
+                'a': np.random.rand(size),
+                'b': np.random.rand(size)
+            }
+        )
         results = []
         for i in range(npartitions):
-            start = i * (left_n_rows // npartitions)
-            end = (i + 1) * (left_n_rows // npartitions)
+            start = i * (size // npartitions)
+            end = (i + 1) * (size // npartitions)
             worker = (w1.worker_address, w2.worker_address)[i % 2]
+            print(worker)
             results.append(c.submit(lambda x: x.iloc[start:end], future, workers=[worker]))
 
-        del future
         for result in results:
             await result
+            
