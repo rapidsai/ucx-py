@@ -122,7 +122,6 @@ async def test_dask_array_repartition(event_loop, size, npartitions):
 @pytest.mark.parametrize("cudf_obj", [
     'column',
     'series',
-    'dataframe'
 ])
 @pytest.mark.parametrize("size", [
     100,
@@ -158,3 +157,38 @@ async def test_futures_repartition(event_loop, cudf_obj, size, npartitions):
         for result in results:
             await result
             
+@pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cudf_obj", [
+    'column',
+    'series',
+])
+@pytest.mark.parametrize("size", [
+    100,
+    1_000,
+    2_000,
+    10_000,
+    100_000,
+    500_000,
+    1_000_000,
+    10_000_000,
+    100_000_000,
+    500_000_000
+])
+async def test_futures_submit_twice(event_loop, cudf_obj, size):
+    async with dgx_ucx_cluster() as (s, w1, w2, c):
+        npartitions = 2
+        future = c.submit(
+            cudf_obj_generators[cudf_obj],
+            size
+        )
+
+        results = []
+        for i in range(npartitions):
+            start = i * (size // npartitions)
+            end = start + 5
+            worker = (w1.worker_address, w2.worker_address)[i % 2]
+            results.append(c.submit(lambda x: x[start:end], future, workers=[worker]))
+
+        await c.gather(results)
+        print("Finished")
