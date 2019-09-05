@@ -16,7 +16,7 @@ async def echo_pair(cuda_info=None):
     listener = ucp.start_listener(ucp.make_server(cuda_info), is_coroutine=True)
     t = loop.create_task(listener.coroutine)
     address = ucp.get_address()
-    client = await ucp.get_endpoint(address.encode(), listener.port)
+    client = await ucp.get_endpoint(address.encode(), listener.port, name="client to server")
     try:
         yield listener, client
     finally:

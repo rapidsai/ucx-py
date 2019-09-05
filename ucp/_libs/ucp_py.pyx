@@ -9,6 +9,7 @@ import os
 import socket
 from weakref import WeakValueDictionary
 from cython.operator cimport dereference as deref
+import ucp
 
 cdef extern from "src/ucp_py_ucp_fxns.h":
     ctypedef void (*listener_accept_cb_func)(void *client_ep_ptr, void *user_data)
@@ -58,6 +59,14 @@ def update_pending_messages():
             fut.set_result(msg)
     for msg in dones:
         PENDING_MESSAGES.pop(msg)
+
+def unfinished_messages_info():
+    """Returns info of all current unfinished messages"""
+    update_pending_messages()
+    ret = "Unfinished messages:\n"
+    for msg, fut in PENDING_MESSAGES.items():
+        ret += "  %s\n" % msg
+    return ret
 
 def get_ucp_worker():
     return <size_t>get_worker()
@@ -208,9 +217,22 @@ cdef class Endpoint:
 
     cdef void* ep
     cdef int ptr_set
+    cdef object other_ip
+    cdef object other_port
+    cdef object name
 
-    def __cinit__(self):
-        return
+    def __cinit__(self, name = None):
+        self.other_ip = None
+        self.other_port = None
+        self.name = name
+
+    def __repr__(self):
+        ret = '<Endpoint "%s" on %s connected to ' % (self.name, ucp.get_address())
+        if self.other_ip is None:
+            ret += "unavailable>"
+        else:
+            ret += "%s:%s>" % (self.other_ip.decode("utf-8", errors="ignore"), self.other_port)
+        return ret
 
     def get_ep(self):
         return <size_t>get_ep_ptr(self.ep)
@@ -219,7 +241,8 @@ cdef class Endpoint:
         self.ep = ucp_py_get_ep(ip, port)
         if <void *> NULL == self.ep:
             return False
-
+        self.other_ip = ip
+        self.other_port = port
         return True
 
     @ucp_logger
@@ -227,6 +250,7 @@ cdef class Endpoint:
         """Blind receive operation"""
         recv_msg = Message(None, name=name)
         recv_msg.ep = self.ep
+        recv_msg.endpoint = self
         recv_msg.is_blind = 1
         ucp_py_ep_post_probe()
         fut = handle_msg(recv_msg)
@@ -258,6 +282,7 @@ cdef class Endpoint:
         msg = Message(buf_reg, name=name)
         msg.ctx_ptr = ucp_py_recv_nb(self.ep, msg.buf, nbytes)
         msg.ep = self.ep
+        msg.endpoint = self
         msg.comm_len = nbytes
         msg.ctx_ptr_set = 1
 
@@ -350,6 +375,7 @@ cdef class Endpoint:
 
         internal_msg = Message(buf_reg, name=name, length=nbytes)
         internal_msg.ep = self.ep
+        internal_msg.endpoint = self
 
         internal_msg.ctx_ptr = ucp_py_ep_send_nb(self.ep, internal_msg.buf, nbytes)
         internal_msg.comm_len = nbytes
@@ -382,10 +408,12 @@ cdef class Message:
     cdef str _name
     cdef ssize_t _length
     cdef int is_blind
+    cdef object endpoint
 
     def __cinit__(self, BufferRegion buf_reg, name='', length=-1):
         self._name = name
         self._length = length
+        self.endpoint = None
 
         if buf_reg is None:
             self.buf_reg = BufferRegion()
@@ -401,7 +429,8 @@ cdef class Message:
         return
 
     def __repr__(self):
-        return f'<Message {self.name}>'
+        return f'<Message - name: "{self.name}", cuda: {bool(self.is_cuda)}, ' + \
+               f'comm_len: {self.comm_len}, alloc_len: {self.alloc_len}, endpoint: "{self.endpoint}">'
 
     @property
     def name(self):
@@ -529,7 +558,7 @@ cdef class CommRequest:
 
 
 cdef void accept_callback(void *client_ep_ptr, void *lf):
-    client_ep = Endpoint()
+    client_ep = Endpoint(name="server to client")
     client_ep.ep = client_ep_ptr
     listener_instance = (<object> lf)
     if not listener_instance.is_coroutine:
@@ -654,7 +683,7 @@ def fin():
         raise RuntimeError("UCX-Py fin(): ucp_py_finalize() failed!")
 
 @ucp_logger
-async def get_endpoint(peer_ip, peer_port, timeout=None):
+async def get_endpoint(peer_ip, peer_port, timeout=None, name=None):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
     Parameters
@@ -670,7 +699,7 @@ async def get_endpoint(peer_ip, peer_port, timeout=None):
     `send_msg` and `recv_msg` may be called
     """
 
-    ep = Endpoint()
+    ep = Endpoint(name=name)
     connection_established = False
     ref_time = time.time()
 
