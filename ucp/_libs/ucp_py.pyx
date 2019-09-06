@@ -68,6 +68,22 @@ def unfinished_messages_info():
         ret += "  %s\n" % msg
     return ret
 
+class MsgHangError(Exception):
+    pass
+
+def unfinished_messages_exception_trigger():
+    """Sets exception on all current unfinished messages 
+       and trigger them"""
+    update_pending_messages()
+    msg_count = len(PENDING_MESSAGES)
+    for msg, fut in PENDING_MESSAGES.items():
+        try:
+            fut.set_exception(MsgHangError(str(msg)))
+            fut.get_loop().run_until_complete(fut)
+        except MsgHangError as e:
+            print("MsgHangError: %s" %e)
+
+
 def get_ucp_worker():
     return <size_t>get_worker()
 
