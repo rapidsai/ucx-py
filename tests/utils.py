@@ -77,14 +77,15 @@ async def dgx_ucx_cluster(
                             import numba.cuda
                             try:
                                 numba.cuda.current_context()
+                                import cudf
                             except Exception:
                                 print("Could not set context!")
                         out = await c.run(
-                            set_nb_context,
-                            workers=[w1.worker_address, w2.worker_address]
+                            set_nb_context
                         )
+                        out = await c.run_on_scheduler(set_nb_context)
                         yield s, w1, w2, c
-                        
+
 def make_column(size):
     import cudf
     import numpy as np
@@ -100,7 +101,7 @@ def make_series(size):
 def make_dataframe(size):
     import cudf
     import numpy as np
-    
+
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -118,4 +119,4 @@ cudf_obj_generators = {
     "cupy": make_cupy,
     "dataframe": make_dataframe
 }
-        
+
