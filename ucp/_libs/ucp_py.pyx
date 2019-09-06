@@ -62,10 +62,10 @@ def update_pending_messages():
 
 def unfinished_messages_info():
     """Returns info of all current unfinished messages"""
-    update_pending_messages()
     ret = "Unfinished messages:\n"
     for msg, fut in PENDING_MESSAGES.items():
-        ret += "  %s\n" % msg
+        if not fut.done():
+            ret += "  %s\n" % msg
     return ret
 
 class MsgHangError(Exception):
