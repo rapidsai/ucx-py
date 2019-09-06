@@ -699,7 +699,7 @@ def fin():
         raise RuntimeError("UCX-Py fin(): ucp_py_finalize() failed!")
 
 @ucp_logger
-async def get_endpoint(peer_ip, peer_port, timeout=None, name=None):
+async def get_endpoint(peer_ip, peer_port, timeout=None, name="client to server"):
     """Connect to a peer running at `peer_ip` and `peer_port`
 
     Parameters
