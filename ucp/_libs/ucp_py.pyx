@@ -75,7 +75,6 @@ def unfinished_messages_exception_trigger():
     """Sets exception on all current unfinished messages 
        and trigger them"""
     update_pending_messages()
-    msg_count = len(PENDING_MESSAGES)
     for msg, fut in PENDING_MESSAGES.items():
         try:
             fut.set_exception(MsgHangError(str(msg)))
