@@ -407,6 +407,8 @@ cdef class Endpoint:
 cdef class Listener:
     cdef void* listener_ptr
 
+_message_count = 0
+
 cdef class Message:
     """A class that represents the message associated with a
     communication request
@@ -425,11 +427,15 @@ cdef class Message:
     cdef ssize_t _length
     cdef int is_blind
     cdef object endpoint
+    cdef int _id
 
     def __cinit__(self, BufferRegion buf_reg, name='', length=-1):
+        global _message_count
         self._name = name
         self._length = length
         self.endpoint = None
+        self._id = _message_count
+        _message_count += 1
 
         if buf_reg is None:
             self.buf_reg = BufferRegion()
@@ -445,7 +451,7 @@ cdef class Message:
         return
 
     def __repr__(self):
-        return f'<Message - name: "{self.name}", cuda: {bool(self.is_cuda)}, ' + \
+        return f'<Message #{self._id} - name: "{self.name}", cuda: {bool(self.is_cuda)}, ' + \
                f'comm_len: {self.comm_len}, alloc_len: {self.alloc_len}, endpoint: "{self.endpoint}">'
 
     @property
