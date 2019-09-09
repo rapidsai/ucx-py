@@ -9,7 +9,7 @@ version>` with either `9.2` or `10.0`.
 conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
 ```
 
-All of the recipes used can be found here: https://github.com/jakirkham/staged-recipes/tree/ad6f8c51e9b08f34b800b19e9e15dd80cee6f7ea/recipes
+The ucx recipe can be found here: https://github.com/conda-forge/ucx-split-feedstock/tree/f13e882cc0566e795ff12f2a039f490ce1653698/recipe
 
 # Detailed Build Instructions
 
