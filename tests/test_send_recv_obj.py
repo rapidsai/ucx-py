@@ -11,9 +11,11 @@ dtypes = ["|u1", "<i8", "f8"]
 
 @asynccontextmanager
 async def echo_pair(cuda_info=None):
+    listener = ucp.start_listener(ucp.make_echo_server())
+    
     ucp.init()
     loop = asyncio.get_event_loop()
-    listener = ucp.start_listener(ucp.make_server(cuda_info), is_coroutine=True)
+    listener = ucp.start_listener(ucp.make_echo_server())
     t = loop.create_task(listener.coroutine)
     address = ucp.get_address()
     client = await ucp.get_endpoint(address.encode(), listener.port)

@@ -1,2 +1,6 @@
-from ._utils import get_address, make_server  # noqa
-from ._libs.ucp_py import *  # noqa
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
+
+from .public_api import *  # noqa
+from .utils import get_address
+
