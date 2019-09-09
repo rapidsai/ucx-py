@@ -2,6 +2,7 @@ import asyncio
 import os
 import pytest
 
+import dask
 import cupy as cp
 import pandas as pd
 import numpy as np
@@ -156,7 +157,7 @@ async def test_futures_repartition(event_loop, cudf_obj, size, npartitions):
 
         for result in results:
             await result
-            
+
 @pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cudf_obj", [
@@ -192,3 +193,72 @@ async def test_futures_submit_twice(event_loop, cudf_obj, size):
 
         await c.gather(results)
         print("Finished")
+
+
+@pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("left_nrows", [
+    100,
+    1_000,
+    2_000,
+    10_000,
+    100_000,
+    500_000,
+    1_000_000,
+    10_000_000,
+    50_000_000,
+    100_000_000,
+    500_000_000
+])
+@pytest.mark.parametrize("right_nrows", [
+    100,
+    1_000,
+    2_000,
+    10_000,
+    100_000,
+    500_000,
+    1_000_000,
+    10_000_000,
+    100_000_000,
+    50_000_000,
+    500_000_000
+])
+@pytest.mark.parametrize("nkeys", [
+    100,
+    1_000,
+    2_000,
+    10_000,
+    100_000,
+    500_000,
+    1_000_000,
+    5_000_000,
+    10_000_000,
+    50_000_000,
+    100_000_000
+])
+async def test_dask_join(event_loop, left_nrows, right_nrows, nkeys):
+    from dask.distributed import Client, wait
+    from dask_cuda import DGX
+
+    cluster = DGX(CUDA_VISIBLE_DEVICES=[0, 1, 2, 3, 4, 5, 6, 7])
+    client = Client(cluster)
+
+    print(client)
+    
+    left = dd.concat([
+        da.random.random(left_nrows).to_dask_dataframe(columns='x'),
+        da.random.randint(0, nkeys, size=left_nrows).to_dask_dataframe(columns='id'),
+    ], axis=1).persist()
+    right = dd.concat([
+        da.random.random(right_nrows).to_dask_dataframe(columns='x'),
+        da.random.randint(0, nkeys, size=right_nrows).to_dask_dataframe(columns='id'),
+    ], axis=1).persist()
+
+    gleft = left.map_partitions(cudf.from_pandas)
+    gright = right.map_partitions(cudf.from_pandas)
+
+    gright = gright.repartition(npartitions=gleft.npartitions)
+    gleft, gright = dask.persist(gleft, gright)  # persist data in device memory
+
+    out = gleft.merge(gright, on=['id'], left_index=False).persist()
+    wait(out)
