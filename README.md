@@ -1,6 +1,6 @@
 # Python Bindings for UCX
 
-# Installing preliminary Conda packages.
+# Installing preliminary Conda packages
 
 Some preliminary Conda packages can be installed as so. Replace `<CUDA
 version>` with either `9.2` or `10.0`.
@@ -11,7 +11,7 @@ conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=<CUDA vers
 
 All of the recipes used can be found here: https://github.com/jakirkham/staged-recipes/tree/ad6f8c51e9b08f34b800b19e9e15dd80cee6f7ea/recipes
 
-# Detailed Build and instructions
+# Detailed Build Instructions
 
 The following instructions assume you'll be using `ucx-py` on a CUDA enabled system. The instructions assume you're using CUDA 9.2 for unspecific reasons. Change the `CUDA_HOME` environment variable, and the environment created and used by `conda` to `cudf_dev_10.0.yml` in order to support CUDA 10.
 
