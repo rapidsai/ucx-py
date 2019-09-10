@@ -116,7 +116,7 @@ cdef void *get_buffer_pointer(object obj, readonly):
 cdef class Listener:
     cdef: 
         cdef ucp_listener_h _ucp_listener
-        cdef object port
+        cdef uint16_t port
     
     def __init__(self, port):
         self.port = port
