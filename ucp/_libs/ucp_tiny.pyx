@@ -4,6 +4,7 @@
 
 import asyncio
 import uuid
+import socket
 from ucp_tiny_dep cimport *
 
 
@@ -183,7 +184,6 @@ cdef class ApplicationContext:
         self._bind_epoll_fd_to_event_loop()
         if port is None:
             # Ref https://unix.stackexchange.com/a/132524
-            import socket
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.bind(('', 0))
             port = s.getsockname()[1]
