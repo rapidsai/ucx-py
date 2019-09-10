@@ -21,6 +21,11 @@ cdef struct _listener_callback_args:
     void *py_func
 
 
+def asyncio_handle_exception(loop, context):
+    msg = context.get("exception", context["message"])
+    print("Ignored Exception: %s" % msg)
+
+
 async def listener_handler(endpoint, func):
     print("listener_handler()")
     tags = np.empty(2, dtype="uint64")
@@ -31,6 +36,13 @@ async def listener_handler(endpoint, func):
     print("listener_handler() running using tags: ", tags[0], tags[1])
 
     if asyncio.iscoroutinefunction(func):
+        #TODO: exceptions in this callback is never showed when no 
+        #      get_exception_handler() is set. 
+        #      Is this the correct way to handle exceptions in asyncio?
+        #      Do we need to set this in other places?
+        loop = asyncio.get_running_loop()
+        if loop.get_exception_handler() is None:
+            loop.set_exception_handler(asyncio_handle_exception)
         await func(endpoint)
     else:
         func(endpoint)
