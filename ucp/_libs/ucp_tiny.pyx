@@ -16,6 +16,13 @@ def assert_error(exp, msg=""):
         raise AssertionError(msg)
 
 
+def assert_ucs_status(ucs_status_t status, msg_context=None):
+    if status != UCS_OK:
+        msg = "[%s] " % msg_context if msg_context is not None else ""
+        msg += (<object> ucs_status_string(status)).decode("utf-8") 
+        raise AssertionError(msg)
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     void *py_func
@@ -74,7 +81,7 @@ cdef void ucp_request_init(void* request):
 
 
 cdef void _send_callback(void *request, ucs_status_t status):
-    assert_error(status == UCS_OK, "_send_callback()")
+    assert_ucs_status(status, "_send_callback()")
     cdef ucp_request *req = <ucp_request*> request
     cdef object future = <object> req.future
     future.set_result(True)
@@ -85,7 +92,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
                              ucp_tag_recv_info_t *info):
-    assert_error(status == UCS_OK, "_tag_recv_callback() - status not UCS_OK")
+    assert_ucs_status(status, "_tag_recv_callback()")
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         req.finished = True
@@ -101,7 +108,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
 
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t length):
-    assert_error(status == UCS_OK, "_stream_recv_callback() - status not UCS_OK")
+    assert_ucs_status(status, "_stream_recv_callback()")
     cdef ucp_request *req = <ucp_request*> request
     cdef object future = <object> req.future
     assert_error(req.expected_receive == length,  
@@ -190,19 +197,19 @@ cdef class ApplicationContext:
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_init
         status = ucp_config_read(NULL, NULL, &config)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
         
         status = ucp_init(&ucp_params, config, &self.context)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
         
         worker_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
         status = ucp_worker_create(self.context, &worker_params, &self.worker)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
 
         cdef int ucp_epoll_fd
         status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
         cdef epoll_event ev
@@ -234,7 +241,7 @@ cdef class ApplicationContext:
         listener = Listener(port)
         cdef ucs_status_t status = ucp_listener_create(self.worker, &params, &listener._ucp_listener)
         c_util_get_ucp_listener_params_free(&params)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
         return listener
 
 
@@ -245,7 +252,7 @@ cdef class ApplicationContext:
         cdef ucp_ep_params_t params = c_util_get_ucp_ep_params(ip_address.encode(), port)
         cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ret._ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
-        assert_error(status == UCS_OK)
+        assert_ucs_status(status)
                     
         ret.unique_send_tag = np.uint64(hash(uuid.uuid4()))
         ret.unique_recv_tag = np.uint64(hash(uuid.uuid4()))

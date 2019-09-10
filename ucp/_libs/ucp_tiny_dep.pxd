@@ -135,6 +135,8 @@ cdef extern from "ucp/api/ucp.h":
 
     void ucp_listener_destroy(ucp_listener_h listener)
 
+    const char *ucs_status_string(ucs_status_t status)
+
 
 cdef extern from "sys/epoll.h":
 
