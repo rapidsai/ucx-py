@@ -158,6 +158,7 @@ async def test_futures_repartition(event_loop, cudf_obj, size, npartitions):
         for result in results:
             await result
 
+
 @pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cudf_obj", [
@@ -262,3 +263,64 @@ async def test_dask_join(event_loop, left_nrows, right_nrows, nkeys):
 
     out = gleft.merge(gright, on=['id'], left_index=False).persist()
     wait(out)
+
+
+@pytest.mark.skipif(mark_is_not_dgx, reason="Not a DGX")
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "size",
+    [
+        10,
+        100,
+        1000,
+        10_000,
+        100_000,
+        1_000_000,
+        10_000_000,
+        100_000_000,
+        500_000_000
+    ]
+)
+@pytest.mark.parametrize(
+    "nframes",
+    [
+        10,
+        100,
+        1000
+    ]
+)
+async def test_dask_concat(event_loop, size, nframes):
+    from dask.distributed import Client, wait
+    from dask import delayed
+    from dask_cuda import DGX
+
+    cluster = DGX(CUDA_VISIBLE_DEVICES=[0, 1, 2, 3, 4, 5, 6, 7])
+    client = Client(cluster)
+
+    pd_frames = []
+    cudf_frames = []
+    
+    pd_frames.append(
+        dd.concat([
+            da.random.random(size).to_dask_dataframe(columns='x'),
+            da.random.randint(0, 10, size=size).to_dask_dataframe(columns='id'),
+        ], axis=1).persist()
+    )
+
+    cudf_frames.append(
+        pd_frames[0].map_partitions(cudf.from_pandas)
+    )
+    cudf_frames[0] = cudf_frames[0].persist()
+
+    for i in range(nframes - 1):
+        pd_frame = dd.concat([
+            da.random.random(size).to_dask_dataframe(columns='x'),
+            da.random.randint(0, 10, size=size).to_dask_dataframe(columns='id'),
+        ], axis=1).persist()
+        cudf_frame = pd_frame.map_partitions(cudf.from_pandas)
+        cudf_frame = cudf_frame.repartition(npartitions=cudf_frames[0].npartitions)
+        cudf_frame = cudf_frame.persist()
+        cudf_frames.append(cudf_frame)
+
+    out = delayed(cudf.concat, pure=True)(cudf_frames)
+    return dd.from_delayed(out)

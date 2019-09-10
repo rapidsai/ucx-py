@@ -77,7 +77,6 @@ async def dgx_ucx_cluster(
                             import numba.cuda
                             try:
                                 numba.cuda.current_context()
-                                import cudf
                             except Exception:
                                 print("Could not set context!")
                         out = await c.run(
