@@ -1,7 +1,4 @@
 import os
-import ucp
-import contextlib
-import pytest
 
 normal_env = {
     "UCX_RNDV_SCHEME": "put_zcopy",
@@ -14,13 +11,3 @@ normal_env = {
 def set_env():
     os.environ.update(normal_env)
 
-
-@contextlib.contextmanager
-@pytest.fixture
-def ucp_init():
-    try:
-        set_env()
-        ucp.init()
-        yield
-    finally:
-        ucp.fin()
