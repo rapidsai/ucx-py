@@ -1,9 +1,6 @@
-import pickle
 import asyncio
 import pytest
 import sys
-from contextlib import asynccontextmanager
-
 import ucp
 
 msg_sizes = [2 ** i for i in range(0, 25, 4)]
