@@ -81,3 +81,24 @@ async def test_send_recv_cupy(size, dtype):
     resp = cupy.empty_like(msg)
     await client.recv(resp)
     np.testing.assert_array_equal(cupy.asnumpy(resp), cupy.asnumpy(msg))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", msg_sizes)
+@pytest.mark.parametrize("dtype", dtypes)
+async def test_send_recv_numba(size, dtype):
+    asyncio.get_running_loop().set_exception_handler(handle_exception)
+    np = pytest.importorskip("numpy")
+    numba = pytest.importorskip("numba")
+    pytest.importorskip("numba.cuda")
+
+    ary = np.arange(size, dtype=dtype)
+    msg = numba.cuda.to_device(ary)
+    msg_size = np.array([msg.nbytes], dtype=np.uint64)
+    listener = ucp.create_listener(make_echo_server(lambda n: numba.cuda.device_array((n,), dtype=np.uint8)))
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+    await client.send(msg_size)
+    await client.send(msg)
+    resp = numba.cuda.device_array_like(msg)
+    await client.recv(resp)
+    np.testing.assert_array_equal(np.array(resp), np.array(msg))
