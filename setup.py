@@ -44,25 +44,6 @@ class build_ext(_build_ext):
 
 
 ext_modules = cythonize([
-    # Extension(
-    #     "ucp._libs.ucp_py",
-    #     sources=[
-    #         "ucp/_libs/ucp_py.pyx",
-    #         "ucp/_libs/ucp_py_ucp_fxns_wrapper.pyx",
-    #         "ucp/_libs/ucp_py_buffer_helper.pyx",
-    #         "ucp/_libs/src/buffer_ops.c",
-    #         "ucp/_libs/src/ucp_py_ucp_fxns.c",
-    #     ],
-    #     depends=[
-    #         "ucp/_libs/src/common.h",
-    #         "ucp/_libs/src/buffer_ops.h",
-    #         "ucp/_libs/src/ucp_py_ucp_fxns.h",
-    #     ],
-    #     include_dirs=['ucp/_libs/src'],
-    #     library_dirs=['ucp/_libs/src'],
-    #     libraries=libraries,
-    #     extra_compile_args=extra_compile_args,
-    # ),
     Extension(
         "ucp._libs.ucp_tiny",
         sources=[
