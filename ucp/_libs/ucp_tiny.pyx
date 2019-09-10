@@ -136,14 +136,14 @@ cdef class ApplicationContext:
         ucp_context_h context
         ucp_worker_h worker  # For now, a application context only has one worker
         int epoll_fd
-        object epoll_fd_binded_to_event_loop
+        object all_epoll_binded_to_event_loop
 
     def __cinit__(self):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params        
         cdef ucp_config_t *config
         cdef ucs_status_t status
-        self.epoll_fd_binded_to_event_loop = None
+        self.all_epoll_binded_to_event_loop = set()
 
         cdef unsigned int a, b, c
         ucp_get_version(&a, &b, &c)
@@ -230,12 +230,11 @@ cdef class ApplicationContext:
 
 
     def _bind_epoll_fd_to_event_loop(self):
-        # TODO: save all previous binded event loops not only the last one
         loop = asyncio.get_event_loop()
-        if self.epoll_fd_binded_to_event_loop is not loop: 
-            print("ApplicationContext - event loop: ", id(loop))
+        if loop not in self.all_epoll_binded_to_event_loop: 
+            print("ApplicationContext - add event loop reader: ", id(loop))
             loop.add_reader(self.epoll_fd, self.progress)
-            self.epoll_fd_binded_to_event_loop = loop
+            self.all_epoll_binded_to_event_loop.add(loop)
 
 
 cdef _create_future_from_comm_status(ucs_status_ptr_t status, size_t expected_receive):
