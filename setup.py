@@ -75,7 +75,7 @@ ext_modules = cythonize([
         ],
         libraries=libraries,
         extra_compile_args=extra_compile_args,
-    ),    
+    ),
 ])
 
 setup(
