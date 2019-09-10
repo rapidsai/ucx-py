@@ -28,10 +28,10 @@ def make_echo_server(create_empty_data=None):
         >>> await ep.recv(responds, msg_size)  # receive the echo
         """
         msg_size = np.empty(1, dtype=np.uint64)
-        await ep.recv(msg_size, msg_size.nbytes)
+        await ep.recv(msg_size)
         msg = create_empty_data(msg_size)
-        await ep.recv(msg, msg.nbytes)
-        await ep.send(msg, msg.nbytes)
+        await ep.recv(msg)
+        await ep.send(msg)
 
     return echo_server
 
@@ -47,10 +47,10 @@ async def test_send_recv_numpy(size, dtype):
 
     listener = ucp.create_listener(make_echo_server())
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
-    await client.send(msg_size, msg_size.nbytes)
-    await client.send(msg, msg.nbytes)
+    await client.send(msg_size)
+    await client.send(msg)
     resp = np.empty_like(msg)
-    await client.recv(resp, resp.nbytes)
+    await client.recv(resp)
     np.testing.assert_array_equal(resp, msg)
 
 
@@ -66,8 +66,8 @@ async def test_send_recv_cupy(size, dtype):
 
     listener = ucp.create_listener(make_echo_server(lambda size: cupy.empty(size, dtype=np.uint8)))
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
-    await client.send(msg_size, msg_size.nbytes)
-    await client.send(msg, msg.nbytes)
+    await client.send(msg_size)
+    await client.send(msg)
     resp = cupy.empty_like(msg)
-    await client.recv(resp, resp.nbytes)
+    await client.recv(resp)
     np.testing.assert_array_equal(cupy.asnumpy(resp), cupy.asnumpy(msg))

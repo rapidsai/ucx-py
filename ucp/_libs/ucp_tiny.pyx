@@ -5,6 +5,9 @@
 import asyncio
 import uuid
 import socket
+from functools import reduce
+import operator
+import numpy as np
 from ucp_tiny_dep cimport *
 
 
@@ -20,7 +23,6 @@ cdef struct _listener_callback_args:
 
 async def listener_handler(endpoint, func):
     print("listener_handler()")
-    import numpy as np
     tags = np.empty(2, dtype="uint64")
     await endpoint.stream_recv(tags, tags.nbytes)
     endpoint.unique_send_tag = tags[0]
@@ -98,19 +100,40 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
     #ucp_request_free(request)
     
 
-cdef void *get_buffer_pointer(object obj, readonly):
-    if hasattr(obj, "__cuda_array_interface__"):
-        data_ptr, data_readonly = obj.__cuda_array_interface__['data']
-    elif hasattr(obj, "__array_interface__"):
-        data_ptr, data_readonly = obj.__array_interface__['data']
+def get_buffer_info(buffer, requested_nbytes=None, check_writable=False):
+    """Returns tuple(nbytes, data pointer) of the buffer
+    if `requested_nbytes` is not None, the returned nbytes is `requested_nbytes` 
+    """
+    array_interface = None
+    if hasattr(buffer, "__cuda_array_interface__"):
+        array_interface = buffer.__cuda_array_interface__
+    elif hasattr(buffer, "__array_interface__"):
+        array_interface = buffer.__array_interface__
     else:
-        raise ValueError("get_buffer_pointer() - buffer must expose cuda/array interface")
-    if data_readonly and not readonly:
-        raise ValueError("get_buffer_pointer() - buffer is readonly but you are writing!")
-    return PyLong_AsVoidPtr(data_ptr)
+        raise ValueError("buffer must expose cuda/array interface")        
 
+    # TODO: check that data is contiguous
+    itemsize = np.dtype(array_interface['typestr']).itemsize
+    nbytes = reduce(operator.mul, array_interface['shape'], 1) * itemsize
+    data_ptr, data_readonly = array_interface['data']
 
+    # Workaround for numba giving None, rather than an 0.
+    # https://github.com/cupy/cupy/issues/2104 for more info.
+    if data_ptr is None:
+        data_ptr = 0
+    
+    if data_ptr == 0:
+        raise NotImplementedError("zero-sized buffers isn't supported")
 
+    if check_writable and data_readonly:    
+        raise ValueError("writing to readonly buffer!")
+
+    if requested_nbytes is not None:
+        if requested_nbytes > nbytes:
+            raise ValueError("the nbytes is greater than the size of the buffer!")
+        else:
+            nbytes = requested_nbytes
+    return (nbytes, data_ptr)
 
 
 cdef class Listener:
@@ -212,7 +235,6 @@ cdef class ApplicationContext:
         c_util_get_ucp_ep_params_free(&params)
         assert_error(status == UCS_OK)
                     
-        import numpy as np
         ret.unique_send_tag = np.uint64(hash(uuid.uuid4()))
         ret.unique_recv_tag = np.uint64(hash(uuid.uuid4()))
         tags = np.array([ret.unique_recv_tag, ret.unique_send_tag], dtype="uint64")
@@ -266,19 +288,21 @@ cdef class Endpoint:
         object unique_recv_tag
 
 
-    def send(self, buffer, nbytes):
+    def send(self, buffer, nbytes=None):
         print("send using tag: ", self.unique_send_tag)
-        return self.tag_send(buffer, nbytes, tag=self.unique_send_tag)
+        return self.tag_send(buffer, nbytes=nbytes, tag=self.unique_send_tag)
 
 
-    def recv(self, buffer, nbytes):
+    def recv(self, buffer, nbytes=None):
         print("recv using tag: ", self.unique_recv_tag)
-        return self.tag_recv(buffer, nbytes, tag=self.unique_recv_tag)        
+        return self.tag_recv(buffer, nbytes=nbytes, tag=self.unique_recv_tag)        
 
 
-    def tag_send(self, buffer, nbytes, tag = 0):
+    def tag_send(self, buffer, nbytes, tag=0):
+        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
+        cdef void *data_ptr = PyLong_AsVoidPtr(data)
         cdef ucs_status_ptr_t status = ucp_tag_send_nb(self._ucp_ep, 
-                                                       get_buffer_pointer(buffer, True), 
+                                                       data_ptr, 
                                                        nbytes,
                                                        ucp_dt_make_contig(1),
                                                        tag,
@@ -287,9 +311,11 @@ cdef class Endpoint:
         return _create_future_from_comm_status(status, nbytes)
 
 
-    def tag_recv(self, buffer, nbytes, tag = 0):
+    def tag_recv(self, buffer, nbytes, tag=0):
+        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
+        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
         cdef ucs_status_ptr_t status = ucp_tag_recv_nb(self._ucp_worker, 
-                                                       get_buffer_pointer(buffer, False),
+                                                       data_ptr,
                                                        nbytes,
                                                        ucp_dt_make_contig(1), 
                                                        tag,
@@ -300,8 +326,10 @@ cdef class Endpoint:
 
 
     def stream_send(self, buffer, nbytes):
+        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
+        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
         cdef ucs_status_ptr_t status = ucp_stream_send_nb(self._ucp_ep, 
-                                                          get_buffer_pointer(buffer, True), 
+                                                          data_ptr, 
                                                           nbytes,
                                                           ucp_dt_make_contig(1),
                                                           _send_callback,
@@ -311,10 +339,12 @@ cdef class Endpoint:
 
 
     def stream_recv(self, buffer, nbytes):
+        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
+        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
         cdef size_t length
         cdef ucp_request *req
         cdef ucs_status_ptr_t status = ucp_stream_recv_nb(self._ucp_ep, 
-                                                          get_buffer_pointer(buffer, False),
+                                                          data_ptr,
                                                           nbytes,
                                                           ucp_dt_make_contig(1),
                                                           _stream_recv_callback,
