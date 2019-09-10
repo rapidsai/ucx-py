@@ -203,9 +203,9 @@ cdef class ApplicationContext:
         printf("ApplicationContext() - self.worker: %p\n", self.worker)
 
     
-    def create_listener(self, callback_func, port = None):
+    def create_listener(self, callback_func, port=None):
         self._bind_epoll_fd_to_event_loop()
-        if port is None:
+        if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.bind(('', 0))
