@@ -219,7 +219,6 @@ cdef class ApplicationContext:
         assert_error(err == 0)
 
         ucp_config_release(config)
-        printf("ApplicationContext() - self.worker: %p\n", self.worker)
 
     
     def create_listener(self, callback_func, port=None):
