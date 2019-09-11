@@ -132,8 +132,10 @@ def get_buffer_info(buffer, requested_nbytes=None, check_writable=False):
         raise ValueError("buffer must expose cuda/array interface")        
 
     # TODO: check that data is contiguous
-    itemsize = np.dtype(array_interface['typestr']).itemsize
-    nbytes = reduce(operator.mul, array_interface['shape'], 1) * itemsize
+    itemsize = int(np.dtype(array_interface['typestr']).itemsize)
+    # Making sure that the elements in shape is integers
+    shape = [int(s) for s in array_interface['shape']]
+    nbytes = reduce(operator.mul, shape, 1) * itemsize
     data_ptr, data_readonly = array_interface['data']
 
     # Workaround for numba giving None, rather than an 0.
