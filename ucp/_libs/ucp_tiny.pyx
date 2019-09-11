@@ -34,7 +34,6 @@ def asyncio_handle_exception(loop, context):
 
 
 async def listener_handler(endpoint, func):
-    print("listener_handler()")
     tags = np.empty(2, dtype="uint64")
     await endpoint.stream_recv(tags, tags.nbytes)
     endpoint.unique_send_tag = tags[0]
@@ -301,6 +300,8 @@ cdef class Endpoint:
     cdef:
         ucp_ep_h _ucp_ep
         ucp_worker_h _ucp_worker
+        int send_count
+        int recv_count
     
 
     cdef public: 
@@ -309,17 +310,18 @@ cdef class Endpoint:
 
 
     def send(self, buffer, nbytes=None):
-        print("send using tag: ", self.unique_send_tag)
         return self.tag_send(buffer, nbytes=nbytes, tag=self.unique_send_tag)
 
 
     def recv(self, buffer, nbytes=None):
-        print("recv using tag: ", self.unique_recv_tag)
         return self.tag_recv(buffer, nbytes=nbytes, tag=self.unique_recv_tag)        
 
 
     def tag_send(self, buffer, nbytes, tag=0):
         nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
+        uid = abs(hash("%d%d%d%d" % (self.send_count, nbytes, self.unique_recv_tag, tag)))
+        print("[SEND#%03d] {%s <= %s} uid: %s, nbytes: %d" % (self.send_count, hex(self.unique_recv_tag), hex(tag), hex(uid), nbytes))       
+        self.send_count += 1
         cdef void *data_ptr = PyLong_AsVoidPtr(data)
         cdef ucs_status_ptr_t status = ucp_tag_send_nb(self._ucp_ep, 
                                                        data_ptr, 
@@ -333,6 +335,9 @@ cdef class Endpoint:
 
     def tag_recv(self, buffer, nbytes, tag=0):
         nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
+        uid = abs(hash("%d%d%d%d" % (self.recv_count, nbytes, self.unique_send_tag, tag)))
+        print("[RECV#%03d] {%s <= %s} uid: %s, nbytes: %d" % (self.recv_count, hex(self.unique_send_tag), hex(tag), hex(uid), nbytes))        
+        self.recv_count += 1
         cdef void *data_ptr = PyLong_AsVoidPtr(data)    
         cdef ucs_status_ptr_t status = ucp_tag_recv_nb(self._ucp_worker, 
                                                        data_ptr,
