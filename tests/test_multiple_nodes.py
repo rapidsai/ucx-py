@@ -3,10 +3,10 @@ import asyncio
 import pytest
 import sys
 import ucp
+import numpy as np
 
 
 async def hello(ep):
-    import numpy as np    
     msg2send = np.arange(10)
     msg2recv = np.empty_like(msg2send)
     f1 = ep.send(msg2send)
@@ -27,7 +27,6 @@ async def client_node(port):
 
 @pytest.mark.asyncio
 async def test_multiple_nodes():
-    np = pytest.importorskip("numpy")
     lf1 = ucp.create_listener(server_node)
     lf2 = ucp.create_listener(server_node)
     assert lf1.port != lf2.port
@@ -37,4 +36,13 @@ async def test_multiple_nodes():
         nodes.append(client_node(lf1.port))
         nodes.append(client_node(lf2.port))
     await asyncio.gather(*nodes, loop=asyncio.get_running_loop())
+
+
+@pytest.mark.asyncio
+async def test_one_server_many_clients():
+    lf = ucp.create_listener(server_node)
+    clients = []
+    for _ in range(100):
+        clients.append(client_node(lf.port))
+    await asyncio.gather(*clients, loop=asyncio.get_running_loop())
 
