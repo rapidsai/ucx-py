@@ -30,7 +30,7 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
 
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
-    void *py_func
+    PyObject *py_func
 
 
 def asyncio_handle_exception(loop, context):
@@ -62,12 +62,11 @@ async def listener_handler(endpoint, func):
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     print("_listener_callback()")
     cdef _listener_callback_args *a = <_listener_callback_args *> args
-    cdef object py_func = <object> a.py_func
+    cdef object func = <object> a.py_func
 
     py_endpoint = Endpoint()
     py_endpoint._ucp_ep = ep
     py_endpoint._ucp_worker = a.ucp_worker
-    cdef object func = <object> py_func
     asyncio.create_task(listener_handler(py_endpoint, func))  
 
 
@@ -238,7 +237,7 @@ cdef class ApplicationContext:
         
         cdef _listener_callback_args *args = <_listener_callback_args*> malloc(sizeof(_listener_callback_args))
         args.ucp_worker = self.worker
-        args.py_func = <void*> callback_func
+        args.py_func = <PyObject*> callback_func
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params = c_util_get_ucp_listener_params(port, _listener_callback, <void*> args)

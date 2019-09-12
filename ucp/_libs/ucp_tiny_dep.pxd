@@ -7,7 +7,7 @@ from libc.stdint cimport *
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport FILE, stdin, stdout, stderr, printf
 from cpython.long cimport PyLong_AsVoidPtr
-from cpython.ref cimport Py_INCREF, Py_DECREF
+from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
 cdef extern from "src/c_util.h":
