@@ -3,7 +3,7 @@ import socket
 import struct
 
 
-def get_address(ifname='ib0'):
+def get_address(ifname="ib0"):
     """
     Get the address associated with a network interface.
 
@@ -31,9 +31,8 @@ def get_address(ifname='ib0'):
     ifname = ifname.encode()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return socket.inet_ntoa(fcntl.ioctl(
-        s.fileno(),
-        0x8915,  # SIOCGIFADDR
-        struct.pack('256s', ifname[:15])
-    )[20:24])
-
+    return socket.inet_ntoa(
+        fcntl.ioctl(
+            s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
+        )[20:24]
+    )

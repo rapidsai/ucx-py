@@ -2,19 +2,20 @@
 # See file LICENSE for terms.
 
 from ._libs import ucp_tiny as ucp
-from ._libs.ucp_tiny import Endpoint  #TODO: define a public Endpoint
+from ._libs.ucp_tiny import Endpoint  # TODO: define a public Endpoint
+
 
 # The module should only instantiate one instance of the application context
 _ctx = ucp.ApplicationContext()
 
 
-# Here comes the public facing API. 
+# Here comes the public facing API.
 # We could programmable extract the function definitions but
 # since the API is small, it might be worth to explict define
 # the functions here.
 
 
-def create_listener(callback_func, port = None):
+def create_listener(callback_func, port=None):
     """Create and start a listener to accept incoming connections
 
     Parameters
@@ -60,6 +61,3 @@ def progress():
         Returns True if progress was made
     """
     return _ctx.progress()
-    
-
-
