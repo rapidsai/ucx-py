@@ -11,7 +11,7 @@ _ctx = ucp.ApplicationContext()
 
 # Here comes the public facing API.
 # We could programmable extract the function definitions but
-# since the API is small, it might be worth to explict define
+# since the API is small, it might be worth to explicit define
 # the functions here.
 
 

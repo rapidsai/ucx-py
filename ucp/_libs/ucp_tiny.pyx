@@ -9,18 +9,23 @@ from functools import reduce
 import operator
 import numpy as np
 from ucp_tiny_dep cimport *
+from ..exceptions import UCXError
 
 
-def assert_error(exp, msg=""):
+def assert_error(exp, msg):
+    """ 
+    Use this instead of assert() instead of cython 
+    functions to pass along a more useful message
+    """
     if not exp:
-        raise AssertionError(msg)
+        raise UCXError(msg)
 
 
-def assert_ucs_status(ucs_status_t status, msg_context=None):
+cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
         msg += (<object> ucs_status_string(status)).decode("utf-8") 
-        raise AssertionError(msg)
+        raise UCXError(msg)
 
 
 cdef struct _listener_callback_args:
@@ -217,7 +222,7 @@ cdef class ApplicationContext:
         ev.data.fd = ucp_epoll_fd
         ev.events = EPOLLIN 
         cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
-        assert_error(err == 0)
+        assert(err == 0)
 
         ucp_config_release(config)
 
@@ -329,7 +334,7 @@ cdef class Endpoint:
                                                        ucp_dt_make_contig(1),
                                                        tag,
                                                        _send_callback)
-        assert_error(not UCS_PTR_IS_ERR(status))
+        assert(not UCS_PTR_IS_ERR(status))
         return _create_future_from_comm_status(status, nbytes)
 
 
@@ -346,7 +351,7 @@ cdef class Endpoint:
                                                        tag,
                                                        -1,
                                                        _tag_recv_callback)
-        assert_error(not UCS_PTR_IS_ERR(status))
+        assert(not UCS_PTR_IS_ERR(status))
         return _create_future_from_comm_status(status, nbytes)  
 
 
@@ -359,7 +364,7 @@ cdef class Endpoint:
                                                           ucp_dt_make_contig(1),
                                                           _send_callback,
                                                           0)
-        assert_error(not UCS_PTR_IS_ERR(status))
+        assert(not UCS_PTR_IS_ERR(status))
         return _create_future_from_comm_status(status, nbytes)  
 
 
@@ -375,7 +380,7 @@ cdef class Endpoint:
                                                           _stream_recv_callback,
                                                           &length,
                                                           0)
-        assert_error(not UCS_PTR_IS_ERR(status))
+        assert(not UCS_PTR_IS_ERR(status))
         return _create_future_from_comm_status(status, nbytes)  
 
 
