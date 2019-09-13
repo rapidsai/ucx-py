@@ -24,11 +24,11 @@ def cu_discriminant(a, b, c):
 @pytest.mark.asyncio
 async def test_numba_device_array(cleanup):
     async with Scheduler(port=0, protocol="ucx", interface="ib0") as s, Nanny(
-        s.address, nthreads=1, interface="ib0", env={"CUDA_VISIBLE_DEVICES": "0"}
+        s.address, nthreads=1, interface="ib0", env={"CUDA_VISIBLE_DEVICES": "0,1,2"}
     ) as n1, Nanny(
-        s.address, nthreads=1, interface="ib0", env={"CUDA_VISIBLE_DEVICES": "1"}
+        s.address, nthreads=1, interface="ib0", env={"CUDA_VISIBLE_DEVICES": "1,2,0"}
     ) as n2, Nanny(
-        s.address, nthreads=1, interface="ib1", env={"CUDA_VISIBLE_DEVICES": "2"}
+        s.address, nthreads=1, interface="ib1", env={"CUDA_VISIBLE_DEVICES": "2,0,1"}
     ) as n3, Client(
         s.address, asynchronous=True
     ) as c:
