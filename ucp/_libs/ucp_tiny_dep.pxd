@@ -6,19 +6,19 @@ from libc.string cimport memset
 from libc.stdint cimport *
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport FILE, stdin, stdout, stderr, printf
-from cpython.long cimport PyLong_AsVoidPtr
+from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
 cdef extern from "src/c_util.h":
     ctypedef struct ucp_listener_params_t:
-        pass 
+        pass
 
     ctypedef struct ucp_ep_h:
-        pass 
+        pass
 
     ctypedef struct ucp_ep_params_t:
-        pass         
+        pass
 
     ctypedef void (*ucp_listener_accept_callback_t)(ucp_ep_h ep, void *arg)
 
@@ -53,11 +53,11 @@ cdef extern from "ucp/api/ucp.h":
 
     ucs_status_t UCS_OK
 
-    void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number) 	        
+    void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number)
 
     ucs_status_t ucp_config_read(const char * env_prefix, const char * filename, ucp_config_t **config_p)
     void ucp_config_release(ucp_config_t *config)
-    
+
     int UCP_PARAM_FIELD_FEATURES
     int UCP_PARAM_FIELD_REQUEST_SIZE
     int UCP_PARAM_FIELD_REQUEST_INIT
@@ -91,7 +91,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef void* ucs_status_ptr_t
     ctypedef uint64_t ucp_tag_t
     ctypedef uint64_t ucp_datatype_t
-    
+
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
     bint UCS_PTR_STATUS(ucs_status_ptr_t)
 
@@ -102,7 +102,7 @@ cdef extern from "ucp/api/ucp.h":
                                      ucp_send_callback_t cb)
 
     ucp_datatype_t ucp_dt_make_contig(size_t elem_size)
-    
+
     unsigned ucp_worker_progress(ucp_worker_h worker)
 
     ctypedef struct ucp_tag_recv_info_t:
@@ -125,7 +125,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer, size_t count,
                                         ucp_datatype_t datatype,
                                         ucp_stream_recv_callback_t cb,
-                                        size_t *length, unsigned flags)    
+                                        size_t *length, unsigned flags)
 
     void ucp_request_free(void *request)
 
@@ -136,6 +136,12 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_listener_destroy(ucp_listener_h listener)
 
     const char *ucs_status_string(ucs_status_t status)
+
+    unsigned UCP_EP_CLOSE_MODE_FORCE
+    unsigned UCP_EP_CLOSE_MODE_FLUSH
+    ucs_status_ptr_t ucp_ep_close_nb(ucp_ep_h ep, unsigned mode)
+
+    void ucp_request_cancel(ucp_worker_h worker, void *request)
 
 
 cdef extern from "sys/epoll.h":
