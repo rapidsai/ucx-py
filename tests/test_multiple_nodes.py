@@ -1,4 +1,3 @@
-import pickle
 import asyncio
 import pytest
 import sys
