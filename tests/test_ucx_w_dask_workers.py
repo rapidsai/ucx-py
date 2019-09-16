@@ -286,7 +286,9 @@ async def test_dask_join(event_loop, left_nrows, right_nrows, nkeys):
     [
         10,
         100,
-        1000
+        1000,
+        10000,
+        100000
     ]
 )
 async def test_dask_concat(event_loop, size, nframes):
@@ -316,10 +318,8 @@ async def test_dask_concat(event_loop, size, nframes):
         pd_frame = dd.concat([
             da.random.random(size).to_dask_dataframe(columns='x'),
             da.random.randint(0, 10, size=size).to_dask_dataframe(columns='id'),
-        ], axis=1).persist()
+        ], axis=1)
         cudf_frame = pd_frame.map_partitions(cudf.from_pandas)
-        cudf_frame = cudf_frame.repartition(npartitions=cudf_frames[0].npartitions)
-        cudf_frame = cudf_frame.persist()
         cudf_frames.append(cudf_frame)
 
     out = delayed(cudf.concat, pure=True)(cudf_frames)
