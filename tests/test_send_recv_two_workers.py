@@ -80,6 +80,7 @@ def client(env, port, func):
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
     # nvlink only measures in KBs
     num_bytes = nbytes(rx_cuda_obj)
+    print(f"TOTAL DATA: {num_bytes}")
     if num_bytes > 1000:
         rx, tx = total_nvlink_transfer()
         print(
@@ -168,7 +169,7 @@ def dataframe():
     import cudf
     import numpy as np
 
-    size = 2 ** 12
+    size = 2 ** 13
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -192,7 +193,7 @@ def empty_dataframe():
 
 def cupy():
     import cupy
-    return cupy.arange(10)
+    return cupy.arange(10000)
 
 
 def raise_error():
