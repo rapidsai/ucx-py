@@ -39,30 +39,45 @@ def asyncio_handle_exception(loop, context):
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, func):
+    loop = asyncio.get_running_loop()
+    #TODO: exceptions in this callback is never showed when no 
+    #      get_exception_handler() is set. 
+    #      Is this the correct way to handle exceptions in asyncio?
+    #      Do we need to set this in other places?
+    if loop.get_exception_handler() is None:
+        loop.set_exception_handler(asyncio_handle_exception)    
+    
+    # Get the tags from the peer and create a new Endpoint
     tags = np.empty(2, dtype="uint64")
     await stream_recv(ucp_endpoint, tags, tags.nbytes)
-
     ep = Endpoint(ucp_endpoint, ucp_worker, tags[0], tags[1])
 
     print("listener_handler() server: %s peer: %s" %(hex(tags[1]), hex(tags[0])))
 
+    # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
-        #TODO: exceptions in this callback is never showed when no 
-        #      get_exception_handler() is set. 
-        #      Is this the correct way to handle exceptions in asyncio?
-        #      Do we need to set this in other places?
-        loop = asyncio.get_running_loop()
-        if loop.get_exception_handler() is None:
-            loop.set_exception_handler(asyncio_handle_exception)
-        await func(ep)
+        func_fut = func(ep)
     else:
-        func(ep)
+        async def _func(ep):  # coroutine wrapper
+            await func(ep)
+        func_fut = _func(ep)
+
+    # Initiate the shutdown receive 
+    shutdown_msg = np.empty(1, dtype=np.uint64)
+    shutdown_fut = tag_recv(ucp_worker, shutdown_msg, shutdown_msg.nbytes, 42)
+
+    def _close(future):
+        print("[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag)))
+        ep.close()
+    shutdown_fut.add_done_callback(_close)
+    
+    # Wait for the futures to finish
+    await asyncio.gather(func_fut, shutdown_fut)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef _listener_callback_args *a = <_listener_callback_args *> args
     cdef object func = <object> a.py_func
-
     asyncio.create_task(listener_handler(PyLong_FromVoidPtr(<void*>ep), PyLong_FromVoidPtr(<void*>a.ucp_worker), func))
 
 
@@ -169,6 +184,8 @@ cdef class ApplicationContext:
         cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
+
+        # Create a new Endpoint and send the tags to the peer
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
@@ -177,6 +194,14 @@ cdef class ApplicationContext:
         )
         tags = np.array([ret._recv_tag, ret._send_tag], dtype="uint64")
         await stream_send(ret._ucp_endpoint, tags, tags.nbytes)
+
+        # Initiate the shutdown receive 
+        shutdown_msg = np.empty(1, dtype=np.uint64)
+        shutdown_fut = tag_recv(PyLong_FromVoidPtr(<void*>self.worker), shutdown_msg, shutdown_msg.nbytes, 42)
+        def _close(future):
+            print("[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag)))
+            ret.close()
+        shutdown_fut.add_done_callback(_close)        
         return ret
 
 
@@ -207,22 +232,43 @@ class Endpoint:
         self._send_count = 0
         self._recv_count = 0
         self._closed = False
+        self.pending_msg_list = [{}]
 
     @property
     def uid(self):
         return self._recv_tag
+
+    async def signal_shutdown(self):
+        if self._closed:
+            raise UCXCloseError
+        
+        print("Endpoint.signal_shutdown(): %s" % hex(self.uid))
+
+        # Send a shutdown message to the peer
+        msg = np.array([42], dtype=np.uint64)
+        log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag), hex(self._send_tag))
+        print(log)
+        self.pending_msg_list.append({'log': log})
+        await tag_send(self._ucp_endpoint, msg, msg.nbytes, 42, pending_msg=self.pending_msg_list[-1])
 
     def close(self):
         if self._closed:
             raise UCXCloseError
         self._closed = True
         print("Endpoint.close(): %s" % hex(self.uid))
+
+        for msg in self.pending_msg_list:
+            if 'future' in msg and not msg['future'].done():
+                print("Future cancelling: %s" % msg['log'])
+                ucp_request_cancel(<ucp_worker_h>PyLong_AsVoidPtr(self._ucp_worker), PyLong_AsVoidPtr(msg['ucp_request']))
+
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
         cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FORCE)
         assert(UCS_PTR_STATUS(status) == UCS_OK or not UCS_PTR_IS_ERR(status))
 
+
     def __dealloc__(self):
-        if not self.closed():
+        if not self._closed:
             self.close()
 
     async def send(self, buffer, nbytes=None):
@@ -230,17 +276,22 @@ class Endpoint:
             raise UCXCloseError
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._send_count, nbytes, self._recv_tag, self._send_tag)))
-        print("[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._send_count, hex(self._send_tag), hex(uid), nbytes))               
-        return await tag_send(self._ucp_endpoint, buffer, nbytes, self._send_tag)
+        log = "[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._send_count, hex(self._send_tag), hex(uid), nbytes)
+        print(log)
+        self.pending_msg_list.append({'log': log})
+        self._send_count += 1
+        return await tag_send(self._ucp_endpoint, buffer, nbytes, self._send_tag, pending_msg=self.pending_msg_list[-1])
 
     async def recv(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError    
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._recv_count, nbytes, self._send_tag, self._recv_tag)))          
-        print("[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._recv_count, hex(self._send_tag), hex(uid), nbytes))
+        log = "[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._recv_count, hex(self._send_tag), hex(uid), nbytes)
+        print(log)
+        self.pending_msg_list.append({'log': log})        
         self._recv_count += 1
-        return await tag_recv(self._ucp_worker, buffer, nbytes, self._recv_tag)    
+        return await tag_recv(self._ucp_worker, buffer, nbytes, self._recv_tag, pending_msg=self.pending_msg_list[-1])
 
     def pprint_ep(self):
         if self._closed:

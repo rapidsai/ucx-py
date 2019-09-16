@@ -52,6 +52,7 @@ cdef extern from "ucp/api/ucp.h":
         ucp_request_init_callback_t request_init
 
     ucs_status_t UCS_OK
+    ucs_status_t UCS_ERR_CANCELED
 
     void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number)
 
