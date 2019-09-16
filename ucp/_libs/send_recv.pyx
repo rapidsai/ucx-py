@@ -27,7 +27,6 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status, size_t expected_rec
     return ret  
 
 cdef void _send_callback(void *request, ucs_status_t status):
-    print("_send_callback") 
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         req.finished = True
@@ -58,7 +57,6 @@ def tag_send(ucp_ep, buffer, nbytes, tag):
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
                              ucp_tag_recv_info_t *info):
-    print("_tag_recv_callback") 
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         req.finished = True
@@ -105,7 +103,6 @@ def stream_send(ucp_ep, buffer, nbytes):
     return create_future_from_comm_status(status, nbytes)
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t length):
-    print("_stream_recv_callback") 
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         req.finished = True

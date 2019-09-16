@@ -5,12 +5,11 @@
 import asyncio
 import uuid
 import socket
-from functools import reduce
-import operator
 import numpy as np
 from ucp_tiny_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
+from .utils import get_buffer_nbytes
 
 
 def assert_error(exp, msg):
@@ -72,44 +71,6 @@ cdef void ucp_request_init(void* request):
     req.finished = False
     req.future = NULL
     req.expected_receive = 0
-
-
-def get_buffer_info(buffer, requested_nbytes=None, check_writable=False):
-    """Returns tuple(nbytes, data pointer) of the buffer
-    if `requested_nbytes` is not None, the returned nbytes is `requested_nbytes` 
-    """
-    array_interface = None
-    if hasattr(buffer, "__cuda_array_interface__"):
-        array_interface = buffer.__cuda_array_interface__
-    elif hasattr(buffer, "__array_interface__"):
-        array_interface = buffer.__array_interface__
-    else:
-        raise ValueError("buffer must expose cuda/array interface")        
-
-    # TODO: check that data is contiguous
-    itemsize = int(np.dtype(array_interface['typestr']).itemsize)
-    # Making sure that the elements in shape is integers
-    shape = [int(s) for s in array_interface['shape']]
-    nbytes = reduce(operator.mul, shape, 1) * itemsize
-    data_ptr, data_readonly = array_interface['data']
-
-    # Workaround for numba giving None, rather than an 0.
-    # https://github.com/cupy/cupy/issues/2104 for more info.
-    if data_ptr is None:
-        data_ptr = 0
-    
-    if data_ptr == 0:
-        raise NotImplementedError("zero-sized buffers isn't supported")
-
-    if check_writable and data_readonly:    
-        raise ValueError("writing to readonly buffer!")
-
-    if requested_nbytes is not None:
-        if requested_nbytes > nbytes:
-            raise ValueError("the nbytes is greater than the size of the buffer!")
-        else:
-            nbytes = requested_nbytes
-    return (nbytes, data_ptr)
 
 
 cdef class Listener:
@@ -251,13 +212,13 @@ class Endpoint:
         return self._recv_tag
 
     async def send(self, buffer, nbytes=None):
-        nbytes, _ = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
+        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._send_count, nbytes, self._recv_tag, self._send_tag)))
         print("[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._send_count, hex(self._send_tag), hex(uid), nbytes))               
         return await tag_send(self._ucp_endpoint, buffer, nbytes, self._send_tag)
 
     async def recv(self, buffer, nbytes=None):
-        nbytes, _ = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
+        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._recv_count, nbytes, self._send_tag, self._recv_tag)))          
         print("[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._recv_count, hex(self._send_tag), hex(uid), nbytes))
         self._recv_count += 1
