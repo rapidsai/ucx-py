@@ -177,3 +177,9 @@ cdef extern from "sys/epoll.h":
     int epoll_create(int size)
     int epoll_ctl(int epfd, int op, int fd, epoll_event *event)
     int epoll_wait(int epfd, epoll_event *events, int maxevents, int timeout)
+
+
+cdef struct ucp_request:
+    bint finished
+    void *future
+    size_t expected_receive

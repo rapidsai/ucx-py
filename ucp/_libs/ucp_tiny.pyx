@@ -9,7 +9,8 @@ from functools import reduce
 import operator
 import numpy as np
 from ucp_tiny_dep cimport *
-from ..exceptions import UCXError
+from ..exceptions import UCXError, UCXCloseError
+from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 
 
 def assert_error(exp, msg):
@@ -38,13 +39,13 @@ def asyncio_handle_exception(loop, context):
     print("Ignored Exception: %s" % msg)
 
 
-async def listener_handler(endpoint, func):
+async def listener_handler(ucp_endpoint, ucp_worker, func):
     tags = np.empty(2, dtype="uint64")
-    await endpoint.stream_recv(tags, tags.nbytes)
-    endpoint.unique_send_tag = tags[0]
-    endpoint.unique_recv_tag = tags[1]
+    await stream_recv(ucp_endpoint, tags, tags.nbytes)
 
-    print("listener_handler() running using tags: ", tags[0], tags[1])
+    ep = Endpoint(ucp_endpoint, ucp_worker, tags[0], tags[1])
+
+    print("listener_handler() server: %s peer: %s" %(hex(tags[1]), hex(tags[0])))
 
     if asyncio.iscoroutinefunction(func):
         #TODO: exceptions in this callback is never showed when no 
@@ -54,26 +55,16 @@ async def listener_handler(endpoint, func):
         loop = asyncio.get_running_loop()
         if loop.get_exception_handler() is None:
             loop.set_exception_handler(asyncio_handle_exception)
-        await func(endpoint)
+        await func(ep)
     else:
-        func(endpoint)
+        func(ep)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
-    print("_listener_callback()")
     cdef _listener_callback_args *a = <_listener_callback_args *> args
     cdef object func = <object> a.py_func
 
-    py_endpoint = Endpoint()
-    py_endpoint._ucp_ep = ep
-    py_endpoint._ucp_worker = a.ucp_worker
-    asyncio.create_task(listener_handler(py_endpoint, func))  
-
-
-cdef struct ucp_request:
-    bint finished
-    void *future
-    size_t expected_receive
+    asyncio.create_task(listener_handler(PyLong_FromVoidPtr(<void*>ep), PyLong_FromVoidPtr(<void*>a.ucp_worker), func))
 
 
 cdef void ucp_request_init(void* request):
@@ -82,45 +73,6 @@ cdef void ucp_request_init(void* request):
     req.future = NULL
     req.expected_receive = 0
 
-
-cdef void _send_callback(void *request, ucs_status_t status):
-    assert_ucs_status(status, "_send_callback()")
-    cdef ucp_request *req = <ucp_request*> request
-    cdef object future = <object> req.future
-    future.set_result(True)
-    Py_DECREF(future)
-    req.future = NULL
-    #ucp_request_free(request)
-
-
-cdef void _tag_recv_callback(void *request, ucs_status_t status,
-                             ucp_tag_recv_info_t *info):
-    assert_ucs_status(status, "_tag_recv_callback()")
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        req.finished = True
-        return
-
-    cdef object future = <object> req.future
-    assert_error(info.length == req.expected_receive, 
-                 "_tag_recv_callback() - length mismatch: %d != %d" % (info.length, req.expected_receive))    
-    future.set_result(True)
-    Py_DECREF(future)
-    req.future = NULL
-    #ucp_request_free(request)
-
-
-cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t length):
-    assert_ucs_status(status, "_stream_recv_callback()")
-    cdef ucp_request *req = <ucp_request*> request
-    cdef object future = <object> req.future
-    assert_error(req.expected_receive == length,  
-                 "_stream_recv_callback() - length mismatch: %d != %d" % (req.expected_receive, length)) 
-    future.set_result(True)
-    Py_DECREF(future)
-    req.future = NULL
-    #ucp_request_free(request)
-    
 
 def get_buffer_info(buffer, requested_nbytes=None, check_writable=False):
     """Returns tuple(nbytes, data pointer) of the buffer
@@ -172,7 +124,6 @@ cdef class Listener:
     def port(self):
         return self.port
 
-    
     def __del__(self):
         ucp_listener_destroy(self._ucp_listener)
 
@@ -251,17 +202,20 @@ cdef class ApplicationContext:
 
     async def create_endpoint(self, str ip_address, port):
         self._bind_epoll_fd_to_event_loop()
-        ret = Endpoint()
-        ret._ucp_worker = self.worker
+        
         cdef ucp_ep_params_t params = c_util_get_ucp_ep_params(ip_address.encode(), port)
-        cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ret._ucp_ep)
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
-                    
-        ret.unique_send_tag = np.uint64(hash(uuid.uuid4()))
-        ret.unique_recv_tag = np.uint64(hash(uuid.uuid4()))
-        tags = np.array([ret.unique_recv_tag, ret.unique_send_tag], dtype="uint64")
-        await ret.stream_send(tags, tags.nbytes)
+        ret = Endpoint(
+            PyLong_FromVoidPtr(<void*> ucp_ep),
+            PyLong_FromVoidPtr(<void*> self.worker),
+            np.uint64(hash(uuid.uuid4())),
+            np.uint64(hash(uuid.uuid4())),
+        )
+        tags = np.array([ret._recv_tag, ret._send_tag], dtype="uint64")
+        await stream_send(ret._ucp_endpoint, tags, tags.nbytes)
         return ret
 
 
@@ -282,106 +236,32 @@ cdef class ApplicationContext:
             self.all_epoll_binded_to_event_loop.add(loop)
 
 
-cdef _create_future_from_comm_status(ucs_status_ptr_t status, size_t expected_receive):
-    ret = asyncio.get_event_loop().create_future()
-    if UCS_PTR_STATUS(status) == UCS_OK:
-        ret.set_result(True)
-    else:
-        req = <ucp_request*> status
-        if req.finished:
-            ret.set_result(True)
-            req.finished = False
-            req.future = NULL
-            req.expected_receive = 0
-        else:
-            Py_INCREF(ret)
-            req.future = <void*> ret
-            req.expected_receive = expected_receive
-    return ret        
-    
+class Endpoint:
 
-cdef class Endpoint:
-    cdef:
-        ucp_ep_h _ucp_ep
-        ucp_worker_h _ucp_worker
-        int send_count
-        int recv_count
-    
+    def __init__(self, ucp_endpoint, ucp_worker, send_tag, recv_tag):
+        self._ucp_endpoint = ucp_endpoint
+        self._ucp_worker = ucp_worker
+        self._send_tag = send_tag
+        self._recv_tag = recv_tag
+        self._send_count = 0
+        self._recv_count = 0
 
-    cdef public: 
-        object unique_send_tag
-        object unique_recv_tag
+    @property
+    def uid(self):
+        return self._recv_tag
 
+    async def send(self, buffer, nbytes=None):
+        nbytes, _ = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
+        uid = abs(hash("%d%d%d%d" % (self._send_count, nbytes, self._recv_tag, self._send_tag)))
+        print("[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._send_count, hex(self._send_tag), hex(uid), nbytes))               
+        return await tag_send(self._ucp_endpoint, buffer, nbytes, self._send_tag)
 
-    def send(self, buffer, nbytes=None):
-        return self.tag_send(buffer, nbytes=nbytes, tag=self.unique_send_tag)
-
-
-    def recv(self, buffer, nbytes=None):
-        return self.tag_recv(buffer, nbytes=nbytes, tag=self.unique_recv_tag)        
-
-
-    def tag_send(self, buffer, nbytes, tag=0):
-        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
-        uid = abs(hash("%d%d%d%d" % (self.send_count, nbytes, self.unique_recv_tag, tag)))
-        print("[SEND#%03d] {%s <= %s} uid: %s, nbytes: %d" % (self.send_count, hex(self.unique_recv_tag), hex(tag), hex(uid), nbytes))       
-        self.send_count += 1
-        cdef void *data_ptr = PyLong_AsVoidPtr(data)
-        cdef ucs_status_ptr_t status = ucp_tag_send_nb(self._ucp_ep, 
-                                                       data_ptr, 
-                                                       nbytes,
-                                                       ucp_dt_make_contig(1),
-                                                       tag,
-                                                       _send_callback)
-        assert(not UCS_PTR_IS_ERR(status))
-        return _create_future_from_comm_status(status, nbytes)
-
-
-    def tag_recv(self, buffer, nbytes, tag=0):
-        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
-        uid = abs(hash("%d%d%d%d" % (self.recv_count, nbytes, self.unique_send_tag, tag)))
-        print("[RECV#%03d] {%s <= %s} uid: %s, nbytes: %d" % (self.recv_count, hex(self.unique_send_tag), hex(tag), hex(uid), nbytes))        
-        self.recv_count += 1
-        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
-        cdef ucs_status_ptr_t status = ucp_tag_recv_nb(self._ucp_worker, 
-                                                       data_ptr,
-                                                       nbytes,
-                                                       ucp_dt_make_contig(1), 
-                                                       tag,
-                                                       -1,
-                                                       _tag_recv_callback)
-        assert(not UCS_PTR_IS_ERR(status))
-        return _create_future_from_comm_status(status, nbytes)  
-
-
-    def stream_send(self, buffer, nbytes):
-        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=False)
-        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
-        cdef ucs_status_ptr_t status = ucp_stream_send_nb(self._ucp_ep, 
-                                                          data_ptr, 
-                                                          nbytes,
-                                                          ucp_dt_make_contig(1),
-                                                          _send_callback,
-                                                          0)
-        assert(not UCS_PTR_IS_ERR(status))
-        return _create_future_from_comm_status(status, nbytes)  
-
-
-    def stream_recv(self, buffer, nbytes):
-        nbytes, data = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
-        cdef void *data_ptr = PyLong_AsVoidPtr(data)    
-        cdef size_t length
-        cdef ucp_request *req
-        cdef ucs_status_ptr_t status = ucp_stream_recv_nb(self._ucp_ep, 
-                                                          data_ptr,
-                                                          nbytes,
-                                                          ucp_dt_make_contig(1),
-                                                          _stream_recv_callback,
-                                                          &length,
-                                                          0)
-        assert(not UCS_PTR_IS_ERR(status))
-        return _create_future_from_comm_status(status, nbytes)  
-
+    async def recv(self, buffer, nbytes=None):
+        nbytes, _ = get_buffer_info(buffer, requested_nbytes=nbytes, check_writable=True)
+        uid = abs(hash("%d%d%d%d" % (self._recv_count, nbytes, self._send_tag, self._recv_tag)))          
+        print("[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._recv_count, hex(self._send_tag), hex(uid), nbytes))
+        self._recv_count += 1
+        return await tag_recv(self._ucp_worker, buffer, nbytes, self._recv_tag)    
 
     def pprint_ep(self):
-        ucp_ep_print_info(self._ucp_ep, stdout)
+        ucp_ep_print_info(<ucp_ep_h>PyLong_AsVoidPtr(self._ucp_ep), stdout)

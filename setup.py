@@ -45,12 +45,38 @@ class build_ext(_build_ext):
 
 ext_modules = cythonize([
     Extension(
+        "ucp._libs.utils",
+        sources=[
+            "ucp/_libs/utils.pyx",                        
+            "ucp/_libs/src/c_util.c",
+        ],
+        depends=[
+            "ucp/_libs/src/c_util.h",
+            "ucp/_libs/ucp_tiny_dep.pxd",
+        ],
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),    
+    Extension(
+        "ucp._libs.send_recv",
+        sources=[
+            "ucp/_libs/send_recv.pyx",
+            "ucp/_libs/src/c_util.c",
+        ],
+        depends=[                         
+            "ucp/_libs/src/c_util.h",
+            "ucp/_libs/ucp_tiny_dep.pxd",
+        ],
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
         "ucp._libs.ucp_tiny",
         sources=[
             "ucp/_libs/ucp_tiny.pyx",
             "ucp/_libs/src/c_util.c",
         ],
-        depends=[
+        depends=[   
             "ucp/_libs/src/c_util.h",
             "ucp/_libs/ucp_tiny_dep.pxd",
         ],
