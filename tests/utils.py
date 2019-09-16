@@ -10,4 +10,3 @@ normal_env = {
 
 def set_env():
     os.environ.update(normal_env)
-

@@ -22,7 +22,7 @@ async def server_node(ep):
 async def client_node(port):
     ep = await ucp.create_endpoint(ucp.get_address(), port)
     await hello(ep)
-    
+
 
 @pytest.mark.asyncio
 async def test_multiple_nodes():
@@ -44,4 +44,3 @@ async def test_one_server_many_clients():
     for _ in range(100):
         clients.append(client_node(lf.port))
     await asyncio.gather(*clients, loop=asyncio.get_running_loop())
-

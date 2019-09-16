@@ -71,7 +71,9 @@ async def test_send_recv_cupy(size, dtype):
     msg = cupy.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
 
-    listener = ucp.create_listener(make_echo_server(lambda n: cupy.empty((n,), dtype=np.uint8)))
+    listener = ucp.create_listener(
+        make_echo_server(lambda n: cupy.empty((n,), dtype=np.uint8))
+    )
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
@@ -92,7 +94,9 @@ async def test_send_recv_numba(size, dtype):
     ary = np.arange(size, dtype=dtype)
     msg = numba.cuda.to_device(ary)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
-    listener = ucp.create_listener(make_echo_server(lambda n: numba.cuda.device_array((n,), dtype=np.uint8)))
+    listener = ucp.create_listener(
+        make_echo_server(lambda n: numba.cuda.device_array((n,), dtype=np.uint8))
+    )
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
