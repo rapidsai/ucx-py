@@ -12,15 +12,6 @@ from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
 
-def assert_error(exp, msg):
-    """ 
-    Use this instead of assert() instead of cython 
-    functions to pass along a more useful message
-    """
-    if not exp:
-        raise UCXError(msg)
-
-
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
@@ -35,7 +26,7 @@ cdef struct _listener_callback_args:
 
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
-    print("Ignored Exception: %s" % msg)
+    print("[UCX Exception] %s: %s" % (type(msg), msg))
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, func):
@@ -244,7 +235,7 @@ class Endpoint:
 
     async def signal_shutdown(self):
         if self._closed:
-            raise UCXCloseError
+            raise UCXCloseError("signal_shutdown() - Endpoint closed")
         
         print("Endpoint.signal_shutdown(): %s" % hex(self.uid))
 
@@ -255,9 +246,12 @@ class Endpoint:
         self.pending_msg_list.append({'log': log})
         await tag_send(self._ucp_endpoint, msg, msg.nbytes, self._ctrl_send_tag, pending_msg=self.pending_msg_list[-1])
 
+    def closed(self):
+        return self._closed
+
     def close(self):
         if self._closed:
-            raise UCXCloseError
+            raise UCXCloseError("close() - Endpoint closed")
         self._closed = True
         print("Endpoint.close(): %s" % hex(self.uid))
 
@@ -278,7 +272,7 @@ class Endpoint:
 
     async def send(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError
+            raise UCXCloseError("send() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._send_count, nbytes, self._recv_tag, self._send_tag)))
         log = "[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._send_count, hex(self._send_tag), hex(uid), nbytes)
@@ -289,7 +283,7 @@ class Endpoint:
 
     async def recv(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError    
+            raise UCXCloseError("recv() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
         uid = abs(hash("%d%d%d%d" % (self._recv_count, nbytes, self._send_tag, self._recv_tag)))          
         log = "[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (hex(self._recv_tag), self._recv_count, hex(self._send_tag), hex(uid), nbytes)
@@ -300,5 +294,5 @@ class Endpoint:
 
     def pprint_ep(self):
         if self._closed:
-            raise UCXCloseError    
+            raise UCXCloseError("recv() - Endpoint closed")
         ucp_ep_print_info(<ucp_ep_h>PyLong_AsVoidPtr(self._ucp_ep), stdout)

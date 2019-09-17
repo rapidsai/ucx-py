@@ -7,7 +7,7 @@ import uuid
 import numpy as np
 from ucp_tiny_dep cimport *
 from .utils import get_buffer_data
-from ..exceptions import UCXError, UCXCloseError
+from ..exceptions import UCXError, UCXCanceled
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status, size_t expected_receive, pending_msg):
     ret = asyncio.get_event_loop().create_future()
@@ -40,11 +40,11 @@ cdef void _send_callback(void *request, ucs_status_t status):
         print("_send_callback - is_closed: ", future.get_loop().is_closed())
     elif status == UCS_ERR_CANCELED:
         print("UCS_ERR_CANCELED")
-        future.set_exception(UCXCloseError())    
+        future.set_exception(UCXCanceled())    
     elif status != UCS_OK:
         msg = "[_send_callback] "
         msg += (<object> ucs_status_string(status)).decode("utf-8")     
-        future.set_exception(UCXError())
+        future.set_exception(UCXError(msg))
     else:
         future.set_result(True)
     Py_DECREF(future)
@@ -75,13 +75,13 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         print("_tag_recv_callback - is_closed: ", future.get_loop().is_closed())
     elif status == UCS_ERR_CANCELED:
         print("UCS_ERR_CANCELED")
-        future.set_exception(UCXCloseError())
+        future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg += (<object> ucs_status_string(status)).decode("utf-8")     
-        future.set_exception(UCXError())
+        future.set_exception(UCXError(msg))
     elif info.length != req.expected_receive:
         msg += "length mismatch: %d != %d" % (info.length, req.expected_receive)
-        future.set_exception(UCXError())
+        future.set_exception(UCXError(msg))
     else:
         future.set_result(True)        
     Py_DECREF(future)
@@ -124,13 +124,13 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
         print("_stream_recv_callback - is_closed: ", future.get_loop().is_closed())
     elif status == UCS_ERR_CANCELED:
         print("UCS_ERR_CANCELED")
-        future.set_exception(UCXCloseError())
+        future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg += (<object> ucs_status_string(status)).decode("utf-8")     
-        future.set_exception(UCXError())
+        future.set_exception(UCXError(msg))
     elif length != req.expected_receive:
         msg += "length mismatch: %d != %d" % (length, req.expected_receive)
-        future.set_exception(UCXError())
+        future.set_exception(UCXError(msg))
     else:
         future.set_result(True)        
     Py_DECREF(future)

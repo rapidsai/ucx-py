@@ -16,3 +16,7 @@ class UCXWarning(UserWarning):
 
 class UCXCloseError(UCXBaseException):
     pass
+
+
+class UCXCanceled(UCXBaseException):
+    pass

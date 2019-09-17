@@ -16,13 +16,13 @@ async def test_server_shutdown():
 
     async def server_node(ep):
         msg = np.empty(10 ** 6)
-        with pytest.raises(ucp.exceptions.UCXCloseError):
+        with pytest.raises(ucp.exceptions.UCXCanceled):
             await asyncio.gather(ep.recv(msg), shutdown(ep))
 
     async def client_node(port):
         ep = await ucp.create_endpoint(ucp.get_address(), port)
         msg = np.empty(10 ** 6)
-        with pytest.raises(ucp.exceptions.UCXCloseError):
+        with pytest.raises(ucp.exceptions.UCXCanceled):
             await ep.recv(msg)
 
     lf = ucp.create_listener(server_node)
@@ -36,12 +36,12 @@ async def test_client_shutdown():
     async def client_node(port):
         ep = await ucp.create_endpoint(ucp.get_address(), port)
         msg = np.empty(10 ** 6)
-        with pytest.raises(ucp.exceptions.UCXCloseError):
+        with pytest.raises(ucp.exceptions.UCXCanceled):
             await asyncio.gather(ep.recv(msg), shutdown(ep))
 
     async def server_node(ep):
         msg = np.empty(10 ** 6)
-        with pytest.raises(ucp.exceptions.UCXCloseError):
+        with pytest.raises(ucp.exceptions.UCXCanceled):
             await ep.recv(msg)
 
     lf = ucp.create_listener(server_node)
