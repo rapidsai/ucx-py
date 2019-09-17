@@ -55,15 +55,15 @@ async def listener_handler(ucp_endpoint, ucp_worker, func):
 
     # Initiate the shutdown receive 
     shutdown_msg = np.empty(1, dtype=np.uint64)
-    shutdown_fut = tag_recv(ucp_worker, shutdown_msg, shutdown_msg.nbytes, ep._ctrl_recv_tag)
+    log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
+    ep.pending_msg_list.append({'log': log})
+    shutdown_fut = tag_recv(ucp_worker, shutdown_msg, shutdown_msg.nbytes, ep._ctrl_recv_tag, pending_msg=ep.pending_msg_list[-1])
 
     def _close(future):
         print("[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag)))
-        ep.close()
+        if not ep.closed():
+            ep.close()
     shutdown_fut.add_done_callback(_close)
-    
-    # Wait for the futures to finish
-    #await asyncio.gather(func_fut, shutdown_fut)
     await func_fut
 
 
@@ -191,10 +191,13 @@ cdef class ApplicationContext:
 
         # Initiate the shutdown receive 
         shutdown_msg = np.empty(1, dtype=np.uint64)
-        shutdown_fut = tag_recv(PyLong_FromVoidPtr(<void*>self.worker), shutdown_msg, shutdown_msg.nbytes, ret._ctrl_recv_tag)
+        log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
+        ret.pending_msg_list.append({'log': log})
+        shutdown_fut = tag_recv(PyLong_FromVoidPtr(<void*>self.worker), shutdown_msg, shutdown_msg.nbytes, ret._ctrl_recv_tag, pending_msg=ret.pending_msg_list[-1])
         def _close(future):
             print("[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag)))
-            ret.close()
+            if not ret.closed():
+                ret.close()
         shutdown_fut.add_done_callback(_close)
         return ret
 
