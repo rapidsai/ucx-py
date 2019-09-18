@@ -2,6 +2,7 @@ import asyncio
 import pytest
 import sys
 import ucp
+np = pytest.importorskip("numpy")
 
 msg_sizes = [2 ** i for i in range(0, 25, 4)]
 dtypes = ["|u1", "<i8", "f8"]
@@ -35,7 +36,6 @@ def make_echo_server(create_empty_data=None):
 
 
 def handle_exception(loop, context):
-    # context["message"] will always be there; but context["exception"] may not
     msg = context.get("exception", context["message"])
     print(msg)
     sys.exit(-1)
@@ -46,7 +46,6 @@ def handle_exception(loop, context):
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numpy(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
-    np = pytest.importorskip("numpy")
 
     msg = np.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
@@ -65,7 +64,6 @@ async def test_send_recv_numpy(size, dtype):
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_cupy(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
-    np = pytest.importorskip("numpy")
     cupy = pytest.importorskip("cupy")
 
     msg = cupy.arange(size, dtype=dtype)
@@ -87,7 +85,6 @@ async def test_send_recv_cupy(size, dtype):
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numba(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
-    np = pytest.importorskip("numpy")
     numba = pytest.importorskip("numba")
     pytest.importorskip("numba.cuda")
 
