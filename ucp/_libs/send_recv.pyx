@@ -3,6 +3,7 @@
 # cython: language_level=3
 
 import asyncio
+import logging
 import uuid
 import numpy as np
 from ucp_tiny_dep cimport *
@@ -37,9 +38,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
         return    
     cdef object future = <object> req.future
     if future.get_loop().is_closed():
-        print("_send_callback - is_closed: ", future.get_loop().is_closed())
+        pass
     elif status == UCS_ERR_CANCELED:
-        print("UCS_ERR_CANCELED")
         future.set_exception(UCXCanceled())    
     elif status != UCS_OK:
         msg = "[_send_callback] "
@@ -72,9 +72,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     cdef object future = <object> req.future
     msg = "[_tag_recv_callback] "
     if future.get_loop().is_closed():
-        print("_tag_recv_callback - is_closed: ", future.get_loop().is_closed())
+        pass
     elif status == UCS_ERR_CANCELED:
-        print("UCS_ERR_CANCELED")
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg += (<object> ucs_status_string(status)).decode("utf-8")     
@@ -121,9 +120,8 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
     cdef object future = <object> req.future    
     msg = "[_stream_recv_callback] "
     if future.get_loop().is_closed():
-        print("_stream_recv_callback - is_closed: ", future.get_loop().is_closed())
+        pass
     elif status == UCS_ERR_CANCELED:
-        print("UCS_ERR_CANCELED")
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg += (<object> ucs_status_string(status)).decode("utf-8")     

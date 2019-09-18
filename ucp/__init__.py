@@ -3,6 +3,7 @@
 
 import os
 import warnings
+import logging
 from .exceptions import *
 
 # Notice, if we have to update environment variables
@@ -14,6 +15,9 @@ if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
     )
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
+# Set the root logger before importing modules that use it
+_level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
+logging.basicConfig(level=_level_enum, format="[UCX/%(levelname)s] %(message)s")
 
 from .public_api import *  # noqa
 from .utils import get_address
