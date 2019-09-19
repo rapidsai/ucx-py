@@ -43,6 +43,25 @@ def handle_exception(loop, context):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
+async def test_send_recv_bytes(size):
+    asyncio.get_running_loop().set_exception_handler(handle_exception)
+
+    msg = b'message in bytes'
+    msg_size = np.array([len(msg)], dtype=np.uint64)
+
+    listener = ucp.create_listener(
+        make_echo_server(lambda n: bytearray(n))
+    )
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+    await client.send(msg_size)
+    await client.send(msg)
+    resp = np.empty_like(msg)
+    await client.recv(resp)
+    np.testing.assert_array_equal(resp, msg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numpy(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
