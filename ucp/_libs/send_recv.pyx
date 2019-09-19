@@ -49,7 +49,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
         future.set_result(True)
     Py_DECREF(future)
     req.future = NULL 
-    #ucp_request_free(request)
+    ucp_request_free(request)
 
 def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
@@ -85,7 +85,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         future.set_result(True)        
     Py_DECREF(future)
     req.future = NULL 
-    #ucp_request_free(request)
+    ucp_request_free(request)
 
 def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
     cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(ucp_worker)
@@ -133,7 +133,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
         future.set_result(True)        
     Py_DECREF(future)
     req.future = NULL 
-    #ucp_request_free(request)
+    ucp_request_free(request)
 
 def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
