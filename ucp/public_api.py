@@ -6,7 +6,16 @@ from ._libs.ucp_tiny import Endpoint  # TODO: define a public Endpoint
 
 
 # The module should only instantiate one instance of the application context
-_ctx = ucp.ApplicationContext()
+# However, the init of CUDA must happen after all process forks thus we delay
+# the instantiation of the application context to the first use of the API.
+_ctx = None
+
+
+def _get_ctx():
+    global _ctx
+    if _ctx is None:
+        _ctx = ucp.ApplicationContext()
+    return _ctx
 
 
 # Here comes the public facing API.
@@ -31,7 +40,7 @@ def create_listener(callback_func, port=None):
     Listener
         The new listener
     """
-    return _ctx.create_listener(callback_func, port)
+    return _get_ctx().create_listener(callback_func, port)
 
 
 async def create_endpoint(ip_address, port):
@@ -49,7 +58,7 @@ async def create_endpoint(ip_address, port):
     Endpoint
         The new endpoint
     """
-    return await _ctx.create_endpoint(ip_address, port)
+    return await _get_ctx().create_endpoint(ip_address, port)
 
 
 def progress():
@@ -60,4 +69,4 @@ def progress():
     bool
         Returns True if progress was made
     """
-    return _ctx.progress()
+    return _get_ctx().progress()
