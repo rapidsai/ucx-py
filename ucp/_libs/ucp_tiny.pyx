@@ -220,16 +220,18 @@ cdef class ApplicationContext:
 
 
     def get_ucp_worker(self):
-        """
-        Returns the underlying UCP worker handle (ucp_worker_h)
-        as a Python integer.
-        """
         return PyLong_FromVoidPtr(<void*>self.worker)
 
 
 class Endpoint:
+    """An endpoint represents a connection to a peer
+    
+    Please use `create_listener()` and `create_endpoint()`
+    to create an Endpoint.
+    """
 
-    def __init__(self, ucp_endpoint, ucp_worker, send_tag, recv_tag, ctrl_send_tag, ctrl_recv_tag):
+    def __init__(self, ucp_endpoint, ucp_worker, send_tag, 
+                 recv_tag, ctrl_send_tag, ctrl_recv_tag):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
         self._send_tag = send_tag
@@ -243,9 +245,15 @@ class Endpoint:
 
     @property
     def uid(self):
+        """The unique ID of the endpoint"""
         return self._recv_tag
 
     async def signal_shutdown(self):
+        """Signal the connected peer to shutdown.
+        
+        Notice, this functions doesn't close the endpoint. 
+        To do that, use `.close()` or del the object.
+        """
         if self._closed:
             raise UCXCloseError("signal_shutdown() - Endpoint closed")
 
@@ -257,9 +265,15 @@ class Endpoint:
         await tag_send(self._ucp_endpoint, msg, msg.nbytes, self._ctrl_send_tag, pending_msg=self.pending_msg_list[-1])
 
     def closed(self):
+        """Is this endpoint closed?"""
         return self._closed
 
     def close(self):
+        """Close this endpoint.
+
+        Notice, this functions doesn't signal the connected peer to shutdown
+        To do that, use `.signal_shutdown()` or del the object.
+        """    
         if self._closed:
             raise UCXCloseError("close() - Endpoint closed")
         self._closed = True
@@ -281,6 +295,16 @@ class Endpoint:
             self.close()
 
     async def send(self, buffer, nbytes=None):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller 
+            than nbytes.
+        nbytes: int, optional
+            Number of bytes to send. Default is the whole buffer.
+        """    
         if self._closed:
             raise UCXCloseError("send() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
@@ -292,6 +316,16 @@ class Endpoint:
         return await tag_send(self._ucp_endpoint, buffer, nbytes, self._send_tag, pending_msg=self.pending_msg_list[-1])
 
     async def recv(self, buffer, nbytes=None):
+        """Receive from connected peer into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer 
+            is smaller than nbytes or read-only.
+        nbytes: int, optional
+            Number of bytes to receive. Default is the whole buffer.
+        """       
         if self._closed:
             raise UCXCloseError("recv() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
@@ -303,6 +337,7 @@ class Endpoint:
         return await tag_recv(self._ucp_worker, buffer, nbytes, self._recv_tag, pending_msg=self.pending_msg_list[-1])
 
     def pprint_ep(self):
+        """Pretty print low-level UCX info about this endpoint"""
         if self._closed:
-            raise UCXCloseError("recv() - Endpoint closed")
+            raise UCXCloseError("pprint_ep() - Endpoint closed")
         ucp_ep_print_info(<ucp_ep_h>PyLong_AsVoidPtr(self._ucp_ep), stdout)

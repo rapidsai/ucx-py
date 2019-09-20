@@ -27,6 +27,10 @@ def _get_ctx():
 def create_listener(callback_func, port=None):
     """Create and start a listener to accept incoming connections
 
+    NB: the listening is continued until the returned Listener 
+        object goes out of scope thus remember to keep a reference 
+        to the object.
+
     Parameters
     ----------
     callback_func:
@@ -38,7 +42,7 @@ def create_listener(callback_func, port=None):
     Returns
     -------
     Listener
-        The new listener
+        The new listener. When this object is deleted, the listening stops
     """
     return _get_ctx().create_listener(callback_func, port)
 
