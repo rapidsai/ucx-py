@@ -219,6 +219,14 @@ cdef class ApplicationContext:
             self.all_epoll_binded_to_event_loop.add(loop)
 
 
+    def get_ucp_worker(self):
+        """
+        Returns the underlying UCP worker handle (ucp_worker_h)
+        as a Python integer.
+        """
+        return PyLong_FromVoidPtr(<void*>self.worker)
+
+
 class Endpoint:
 
     def __init__(self, ucp_endpoint, ucp_worker, send_tag, recv_tag, ctrl_send_tag, ctrl_recv_tag):
