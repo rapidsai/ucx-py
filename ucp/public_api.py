@@ -70,3 +70,11 @@ def progress():
         Returns True if progress was made
     """
     return _get_ctx().progress()
+
+
+def get_ucp_worker(self):
+    """
+    Returns the underlying UCP worker handle (ucp_worker_h)
+    as a Python integer.
+    """
+    return _get_ctx().get_ucp_worker()
