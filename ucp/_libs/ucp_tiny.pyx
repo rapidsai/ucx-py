@@ -276,7 +276,7 @@ class Endpoint:
         assert(UCS_PTR_STATUS(status) == UCS_OK or not UCS_PTR_IS_ERR(status))
 
 
-    def __dealloc__(self):
+    def __del__(self):
         if not self._closed:
             self.close()
 
