@@ -11,7 +11,7 @@ dtypes = ["|u1", "<i8", "f8"]
 
 def make_echo_server(create_empty_data=None):
     """
-    Returns an echo server that calls the function `create_empty_data(nbytes)` 
+    Returns an echo server that calls the function `create_empty_data(nbytes)`
     to create the data container. If None, it uses `np.empty(size, dtype=np.uint8)`
     """
     import numpy as np
@@ -103,18 +103,17 @@ async def test_send_recv_cupy(size, dtype):
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numba(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
-    numba = pytest.importorskip("numba")
-    pytest.importorskip("numba.cuda")
+    cuda = pytest.importorskip("numba.cuda")
 
     ary = np.arange(size, dtype=dtype)
-    msg = numba.cuda.to_device(ary)
+    msg = cuda.to_device(ary)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
     listener = ucp.create_listener(
-        make_echo_server(lambda n: numba.cuda.device_array((n,), dtype=np.uint8))
+        make_echo_server(lambda n: cuda.device_array((n,), dtype=np.uint8))
     )
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
-    resp = numba.cuda.device_array_like(msg)
+    resp = cuda.device_array_like(msg)
     await client.recv(resp)
     np.testing.assert_array_equal(np.array(resp), np.array(msg))
