@@ -27,18 +27,18 @@ def _get_ctx():
 def create_listener(callback_func, port=None):
     """Create and start a listener to accept incoming connections
 
-    NB: the listening is continued until the returned Listener 
-        object goes out of scope thus remember to keep a reference 
+    NB: the listening is continued until the returned Listener
+        object goes out of scope thus remember to keep a reference
         to the object.
 
     Parameters
     ----------
-    callback_func:
+    callback_func: function or coroutine
         a callback function that gets invoked when an incoming
         connection is accepted
     port: int, optional
         an unused port number for listening
-    
+
     Returns
     -------
     Listener
@@ -56,7 +56,7 @@ async def create_endpoint(ip_address, port):
         IP address of the server the endpoit should connect to
     port: int
         IP address of the server the endpoit should connect to
-    
+
     Returns
     -------
     Endpoint
