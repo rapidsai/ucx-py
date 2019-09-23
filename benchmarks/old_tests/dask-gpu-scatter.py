@@ -24,8 +24,10 @@ from distributed.utils import format_bytes
 def parse_args(args=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-s', '--scheduler-address', default=None,
-        help='Scheduler address. `distributed.comm.ucxaddress` by default.'
+        "-s",
+        "--scheduler-address",
+        default=None,
+        help="Scheduler address. `distributed.comm.ucxaddress` by default.",
     )
     return parser.parse_args()
 
@@ -38,7 +40,7 @@ def main(args=None):
         address = args.scheduler_address
 
     client = Client(address)
-    print('client', client)
+    print("client", client)
     arr = cupy.random.random((10000, 10000))  # 8 Mb
 
     print(f"Scattering {format_bytes(arr.nbytes)} cupy.ndarray.")
@@ -50,5 +52,5 @@ def main(args=None):
     print(f"Took {end - start:0.2f}s")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

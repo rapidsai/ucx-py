@@ -2,6 +2,7 @@ import asyncio
 import pytest
 import sys
 import ucp
+
 np = pytest.importorskip("numpy")
 
 msg_sizes = [2 ** i for i in range(0, 25, 4)]
@@ -46,12 +47,10 @@ def handle_exception(loop, context):
 async def test_send_recv_bytes(size):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
 
-    msg = b'message in bytes'
+    msg = b"message in bytes"
     msg_size = np.array([len(msg)], dtype=np.uint64)
 
-    listener = ucp.create_listener(
-        make_echo_server(lambda n: bytearray(n))
-    )
+    listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)

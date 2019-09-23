@@ -11,6 +11,7 @@ new_client_ep = None
 max_msg_log = 23
 max_iters = 1000
 
+
 def talk_to_client(client_ep):
 
     global args
@@ -23,15 +24,18 @@ def talk_to_client(client_ep):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
         send_buffer_region.alloc_host(1 << msg_log)
         recv_buffer_region.alloc_host(1 << msg_log)
 
-    print("{}\t\t{}\t\t{}\t\t{}".format("Size (bytes)", "Latency (us)",
-                                        "Issue (us)", "Progress (us)"))
+    print(
+        "{}\t\t{}\t\t{}\t\t{}".format(
+            "Size (bytes)", "Latency (us)", "Issue (us)", "Progress (us)"
+        )
+    )
 
     for i in range(msg_log):
         msg_len = 2 ** i
@@ -60,32 +64,31 @@ def talk_to_client(client_ep):
             tmp_start = time.time()
             send_req = comm_ep.send(send_msg[j], msg_len)
             tmp_end = time.time()
-            issue_lat += (tmp_end - tmp_start)
+            issue_lat += tmp_end - tmp_start
 
             tmp_start = time.time()
             send_req.result()
             tmp_end = time.time()
-            progress_lat += (tmp_end - tmp_start)
+            progress_lat += tmp_end - tmp_start
 
             tmp_start = time.time()
             recv_req = comm_ep.recv(recv_msg[j], msg_len)
             tmp_end = time.time()
-            issue_lat += (tmp_end - tmp_start)
+            issue_lat += tmp_end - tmp_start
 
             tmp_start = time.time()
             recv_req.result()
             tmp_end = time.time()
-            progress_lat += (tmp_end - tmp_start)
+            progress_lat += tmp_end - tmp_start
 
         end = time.time()
         lat = end - start
-        lat = ((lat/2) / iters)* 1000000
-        issue_lat = ((issue_lat/2) / iters)* 1000000
-        progress_lat = ((progress_lat/2) / iters)* 1000000
-        print("{}\t\t{}\t\t{}\t\t{}".format(msg_len, lat, issue_lat,
-                                            progress_lat))
+        lat = ((lat / 2) / iters) * 1000000
+        issue_lat = ((issue_lat / 2) / iters) * 1000000
+        progress_lat = ((progress_lat / 2) / iters) * 1000000
+        print("{}\t\t{}\t\t{}\t\t{}".format(msg_len, lat, issue_lat, progress_lat))
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -94,6 +97,7 @@ def talk_to_client(client_ep):
 
     ucp.destroy_ep(client_ep)
     cb_not_done = False
+
 
 def talk_to_server(ip, port):
 
@@ -108,7 +112,7 @@ def talk_to_server(ip, port):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
@@ -141,9 +145,9 @@ def talk_to_server(ip, port):
             send_req.result()
         end = time.time()
         lat = end - start
-        lat = ((lat/2) / iters)* 1000000
+        lat = ((lat / 2) / iters) * 1000000
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -152,11 +156,14 @@ def talk_to_server(ip, port):
 
     ucp.destroy_ep(server_ep)
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--server', help='enter server ip', required=False)
-parser.add_argument('-p','--port', help='enter server port number', required=False)
-parser.add_argument('-i','--intra_node', action='store_true')
-parser.add_argument('-m','--mem_type', help='host/cuda (default = host)', required=False)
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", required=False)
+parser.add_argument("-i", "--intra_node", action="store_true")
+parser.add_argument(
+    "-m", "--mem_type", help="host/cuda (default = host)", required=False
+)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -173,7 +180,7 @@ ucp.init()
 if server:
     if args.intra_node:
         ucp.set_cuda_dev(1)
-    ucp.start_server(talk_to_client, is_coroutine = False)
+    ucp.start_server(talk_to_client, is_coroutine=False)
     while cb_not_done:
         ucp.progress()
 else:

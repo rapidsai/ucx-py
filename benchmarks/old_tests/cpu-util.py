@@ -5,6 +5,7 @@ import ucp
 async def handler(ep):
     pass
 
+
 async def spin():
     while True:
         print(".", end="", flush=True)
