@@ -7,7 +7,7 @@ import uuid
 import socket
 import logging
 import numpy as np
-from ucp_tiny_dep cimport *
+from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes

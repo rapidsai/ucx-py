@@ -6,7 +6,7 @@ import asyncio
 import logging
 import uuid
 import numpy as np
-from ucp_tiny_dep cimport *
+from core_dep cimport *
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
 

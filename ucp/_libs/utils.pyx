@@ -7,7 +7,7 @@ import uuid
 from functools import reduce
 import operator
 import numpy as np
-from ucp_tiny_dep cimport *
+from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
 

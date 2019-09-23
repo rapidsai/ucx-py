@@ -1,8 +1,8 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-from ._libs import ucp_tiny as ucp
-from ._libs.ucp_tiny import Endpoint  # TODO: define a public Endpoint
+from ._libs import core
+from ._libs.core import Endpoint  # TODO: define a public Endpoint
 
 
 # The module should only instantiate one instance of the application context
@@ -14,7 +14,7 @@ _ctx = None
 def _get_ctx():
     global _ctx
     if _ctx is None:
-        _ctx = ucp.ApplicationContext()
+        _ctx = core.ApplicationContext()
     return _ctx
 
 
