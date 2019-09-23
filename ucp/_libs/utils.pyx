@@ -13,15 +13,16 @@ from ..exceptions import UCXError, UCXCloseError
 
 def _data_from_memoryview(object mview):
     """
-    Help function that returns a pointer to the data 
+    Help function that returns a pointer to the data
     of ´mview´ as a Python integer.
     """
     cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(<PyObject*>mview)
     return PyLong_FromVoidPtr(buf.buf)
 
+
 def get_buffer_data(buffer, check_writable=False):
     """
-    Returns data pointer of the buffer. Raising ValueError if the buffer 
+    Returns data pointer of the buffer. Raising ValueError if the buffer
     is read only and check_writable=True is set.
     """
     array_interface = None
@@ -32,7 +33,7 @@ def get_buffer_data(buffer, check_writable=False):
 
     if array_interface is not None:
         data_ptr, data_readonly = array_interface['data']
-    else:     
+    else:
         mview = memoryview(buffer)
         data_ptr = _data_from_memoryview(mview)
         data_readonly = mview.readonly
@@ -41,14 +42,15 @@ def get_buffer_data(buffer, check_writable=False):
     # https://github.com/cupy/cupy/issues/2104 for more info.
     if data_ptr is None:
         data_ptr = 0
-    
+
     if data_ptr == 0:
         raise NotImplementedError("zero-sized buffers isn't supported")
 
-    if check_writable and data_readonly:    
+    if check_writable and data_readonly:
         raise ValueError("writing to readonly buffer!")
 
     return data_ptr
+
 
 def get_buffer_nbytes(buffer, check_min_size=None):
     """
@@ -61,7 +63,7 @@ def get_buffer_nbytes(buffer, check_min_size=None):
         array_interface = buffer.__cuda_array_interface__
     elif hasattr(buffer, "__array_interface__"):
         array_interface = buffer.__array_interface__
-    
+
     if array_interface is not None:
         # TODO: check that data is contiguous
         itemsize = int(np.dtype(array_interface['typestr']).itemsize)
@@ -78,4 +80,3 @@ def get_buffer_nbytes(buffer, check_min_size=None):
     if check_min_size is not None and nbytes < check_min_size:
         raise ValueError("the nbytes is greater than the size of the buffer!")
     return nbytes
-

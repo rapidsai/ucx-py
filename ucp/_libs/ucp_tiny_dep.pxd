@@ -11,7 +11,7 @@ from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
 cdef extern from "Python.h":
-     Py_buffer* PyMemoryView_GET_BUFFER(PyObject *mview)
+    Py_buffer* PyMemoryView_GET_BUFFER(PyObject *mview)
 
 
 cdef extern from "src/c_util.h":
@@ -24,7 +24,7 @@ cdef extern from "src/c_util.h":
     ctypedef struct ucp_ep_params_t:
         pass
 
-    ctypedef void (*ucp_listener_accept_callback_t)(ucp_ep_h ep, void *arg)
+    ctypedef void(*ucp_listener_accept_callback_t)(ucp_ep_h ep, void *arg)
 
     ucp_listener_params_t c_util_get_ucp_listener_params(uint16_t port, ucp_listener_accept_callback_t callback_func, void *callback_args)
     void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param)

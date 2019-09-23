@@ -1,6 +1,5 @@
 import asyncio
 import pytest
-import sys
 import ucp
 import numpy as np
 
