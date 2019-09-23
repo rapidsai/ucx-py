@@ -95,6 +95,7 @@ cd $WORKSPACE
 
 logger "Build ucx-py..."
 cd $WORKSPACE
+export UCX_PATH=$CONDA_PREFIX
 make clean
 make install
 
@@ -110,9 +111,11 @@ else
 
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
+
     # Test with IB
     UCX_MEMTYPE_CACHE=n UCX_TLS=rc,cuda_copy,cuda_ipc py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 
     # Test with TCP/Sockets
-    UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
+    logger "TEST WITH TCP ONLY..."
+    UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 fi
