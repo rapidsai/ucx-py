@@ -4,6 +4,7 @@ import sys
 import ucp
 import numpy as np
 
+from utils import device_name
 
 async def shutdown(ep):
     await ep.signal_shutdown()
@@ -19,8 +20,8 @@ async def test_server_shutdown():
         with pytest.raises(ucp.exceptions.UCXCanceled):
             await asyncio.gather(ep.recv(msg), shutdown(ep))
 
-    async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port)
+    async def client_node(port, device_name):
+        ep = await ucp.create_endpoint(ucp.get_address(device_name), port)
         msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
             await ep.recv(msg)
@@ -30,11 +31,11 @@ async def test_server_shutdown():
 
 
 @pytest.mark.asyncio
-async def test_client_shutdown():
+async def test_client_shutdown(device_name):
     """The client calls shutdown"""
 
     async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        ep = await ucp.create_endpoint(ucp.get_address(device_name), port)
         msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
             await asyncio.gather(ep.recv(msg), shutdown(ep))
