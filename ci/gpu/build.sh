@@ -110,7 +110,8 @@ else
     nvidia-smi
 
     logger "Check NICs"
-    ifconfig
+    awk 'END{print $1}' /etc/hosts
+    cat /etc/hosts
 
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
