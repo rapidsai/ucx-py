@@ -3,7 +3,6 @@ import asyncio
 import pytest
 import sys
 import ucp
-from utils import device_name
 
 np = pytest.importorskip("numpy")
 
@@ -45,14 +44,14 @@ def handle_exception(loop, context):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
-async def test_send_recv_bytes(size, device_name):
+async def test_send_recv_bytes(size):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
 
     msg = b"message in bytes"
     msg_size = np.array([len(msg)], dtype=np.uint64)
 
     listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
-    client = await ucp.create_endpoint(ucp.get_address(device_name), listener.port)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
     resp = np.empty_like(msg)
@@ -63,14 +62,14 @@ async def test_send_recv_bytes(size, device_name):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_numpy(size, dtype, device_name):
+async def test_send_recv_numpy(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
 
     msg = np.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
 
     listener = ucp.create_listener(make_echo_server())
-    client = await ucp.create_endpoint(ucp.get_address(device_name), listener.port)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
     resp = np.empty_like(msg)
@@ -81,7 +80,7 @@ async def test_send_recv_numpy(size, dtype, device_name):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_cupy(size, dtype, device_name):
+async def test_send_recv_cupy(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
     cupy = pytest.importorskip("cupy")
 
@@ -91,7 +90,7 @@ async def test_send_recv_cupy(size, dtype, device_name):
     listener = ucp.create_listener(
         make_echo_server(lambda n: cupy.empty((n,), dtype=np.uint8))
     )
-    client = await ucp.create_endpoint(ucp.get_address(device_name), listener.port)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
     resp = cupy.empty_like(msg)
@@ -102,7 +101,7 @@ async def test_send_recv_cupy(size, dtype, device_name):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_numba(size, dtype, device_name):
+async def test_send_recv_numba(size, dtype):
     asyncio.get_running_loop().set_exception_handler(handle_exception)
     cuda = pytest.importorskip("numba.cuda")
 
@@ -112,7 +111,7 @@ async def test_send_recv_numba(size, dtype, device_name):
     listener = ucp.create_listener(
         make_echo_server(lambda n: cuda.device_array((n,), dtype=np.uint8))
     )
-    client = await ucp.create_endpoint(ucp.get_address(device_name), listener.port)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
     resp = cuda.device_array_like(msg)

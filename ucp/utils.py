@@ -1,3 +1,4 @@
+import os
 import fcntl
 import socket
 import struct
@@ -28,6 +29,9 @@ def get_address(ifname="ib0"):
     '127.0.0.1'
     """
     # https://stackoverflow.com/a/24196955/1889400
+    if os.environ.get('DEFAULT_ADDRESS', False):
+        return os.environ['DEFAULT_ADDRESS']
+
     ifname = ifname.encode()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
