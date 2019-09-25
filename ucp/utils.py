@@ -1,18 +1,20 @@
 import fcntl
 import socket
 import struct
+import os
 
 
-def get_address(ifname="ib0"):
+def get_address(ifname=None):
     """
     Get the address associated with a network interface.
 
     Parameters
     ----------
-    ifname : str, default ib0
+    ifname : str
         The network interface name to find the address for.
-        By default, 'ib0' is used. An OSError is raised for
-        invalid interfaces.
+        If None, it uses the value of environment variable `UCXPY_IFNAME`
+        and if `UCXPY_IFNAME` is not set it defaults to "ib0"
+        An OSError is raised for invalid interfaces.
 
     Returns
     -------
@@ -27,9 +29,10 @@ def get_address(ifname="ib0"):
     >>> get_address(ifname='lo')
     '127.0.0.1'
     """
-    # https://stackoverflow.com/a/24196955/1889400
-    ifname = ifname.encode()
+    if ifname is None:
+        ifname = os.environ.get("UCXPY_IFNAME", "ib0")
 
+    ifname = ifname.encode()
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     return socket.inet_ntoa(
         fcntl.ioctl(
