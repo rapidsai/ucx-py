@@ -317,7 +317,7 @@ class Endpoint:
                 )
 
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FORCE)
+        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
         assert(UCS_PTR_STATUS(status) == UCS_OK or not UCS_PTR_IS_ERR(status))
 
     def __del__(self):
