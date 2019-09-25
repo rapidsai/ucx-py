@@ -57,6 +57,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ucs_status_t UCS_OK
     ucs_status_t UCS_ERR_CANCELED
+    ucs_status_t UCS_INPROGRESS
 
     void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number)
 
@@ -147,7 +148,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_ptr_t ucp_ep_close_nb(ucp_ep_h ep, unsigned mode)
 
     void ucp_request_cancel(ucp_worker_h worker, void *request)
-
+    ucs_status_t ucp_request_check_status(void *request)
 
 cdef extern from "sys/epoll.h":
 
