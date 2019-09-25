@@ -30,20 +30,23 @@ import concurrent.futures
 max_msg_log = 2
 count = 0
 
+
 def get_msg(obj, obj_type):
 
-    if 'str' == obj_type:
+    if "str" == obj_type:
         return str(obj)
-    elif 'bytes' == obj_type:
-        return bytes(str(obj), 'utf-8')
+    elif "bytes" == obj_type:
+        return bytes(str(obj), "utf-8")
     else:
         return obj
 
+
 def print_msg(preamble, obj, obj_type):
-    if 'bytes' == obj_type:
+    if "bytes" == obj_type:
         print(preamble + str(bytes.decode(obj)))
     else:
         print(preamble + str(obj))
+
 
 async def talk_to_client(ep, listener):
 
@@ -60,7 +63,7 @@ async def talk_to_client(ep, listener):
 
     send_string = "hello from ucx server @" + socket.gethostname()
     if args.validate:
-        send_string = 'a' * (2 ** max_msg_log)
+        send_string = "a" * (2 ** max_msg_log)
     send_msg = get_msg(send_string, args.object_type)
     send_req = await ep.send_obj(send_msg, sys.getsizeof(send_msg))
     recv_msg = None
@@ -70,7 +73,7 @@ async def talk_to_client(ep, listener):
     if not args.blind_recv:
         recv_string = "hello from ucx server @" + socket.gethostname()
         if args.validate:
-            recv_string = 'b' * (2 ** max_msg_log)
+            recv_string = "b" * (2 ** max_msg_log)
         recv_msg = get_msg(recv_string, args.object_type)
         recv_req = await ep.recv_obj(recv_msg, sys.getsizeof(recv_msg))
     else:
@@ -81,14 +84,15 @@ async def talk_to_client(ep, listener):
         print_msg("server sent: ", send_msg, args.object_type)
         print_msg("server received: ", recv_msg, args.object_type)
     else:
-        assert(recv_msg == get_msg('d' * (2 ** max_msg_log), args.object_type))
+        assert recv_msg == get_msg("d" * (2 ** max_msg_log), args.object_type)
 
     ucp.destroy_ep(ep)
-    print('talk_to_client done')
+    print("talk_to_client done")
     count += 1
     if 2 == count:
         ucp.stop_listener(listener)
-    print('past attempt to stop listener')
+    print("past attempt to stop listener")
+
 
 async def talk_to_server(ip, port):
 
@@ -107,10 +111,10 @@ async def talk_to_server(ip, port):
     if not args.blind_recv:
         recv_string1 = "hello from ucx client @" + socket.gethostname()
         if args.validate:
-            recv_string1 = 'c' * (2 ** max_msg_log)
+            recv_string1 = "c" * (2 ** max_msg_log)
         recv_string2 = "hello from ucx client @" + socket.gethostname()
         if args.validate:
-            recv_string2 = 'c' * (2 ** max_msg_log)
+            recv_string2 = "c" * (2 ** max_msg_log)
         recv_msg1 = get_msg(recv_string1, args.object_type)
         recv_msg2 = get_msg(recv_string2, args.object_type)
         recv_req1 = await ep1.recv_obj(recv_msg1, sys.getsizeof(recv_msg1))
@@ -125,11 +129,11 @@ async def talk_to_server(ip, port):
 
     send_string1 = "hello from ucx client ep2 @" + socket.gethostname()
     if args.validate:
-        send_string = 'd' * (2 ** max_msg_log)
+        send_string = "d" * (2 ** max_msg_log)
 
     send_string2 = "hello from ucx client ep1 @" + socket.gethostname()
     if args.validate:
-        send_string = 'd' * (2 ** max_msg_log)
+        send_string = "d" * (2 ** max_msg_log)
     send_msg1 = get_msg(send_string1, args.object_type)
     send_msg2 = get_msg(send_string2, args.object_type)
     send_req1 = await ep1.send_obj(send_msg1, sys.getsizeof(send_msg1))
@@ -141,20 +145,36 @@ async def talk_to_server(ip, port):
         print_msg("client received: ", recv_msg1, args.object_type)
         print_msg("client received: ", recv_msg2, args.object_type)
     else:
-        assert(recv_msg1 == get_msg('a' * (2 ** max_msg_log), args.object_type))
-        assert(recv_msg2 == get_msg('a' * (2 ** max_msg_log), args.object_type))
+        assert recv_msg1 == get_msg("a" * (2 ** max_msg_log), args.object_type)
+        assert recv_msg2 == get_msg("a" * (2 ** max_msg_log), args.object_type)
 
     ucp.destroy_ep(ep1)
     ucp.destroy_ep(ep2)
-    print('talk_to_server done')
+    print("talk_to_server done")
+
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--server', help='enter server ip', required=False)
-parser.add_argument('-p','--port', help='enter server port number', required=False)
-parser.add_argument('-o','--object_type', help='Send object type. Default = str', choices=['str', 'bytes', 'contig'], default = 'str')
-parser.add_argument('-b','--blind_recv', help='Use blind receive. Default = false', action="store_true")
-parser.add_argument('-v','--validate', help='Validate data. Default = false', action="store_true")
-parser.add_argument('-m','--msg_log', help='log_2(Message length). Default = 2. So length = 4 bytes', required=False)
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", required=False)
+parser.add_argument(
+    "-o",
+    "--object_type",
+    help="Send object type. Default = str",
+    choices=["str", "bytes", "contig"],
+    default="str",
+)
+parser.add_argument(
+    "-b", "--blind_recv", help="Use blind receive. Default = false", action="store_true"
+)
+parser.add_argument(
+    "-v", "--validate", help="Validate data. Default = false", action="store_true"
+)
+parser.add_argument(
+    "-m",
+    "--msg_log",
+    help="log_2(Message length). Default = 2. So length = 4 bytes",
+    required=False,
+)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -168,7 +188,7 @@ else:
     init_str = args.server
 
 if args.msg_log:
-    max_msg_log=int(args.msg_log)
+    max_msg_log = int(args.msg_log)
 
 ucp.init()
 loop = asyncio.get_event_loop()

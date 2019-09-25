@@ -15,6 +15,7 @@ new_client_ep = None
 max_msg_log = 23
 max_iters = 1000
 
+
 async def talk_to_client(client_ep):
 
     global args
@@ -25,7 +26,7 @@ async def talk_to_client(client_ep):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
@@ -51,10 +52,10 @@ async def talk_to_client(client_ep):
             recv_req = await client_ep.recv(recv_msg, msg_len)
         end = time.time()
         lat = end - start
-        lat = ((lat/2) / iters)* 1000000
+        lat = ((lat / 2) / iters) * 1000000
         print("{}\t\t{}".format(msg_len, lat))
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -63,6 +64,7 @@ async def talk_to_client(client_ep):
 
     ucp.destroy_ep(client_ep)
     ucp.stop_server()
+
 
 async def talk_to_server(ip, port):
 
@@ -76,7 +78,7 @@ async def talk_to_server(ip, port):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
@@ -100,9 +102,9 @@ async def talk_to_server(ip, port):
             send_req = await server_ep.send(send_msg, msg_len)
         end = time.time()
         lat = end - start
-        lat = ((lat/2) / iters)* 1000000
+        lat = ((lat / 2) / iters) * 1000000
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -111,11 +113,14 @@ async def talk_to_server(ip, port):
 
     ucp.destroy_ep(server_ep)
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--server', help='enter server ip', required=False)
-parser.add_argument('-p','--port', help='enter server port number', required=False)
-parser.add_argument('-i','--intra_node', action='store_true')
-parser.add_argument('-m','--mem_type', help='host/cuda (default = host)', required=False)
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", required=False)
+parser.add_argument("-i", "--intra_node", action="store_true")
+parser.add_argument(
+    "-m", "--mem_type", help="host/cuda (default = host)", required=False
+)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -133,7 +138,7 @@ loop = asyncio.get_event_loop()
 if server:
     if args.intra_node:
         ucp.set_cuda_dev(1)
-    coro = ucp.start_server(talk_to_client, is_coroutine = True)
+    coro = ucp.start_server(talk_to_client, is_coroutine=True)
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 

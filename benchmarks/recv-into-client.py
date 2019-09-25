@@ -40,39 +40,65 @@ ucp.init()
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--server", default=None, help='server address.')
-    parser.add_argument("-p", "--port", default=13337, help="server port.",
-                        type=int)
-    parser.add_argument('-n', '--n-bytes', default='10 Mb', type=parse_bytes,
-                        help="Message size. Default '10 Mb'.")
-    parser.add_argument('--n-iter', default=10, type=int,
-                        help="Numer of send / recv iterations (default 10).")
-    parser.add_argument('-r', '--recv', default='recv_into',
-                        choices=['recv_into', 'recv_obj'],
-                        help="recv type.")
-    parser.add_argument("-o", "--object_type", default="numpy",
-                        choices=['numpy', 'cupy'],
-                        help="In-memory array type.")
-    parser.add_argument("-v", "--verbose", default=False, action="store_true",
-                        help="Whether to print timings per iteration.")
-    parser.add_argument("-i", "--inc", default=False, action="store_true",
-                        help="Whether to increment the array each iteration.")
+    parser.add_argument("-s", "--server", default=None, help="server address.")
+    parser.add_argument("-p", "--port", default=13337, help="server port.", type=int)
+    parser.add_argument(
+        "-n",
+        "--n-bytes",
+        default="10 Mb",
+        type=parse_bytes,
+        help="Message size. Default '10 Mb'.",
+    )
+    parser.add_argument(
+        "--n-iter",
+        default=10,
+        type=int,
+        help="Numer of send / recv iterations (default 10).",
+    )
+    parser.add_argument(
+        "-r",
+        "--recv",
+        default="recv_into",
+        choices=["recv_into", "recv_obj"],
+        help="recv type.",
+    )
+    parser.add_argument(
+        "-o",
+        "--object_type",
+        default="numpy",
+        choices=["numpy", "cupy"],
+        help="In-memory array type.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Whether to print timings per iteration.",
+    )
+    parser.add_argument(
+        "-i",
+        "--inc",
+        default=False,
+        action="store_true",
+        help="Whether to increment the array each iteration.",
+    )
 
     return parser.parse_args()
 
 
 def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
-    arr = np.zeros(n_bytes, dtype='u1')
+    arr = np.zeros(n_bytes, dtype="u1")
 
     async def inc(ep, lf):
         nonlocal arr
         times = []
 
         tstart = clock()
-        cuda = np.__name__ == 'cupy'
+        cuda = np.__name__ == "cupy"
         for i in range(n_iter):
             t0 = clock()
-            if recv == 'recv_into':
+            if recv == "recv_into":
                 await ep.recv_into(arr, n_bytes)
                 t1 = t2 = clock()
             else:
@@ -86,17 +112,14 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
             await ep.send_obj(arr)
             t3 = clock()
 
-            times.append(
-                (t1 - t0, t2 - t1, t3 - t2, t3 - tstart)
-            )
+            times.append((t1 - t0, t2 - t1, t3 - t2, t3 - tstart))
             tstart = t3
 
         if verbose:
             import pandas as pd
 
-            df = pd.DataFrame(times,
-                              columns=[recv, 'asarray', 'send', 'total'])
-            print('\n')
+            df = pd.DataFrame(times, columns=[recv, "asarray", "send", "total"])
+            print("\n")
             print(df)
 
         await ep.send_obj(np.ones(1))
@@ -109,27 +132,26 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
     return lf.coroutine
 
 
-async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
-                  increment):
+async def connect(host, port, n_bytes, n_iter, recv, np, verbose, increment):
     ep = await ucp.get_endpoint(host.encode(), port, timeout=10)
-    arr = np.zeros(n_bytes, dtype='u1')
+    arr = np.zeros(n_bytes, dtype="u1")
 
     start = clock()
 
     for i in range(n_iter):
         await ep.send_obj(arr)
-        if recv == 'recv_into':
+        if recv == "recv_into":
             await ep.recv_into(arr, arr.nbytes)
         else:
             # This is failing right now
-            msg = await ep.recv_obj(arr.nbytes, cuda=np.__name__ == 'cupy')
+            msg = await ep.recv_obj(arr.nbytes, cuda=np.__name__ == "cupy")
             arr = np.asarray(msg.get_obj())
 
     stop = clock()
 
-    expected = np.ones(n_bytes, dtype='u1')
+    expected = np.ones(n_bytes, dtype="u1")
     #            0 or n_iter
-    expected *= (int(increment) * n_iter)
+    expected *= int(increment) * n_iter
     np.testing.assert_array_equal(arr, expected)
 
     took = stop - start
@@ -143,7 +165,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
     print(f"object   | {np.__name__}")
     print(f"inc      | {increment}")
     print("\n===================")
-    print(format_bytes(2 * n_iter * arr.nbytes / took), '/ s')
+    print(format_bytes(2 * n_iter * arr.nbytes / took), "/ s")
     print("===================")
 
     await ep.recv_future()
@@ -153,28 +175,37 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose,
 
 def main(args=None):
     args = parse_args(args)
-    if args.object_type == 'numpy':
+    if args.object_type == "numpy":
         import numpy as xp
     else:
         import cupy as xp
 
     if args.server:
-        if args.object_type == 'cupy':
+        if args.object_type == "cupy":
             xp.cuda.runtime.setDevice(0)
             print(xp.cuda.runtime.getDevice())
-        return connect(args.server, args.port, args.n_bytes, args.n_iter,
-                      args.recv, xp, args.verbose, args.inc)
+        return connect(
+            args.server,
+            args.port,
+            args.n_bytes,
+            args.n_iter,
+            args.recv,
+            xp,
+            args.verbose,
+            args.inc,
+        )
     else:
-        if args.object_type == 'cupy':
+        if args.object_type == "cupy":
             xp.cuda.runtime.setDevice(1)
             print(xp.cuda.runtime.getDevice())
-        return serve(args.port, args.n_bytes, args.n_iter,
-                    args.recv, xp, args.verbose, args.inc)
+        return serve(
+            args.port, args.n_bytes, args.n_iter, args.recv, xp, args.verbose, args.inc
+        )
 
     ucp.fin()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
     loop.close()
