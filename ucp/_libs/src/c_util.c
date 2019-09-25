@@ -2,7 +2,7 @@
  * Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
  * See file LICENSE for terms.
  */
- 
+
 #include "c_util.h"
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +22,7 @@ ucp_listener_params_t c_util_get_ucp_listener_params(uint16_t port, ucp_listener
     listen_addr->sin_port        = htons(port);
 
     ucp_listener_params_t ret;
-	ret.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR | 
+	ret.field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
                              UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
 	ret.sockaddr.addr      = (const struct sockaddr *) listen_addr;
 	ret.sockaddr.addrlen   = sizeof(struct sockaddr_in);
@@ -45,11 +45,11 @@ ucp_ep_params_t c_util_get_ucp_ep_params(const char *ip_address, uint16_t port) 
     connect_addr->sin_port        = htons(port);
 
     ucp_ep_params_t ret;
-	ret.field_mask         = UCP_EP_PARAM_FIELD_FLAGS | 
+	ret.field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
                              UCP_EP_PARAM_FIELD_SOCK_ADDR |
-                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE | 
+                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
                              UCP_EP_PARAM_FIELD_ERR_HANDLER;
-	ret.err_mode           = UCP_ERR_HANDLING_MODE_PEER;
+	ret.err_mode           = UCP_ERR_HANDLING_MODE_NONE;
     ret.flags              = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
     ret.err_handler.cb     = NULL;
     ret.err_handler.arg    = NULL;

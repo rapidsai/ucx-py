@@ -102,7 +102,7 @@ cdef class Listener:
     def port(self):
         return self.port
 
-    def __del__(self):
+    def __dealloc__(self):
         ucp_listener_destroy(self._ucp_listener)
 
 
@@ -307,18 +307,27 @@ class Endpoint:
         self._closed = True
         logging.debug("Endpoint.close(): %s" % hex(self.uid))
 
+        cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)
+
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
                 # TODO: make sure that a potential shutdown message isn't cancelled
                 logging.debug("Future cancelling: %s" % msg['log'])
                 ucp_request_cancel(
-                    <ucp_worker_h>PyLong_AsVoidPtr(self._ucp_worker),
+                    worker,
                     PyLong_AsVoidPtr(msg['ucp_request'])
                 )
 
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FORCE)
-        assert(UCS_PTR_STATUS(status) == UCS_OK or not UCS_PTR_IS_ERR(status))
+        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
+        if UCS_PTR_STATUS(status) != UCS_OK:
+            assert not UCS_PTR_IS_ERR(status)
+            # We spinlock here until `status` has finished
+            while ucp_request_check_status(status) != UCS_INPROGRESS:
+                while ucp_worker_progress(worker) != 0:
+                    pass
+            assert not UCS_PTR_IS_ERR(status)
+            ucp_request_free(status)
 
     def __del__(self):
         if not self._closed:

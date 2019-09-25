@@ -78,3 +78,23 @@ These three libraries provide a powerful combination of HPC message passing tool
 You should be done! Test the result of your build with
 
     pytest -v
+
+### TCP Support
+
+In order to use TCP add `tcp` to `UCX_TLS` and set `UCXPY_IFNAME` to the network interface you want to use. Some setup examples:
+
+    # TCP using "eth0" and CUDA support
+    export UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc
+    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+    export UCXPY_IFNAME="eth0"
+
+    # InfiniBand using "ib0" and CUDA support
+    export UCX_TLS=sockcm,cuda_copy,cuda_ipc
+    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+    export UCXPY_IFNAME="ib0"
+
+    # TCP using "eno0" and no CUDA support
+    export UCX_TLS=tcp,sockcm
+    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+    export UCXPY_IFNAME="eno0"
+
