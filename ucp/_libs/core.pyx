@@ -102,7 +102,7 @@ cdef class Listener:
     def port(self):
         return self.port
 
-    def __del__(self):
+    def __dealloc__(self):
         ucp_listener_destroy(self._ucp_listener)
 
 
