@@ -74,7 +74,7 @@ setup(
     python_requires=">=3.6",
     description='Python Bindings for the Unified Communication X library (UCX)',
     long_description=open('README.md').read(),
-    license='BSD',
+    license='BSD-3-Clause',
     classifiers=[
           'Intended Audience :: Developers',
           'Intended Audience :: System Administrators',
