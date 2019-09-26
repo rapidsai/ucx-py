@@ -16,6 +16,7 @@ from Cython.Distutils import build_ext as _build_ext
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
 
+import versioneer
 
 class build_ext(_build_ext):
     user_options = [
@@ -69,4 +70,19 @@ setup(
     packages=["ucp"],
     ext_modules=ext_modules,
     cmdclass={"build_ext": build_ext},
+    version=versioneer.get_version(),
+    description='Python Bindings for the Unified Communication X library (UCX)',
+    license='BSD',
+    classifiers=[
+          'Intended Audience :: Developers',
+          'Intended Audience :: System Administrators',
+          'License :: OSI Approved :: BSD License',
+          'Operating System :: POSIX :: Linux',
+          'Programming Language :: Python',
+          'Topic :: Software Development :: Libraries :: Python Modules',
+          'Topic :: System :: Hardware',
+          'Topic :: System :: Systems Administration',
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+    ],
 )
