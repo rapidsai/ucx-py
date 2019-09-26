@@ -198,8 +198,13 @@ cdef class ApplicationContext:
         args.py_func = <PyObject*> callback_func
         Py_INCREF(callback_func)
 
-        cdef ucp_listener_params_t params = \
-            c_util_get_ucp_listener_params(port, _listener_callback, <void*> args)
+        cdef ucp_listener_params_t params
+        if c_util_get_ucp_listener_params(&params,
+                                          port,
+                                          _listener_callback,
+                                          <void*> args):
+            raise MemoryError("Failed allocation ucp_ep_params_t")
+
         logging.info("create_listener() - Start listening on port %d" % port)
         listener = Listener(port)
         cdef ucs_status_t status = ucp_listener_create(
@@ -212,9 +217,10 @@ cdef class ApplicationContext:
     async def create_endpoint(self, str ip_address, port):
         self._bind_epoll_fd_to_event_loop()
 
-        cdef ucp_ep_params_t params = c_util_get_ucp_ep_params(
-            ip_address.encode(), port
-        )
+        cdef ucp_ep_params_t params
+        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
+            raise MemoryError("Failed allocation ucp_ep_params_t")
+
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
