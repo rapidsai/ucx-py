@@ -45,16 +45,14 @@ nvidia-smi
 
 logger "Activate conda env..."
 source activate gdf
-conda create -n ucx "python=3.7" "cudf>=0.9" "dask-cudf>=0.9" "cudatoolkit=$CUDA_REL" \
+conda create install "cudf>=0.9" "dask-cudf>=0.9" "cudatoolkit=$CUDA_REL" \
               "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16" "cupy>=6.2.0"
-
-conda activate ucx
 
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython" \
-                              "pytest" "pkg-config" "pytest-asyncio" \
-                              "pytest-cov" "coverage"
+                              "pytest" "pkg-config" "pytest-asyncio"
+
 
 # install ucx from john's channel
 # conda install -c jakirkham/label/ucx "ucx-proc=*=gpu" "ucx"
