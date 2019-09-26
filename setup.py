@@ -87,4 +87,5 @@ setup(
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
     ],
+    url='https://github.com/rapidsai/ucx-py',
 )
