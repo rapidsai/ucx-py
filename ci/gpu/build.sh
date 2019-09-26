@@ -48,7 +48,7 @@ source activate gdf
 conda create -n ucx "python=3.7" "cudf>=0.9" "dask-cudf>=0.9" "cudatoolkit=$CUDA_REL" \
               "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16" "cupy>=6.2.0"
 
-source activate ucx
+conda activate ucx
 
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
@@ -123,6 +123,6 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    DEFAULT_ADDRESS=127.0.0.1 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
+    UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
     # UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 fi
