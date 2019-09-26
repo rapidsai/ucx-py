@@ -39,7 +39,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
         req.finished = True
         return
     cdef object future = <object> req.future
-    if future.get_loop().is_closed():
+    if asyncio.get_event_loop().is_closed():
         pass
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
@@ -75,7 +75,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         return
     cdef object future = <object> req.future
     msg = "[_tag_recv_callback] "
-    if future.get_loop().is_closed():
+    if asyncio.get_event_loop().is_closed():
         pass
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
@@ -126,7 +126,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
         return
     cdef object future = <object> req.future
     msg = "[_stream_recv_callback] "
-    if future.get_loop().is_closed():
+    if asyncio.get_event_loop().is_closed():
         pass
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
