@@ -23,3 +23,7 @@ logging.basicConfig(level=_level_enum, format="[UCX/%(levelname)s] %(message)s")
 
 from .public_api import *  # noqa
 from .utils import get_address  # noqa
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
