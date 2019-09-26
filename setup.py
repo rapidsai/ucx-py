@@ -71,6 +71,7 @@ setup(
     ext_modules=ext_modules,
     cmdclass={"build_ext": build_ext},
     version=versioneer.get_version(),
+    python_requires=">=3.6",
     description='Python Bindings for the Unified Communication X library (UCX)',
     license='BSD',
     classifiers=[
