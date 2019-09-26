@@ -96,10 +96,8 @@ cdef void ucp_request_init(void* request):
 cdef class Listener:
     cdef:
         cdef ucp_listener_h _ucp_listener
+        cdef _listener_callback_args _cb_args
         cdef uint16_t port
-
-    def __init__(self, port):
-        self.port = port
 
     @property
     def port(self):
@@ -190,36 +188,36 @@ cdef class ApplicationContext:
             port = s.getsockname()[1]
             s.close()
 
-        cdef _listener_callback_args *args = \
-            <_listener_callback_args*> malloc(sizeof(_listener_callback_args))
-        args.ucp_worker = self.worker
-        args.py_config = <PyObject*> self.config
+        ret = Listener()
+        ret.port = port
+
+        ret._cb_args.ucp_worker = self.worker
+        ret._cb_args.py_func = <PyObject*> callback_func
+        ret._cb_args.py_config = <PyObject*> self.config
         Py_INCREF(self.config)
-        args.py_func = <PyObject*> callback_func
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
         if c_util_get_ucp_listener_params(&params,
                                           port,
                                           _listener_callback,
-                                          <void*> args):
-            raise MemoryError("Failed allocation ucp_ep_params_t")
+                                          <void*> &ret._cb_args):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         logging.info("create_listener() - Start listening on port %d" % port)
-        listener = Listener(port)
         cdef ucs_status_t status = ucp_listener_create(
-            self.worker, &params, &listener._ucp_listener
+            self.worker, &params, &ret._ucp_listener
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
-        return listener
+        return ret
 
     async def create_endpoint(self, str ip_address, port):
         self._bind_epoll_fd_to_event_loop()
 
         cdef ucp_ep_params_t params
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
-            raise MemoryError("Failed allocation ucp_ep_params_t")
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
