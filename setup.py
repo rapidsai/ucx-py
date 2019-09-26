@@ -82,6 +82,7 @@ setup(
           'Topic :: Software Development :: Libraries :: Python Modules',
           'Topic :: System :: Hardware',
           'Topic :: System :: Systems Administration',
+          'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
     ],
