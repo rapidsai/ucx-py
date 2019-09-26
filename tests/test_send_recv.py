@@ -45,7 +45,7 @@ def handle_exception(loop, context):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 async def test_send_recv_bytes(size):
-    asyncio.get_running_loop().set_exception_handler(handle_exception)
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
 
     msg = b"message in bytes"
     msg_size = np.array([len(msg)], dtype=np.uint64)
@@ -63,7 +63,7 @@ async def test_send_recv_bytes(size):
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numpy(size, dtype):
-    asyncio.get_running_loop().set_exception_handler(handle_exception)
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
 
     msg = np.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
@@ -81,7 +81,7 @@ async def test_send_recv_numpy(size, dtype):
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_cupy(size, dtype):
-    asyncio.get_running_loop().set_exception_handler(handle_exception)
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
     cupy = pytest.importorskip("cupy")
 
     msg = cupy.arange(size, dtype=dtype)
@@ -102,7 +102,7 @@ async def test_send_recv_cupy(size, dtype):
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
 async def test_send_recv_numba(size, dtype):
-    asyncio.get_running_loop().set_exception_handler(handle_exception)
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
     cuda = pytest.importorskip("numba.cuda")
 
     ary = np.arange(size, dtype=dtype)

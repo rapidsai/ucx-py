@@ -33,7 +33,7 @@ async def test_multiple_nodes():
     for _ in range(10):
         nodes.append(client_node(lf1.port))
         nodes.append(client_node(lf2.port))
-    await asyncio.gather(*nodes, loop=asyncio.get_running_loop())
+    await asyncio.gather(*nodes, loop=asyncio.get_event_loop())
 
 
 @pytest.mark.asyncio
@@ -42,4 +42,4 @@ async def test_one_server_many_clients():
     clients = []
     for _ in range(100):
         clients.append(client_node(lf.port))
-    await asyncio.gather(*clients, loop=asyncio.get_running_loop())
+    await asyncio.gather(*clients, loop=asyncio.get_event_loop())

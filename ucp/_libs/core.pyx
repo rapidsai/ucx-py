@@ -31,7 +31,7 @@ def asyncio_handle_exception(loop, context):
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, func):
-    loop = asyncio.get_running_loop()
+    loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
     #       get_exception_handler() is set.
     #       Is this the correct way to handle exceptions in asyncio?
@@ -74,7 +74,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, func):
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef _listener_callback_args *a = <_listener_callback_args *> args
     cdef object func = <object> a.py_func
-    asyncio.create_task(
+    asyncio.ensure_future(
         listener_handler(
             PyLong_FromVoidPtr(<void*>ep),
             PyLong_FromVoidPtr(<void*>a.ucp_worker),
