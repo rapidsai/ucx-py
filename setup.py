@@ -69,7 +69,7 @@ setup(
     name="ucp",
     packages=["ucp"],
     ext_modules=ext_modules,
-     cmdclass={"build_ext": build_ext, **versioner.get_cmdclass()},
+    cmdclass={"build_ext": build_ext, **versioneer.get_cmdclass()},
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description='Python Bindings for the Unified Communication X library (UCX)',
