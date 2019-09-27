@@ -52,7 +52,7 @@ def get_buffer_data(buffer, check_writable=False):
     return data_ptr
 
 
-def get_buffer_nbytes(buffer, check_min_size=None):
+def get_buffer_nbytes(buffer, check_min_size, cuda_support):
     """
     Returns the size of the buffer in bytes. Returns ValueError
     if `check_min_size` is greater than the size of the buffer
@@ -61,6 +61,9 @@ def get_buffer_nbytes(buffer, check_min_size=None):
     array_interface = None
     if hasattr(buffer, "__cuda_array_interface__"):
         array_interface = buffer.__cuda_array_interface__
+        if not cuda_support:
+            raise ValueError("UCX not configured with CUDA support, please add `cuda_copy` "
+                             "and/or `cuda_ipc` to the UCX_TLS environment variable")
     elif hasattr(buffer, "__array_interface__"):
         array_interface = buffer.__array_interface__
 
