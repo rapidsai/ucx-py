@@ -112,6 +112,8 @@ cdef class ApplicationContext:
         ucp_worker_h worker  # For now, a application context only has one worker
         int epoll_fd
         object all_epoll_binded_to_event_loop
+        object config
+
 
     def __cinit__(self):
         cdef ucp_params_t ucp_params
@@ -119,10 +121,11 @@ cdef class ApplicationContext:
         cdef ucp_config_t *config
         cdef ucs_status_t status
         self.all_epoll_binded_to_event_loop = set()
+        self.config = {}
 
         cdef unsigned int a, b, c
         ucp_get_version(&a, &b, &c)
-        logging.info("UCP Version: %d.%d.%d" % (a, b, c))
+        self.config['VERSION'] = (a, b, c)
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = UCP_PARAM_FIELD_FEATURES | \
@@ -155,7 +158,25 @@ cdef class ApplicationContext:
         cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
         assert(err == 0)
 
+        # Let's read the UCX config and write in into `self.config`
+        cdef char *text
+        cdef size_t text_len
+        cdef FILE *text_fd = open_memstream(&text, &text_len)
+        assert(text_fd != NULL)
+        ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
+        fflush(text_fd)
+        cdef bytes py_text = <bytes> text
+        for line in py_text.decode().splitlines():
+            k, v = line.split("=")
+            self.config[k] = v
+        fclose(text_fd)
+        free(text)
         ucp_config_release(config)
+
+        logging.info("UCP initiated using condig: ")
+        for k, v in self.config.items():
+            logging.info("  %s: %s" % (k, v))
+
 
     def create_listener(self, callback_func, port=None):
         self._bind_epoll_fd_to_event_loop()
@@ -243,6 +264,9 @@ cdef class ApplicationContext:
 
     def get_ucp_worker(self):
         return PyLong_FromVoidPtr(<void*>self.worker)
+
+    def get_config(self):
+        return self.config
 
 
 class Endpoint:

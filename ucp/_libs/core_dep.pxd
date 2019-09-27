@@ -5,7 +5,8 @@
 from libc.string cimport memset
 from libc.stdint cimport *
 from libc.stdlib cimport malloc, free
-from libc.stdio cimport FILE, stdin, stdout, stderr, printf
+from libc.stdio cimport FILE, stdin, stdout, stderr, printf, fflush, fclose
+from posix.stdio cimport open_memstream
 from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
@@ -149,6 +150,16 @@ cdef extern from "ucp/api/ucp.h":
 
     void ucp_request_cancel(ucp_worker_h worker, void *request)
     ucs_status_t ucp_request_check_status(void *request)
+
+    ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name, const char *value)
+
+    ctypedef enum ucs_config_print_flags_t:
+        pass
+    ucs_config_print_flags_t UCS_CONFIG_PRINT_CONFIG
+    void ucp_config_print(const ucp_config_t *config,
+                          FILE *stream,
+                          const char *title,
+                          ucs_config_print_flags_t print_flags)
 
 cdef extern from "sys/epoll.h":
 
