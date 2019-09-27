@@ -3,7 +3,6 @@ import pytest
 import ucp
 import numpy as np
 
-
 async def hello(ep):
     msg2send = np.arange(10)
     msg2recv = np.empty_like(msg2send)

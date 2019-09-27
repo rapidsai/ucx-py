@@ -1,3 +1,4 @@
+import os
 import asyncio
 import pytest
 import sys
@@ -7,7 +8,6 @@ np = pytest.importorskip("numpy")
 
 msg_sizes = [2 ** i for i in range(0, 25, 4)]
 dtypes = ["|u1", "<i8", "f8"]
-
 
 def make_echo_server(create_empty_data=None):
     """
