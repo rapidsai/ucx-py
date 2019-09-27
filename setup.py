@@ -74,6 +74,7 @@ setup(
     python_requires=">=3.6",
     description='Python Bindings for the Unified Communication X library (UCX)',
     long_description=open('README.md').read(),
+    author="NVIDIA Corporation",
     license='BSD-3-Clause',
     classifiers=[
           'Intended Audience :: Developers',
