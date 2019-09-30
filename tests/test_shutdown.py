@@ -28,7 +28,10 @@ async def test_server_shutdown():
     lf = ucp.create_listener(server_node)
     await client_node(lf.port)
 
-@pytest.mark.skipif(sys.version_info < (3, 7), reason="test currently fails for python3.6")
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 7), reason="test currently fails for python3.6"
+)
 @pytest.mark.asyncio
 async def test_client_shutdown():
     """The client calls shutdown"""
