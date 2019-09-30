@@ -90,3 +90,12 @@ def get_ucp_worker():
 def get_config():
     """Returns the configuraion as a dict"""
     return _get_ctx().get_config()
+
+
+def reset():
+    """
+    Resets the UCX library by shutting down all of UCX.
+    The library is initiated at next API call.
+    """
+    global _ctx
+    _ctx = None
