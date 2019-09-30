@@ -181,15 +181,15 @@ static unsigned ucp_ipy_worker_progress(ucp_worker_h ucp_worker)
     char tmp_str[TAG_STR_MAX_LEN];
     struct ucx_context *request = 0;
     ucp_py_internal_ep_t *internal_ep;
-    
+
 #ifdef UCX_PY_PROF
     struct timeval s, e;
     double lat;
     gettimeofday(&s, NULL);
 #endif
-    
+
     status = ucp_worker_progress(ucp_worker);
-    
+
 #ifdef UCX_PY_PROF
     gettimeofday(&e, NULL);
     lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
@@ -366,7 +366,7 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, void *send_buf,
 
     DEBUG_PRINT("sending %p\n", send_buf);
 
-    
+
     tag = int_ep->send_tag;
     DEBUG_PRINT("send_nb tag = %d\n", tag);
     request = ucp_tag_send_nb(*((ucp_ep_h *) int_ep->ep_ptr), send_buf, (size_t) length,
@@ -383,11 +383,11 @@ struct ucx_context *ucp_py_ep_send_nb(void *internal_ep, void *send_buf,
 	request->length = length;
 	request->type   = UCP_SEND;
 #endif
-    
+
     } else {
         /* request is complete so no need to wait on request */
     }
-    
+
     DEBUG_PRINT("returning request %p\n", request);
 
     return request;
@@ -426,7 +426,7 @@ int ucp_py_worker_progress_wait(void)
         printf("ucp_worker_arm error\n");
         goto err;
     }
-    
+
 #ifdef UCX_PY_PROF
     gettimeofday(&e, NULL);
     lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
@@ -453,7 +453,7 @@ int ucp_py_worker_drain_fd()
         ret = epoll_wait(ucp_py_ctx_head->epoll_fd_local, &(ucp_py_ctx_head->ev), 1, -1);
     } while ((ret == -1) && (errno == EINTR));
 #endif
-    
+
 #ifdef UCX_PY_PROF
     gettimeofday(&e, NULL);
     lat = (e.tv_usec - s.tv_usec) + (1E+6 * (e.tv_sec - s.tv_sec));
@@ -562,7 +562,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
     int retry = 0;
 
     while (retry < MAX_LISTEN_RETRIES) {
-	
+
         set_listen_addr(&listen_addr, *port);
 
 	context->port             = *port;
@@ -572,7 +572,7 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
 	params.sockaddr.addrlen   = sizeof(listen_addr);
 	params.accept_handler.cb  = listener_accept_cb;
 	params.accept_handler.arg = context;
-	
+
 	DEBUG_PRINT("listener port assigned = %d\n", context->port);
 
         status = ucp_listener_create(ucp_worker, &params, listener);
@@ -581,12 +581,12 @@ static int start_listener(ucp_worker_h ucp_worker, ucx_listener_ctx_t *context,
         } else {
             goto done;
         }
-        
+
         retry++;
 	*port = *port + 1;
 	DEBUG_PRINT("retrying with port %d\n", *port);
     }
-    
+
  done:
 
     return status;
@@ -613,7 +613,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
 
     ep_err_hanlder.cb = ep_err_handler_cb;
     ep_err_hanlder.arg = &connection_status;
-    
+
     internal_ep = (ucp_py_internal_ep_t *) malloc(sizeof(ucp_py_internal_ep_t));
     ep_ptr = (ucp_ep_h *) malloc(sizeof(ucp_ep_h));
     set_connect_addr(ip, &connect_addr, (uint16_t) listener_port);
@@ -621,7 +621,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
                                  UCP_EP_PARAM_FIELD_SOCK_ADDR |
                                  UCP_EP_PARAM_FIELD_ERR_HANDLER |
                                  UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE;
-    ep_params.err_mode         = UCP_ERR_HANDLING_MODE_PEER;
+    ep_params.err_mode         = UCP_ERR_HANDLING_MODE_NONE;
     ep_params.flags            = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
     ep_params.err_handler      = ep_err_hanlder;
     ep_params.sockaddr.addr    = (struct sockaddr*)&connect_addr;
@@ -675,7 +675,7 @@ void *ucp_py_get_ep(char *ip, int listener_port)
     ucp_request_free(request);
 
  err_ep:
-    if (UCS_PTR_IS_ERR(ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FORCE))) {
+    if (UCS_PTR_IS_ERR(ucp_ep_close_nb(*ep_ptr, UCP_EP_CLOSE_MODE_FLUSH))) {
         ERROR_PRINT("failed to close ep (%s)\n", ucs_status_string(status));
     }
     return NULL;
@@ -812,7 +812,7 @@ void *ucp_py_listen(listener_accept_cb_func pyx_cb, void *py_cb, int *port)
     int listener_idx;
 
     if (ucp_py_ctx_head->num_listeners >= MAX_LISTENERS) return NULL;
-    
+
     listener_idx = ucp_py_ctx_head->num_listeners;
     ucp_py_ctx_head->listener_context[listener_idx].pyx_cb = pyx_cb;
     ucp_py_ctx_head->listener_context[listener_idx].py_cb = py_cb;
