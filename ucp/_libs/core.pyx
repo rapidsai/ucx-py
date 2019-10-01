@@ -22,6 +22,7 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
 
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
+    PyObject *py_config
     PyObject *py_func
 
 
@@ -30,7 +31,7 @@ def asyncio_handle_exception(loop, context):
     logging.error("Ignored except: %s %s" % (type(msg), msg))
 
 
-async def listener_handler(ucp_endpoint, ucp_worker, func):
+async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
     #       get_exception_handler() is set.
@@ -42,7 +43,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, func):
     # Get the tags from the client and create a new Endpoint
     tags = np.empty(4, dtype="uint64")
     await stream_recv(ucp_endpoint, tags, tags.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, tags[0], tags[1], tags[2], tags[3])
+    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags[0], tags[1], tags[2], tags[3])
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
@@ -73,11 +74,13 @@ async def listener_handler(ucp_endpoint, ucp_worker, func):
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef _listener_callback_args *a = <_listener_callback_args *> args
+    cdef object config = <object> a.py_config
     cdef object func = <object> a.py_func
     asyncio.ensure_future(
         listener_handler(
             PyLong_FromVoidPtr(<void*>ep),
             PyLong_FromVoidPtr(<void*>a.ucp_worker),
+            config,
             func
         )
     )
@@ -112,6 +115,8 @@ cdef class ApplicationContext:
         ucp_worker_h worker  # For now, a application context only has one worker
         int epoll_fd
         object all_epoll_binded_to_event_loop
+        object config
+
 
     def __cinit__(self):
         cdef ucp_params_t ucp_params
@@ -119,10 +124,11 @@ cdef class ApplicationContext:
         cdef ucp_config_t *config
         cdef ucs_status_t status
         self.all_epoll_binded_to_event_loop = set()
+        self.config = {}
 
         cdef unsigned int a, b, c
         ucp_get_version(&a, &b, &c)
-        logging.info("UCP Version: %d.%d.%d" % (a, b, c))
+        self.config['VERSION'] = (a, b, c)
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = UCP_PARAM_FIELD_FEATURES | \
@@ -155,7 +161,25 @@ cdef class ApplicationContext:
         cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
         assert(err == 0)
 
+        # Let's read the UCX config and write in into `self.config`
+        cdef char *text
+        cdef size_t text_len
+        cdef FILE *text_fd = open_memstream(&text, &text_len)
+        assert(text_fd != NULL)
+        ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
+        fflush(text_fd)
+        cdef bytes py_text = <bytes> text
+        for line in py_text.decode().splitlines():
+            k, v = line.split("=")
+            self.config[k] = v
+        fclose(text_fd)
+        free(text)
         ucp_config_release(config)
+
+        logging.info("UCP initiated using condig: ")
+        for k, v in self.config.items():
+            logging.info("  %s: %s" % (k, v))
+
 
     def create_listener(self, callback_func, port=None):
         self._bind_epoll_fd_to_event_loop()
@@ -169,6 +193,8 @@ cdef class ApplicationContext:
         cdef _listener_callback_args *args = \
             <_listener_callback_args*> malloc(sizeof(_listener_callback_args))
         args.ucp_worker = self.worker
+        args.py_config = <PyObject*> self.config
+        Py_INCREF(self.config)
         args.py_func = <PyObject*> callback_func
         Py_INCREF(callback_func)
 
@@ -198,6 +224,7 @@ cdef class ApplicationContext:
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
+            self.config,
             np.uint64(hash(uuid.uuid4())),
             np.uint64(hash(uuid.uuid4())),
             np.uint64(hash(uuid.uuid4())),
@@ -244,6 +271,9 @@ cdef class ApplicationContext:
     def get_ucp_worker(self):
         return PyLong_FromVoidPtr(<void*>self.worker)
 
+    def get_config(self):
+        return self.config
+
 
 class Endpoint:
     """An endpoint represents a connection to a peer
@@ -252,10 +282,11 @@ class Endpoint:
     to create an Endpoint.
     """
 
-    def __init__(self, ucp_endpoint, ucp_worker, send_tag,
+    def __init__(self, ucp_endpoint, ucp_worker, config, send_tag,
                  recv_tag, ctrl_send_tag, ctrl_recv_tag):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
+        self._config = config
         self._send_tag = send_tag
         self._recv_tag = recv_tag
         self._ctrl_send_tag = ctrl_send_tag
@@ -264,6 +295,8 @@ class Endpoint:
         self._recv_count = 0
         self._closed = False
         self.pending_msg_list = [{}]
+        # UCX supports CUDA if "cuda" is part of the UCX_TLS
+        self._cuda_support = "cuda" in config['UCX_TLS']
 
     @property
     def uid(self):
@@ -346,7 +379,8 @@ class Endpoint:
         """
         if self._closed:
             raise UCXCloseError("send() - Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
+        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
+                                   cuda_support=self._cuda_support)
         uid = abs(hash("%d%d%d%d" % (
             self._send_count,
             nbytes,
@@ -384,7 +418,8 @@ class Endpoint:
         """
         if self._closed:
             raise UCXCloseError("recv() - Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes)
+        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
+                                   cuda_support=self._cuda_support)
         uid = abs(hash("%d%d%d%d" % (
             self._recv_count,
             nbytes,
@@ -414,3 +449,7 @@ class Endpoint:
         if self._closed:
             raise UCXCloseError("pprint_ep() - Endpoint closed")
         ucp_ep_print_info(<ucp_ep_h>PyLong_AsVoidPtr(self._ucp_ep), stdout)
+
+    def cuda_support(self):
+        """Return whether UCX is configured with CUDA support or not"""
+        return self._cuda_support

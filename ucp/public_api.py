@@ -25,7 +25,8 @@ def _get_ctx():
 
 
 def create_listener(callback_func, port=None):
-    """Create and start a listener to accept incoming connections
+    """
+    Create and start a listener to accept incoming connections
 
     NB: the listening is continued until the returned Listener
         object goes out of scope thus remember to keep a reference
@@ -48,7 +49,8 @@ def create_listener(callback_func, port=None):
 
 
 async def create_endpoint(ip_address, port):
-    """Create a new endpoint to a server specified by `ip_address` and `port`
+    """
+    Create a new endpoint to a server specified by `ip_address` and `port`
 
     Parameters
     ----------
@@ -66,7 +68,8 @@ async def create_endpoint(ip_address, port):
 
 
 def progress():
-    """Try to progress the communication layer
+    """
+    Try to progress the communication layer
 
     Returns
     -------
@@ -76,9 +79,23 @@ def progress():
     return _get_ctx().progress()
 
 
-def get_ucp_worker(self):
+def get_ucp_worker():
     """
     Returns the underlying UCP worker handle (ucp_worker_h)
     as a Python integer.
     """
     return _get_ctx().get_ucp_worker()
+
+
+def get_config():
+    """Returns the configuraion as a dict"""
+    return _get_ctx().get_config()
+
+
+def reset():
+    """
+    Resets the UCX library by shutting down all of UCX.
+    The library is initiated at next API call.
+    """
+    global _ctx
+    _ctx = None
