@@ -10,8 +10,7 @@ from distutils.util import strtobool
 
 from setuptools import setup
 from setuptools.extension import Extension
-from Cython.Build import cythonize
-from Cython.Distutils import build_ext as _build_ext
+from setuptools.command.build_ext import build_ext as _build_ext
 
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
@@ -39,31 +38,29 @@ class build_ext(_build_ext):
         _build_ext.run(self)
 
 
-ext_modules = cythonize(
-    [
-        Extension(
-            "ucp._libs.utils",
-            sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
-            depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "ucp._libs.send_recv",
-            sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
-            depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "ucp._libs.core",
-            sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
-            depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-    ]
-)
+ext_modules = [
+    Extension(
+        "ucp._libs.utils",
+        sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "ucp._libs.send_recv",
+        sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "ucp._libs.core",
+        sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+]
 
 setup(
     name="ucp",
