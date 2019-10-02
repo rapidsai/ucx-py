@@ -42,6 +42,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
 
     # Get the tags from the client and create a new Endpoint
     cdef uint64_t[4] tags
+    cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
     await stream_recv(ucp_endpoint, tags, sizeof(tags))
     ep = Endpoint(ucp_endpoint, ucp_worker, config, tags[0], tags[1], tags[2], tags[3])
 
@@ -59,6 +60,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
 
     # Initiate the shutdown receive
     cdef uint64_t[1] shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
     log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
     ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(ucp_worker, shutdown_msg, sizeof(shutdown_msg),
@@ -232,6 +234,7 @@ cdef class ApplicationContext:
         # Create a new Endpoint and send the tags to the peer
         cdef Py_ssize_t i
         cdef uint64_t[4] tags
+        cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
         for i in range(len(tags)):
             tags[i] = hash(uuid.uuid4())
 
@@ -248,6 +251,7 @@ cdef class ApplicationContext:
 
         # Initiate the shutdown receive
         cdef uint64_t[1] shutdown_msg
+        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
         log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
         ret.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
@@ -324,6 +328,7 @@ class Endpoint:
 
         # Send a shutdown message to the peer
         cdef uint64_t[1] msg
+        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg[0])
         msg[0] = 42
         log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
                                                  hex(self._send_tag))
