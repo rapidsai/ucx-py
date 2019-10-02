@@ -28,6 +28,10 @@ from distributed.comm.utils import to_frames  # noqa
         lambda cudf: cudf.DataFrame(),
         lambda cudf: cudf.DataFrame({"a": [], "b": []}),
         lambda cudf: cudf.DataFrame({"a": [1.0], "b": [2.0]}),
+        lambda cudf: cudf.DataFrame(
+            {"a": ["a", "b", "c", "d"], "b": ["a", "b", "c", "d"]}
+        ),
+        lambda cudf: cudf.datasets.timeseries(),  # timeseries index with ints, cats, floats
     ],
 )
 async def test_send_recv_cudf(event_loop, g):
