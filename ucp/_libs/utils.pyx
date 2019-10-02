@@ -6,7 +6,6 @@ import asyncio
 import uuid
 from functools import reduce
 import operator
-import numpy as np
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
@@ -68,6 +67,7 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         array_interface = buffer.__array_interface__
 
     if array_interface is not None:
+        import numpy as np
         # TODO: check that data is contiguous
         itemsize = int(np.dtype(array_interface['typestr']).itemsize)
         # Making sure that the elements in shape is integers
