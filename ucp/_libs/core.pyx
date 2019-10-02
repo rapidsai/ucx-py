@@ -174,9 +174,14 @@ cdef class ApplicationContext:
         free(text)
         ucp_config_release(config)
 
-        logging.info("UCP initiated using condig: ")
+        logging.info("UCP initiated using config: ")
         for k, v in self.config.items():
             logging.info("  %s: %s" % (k, v))
+
+
+    def __dealloc__(self):
+        ucp_worker_destroy(self.worker)
+        ucp_cleanup(self.context)
 
 
     def create_listener(self, callback_func, port=None):
