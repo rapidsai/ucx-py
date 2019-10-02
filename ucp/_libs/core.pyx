@@ -230,18 +230,23 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
+        tags = np.array(
+            [
+                np.uint64(hash(uuid.uuid4())),
+                np.uint64(hash(uuid.uuid4())),
+                np.uint64(hash(uuid.uuid4())),
+                np.uint64(hash(uuid.uuid4()))
+            ],
+            dtype="uint64"
+        )
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4()))
-        )
-        tags = np.array(
-            [ret._recv_tag, ret._send_tag, ret._ctrl_recv_tag, ret._ctrl_send_tag],
-            dtype="uint64"
+            tags[1],
+            tags[0],
+            tags[3],
+            tags[2]
         )
         await stream_send(ret._ucp_endpoint, tags, tags.nbytes)
 
