@@ -77,6 +77,7 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_FEATURE_WAKEUP
     int UCP_FEATURE_STREAM
     ucs_status_t ucp_init(const ucp_params_t *params, const ucp_config_t *config, ucp_context_h *context_p)
+    void ucp_cleanup(ucp_context_h context_p)
 
     ctypedef enum ucs_thread_mode_t:
         pass
@@ -92,6 +93,7 @@ cdef extern from "ucp/api/ucp.h":
 
     int UCP_WORKER_PARAM_FIELD_THREAD_MODE
     ucs_status_t ucp_worker_create(ucp_context_h context, const ucp_worker_params_t *params, ucp_worker_h *worker_p)
+    void ucp_worker_destroy(ucp_worker_h worker)
 
     ctypedef struct ucp_listener_h:
         pass

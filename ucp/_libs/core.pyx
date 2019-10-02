@@ -179,6 +179,11 @@ cdef class ApplicationContext:
             logging.info("  %s: %s" % (k, v))
 
 
+    def __dealloc__(self):
+        ucp_worker_destroy(self.worker)
+        ucp_cleanup(self.context)
+
+
     def create_listener(self, callback_func, port=None):
         self._bind_epoll_fd_to_event_loop()
         if port in (None, 0):
