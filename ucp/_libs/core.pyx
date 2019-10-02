@@ -174,7 +174,7 @@ cdef class ApplicationContext:
         free(text)
         ucp_config_release(config)
 
-        logging.info("UCP initiated using condig: ")
+        logging.info("UCP initiated using config: ")
         for k, v in self.config.items():
             logging.info("  %s: %s" % (k, v))
 
