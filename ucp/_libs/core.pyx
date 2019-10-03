@@ -3,10 +3,10 @@
 # cython: language_level=3
 
 import asyncio
+from libc.stdint cimport uint64_t
 import uuid
 import socket
 import logging
-import numpy as np
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
@@ -41,13 +41,14 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         loop.set_exception_handler(asyncio_handle_exception)
 
     # Get the tags from the client and create a new Endpoint
-    tags = np.empty(4, dtype="uint64")
-    await stream_recv(ucp_endpoint, tags, tags.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags[0], tags[1], tags[2], tags[3])
+    cdef uint64_t[4] tags
+    cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
+    await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
+    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags_mv[0], tags_mv[1], tags_mv[2], tags_mv[3])
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags[1]), hex(tags[0]), hex(tags[3]), hex(tags[2])))
+                  %(hex(tags_mv[1]), hex(tags_mv[0]), hex(tags_mv[3]), hex(tags_mv[2])))
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
@@ -58,10 +59,11 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         func_fut = _func(ep)
 
     # Initiate the shutdown receive
-    shutdown_msg = np.empty(1, dtype=np.uint64)
+    cdef uint64_t[1] shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
     log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
     ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(ucp_worker, shutdown_msg, shutdown_msg.nbytes,
+    shutdown_fut = tag_recv(ucp_worker, shutdown_msg_mv, shutdown_msg_mv.nbytes,
                             ep._ctrl_recv_tag, pending_msg=ep.pending_msg_list[-1])
 
     def _close(future):
@@ -230,29 +232,32 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
+        cdef Py_ssize_t i
+        cdef uint64_t[4] tags
+        cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
+        for i in range(len(tags_mv)):
+            tags_mv[i] = hash(uuid.uuid4())
+
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4())),
-            np.uint64(hash(uuid.uuid4()))
+            tags_mv[1],
+            tags_mv[0],
+            tags_mv[3],
+            tags_mv[2]
         )
-        tags = np.array(
-            [ret._recv_tag, ret._send_tag, ret._ctrl_recv_tag, ret._ctrl_send_tag],
-            dtype="uint64"
-        )
-        await stream_send(ret._ucp_endpoint, tags, tags.nbytes)
+        await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         # Initiate the shutdown receive
-        shutdown_msg = np.empty(1, dtype=np.uint64)
+        cdef uint64_t[1] shutdown_msg
+        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
         log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
         ret.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
             PyLong_FromVoidPtr(<void*>self.worker),
-            shutdown_msg,
-            shutdown_msg.nbytes,
+            shutdown_msg_mv,
+            shutdown_msg_mv.nbytes,
             ret._ctrl_recv_tag,
             pending_msg=ret.pending_msg_list[-1]
         )
@@ -322,14 +327,16 @@ class Endpoint:
             raise UCXCloseError("signal_shutdown() - Endpoint closed")
 
         # Send a shutdown message to the peer
-        msg = np.array([42], dtype=np.uint64)
+        cdef uint64_t[1] msg
+        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg[0])
+        msg_mv[0] = 42
         log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
                                                  hex(self._send_tag))
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         await tag_send(
             self._ucp_endpoint,
-            msg, msg.nbytes,
+            msg_mv, msg_mv.nbytes,
             self._ctrl_send_tag,
             pending_msg=self.pending_msg_list[-1]
         )
