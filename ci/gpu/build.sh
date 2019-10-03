@@ -45,8 +45,8 @@ nvidia-smi
 
 logger "Activate conda env..."
 source activate gdf
-conda create install "cudf>=0.9" "dask-cudf>=0.9" "cudatoolkit=$CUDA_REL" \
-              "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16"
+conda create install "cudf>=0.10" "dask-cudf>=0.10" "cudatoolkit=$CUDA_REL" \
+              "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16" -c rapidsai-nightly
 
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
