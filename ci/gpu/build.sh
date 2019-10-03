@@ -120,6 +120,9 @@ else
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
 
+    # list test directory
+    ls tests/
+
     # Test with IB
     # UCX_MEMTYPE_CACHE=n UCX_TLS=rc,cuda_copy,cuda_ipc py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 
