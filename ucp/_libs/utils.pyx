@@ -24,14 +24,14 @@ def get_buffer_data(buffer, check_writable=False):
     Returns data pointer of the buffer. Raising ValueError if the buffer
     is read only and check_writable=True is set.
     """
-    array_interface = None
+    iface = None
     if hasattr(buffer, "__cuda_array_interface__"):
-        array_interface = buffer.__cuda_array_interface__
+        iface = buffer.__cuda_array_interface__
     elif hasattr(buffer, "__array_interface__"):
-        array_interface = buffer.__array_interface__
+        iface = buffer.__array_interface__
 
-    if array_interface is not None:
-        data_ptr, data_readonly = array_interface['data']
+    if iface is not None:
+        data_ptr, data_readonly = iface['data']
     else:
         mview = memoryview(buffer)
         data_ptr = _data_from_memoryview(mview)
@@ -57,22 +57,31 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
     if `check_min_size` is greater than the size of the buffer
     """
 
-    array_interface = None
+    iface = None
     if hasattr(buffer, "__cuda_array_interface__"):
-        array_interface = buffer.__cuda_array_interface__
+        iface = buffer.__cuda_array_interface__
         if not cuda_support:
-            raise ValueError("UCX not configured with CUDA support, please add `cuda_copy` "
-                             "and/or `cuda_ipc` to the UCX_TLS environment variable")
+            raise ValueError("UCX is not configured with CUDA support, please add "
+                    "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment variable")
     elif hasattr(buffer, "__array_interface__"):
-        array_interface = buffer.__array_interface__
+        iface = buffer.__array_interface__
 
-    if array_interface is not None:
-        import numpy as np
-        # TODO: check that data is contiguous
-        itemsize = int(np.dtype(array_interface['typestr']).itemsize)
+    if iface is not None:
+        import numpy
+        itemsize = int(numpy.dtype(iface['typestr']).itemsize)
         # Making sure that the elements in shape is integers
-        shape = [int(s) for s in array_interface['shape']]
+        shape = [int(s) for s in iface['shape']]
         nbytes = reduce(operator.mul, shape, 1) * itemsize
+        # Check that data is contiguous
+        if len(shape) > 0 and iface.get("strides", None) is not None:
+            strides = [int(s) for s in iface['strides']]
+            if len(strides) != len(shape):
+                raise ValueError("The length of shape and strides must be equal")
+            s = itemsize
+            for i in reversed(range(len(shape))):
+                if s != strides[i]:
+                    raise ValueError("Array must be contiguous")
+                s *= shape[i]
     else:
         mview = memoryview(buffer)
         data = _data_from_memoryview(mview)
