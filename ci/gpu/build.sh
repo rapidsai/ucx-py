@@ -45,14 +45,17 @@ nvidia-smi
 
 logger "Activate conda env..."
 source activate gdf
-conda create install "cudf>=0.9" "dask-cudf>=0.9" "cudatoolkit=$CUDA_REL" \
-              "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16" "cupy>=6.2.0"
+conda install "cudf>=0.10" "dask-cudf>=0.10" "cudatoolkit=$CUDA_REL" \
+              "dask>=2.3.0" "distributed>=2.3.2" "numpy>=1.16" -c rapidsai-nightly
 
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython" \
                               "pytest" "pkg-config" "pytest-asyncio"
 
+
+# install cupy
+conda install -c rapidsai -c nvidia "cupy>=6.3.0"
 
 # install ucx from john's channel
 # conda install -c jakirkham/label/ucx "ucx-proc=*=gpu" "ucx"
@@ -116,6 +119,9 @@ else
 
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
+
+    # list test directory
+    ls tests/
 
     # Test with IB
     # UCX_MEMTYPE_CACHE=n UCX_TLS=rc,cuda_copy,cuda_ipc py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
