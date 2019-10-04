@@ -116,6 +116,10 @@ cdef class Listener:
         if not self._closed:
             ucp_listener_destroy(self._ucp_listener)
 
+    def close(self):
+        """Closing the listener"""
+        self.__dealloc__()
+
 
 cdef class ApplicationContext:
     cdef:
