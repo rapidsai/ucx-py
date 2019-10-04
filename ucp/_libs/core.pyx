@@ -99,14 +99,22 @@ cdef class Listener:
     cdef:
         cdef ucp_listener_h _ucp_listener
         cdef _listener_callback_args _cb_args
-        cdef uint16_t port
+        cdef uint16_t _port
+        cdef bint _closed
+
+    def __cinit__(self):
+        # In order to prevent calling ucp_listener_destroy() on a
+        # uninitiated Listener, we flag the instance as closed
+        # initially.
+        self._closed = True
 
     @property
     def port(self):
-        return self.port
+        return self._port
 
     def __dealloc__(self):
-        ucp_listener_destroy(self._ucp_listener)
+        if not self._closed:
+            ucp_listener_destroy(self._ucp_listener)
 
 
 cdef class ApplicationContext:
@@ -196,7 +204,7 @@ cdef class ApplicationContext:
             s.close()
 
         ret = Listener()
-        ret.port = port
+        ret._port = port
 
         ret._cb_args.ucp_worker = self.worker
         ret._cb_args.py_func = <PyObject*> callback_func
@@ -217,6 +225,7 @@ cdef class ApplicationContext:
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
+        ret._closed = False  # The Listener was successfully created
         return ret
 
     async def create_endpoint(self, str ip_address, port):
