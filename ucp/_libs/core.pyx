@@ -8,7 +8,7 @@ import uuid
 import socket
 import logging
 from core_dep cimport *
-from ..exceptions import UCXError, UCXCloseError
+from ..exceptions import UCXError, UCXCloseError, UCXCanceled, UCXWarning
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
@@ -28,7 +28,13 @@ cdef struct _listener_callback_args:
 
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
-    logging.error("Ignored except: %s %s" % (type(msg), msg))
+    if isinstance(msg, UCXCanceled):
+        log = logging.debug
+    elif isinstance(msg, UCXWarning):
+        log = logging.warning
+    else:
+        log = logging.error
+    log("Ignored except: %s %s" % (type(msg), msg))
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
