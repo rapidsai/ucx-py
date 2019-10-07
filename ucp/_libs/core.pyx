@@ -109,6 +109,10 @@ cdef class Listener:
         self._closed = True
 
     @property
+    def closed(self):
+        return self._closed
+
+    @property
     def port(self):
         return self._port
 
@@ -118,7 +122,9 @@ cdef class Listener:
 
     def close(self):
         """Closing the listener"""
-        self.__dealloc__()
+        if not self._closed:
+            ucp_listener_destroy(self._ucp_listener)
+        self._closed = True
 
 
 cdef class ApplicationContext:
