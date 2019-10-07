@@ -84,9 +84,9 @@ async def create_endpoint(ip_address, port):
     Parameters
     ----------
     ip_address: str
-        IP address of the server the endpoit should connect to
+        IP address of the server the endpoint should connect to
     port: int
-        IP address of the server the endpoit should connect to
+        IP address of the server the endpoint should connect to
 
     Returns
     -------
