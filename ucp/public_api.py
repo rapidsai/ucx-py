@@ -25,7 +25,7 @@ def _get_ctx():
 # the functions here.
 
 
-def init(options={}, env_takes_preceding=False):
+def init(options={}, env_takes_precedence=False):
     """
     Initiate UCX. Usually this is done automatically at the first API call
     but this function makes it possible to set UCX options programmable.
@@ -35,8 +35,9 @@ def init(options={}, env_takes_preceding=False):
     ----------
     options: dict, optional
         UCX options send to the underlaying UCX library
-    env_takes_preceding: bool, optional
-        Environment variables takes preceding over the `options` specified here.
+    env_takes_precedence: bool, optional
+        Whether environment variables takes precedence over the `options`
+        specified here.
     """
     global _ctx
     if _ctx is not None:
@@ -44,7 +45,7 @@ def init(options={}, env_takes_preceding=False):
             "UCX is already initiated. Call reset() and init() "
             "in order to re-initate UCX with new options."
         )
-    if env_takes_preceding:
+    if env_takes_precedence:
         for k in os.environ.keys():
             if k in options:
                 del options[k]

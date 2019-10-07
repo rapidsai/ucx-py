@@ -30,7 +30,7 @@ def test_init_options_and_env():
     ucp.reset()
     os.environ["UCX_SEG_SIZE"] = "4M"
     options = {"SEG_SIZE": "3M"}  # Should be ignored
-    ucp.init(options, env_takes_preceding=True)
+    ucp.init(options, env_takes_precedence=True)
     config = ucp.get_config()
     assert config["SEG_SIZE"] == options["SEG_SIZE"]
 
