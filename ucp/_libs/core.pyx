@@ -195,6 +195,7 @@ cdef class ApplicationContext:
         cdef bytes py_text = <bytes> text
         for line in py_text.decode().splitlines():
             k, v = line.split("=")
+            k = k[len("UCX_"):]
             self.config[k] = v
         fclose(text_fd)
         free(text)
