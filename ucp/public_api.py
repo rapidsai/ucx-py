@@ -117,7 +117,7 @@ def get_ucp_worker():
 
 
 def get_config():
-    """Returns the configuraion as a dict"""
+    """Returns the configuration as a dict"""
     return _get_ctx().get_config()
 
 
