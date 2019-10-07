@@ -8,7 +8,8 @@ import uuid
 import socket
 import logging
 from core_dep cimport *
-from ..exceptions import UCXError, UCXCloseError, UCXCanceled, UCXWarning
+from ..exceptions import UCXError, UCXCloseError, UCXCanceled, \
+                         UCXWarning, UCXConfigError
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
@@ -143,7 +144,7 @@ cdef class ApplicationContext:
         bint initiated
 
 
-    def __cinit__(self):
+    def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucp_config_t *config
@@ -167,6 +168,16 @@ cdef class ApplicationContext:
         ucp_params.request_init = ucp_request_init
         status = ucp_config_read(NULL, NULL, &config)
         assert_ucs_status(status)
+
+        # Modify the UCX configuration options based on `config_dict`
+        for k, v in config_dict.items():
+            status = ucp_config_modify(config, k.encode(), v.encode())
+            if status == UCS_ERR_NO_ELEM:
+                raise UCXConfigError("Option %s doesn't exist" % k)
+            elif status != UCS_OK:
+                raise UCXConfigError(
+                    "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
+                )
 
         status = ucp_init(&ucp_params, config, &self.context)
         assert_ucs_status(status)
