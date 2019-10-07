@@ -140,6 +140,7 @@ cdef class ApplicationContext:
         int epoll_fd
         object all_epoll_binded_to_event_loop
         object config
+        bint initiated
 
 
     def __cinit__(self):
@@ -149,6 +150,7 @@ cdef class ApplicationContext:
         cdef ucs_status_t status
         self.all_epoll_binded_to_event_loop = set()
         self.config = {}
+        self.initiated = False
 
         cdef unsigned int a, b, c
         ucp_get_version(&a, &b, &c)
@@ -205,10 +207,13 @@ cdef class ApplicationContext:
         for k, v in self.config.items():
             logging.info("  %s: %s" % (k, v))
 
+        self.initiated = True
+
 
     def __dealloc__(self):
-        ucp_worker_destroy(self.worker)
-        ucp_cleanup(self.context)
+        if self.initiated:
+            ucp_worker_destroy(self.worker)
+            ucp_cleanup(self.context)
 
 
     def create_listener(self, callback_func, port=None):
