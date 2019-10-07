@@ -55,5 +55,5 @@ RETVALS=($ISORT_RETVAL $BLACK_RETVAL $FLAKE_RETVAL)
 IFS=$'\n'
 RETVAL=`echo "${RETVALS[*]}" | sort -nr | head -n1`
 
-#exit $RETVAL
-exit 0 # don't force style checks yet 
+exit $RETVAL
+# exit 0 # don't force style checks yet
