@@ -64,6 +64,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_OK
     ucs_status_t UCS_ERR_CANCELED
     ucs_status_t UCS_INPROGRESS
+    ucs_status_t UCS_ERR_NO_ELEM
 
     void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number)
 
@@ -167,6 +168,9 @@ cdef extern from "ucp/api/ucp.h":
                           FILE *stream,
                           const char *title,
                           ucs_config_print_flags_t print_flags)
+
+    ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
+                                   const char *value)
 
 cdef extern from "sys/epoll.h":
 

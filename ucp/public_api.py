@@ -1,6 +1,7 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import os
 from ._libs import core
 from ._libs.core import Endpoint  # TODO: define a public Endpoint
 
@@ -22,6 +23,34 @@ def _get_ctx():
 # We could programmable extract the function definitions but
 # since the API is small, it might be worth to explicit define
 # the functions here.
+
+
+def init(options={}, env_takes_precedence=False):
+    """
+    Initiate UCX. Usually this is done automatically at the first API call
+    but this function makes it possible to set UCX options programmable.
+    Alternatively, UCX options can be specified through environment variables.
+
+    Parameters
+    ----------
+    options: dict, optional
+        UCX options send to the underlaying UCX library
+    env_takes_precedence: bool, optional
+        Whether environment variables takes precedence over the `options`
+        specified here.
+    """
+    global _ctx
+    if _ctx is not None:
+        raise RuntimeError(
+            "UCX is already initiated. Call reset() and init() "
+            "in order to re-initate UCX with new options."
+        )
+    if env_takes_precedence:
+        for k in os.environ.keys():
+            if k in options:
+                del options[k]
+
+    _ctx = core.ApplicationContext(options)
 
 
 def create_listener(callback_func, port=None):
@@ -55,9 +84,9 @@ async def create_endpoint(ip_address, port):
     Parameters
     ----------
     ip_address: str
-        IP address of the server the endpoit should connect to
+        IP address of the server the endpoint should connect to
     port: int
-        IP address of the server the endpoit should connect to
+        IP address of the server the endpoint should connect to
 
     Returns
     -------
@@ -88,8 +117,22 @@ def get_ucp_worker():
 
 
 def get_config():
-    """Returns the configuraion as a dict"""
-    return _get_ctx().get_config()
+    """
+    Returns all UCX configuration options as a dict.
+    If UCX is initialized, the options returned are the
+    options used if UCX were to be initialized now.
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    dict
+        The current UCX configuration options
+    """
+
+    if _ctx is None:
+        return core.get_config()
+    else:
+        return _get_ctx().get_config()
 
 
 def reset():
