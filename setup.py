@@ -9,13 +9,14 @@ import os
 from distutils.util import strtobool
 
 from setuptools import setup
-from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext as _build_ext
+from setuptools.extension import Extension
+
+import versioneer
 
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
 
-import versioneer
 
 
 class build_ext(_build_ext):
