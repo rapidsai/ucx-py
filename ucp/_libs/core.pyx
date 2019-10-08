@@ -65,6 +65,17 @@ cdef get_ucx_config_options(ucp_config_t *config):
     return ret
 
 
+def get_config():
+    """
+    Returns the current UCX options
+    if UCX were to be initialized now.
+    """
+    cdef ucp_config_t *config = read_ucx_config({})
+    ret = get_ucx_config_options(config)
+    ucp_config_release(config)
+    return ret
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -155,7 +166,7 @@ cdef class Listener:
 
     def __cinit__(self):
         # In order to prevent calling ucp_listener_destroy() on a
-        # uninitiated Listener, we flag the instance as closed
+        # initialized Listener, we flag the instance as closed
         # initially.
         self._closed = True
 

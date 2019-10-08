@@ -117,8 +117,22 @@ def get_ucp_worker():
 
 
 def get_config():
-    """Returns the configuration as a dict"""
-    return _get_ctx().get_config()
+    """
+    Returns all UCX configuration options as a dict.
+    If UCX is initialized, the options returned are the
+    options used if UCX were to be initialized now.
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    dict
+        The current UCX configuration options
+    """
+
+    if _ctx is None:
+        return core.get_config()
+    else:
+        return _get_ctx().get_config()
 
 
 def reset():
