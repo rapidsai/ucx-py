@@ -46,6 +46,25 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
     return config
 
 
+cdef get_ucx_config_options(ucp_config_t *config):
+    """Returns a dict of the UCX config options"""
+    cdef char *text
+    cdef size_t text_len
+    cdef FILE *text_fd = open_memstream(&text, &text_len)
+    assert(text_fd != NULL)
+    ret = {}
+    ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
+    fflush(text_fd)
+    cdef bytes py_text = <bytes> text
+    for line in py_text.decode().splitlines():
+        k, v = line.split("=")
+        k = k[len("UCX_"):]
+        ret[k] = v
+    fclose(text_fd)
+    free(text)
+    return ret
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -211,20 +230,7 @@ cdef class ApplicationContext:
         cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
         assert(err == 0)
 
-        # Let's read the UCX config and write in into `self.config`
-        cdef char *text
-        cdef size_t text_len
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        assert(text_fd != NULL)
-        ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-        fflush(text_fd)
-        cdef bytes py_text = <bytes> text
-        for line in py_text.decode().splitlines():
-            k, v = line.split("=")
-            k = k[len("UCX_"):]
-            self.config[k] = v
-        fclose(text_fd)
-        free(text)
+        self.config = get_ucx_config_options(config)
         ucp_config_release(config)
 
         logging.info("UCP initiated using config: ")
