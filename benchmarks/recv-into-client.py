@@ -29,11 +29,11 @@ inc      | False
 """
 import argparse
 import asyncio
-from distributed.utils import format_bytes, parse_bytes
 from time import perf_counter as clock
 
-import ucp
+from distributed.utils import format_bytes, parse_bytes
 
+import ucp
 
 ucp.init()
 

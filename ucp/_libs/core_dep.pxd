@@ -29,7 +29,7 @@ cdef extern from "src/c_util.h":
 
     int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
                                        uint16_t port,
-                                       ucp_listener_accept_callback_t callback_func,
+                                       ucp_listener_accept_callback_t callback_func,  # noqa
                                        void *callback_args)
     void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param)
 
@@ -37,7 +37,6 @@ cdef extern from "src/c_util.h":
                                  const char *ip_address,
                                  uint16_t port)
     void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
-
 
 
 cdef extern from "ucp/api/ucp.h":
@@ -53,7 +52,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_config_t:
         pass
 
-    ctypedef void(* ucp_request_init_callback_t) (void *request)
+    ctypedef void(* ucp_request_init_callback_t)(void *request)
 
     ctypedef struct ucp_params_t:
         uint64_t field_mask
@@ -66,9 +65,14 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_INPROGRESS
     ucs_status_t UCS_ERR_NO_ELEM
 
-    void ucp_get_version(unsigned * major_version, unsigned *minor_version, unsigned *release_number)
+    void ucp_get_version(unsigned * major_version,
+                         unsigned *minor_version,
+                         unsigned *release_number)
 
-    ucs_status_t ucp_config_read(const char * env_prefix, const char * filename, ucp_config_t **config_p)
+    ucs_status_t ucp_config_read(const char * env_prefix,
+                                 const char * filename,
+                                 ucp_config_t **config_p)
+
     void ucp_config_release(ucp_config_t *config)
 
     int UCP_PARAM_FIELD_FEATURES
@@ -77,15 +81,25 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_FEATURE_TAG
     int UCP_FEATURE_WAKEUP
     int UCP_FEATURE_STREAM
-    ucs_status_t ucp_init(const ucp_params_t *params, const ucp_config_t *config, ucp_context_h *context_p)
+    ucs_status_t ucp_init(const ucp_params_t *params,
+                          const ucp_config_t *config,
+                          ucp_context_h *context_p)
+
     void ucp_cleanup(ucp_context_h context_p)
 
     ctypedef enum ucs_thread_mode_t:
         pass
 
-    ucs_thread_mode_t UCS_THREAD_MODE_SINGLE,     # < Only the master thread can access (i.e. the thread that initialized the context; multiple threads may exist and never access) */
-    ucs_thread_mode_t UCS_THREAD_MODE_SERIALIZED  # < Multiple threads can access, but only one at a time */
-    ucs_thread_mode_t UCS_THREAD_MODE_MULTI       # < Multiple threads can access concurrently */
+    # < Only the master thread can access (i.e. the thread that initialized
+    # the context; multiple threads may exist and never access) */
+    ucs_thread_mode_t UCS_THREAD_MODE_SINGLE,
+
+    # < Multiple threads can access, but only one at a time */
+    ucs_thread_mode_t UCS_THREAD_MODE_SERIALIZED
+
+    # < Multiple threads can access concurrently */
+    ucs_thread_mode_t UCS_THREAD_MODE_MULTI
+
     ucs_thread_mode_t UCS_THREAD_MODE_LAST
 
     ctypedef struct ucp_worker_params_t:
@@ -93,15 +107,21 @@ cdef extern from "ucp/api/ucp.h":
         ucs_thread_mode_t thread_mode
 
     int UCP_WORKER_PARAM_FIELD_THREAD_MODE
-    ucs_status_t ucp_worker_create(ucp_context_h context, const ucp_worker_params_t *params, ucp_worker_h *worker_p)
+    ucs_status_t ucp_worker_create(ucp_context_h context,
+                                   const ucp_worker_params_t *params,
+                                   ucp_worker_h *worker_p)
     void ucp_worker_destroy(ucp_worker_h worker)
 
     ctypedef struct ucp_listener_h:
         pass
 
-    ucs_status_t ucp_listener_create(ucp_worker_h worker, const ucp_listener_params_t *params, ucp_listener_h *listener_p)
+    ucs_status_t ucp_listener_create(ucp_worker_h worker,
+                                     const ucp_listener_params_t *params,
+                                     ucp_listener_h *listener_p)
 
-    ucs_status_t ucp_ep_create(ucp_worker_h worker, const ucp_ep_params_t *params, ucp_ep_h *ep_p)
+    ucs_status_t ucp_ep_create(ucp_worker_h worker,
+                               const ucp_ep_params_t *params,
+                               ucp_ep_h *ep_p)
 
     ctypedef void* ucs_status_ptr_t
     ctypedef uint64_t ucp_tag_t
@@ -110,11 +130,11 @@ cdef extern from "ucp/api/ucp.h":
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
     bint UCS_PTR_STATUS(ucs_status_ptr_t)
 
-    ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)
+    ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)  # noqa
 
-    ucs_status_ptr_t ucp_tag_send_nb(ucp_ep_h ep, const void *buffer, size_t count,
-                                     ucp_datatype_t datatype, ucp_tag_t tag,
-                                     ucp_send_callback_t cb)
+    ucs_status_ptr_t ucp_tag_send_nb(ucp_ep_h ep, const void *buffer,
+                                     size_t count, ucp_datatype_t datatype,
+                                     ucp_tag_t tag, ucp_send_callback_t cb)
 
     ucp_datatype_t ucp_dt_make_contig(size_t elem_size)
 
@@ -124,21 +144,25 @@ cdef extern from "ucp/api/ucp.h":
         ucp_tag_t sender_tag
         size_t length
 
-    ctypedef void (*ucp_tag_recv_callback_t)(void *request, ucs_status_t status,
+    ctypedef void (*ucp_tag_recv_callback_t)(void *request,  # noqa
+                                             ucs_status_t status,
                                              ucp_tag_recv_info_t *info)
 
-    ucs_status_ptr_t ucp_tag_recv_nb(ucp_worker_h worker, void *buffer, size_t count,
-                                     ucp_datatype_t datatype, ucp_tag_t tag,
-                                     ucp_tag_t tag_mask, ucp_tag_recv_callback_t cb)
+    ucs_status_ptr_t ucp_tag_recv_nb(ucp_worker_h worker, void *buffer,
+                                     size_t count, ucp_datatype_t datatype,
+                                     ucp_tag_t tag, ucp_tag_t tag_mask,
+                                     ucp_tag_recv_callback_t cb)
 
-    ctypedef void (*ucp_stream_recv_callback_t)(void *request, ucs_status_t status, size_t length)
+    ctypedef void (*ucp_stream_recv_callback_t)(void *request,  # noqa
+                                                ucs_status_t status,
+                                                size_t length)
 
-    ucs_status_ptr_t ucp_stream_send_nb(ucp_ep_h ep, const void *buffer, size_t count,
-                                        ucp_datatype_t datatype, ucp_send_callback_t cb,
-                                        unsigned flags)
+    ucs_status_ptr_t ucp_stream_send_nb(ucp_ep_h ep, const void *buffer,
+                                        size_t count, ucp_datatype_t datatype,
+                                        ucp_send_callback_t cb, unsigned flags)
 
-    ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer, size_t count,
-                                        ucp_datatype_t datatype,
+    ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer,
+                                        size_t count, ucp_datatype_t datatype,
                                         ucp_stream_recv_callback_t cb,
                                         size_t *length, unsigned flags)
 
@@ -159,7 +183,9 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_request_cancel(ucp_worker_h worker, void *request)
     ucs_status_t ucp_request_check_status(void *request)
 
-    ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name, const char *value)
+    ucs_status_t ucp_config_modify(ucp_config_t *config,
+                                   const char *name,
+                                   const char *value)
 
     ctypedef enum ucs_config_print_flags_t:
         pass

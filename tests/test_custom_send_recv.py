@@ -1,16 +1,16 @@
 import asyncio
-import pytest
 import pickle
 
-import ucp
 import numpy as np
+import pytest
+from distributed.comm.utils import to_frames  # noqa
+from distributed.utils import nbytes  # noqa
+
+import ucp
 
 cudf = pytest.importorskip("cudf")
 distributed = pytest.importorskip("distributed")
 cuda = pytest.importorskip("numba.cuda")
-
-from distributed.utils import nbytes  # noqa
-from distributed.comm.utils import to_frames  # noqa
 
 
 @pytest.mark.asyncio
@@ -31,7 +31,7 @@ from distributed.comm.utils import to_frames  # noqa
         lambda cudf: cudf.DataFrame(
             {"a": ["a", "b", "c", "d"], "b": ["a", "b", "c", "d"]}
         ),
-        lambda cudf: cudf.datasets.timeseries(),  # timeseries index with ints, cats, floats
+        lambda cudf: cudf.datasets.timeseries(),  # ts index with ints, cats, floats
     ],
 )
 async def test_send_recv_cudf(event_loop, g):

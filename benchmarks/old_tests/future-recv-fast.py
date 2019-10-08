@@ -17,11 +17,12 @@
 # 2. When connection is established, first recv and then send `Message`
 #    object to and from server respectively
 
-import ucp
-import time
 import argparse
 import asyncio
 import concurrent.futures
+import time
+
+import ucp
 
 max_msg_log = 23
 

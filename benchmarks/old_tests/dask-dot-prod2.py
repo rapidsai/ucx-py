@@ -1,13 +1,13 @@
 import argparse
+import time
 from time import perf_counter as clock
 
-import dask
-import time
-import dask.array as da
 import cupy
+import dask
+import dask.array as da
+from dask.distributed import get_task_stream
 from distributed import Client, LocalCluster
 from distributed.utils import format_bytes
-from dask.distributed import get_task_stream
 
 
 def parse_args(args):

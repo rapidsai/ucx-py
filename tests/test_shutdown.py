@@ -1,8 +1,10 @@
 import asyncio
-import pytest
 import sys
-import ucp
+
 import numpy as np
+import pytest
+
+import ucp
 
 
 async def shutdown(ep):
@@ -63,10 +65,10 @@ async def test_listener_close():
     async def server_node(ep):
         msg = np.empty(100, dtype=np.int64)
         await ep.recv(msg)
-        assert listener.closed == False
+        assert listener.closed is False
         listener.close()
         await ep.recv(msg)
-        assert listener.closed == True
+        assert listener.closed is True
 
     listener = ucp.create_listener(server_node)
     await client_node(listener.port)
@@ -84,6 +86,6 @@ async def test_listener_del():
     listener = ucp.create_listener(server_node)
     ep = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await ep.send(np.arange(100, dtype=np.int64))
-    assert listener.closed == False
+    assert listener.closed is False
     del listener
     await ep.send(np.arange(100, dtype=np.int64))
