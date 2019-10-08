@@ -21,6 +21,31 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
         raise UCXError(msg)
 
 
+cdef ucp_config_t * read_ucx_config(dict user_options) except *:
+    """
+    Reads the UCX config and returns a config handle,
+    which should freed using `ucp_config_release()`.
+    """
+    cdef ucp_config_t *config
+    cdef ucs_status_t status
+    status = ucp_config_read(NULL, NULL, &config)
+    if status != UCS_OK:
+        raise UCXConfigError(
+            "Couldn't read the UCX options: %s" % ucs_status_string(status)
+        )
+
+    # Modify the UCX configuration options based on `config_dict`
+    for k, v in user_options.items():
+        status = ucp_config_modify(config, k.encode(), v.encode())
+        if status == UCS_ERR_NO_ELEM:
+            raise UCXConfigError("Option %s doesn't exist" % k)
+        elif status != UCS_OK:
+            raise UCXConfigError(
+                "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
+            )
+    return config
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -147,7 +172,6 @@ cdef class ApplicationContext:
     def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
-        cdef ucp_config_t *config
         cdef ucs_status_t status
         self.all_epoll_binded_to_event_loop = set()
         self.config = {}
@@ -166,19 +190,8 @@ cdef class ApplicationContext:
                               UCP_FEATURE_STREAM
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_init
-        status = ucp_config_read(NULL, NULL, &config)
-        assert_ucs_status(status)
 
-        # Modify the UCX configuration options based on `config_dict`
-        for k, v in config_dict.items():
-            status = ucp_config_modify(config, k.encode(), v.encode())
-            if status == UCS_ERR_NO_ELEM:
-                raise UCXConfigError("Option %s doesn't exist" % k)
-            elif status != UCS_OK:
-                raise UCXConfigError(
-                    "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
-                )
-
+        cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
         assert_ucs_status(status)
 
