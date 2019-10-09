@@ -124,8 +124,8 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         func_fut = _func(ep)
 
     # Initiate the shutdown receive
-    cdef uint64_t[1] shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
+    cdef uint64_t shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
     log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
     ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(ucp_worker, shutdown_msg_mv, shutdown_msg_mv.nbytes,
@@ -326,8 +326,8 @@ cdef class ApplicationContext:
         await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         # Initiate the shutdown receive
-        cdef uint64_t[1] shutdown_msg
-        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
+        cdef uint64_t shutdown_msg
+        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
         log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
         ret.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
@@ -410,9 +410,8 @@ class Endpoint:
             raise UCXCloseError("signal_shutdown() - Endpoint closed")
 
         # Send a shutdown message to the peer
-        cdef uint64_t[1] msg
-        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg[0])
-        msg_mv[0] = 42
+        cdef uint64_t msg = 42
+        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
         log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
                                                  hex(self._send_tag))
         logging.debug(log)
