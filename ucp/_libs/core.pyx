@@ -106,11 +106,14 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     cdef uint64_t[4] tags
     cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags_mv[0], tags_mv[1], tags_mv[2], tags_mv[3])
+    ep = Endpoint(ucp_endpoint, ucp_worker, config,
+                  tags_mv[0], tags_mv[1],
+                  tags_mv[2], tags_mv[3])
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags_mv[1]), hex(tags_mv[0]), hex(tags_mv[3]), hex(tags_mv[2])))
+                  %(hex(tags_mv[1]), hex(tags_mv[0]),
+                    hex(tags_mv[3]), hex(tags_mv[2])))
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
