@@ -537,8 +537,8 @@ class Endpoint:
         if self._closed:
             raise UCXCloseError("pprint_ep() - Endpoint closed")
 
-        # Calling `ucp_ep_print_info()` into a memstream, convert it to
-        # a Python string, clean up, and return string.
+        # Making `ucp_ep_print_info()` write into a memstream,
+        # convert it to a Python string, clean up, and return string.
         cdef char *text
         cdef size_t text_len
         cdef FILE *text_fd = open_memstream(&text, &text_len)
