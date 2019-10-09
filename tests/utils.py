@@ -12,3 +12,10 @@ normal_env = {
 
 def set_env():
     os.environ.update(normal_env)
+
+
+def more_than_two_gpus():
+    import pynvml
+    pynvml.nvmlInit()
+    ngpus = pynvml.nvmlDeviceGetCount()
+    return ngpus >= 2

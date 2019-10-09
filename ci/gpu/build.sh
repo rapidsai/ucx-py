@@ -51,7 +51,8 @@ conda install "cudf>=0.10" "dask-cudf>=0.10" "cudatoolkit=$CUDA_REL" \
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython" \
-                              "pytest" "pkg-config" "pytest-asyncio"
+                              "pytest" "pkg-config" "pytest-asyncio" \
+                              "pynvml"
 
 
 # install cupy
