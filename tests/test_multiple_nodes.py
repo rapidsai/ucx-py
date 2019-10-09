@@ -12,15 +12,18 @@ async def hello(ep):
     await f1
     await f2
     np.testing.assert_array_equal(msg2send, msg2recv)
+    assert isinstance(ep.ucx_info(), str)
 
 
 async def server_node(ep):
     await hello(ep)
+    assert isinstance(ep.ucx_info(), str)
 
 
 async def client_node(port):
     ep = await ucp.create_endpoint(ucp.get_address(), port)
     await hello(ep)
+    assert isinstance(ep.ucx_info(), str)
 
 
 @pytest.mark.asyncio

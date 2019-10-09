@@ -532,11 +532,24 @@ class Endpoint:
             pending_msg=self.pending_msg_list[-1]
         )
 
-    def pprint_ep(self):
-        """Pretty print low-level UCX info about this endpoint"""
+    def ucx_info(self):
+        """Return low-level UCX info about this endpoint as a string"""
         if self._closed:
             raise UCXCloseError("pprint_ep() - Endpoint closed")
-        ucp_ep_print_info(<ucp_ep_h>PyLong_AsVoidPtr(self._ucp_ep), stdout)
+
+        # Calling `ucp_ep_print_info()` into a memstream, convert it to
+        # a Python string, clean up, and return string.
+        cdef char *text
+        cdef size_t text_len
+        cdef FILE *text_fd = open_memstream(&text, &text_len)
+        assert(text_fd != NULL)
+        cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
+        ucp_ep_print_info(ep, text_fd)
+        fflush(text_fd)
+        cdef bytes py_text = <bytes> text
+        fclose(text_fd)
+        free(text)
+        return py_text.decode()
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
