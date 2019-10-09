@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 
 import os
+
 from ._libs import core
 from ._libs.core import Endpoint  # noqa TODO: define a public Endpoint
 
