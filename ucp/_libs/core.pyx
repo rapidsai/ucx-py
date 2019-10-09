@@ -399,9 +399,8 @@ class Endpoint:
             raise UCXCloseError("signal_shutdown() - Endpoint closed")
 
         # Send a shutdown message to the peer
-        cdef uint64_t msg
+        cdef uint64_t msg = 42
         cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
-        msg_mv[0] = 42
         log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
                                                  hex(self._send_tag))
         logging.debug(log)
