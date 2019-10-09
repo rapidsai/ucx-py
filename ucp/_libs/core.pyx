@@ -307,11 +307,12 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef Py_ssize_t i
         cdef uint64_t[4] tags
         cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
-        for i in range(len(tags_mv)):
-            tags_mv[i] = hash(uuid.uuid4())
+        tags_mv[0] = hash(uuid.uuid4())
+        tags_mv[1] = hash(uuid.uuid4())
+        tags_mv[2] = hash(uuid.uuid4())
+        tags_mv[3] = hash(uuid.uuid4())
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
