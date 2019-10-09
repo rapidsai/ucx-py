@@ -307,12 +307,11 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef Tags tags
+        cdef Tags tags = {"recv_tag": hash(uuid.uuid4()),
+                          "send_tag": hash(uuid.uuid4()),
+                          "ctrl_recv_tag": hash(uuid.uuid4()),
+                          "ctrl_send_tag": hash(uuid.uuid4())}
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
-        tags.recv_tag = hash(uuid.uuid4())
-        tags.send_tag = hash(uuid.uuid4())
-        tags.ctrl_recv_tag = hash(uuid.uuid4())
-        tags.ctrl_send_tag = hash(uuid.uuid4())
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
