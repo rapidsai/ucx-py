@@ -17,6 +17,8 @@ source activate gdf
 ISORT=`isort --recursive --check-only .`
 ISORT_RETVAL=$?
 
+isort --version
+
 # Run black and get results/return code
 BLACK=`black --check .`
 BLACK_RETVAL=$?

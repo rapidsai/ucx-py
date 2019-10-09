@@ -7,7 +7,7 @@ Sample run:
 ===========
 
 server:
-python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 
+python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337
 
 client:
 python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 -s A.B.C.D
