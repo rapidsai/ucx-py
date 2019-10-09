@@ -107,13 +107,13 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
     ep = Endpoint(ucp_endpoint, ucp_worker, config,
-                  tags_mv[0].recv_tag, tags_mv[0].send_tag,
-                  tags_mv[0].ctrl_recv_tag, tags_mv[0].ctrl_send_tag)
+                  tags.recv_tag, tags.send_tag,
+                  tags.ctrl_recv_tag, tags.ctrl_send_tag)
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags_mv[0].send_tag), hex(tags_mv[0].recv_tag),
-                    hex(tags_mv[0].ctrl_send_tag), hex(tags_mv[0].ctrl_recv_tag)))
+                  %(hex(tags.send_tag), hex(tags.recv_tag),
+                    hex(tags.ctrl_send_tag), hex(tags.ctrl_recv_tag)))
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
@@ -309,19 +309,19 @@ cdef class ApplicationContext:
         # Create a new Endpoint and send the tags to the peer
         cdef Tags[1] tags
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
-        tags_mv[0].recv_tag = hash(uuid.uuid4())
-        tags_mv[0].send_tag = hash(uuid.uuid4())
-        tags_mv[0].ctrl_recv_tag = hash(uuid.uuid4())
-        tags_mv[0].ctrl_send_tag = hash(uuid.uuid4())
+        tags.recv_tag = hash(uuid.uuid4())
+        tags.send_tag = hash(uuid.uuid4())
+        tags.ctrl_recv_tag = hash(uuid.uuid4())
+        tags.ctrl_send_tag = hash(uuid.uuid4())
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            tags_mv[0].send_tag,
-            tags_mv[0].recv_tag,
-            tags_mv[0].ctrl_send_tag,
-            tags_mv[0].ctrl_recv_tag
+            tags.send_tag,
+            tags.recv_tag,
+            tags.ctrl_send_tag,
+            tags.ctrl_recv_tag
         )
         await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
