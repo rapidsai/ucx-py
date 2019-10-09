@@ -365,6 +365,13 @@ cdef class ApplicationContext:
         return self.config
 
 
+cdef struct Tags:
+    uint64_t recv_tag
+    uint64_t send_tag
+    uint64_t ctrl_recv_tag
+    uint64_t ctrl_send_tag
+
+
 class Endpoint:
     """An endpoint represents a connection to a peer
 
