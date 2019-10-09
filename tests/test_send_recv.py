@@ -2,7 +2,6 @@ import asyncio
 import sys
 
 import pytest
-
 import ucp
 
 np = pytest.importorskip("numpy")
