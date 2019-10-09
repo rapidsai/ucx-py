@@ -34,6 +34,7 @@ if [ "$ISORT_RETVAL" != "0" ]; then
   echo -e "\n\n>>>> FAILED: isort style check; begin output\n\n"
   echo -e "$ISORT"
   echo -e "\n\n>>>> FAILED: isort style check; end output\n\n"
+  echo -e `isort -rc --diff`
 else
   echo -e "\n\n>>>> PASSED: isort style check\n\n"
 fi
