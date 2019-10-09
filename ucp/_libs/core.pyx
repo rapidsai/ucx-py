@@ -103,8 +103,8 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         loop.set_exception_handler(asyncio_handle_exception)
 
     # Get the tags from the client and create a new Endpoint
-    cdef Tags[1] tags
-    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
+    cdef Tags tags
+    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
     ep = Endpoint(ucp_endpoint, ucp_worker, config,
                   tags.recv_tag, tags.send_tag,
@@ -307,8 +307,8 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef Tags[1] tags
-        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
+        cdef Tags tags
+        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
         tags.recv_tag = hash(uuid.uuid4())
         tags.send_tag = hash(uuid.uuid4())
         tags.ctrl_recv_tag = hash(uuid.uuid4())
