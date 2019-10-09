@@ -18,7 +18,6 @@ libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
 
 
-
 class build_ext(_build_ext):
     user_options = [
         ("with-cuda", None, "build the Cuda extension"),

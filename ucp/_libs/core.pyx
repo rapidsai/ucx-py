@@ -8,8 +8,14 @@ import uuid
 import socket
 import logging
 from core_dep cimport *
-from ..exceptions import UCXError, UCXCloseError, UCXCanceled, \
-                         UCXWarning, UCXConfigError
+from ..exceptions import (
+    UCXError,
+    UCXCloseError,
+    UCXCanceled,
+    UCXWarning,
+    UCXConfigError,
+)
+
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
@@ -40,9 +46,9 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
         if status == UCS_ERR_NO_ELEM:
             raise UCXConfigError("Option %s doesn't exist" % k)
         elif status != UCS_OK:
-            raise UCXConfigError(
-                "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
-            )
+            msg = "Couldn't set option %s to %s: %s" % \
+                  (k, v, ucs_status_string(status))
+            raise UCXConfigError(msg)
     return config
 
 
@@ -205,7 +211,6 @@ cdef class ApplicationContext:
         object config
         bint initiated
 
-
     def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
@@ -259,7 +264,6 @@ cdef class ApplicationContext:
             logging.info("  %s: %s" % (k, v))
 
         self.initiated = True
-
 
     def __dealloc__(self):
         if self.initiated:

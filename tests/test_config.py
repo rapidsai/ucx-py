@@ -2,6 +2,7 @@ import os
 import pytest
 
 import ucp
+import pytest
 
 
 def test_get_config():
