@@ -103,17 +103,17 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         loop.set_exception_handler(asyncio_handle_exception)
 
     # Get the tags from the client and create a new Endpoint
-    cdef uint64_t[4] tags
-    cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
+    cdef Tags[1] tags
+    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
     ep = Endpoint(ucp_endpoint, ucp_worker, config,
-                  tags_mv[0], tags_mv[1],
-                  tags_mv[2], tags_mv[3])
+                  tags_mv[0].recv_tag, tags_mv[0].send_tag,
+                  tags_mv[0].ctrl_recv_tag, tags_mv[0].ctrl_send_tag)
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags_mv[1]), hex(tags_mv[0]),
-                    hex(tags_mv[3]), hex(tags_mv[2])))
+                  %(hex(tags_mv[0].send_tag), hex(tags_mv[0].recv_tag),
+                    hex(tags_mv[0].ctrl_send_tag), hex(tags_mv[0].ctrl_recv_tag)))
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
@@ -307,21 +307,21 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef uint64_t[4] tags
-        cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
-        tags_mv[0] = hash(uuid.uuid4())
-        tags_mv[1] = hash(uuid.uuid4())
-        tags_mv[2] = hash(uuid.uuid4())
-        tags_mv[3] = hash(uuid.uuid4())
+        cdef Tags[1] tags
+        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags[0])
+        tags_mv[0].recv_tag = hash(uuid.uuid4())
+        tags_mv[0].send_tag = hash(uuid.uuid4())
+        tags_mv[0].ctrl_recv_tag = hash(uuid.uuid4())
+        tags_mv[0].ctrl_send_tag = hash(uuid.uuid4())
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            tags_mv[1],
-            tags_mv[0],
-            tags_mv[3],
-            tags_mv[2]
+            tags_mv[0].send_tag,
+            tags_mv[0].recv_tag,
+            tags_mv[0].ctrl_send_tag,
+            tags_mv[0].ctrl_recv_tag
         )
         await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
