@@ -10,6 +10,10 @@ class UCXError(UCXBaseException):
     pass
 
 
+class UCXConfigError(UCXError):
+    pass
+
+
 class UCXWarning(UserWarning):
     pass
 

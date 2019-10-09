@@ -8,7 +8,8 @@ import uuid
 import socket
 import logging
 from core_dep cimport *
-from ..exceptions import UCXError, UCXCloseError
+from ..exceptions import UCXError, UCXCloseError, UCXCanceled, \
+                         UCXWarning, UCXConfigError
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
@@ -20,6 +21,61 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
         raise UCXError(msg)
 
 
+cdef ucp_config_t * read_ucx_config(dict user_options) except *:
+    """
+    Reads the UCX config and returns a config handle,
+    which should freed using `ucp_config_release()`.
+    """
+    cdef ucp_config_t *config
+    cdef ucs_status_t status
+    status = ucp_config_read(NULL, NULL, &config)
+    if status != UCS_OK:
+        raise UCXConfigError(
+            "Couldn't read the UCX options: %s" % ucs_status_string(status)
+        )
+
+    # Modify the UCX configuration options based on `config_dict`
+    for k, v in user_options.items():
+        status = ucp_config_modify(config, k.encode(), v.encode())
+        if status == UCS_ERR_NO_ELEM:
+            raise UCXConfigError("Option %s doesn't exist" % k)
+        elif status != UCS_OK:
+            raise UCXConfigError(
+                "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
+            )
+    return config
+
+
+cdef get_ucx_config_options(ucp_config_t *config):
+    """Returns a dict of the UCX config options"""
+    cdef char *text
+    cdef size_t text_len
+    cdef FILE *text_fd = open_memstream(&text, &text_len)
+    assert(text_fd != NULL)
+    ret = {}
+    ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
+    fflush(text_fd)
+    cdef bytes py_text = <bytes> text
+    for line in py_text.decode().splitlines():
+        k, v = line.split("=")
+        k = k[len("UCX_"):]
+        ret[k] = v
+    fclose(text_fd)
+    free(text)
+    return ret
+
+
+def get_config():
+    """
+    Returns the current UCX options
+    if UCX were to be initialized now.
+    """
+    cdef ucp_config_t *config = read_ucx_config({})
+    ret = get_ucx_config_options(config)
+    ucp_config_release(config)
+    return ret
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -28,7 +84,13 @@ cdef struct _listener_callback_args:
 
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
-    logging.error("Ignored except: %s %s" % (type(msg), msg))
+    if isinstance(msg, UCXCanceled):
+        log = logging.debug
+    elif isinstance(msg, UCXWarning):
+        log = logging.warning
+    else:
+        log = logging.error
+    log("Ignored except: %s %s" % (type(msg), msg))
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
@@ -99,14 +161,32 @@ cdef class Listener:
     cdef:
         cdef ucp_listener_h _ucp_listener
         cdef _listener_callback_args _cb_args
-        cdef uint16_t port
+        cdef uint16_t _port
+        cdef bint _closed
+
+    def __cinit__(self):
+        # In order to prevent calling ucp_listener_destroy() on a
+        # initialized Listener, we flag the instance as closed
+        # initially.
+        self._closed = True
+
+    @property
+    def closed(self):
+        return self._closed
 
     @property
     def port(self):
-        return self.port
+        return self._port
 
     def __dealloc__(self):
-        ucp_listener_destroy(self._ucp_listener)
+        if not self._closed:
+            ucp_listener_destroy(self._ucp_listener)
+
+    def close(self):
+        """Closing the listener"""
+        if not self._closed:
+            ucp_listener_destroy(self._ucp_listener)
+        self._closed = True
 
 
 cdef class ApplicationContext:
@@ -116,15 +196,16 @@ cdef class ApplicationContext:
         int epoll_fd
         object all_epoll_binded_to_event_loop
         object config
+        bint initiated
 
 
-    def __cinit__(self):
+    def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
-        cdef ucp_config_t *config
         cdef ucs_status_t status
         self.all_epoll_binded_to_event_loop = set()
         self.config = {}
+        self.initiated = False
 
         cdef unsigned int a, b, c
         ucp_get_version(&a, &b, &c)
@@ -139,9 +220,8 @@ cdef class ApplicationContext:
                               UCP_FEATURE_STREAM
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_init
-        status = ucp_config_read(NULL, NULL, &config)
-        assert_ucs_status(status)
 
+        cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
         assert_ucs_status(status)
 
@@ -161,29 +241,20 @@ cdef class ApplicationContext:
         cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
         assert(err == 0)
 
-        # Let's read the UCX config and write in into `self.config`
-        cdef char *text
-        cdef size_t text_len
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        assert(text_fd != NULL)
-        ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-        fflush(text_fd)
-        cdef bytes py_text = <bytes> text
-        for line in py_text.decode().splitlines():
-            k, v = line.split("=")
-            self.config[k] = v
-        fclose(text_fd)
-        free(text)
+        self.config = get_ucx_config_options(config)
         ucp_config_release(config)
 
         logging.info("UCP initiated using config: ")
         for k, v in self.config.items():
             logging.info("  %s: %s" % (k, v))
 
+        self.initiated = True
+
 
     def __dealloc__(self):
-        ucp_worker_destroy(self.worker)
-        ucp_cleanup(self.context)
+        if self.initiated:
+            ucp_worker_destroy(self.worker)
+            ucp_cleanup(self.context)
 
 
     def create_listener(self, callback_func, port=None):
@@ -196,7 +267,7 @@ cdef class ApplicationContext:
             s.close()
 
         ret = Listener()
-        ret.port = port
+        ret._port = port
 
         ret._cb_args.ucp_worker = self.worker
         ret._cb_args.py_func = <PyObject*> callback_func
@@ -217,6 +288,7 @@ cdef class ApplicationContext:
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
+        ret._closed = False  # The Listener was successfully created
         return ret
 
     async def create_endpoint(self, str ip_address, port):
@@ -309,8 +381,8 @@ class Endpoint:
         self._recv_count = 0
         self._closed = False
         self.pending_msg_list = [{}]
-        # UCX supports CUDA if "cuda" is part of the UCX_TLS
-        self._cuda_support = "cuda" in config['UCX_TLS']
+        # UCX supports CUDA if "cuda" is part of the TLS
+        self._cuda_support = "cuda" in config['TLS']
 
     @property
     def uid(self):
