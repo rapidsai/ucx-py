@@ -103,14 +103,17 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         loop.set_exception_handler(asyncio_handle_exception)
 
     # Get the tags from the client and create a new Endpoint
-    cdef uint64_t[4] tags
-    cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
+    cdef Tags tags
+    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags_mv[0], tags_mv[1], tags_mv[2], tags_mv[3])
+    ep = Endpoint(ucp_endpoint, ucp_worker, config,
+                  tags.recv_tag, tags.send_tag,
+                  tags.ctrl_recv_tag, tags.ctrl_send_tag)
 
     logging.debug("listener_handler() server: %s client: %s "
                   "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags_mv[1]), hex(tags_mv[0]), hex(tags_mv[3]), hex(tags_mv[2])))
+                  %(hex(tags.send_tag), hex(tags.recv_tag),
+                    hex(tags.ctrl_send_tag), hex(tags.ctrl_recv_tag)))
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
@@ -121,8 +124,8 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         func_fut = _func(ep)
 
     # Initiate the shutdown receive
-    cdef uint64_t[1] shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
+    cdef uint64_t shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
     log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
     ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(ucp_worker, shutdown_msg_mv, shutdown_msg_mv.nbytes,
@@ -304,26 +307,26 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef Py_ssize_t i
-        cdef uint64_t[4] tags
-        cdef uint64_t[::1] tags_mv = <uint64_t[:4:1]>(&tags[0])
-        for i in range(len(tags_mv)):
-            tags_mv[i] = hash(uuid.uuid4())
+        cdef Tags tags = {"recv_tag": hash(uuid.uuid4()),
+                          "send_tag": hash(uuid.uuid4()),
+                          "ctrl_recv_tag": hash(uuid.uuid4()),
+                          "ctrl_send_tag": hash(uuid.uuid4())}
+        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            tags_mv[1],
-            tags_mv[0],
-            tags_mv[3],
-            tags_mv[2]
+            tags.send_tag,
+            tags.recv_tag,
+            tags.ctrl_send_tag,
+            tags.ctrl_recv_tag
         )
         await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         # Initiate the shutdown receive
-        cdef uint64_t[1] shutdown_msg
-        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg[0])
+        cdef uint64_t shutdown_msg
+        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
         log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
         ret.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
@@ -359,6 +362,13 @@ cdef class ApplicationContext:
 
     def get_config(self):
         return self.config
+
+
+cdef struct Tags:
+    uint64_t recv_tag
+    uint64_t send_tag
+    uint64_t ctrl_recv_tag
+    uint64_t ctrl_send_tag
 
 
 class Endpoint:
@@ -399,9 +409,8 @@ class Endpoint:
             raise UCXCloseError("signal_shutdown() - Endpoint closed")
 
         # Send a shutdown message to the peer
-        cdef uint64_t[1] msg
-        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg[0])
-        msg_mv[0] = 42
+        cdef uint64_t msg = 42
+        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
         log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
                                                  hex(self._send_tag))
         logging.debug(log)
