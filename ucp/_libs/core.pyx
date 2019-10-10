@@ -112,14 +112,11 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     cdef Tags tags
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config,
-                  tags.recv_tag, tags.send_tag,
-                  tags.ctrl_recv_tag, tags.ctrl_send_tag)
+    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags.msg_tag, tags.ctrl_tag)
 
-    logging.debug("listener_handler() server: %s client: %s "
-                  "server-control-tag: %s client-control-tag: %s"
-                  %(hex(tags.send_tag), hex(tags.recv_tag),
-                    hex(tags.ctrl_send_tag), hex(tags.ctrl_recv_tag)))
+    logging.debug("listener_handler() server: %s, msg-tag: %s, ctrl-tag: %s" %(
+        hex(<size_t>ucp_endpoint), hex(ep._msg_tag), hex(ep._ctrl_tag))
+    )
 
     # Call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
@@ -132,12 +129,12 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     # Initiate the shutdown receive
     cdef uint64_t shutdown_msg
     cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-    log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
+    log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag))
     ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(ucp_worker,
                             shutdown_msg_mv,
                             shutdown_msg_mv.nbytes,
-                            ep._ctrl_recv_tag,
+                            ep._ctrl_tag,
                             pending_msg=ep.pending_msg_list[-1])
 
     def _close(future):
@@ -317,33 +314,29 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # Create a new Endpoint and send the tags to the peer
-        cdef Tags tags = {"recv_tag": hash(uuid.uuid4()),
-                          "send_tag": hash(uuid.uuid4()),
-                          "ctrl_recv_tag": hash(uuid.uuid4()),
-                          "ctrl_send_tag": hash(uuid.uuid4())}
+        cdef Tags tags = {"msg_tag": hash(uuid.uuid4()),
+                          "ctrl_tag": hash(uuid.uuid4())}
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
 
         ret = Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
-            tags.send_tag,
-            tags.recv_tag,
-            tags.ctrl_send_tag,
-            tags.ctrl_recv_tag
+            tags.msg_tag,
+            tags.ctrl_tag,
         )
         await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         # Initiate the shutdown receive
         cdef uint64_t shutdown_msg
         cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-        log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ret._recv_tag), hex(ret._send_tag))
+        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ret.uid), hex(ret._ctrl_tag))
         ret.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
             PyLong_FromVoidPtr(<void*>self.worker),
             shutdown_msg_mv,
             shutdown_msg_mv.nbytes,
-            ret._ctrl_recv_tag,
+            ret._ctrl_tag,
             pending_msg=ret.pending_msg_list[-1]
         )
 
@@ -374,11 +367,10 @@ cdef class ApplicationContext:
         return self.config
 
 
+# The tags used when send/recv messages
 cdef struct Tags:
-    uint64_t recv_tag
-    uint64_t send_tag
-    uint64_t ctrl_recv_tag
-    uint64_t ctrl_send_tag
+    uint64_t msg_tag
+    uint64_t ctrl_tag
 
 
 class Endpoint:
@@ -388,15 +380,12 @@ class Endpoint:
     to create an Endpoint.
     """
 
-    def __init__(self, ucp_endpoint, ucp_worker, config, send_tag,
-                 recv_tag, ctrl_send_tag, ctrl_recv_tag):
+    def __init__(self, ucp_endpoint, ucp_worker, config, msg_tag, ctrl_tag):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
         self._config = config
-        self._send_tag = send_tag
-        self._recv_tag = recv_tag
-        self._ctrl_send_tag = ctrl_send_tag
-        self._ctrl_recv_tag = ctrl_recv_tag
+        self._msg_tag = msg_tag
+        self._ctrl_tag = ctrl_tag
         self._send_count = 0
         self._recv_count = 0
         self._closed = False
@@ -407,7 +396,7 @@ class Endpoint:
     @property
     def uid(self):
         """The unique ID of the endpoint"""
-        return self._recv_tag
+        return self._ucp_endpoint
 
     async def signal_shutdown(self):
         """Signal the connected peer to shutdown.
@@ -421,14 +410,13 @@ class Endpoint:
         # Send a shutdown message to the peer
         cdef uint64_t msg = 42
         cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
-        log = "[UCX Comm] %s ==Shutdown=> %s" % (hex(self._recv_tag),
-                                                 hex(self._send_tag))
+        log = "[Send shutdown] ep: %s, tag: %s" % (hex(self.uid), hex(self._ctrl_tag))
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         await tag_send(
             self._ucp_endpoint,
             msg_mv, msg_mv.nbytes,
-            self._ctrl_send_tag,
+            self._ctrl_tag,
             pending_msg=self.pending_msg_list[-1]
         )
 
@@ -490,18 +478,8 @@ class Endpoint:
             raise UCXCloseError("send() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        uid = abs(hash("%d%d%d%d" % (
-            self._send_count,
-            nbytes,
-            self._recv_tag,
-            self._send_tag))
-        )
-        log = "[UCX Comm] %s ==#%03d=> %s hash: %s nbytes: %d" % (
-            hex(self._recv_tag),
-            self._send_count,
-            hex(self._send_tag),
-            hex(uid),
-            nbytes
+        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
+            self._send_count, hex(self.uid), hex(self._msg_tag), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -510,7 +488,7 @@ class Endpoint:
             self._ucp_endpoint,
             buffer,
             nbytes,
-            self._send_tag,
+            self._msg_tag,
             pending_msg=self.pending_msg_list[-1]
         )
 
@@ -529,18 +507,8 @@ class Endpoint:
             raise UCXCloseError("recv() - Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        uid = abs(hash("%d%d%d%d" % (
-            self._recv_count,
-            nbytes,
-            self._send_tag,
-            self._recv_tag)
-        ))
-        log = "[UCX Comm] %s <=#%03d== %s hash: %s nbytes: %d" % (
-            hex(self._recv_tag),
-            self._recv_count,
-            hex(self._send_tag),
-            hex(uid),
-            nbytes
+        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
+            self._recv_count, hex(self.uid), hex(self._msg_tag), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -549,7 +517,7 @@ class Endpoint:
             self._ucp_worker,
             buffer,
             nbytes,
-            self._recv_tag,
+            self._msg_tag,
             pending_msg=self.pending_msg_list[-1]
         )
 
