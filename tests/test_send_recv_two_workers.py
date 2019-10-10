@@ -5,18 +5,23 @@ import struct
 import time
 
 import cloudpickle
+import pickle
 import dask.dataframe as dd
 import numpy as np
 import pytest
 from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import log_errors, nbytes
+import rmm
 
 import ucp
 from utils import more_than_two_gpus
 
 # nvidia-smi nvlink --setcontrol  0bz  # Get output in bytes
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
+
+cuda_array = lambda n: rmm.device_array(n, dtype=np.uint8)
+
 
 async def get_ep(name, port):
     addr = ucp.get_address()
@@ -48,7 +53,7 @@ def client(env, port, func):
     # before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
-        print("GETTING CLIENT")
+        await asyncio.sleep(2)
         ep = await get_ep("client", port)
         try:
             # Recv meta data
@@ -67,24 +72,33 @@ def client(env, port, func):
             for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
                 if size > 0:
                     if is_cuda:
-                        frame = cuda.device_array((size,), dtype=np.uint8)
+                        frame = cuda_array(size)
                     else:
                         frame = np.empty(size, dtype=np.uint8)
                     await ep.recv(frame)
                     frames.append(frame)
                 else:
                     if is_cuda:
-                        frames.append(cuda.device_array((0,), dtype=np.uint8))
+                        frames.append(cuda_array(size))
                     else:
                         frames.append(b"")
 
         msg = await from_frames(frames)
 
-        # how should we confirm data is on two GPUs ?
-        await ep.send_obj(b"OK")
+        close_msg = b"shutdown listener"
+        close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
+
+        await ep.send(close_msg_size)
+        await ep.send(close_msg)
+
         print("Shutting Down Client...")
-        ucp.destroy_ep(ep)
-        ucp.fin()
+        # try:
+        #     await ep.signal_shutdown()
+        #     ep.close()
+        # except ucp.exceptions.UCXCloseError:
+        #     pass
+        # ucp.destroy_ep(ep)
+        # ucp.fin()
         return msg["data"]
 
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
@@ -100,12 +114,10 @@ def client(env, port, func):
 
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
-    print(type(rx_cuda_obj), type(pure_cuda_obj))
 
     from cudf.tests.utils import assert_eq
     import cupy
 
-    print("Test Received CUDA Object vs Pure CUDA Object")
     if hasattr(rx_cuda_obj, "shape"):
         shape = rx_cuda_obj.shape
     else:
@@ -114,7 +126,7 @@ def client(env, port, func):
     if len(shape) == 1:
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
-        dd.assert_eq(rx_cuda_obj, pure_cuda_obj)
+        assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(env, port, func):
@@ -125,7 +137,7 @@ def server(env, port, func):
     os.environ.update(env)
     create_cuda_context()
 
-    async def f(lisitener_port):
+    async def f(listener_port):
         # coroutine shows up when the client asks
         # to connect
         async def write(ep):
@@ -134,6 +146,7 @@ def server(env, port, func):
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
             msg = {"data": to_serialize(cuda_obj)}
+            await asyncio.sleep(1)
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
 
             # Send meta data
@@ -145,31 +158,32 @@ def server(env, port, func):
                 )
             )
             await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-
             # Send frames
             for frame in frames:
                 if nbytes(frame) > 0:
                     await ep.send(frame)
-                else:
-                    await ep.send(np.empty(0, dtype=np.uint8))
 
             print("CONFIRM RECEIPT")
-            # resp = await ep.recv_future()
-            # obj = ucp.get_obj_from_msg(resp)
-            # assert obj == b"OK"
+            close_msg = b"shutdown listener"
+            msg_size = np.empty(1, dtype=np.uint64)
+            await ep.recv(msg_size)
+
+            msg = np.empty(msg_size[0], dtype=np.uint8)
+            await ep.recv(msg)
+            recv_msg = msg.tobytes()
+            assert recv_msg == close_msg
+            # try:
+            await ep.signal_shutdown()
+            ep.close()
+            lf.close()
             print("Shutting Down Server...")
-            # ucp.stop_listener(li)
-            # ucp.fin()
 
-        listener = ucp.create_listener(write, port=lisitener_port)
-        print(listener.closed)
-        print(dir(listener))
-        ep = await ucp.create_endpoint(ucp.get_address(), lisitener_port)
-        print(ep)
-        # t = loop.create_task(listener)
-        # await asyncio.gather
-        # await t
-
+        lf = ucp.create_listener(write, port=listener_port)
+        try:
+            while not lf.closed:
+                await asyncio.sleep(1)
+        except ucp.UCXCloseError:
+            pass
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(f(port))
@@ -179,7 +193,7 @@ def dataframe():
     import cudf
     import numpy as np
 
-    size = 2 ** 10
+    size = 2 ** 15
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -222,22 +236,8 @@ def raise_error():
     [dataframe, column, empty_dataframe, series, cupy, raise_error],
 )
 def test_send_recv_cudf(cuda_obj_generator):
-    # base_env = {
-    #     "UCX_RNDV_SCHEME": "put_zcopy",
-    #     "UCX_MEMTYPE_CACHE": "n",
-    #     # "UCX_NET_DEVICES": "mlx5_0:1",
-    #     "UCX_TLS": "rc,cuda_copy,cuda_ipc",
-    #     "CUDA_VISIBLE_DEVICES": "0,1",
-    # }
-    base_env = {
-        "UCX_RNDV_SCHEME": "put_zcopy",
-        "UCX_MEMTYPE_CACHE": "n",
-        # "UCX_NET_DEVICES": "mlx5_0:1",
-        "UCXPY_IFNAME": "enp1s0f0",
-        "UCX_TLS": "tcp,rc,sockcm,cuda_copy,cuda_ipc",
-        "UCX_SOCKADDR_TLS_PRIORITY": "sockcm",
-        "CUDA_VISIBLE_DEVICES": "0,1",
-    }
+    import os
+    base_env = os.environ
     env1 = base_env.copy()
     env2 = base_env.copy()
     env2["CUDA_VISIBLE_DEVICES"] = "1,0"
