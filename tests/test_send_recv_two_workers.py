@@ -1,14 +1,10 @@
 import asyncio
 import multiprocessing
 import os
-import pickle
-import struct
-import time
 
-import dask.dataframe as dd
 from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
-from distributed.utils import log_errors, nbytes
+from distributed.utils import nbytes
 
 import cloudpickle
 import numpy as np
@@ -20,7 +16,9 @@ from utils import more_than_two_gpus
 # nvidia-smi nvlink --setcontrol  0bz  # Get output in bytes
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
 
-cuda_array = lambda n: rmm.device_array(n, dtype=np.uint8)
+
+def cuda_array(size):
+    return rmm.device_array(size, dtype=np.uint8)
 
 
 async def get_ep(name, port):
@@ -98,7 +96,8 @@ def client(env, port, func):
     # if num_bytes > 1000:
     #     rx, tx = total_nvlink_transfer()
     #     print(
-    #         f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} -- TOTAL DATA: {num_bytes}"
+    #         f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} --
+    # TOTAL DATA: {num_bytes}"
     #     )
     #     assert rx > before_rx
 
@@ -215,7 +214,7 @@ def cupy():
 
 
 @pytest.mark.skipif(
-    not more_than_two_gpus, reason="Machine does not have more than two GPUs"
+    not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
     "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
@@ -244,14 +243,14 @@ def test_send_recv_cudf(cuda_obj_generator):
         name="client", target=client, args=[env2, port, func]
     )
 
-    a = server_process.start()
-    b = client_process.start()
+    server_process.start()
+    client_process.start()
 
-    c = server_process.join()
-    d = client_process.join()
+    server_process.join()
+    client_process.join()
 
-    assert server_process.exitcode is 0
-    assert client_process.exitcode is 0
+    assert server_process.exitcode == 0
+    assert client_process.exitcode == 0
 
 
 def total_nvlink_transfer():
@@ -261,7 +260,8 @@ def total_nvlink_transfer():
 
     try:
         cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
-    except:
+    except Exception as e:
+        print(e)
         cuda_dev_id = 0
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
     # ngpus = pynvml.nvmlDeviceGetCount()
