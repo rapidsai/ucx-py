@@ -1,10 +1,11 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import ucp
-import time
 import argparse
 import asyncio
+import time
+
+import ucp
 
 accept_cb_started = False
 new_client_ep = None
@@ -83,7 +84,7 @@ async def talk_to_client_async(ep, listener):
         lat = end - start
         print(
             "{}\t\t{:.2f}\t\t{:.2f}".format(
-                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1000000)
+                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1_000_000)
             )
         )
 
@@ -119,7 +120,7 @@ async def talk_to_server_async(ip, port):
         lat = end - start
         print(
             "{}\t\t{:.2f}\t\t{:.2f}".format(
-                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1000000)
+                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1_000_000)
             )
         )
 

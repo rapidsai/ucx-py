@@ -1,7 +1,8 @@
 import asyncio
+
+import numpy as np
 import pytest
 import ucp
-import numpy as np
 
 
 async def hello(ep):

@@ -1,8 +1,8 @@
 import argparse
+import time
 from time import perf_counter as clock
 
 import dask
-import time
 import dask.array as da
 from distributed import Client, LocalCluster
 from distributed.utils import format_bytes
@@ -32,8 +32,8 @@ def main(args=None):
         client = Client(cluster)
 
     print(f"Connected to {client}")
-    N = 10_000
-    P = 10_000
+    N = 10000
+    P = 10000
     X = da.random.uniform(size=(N, P), chunks=(N // 100, P))
     print(format_bytes(X.nbytes))
 

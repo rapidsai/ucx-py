@@ -3,10 +3,14 @@
 
 """UCX-Py: Python bindings for UCX <www.openucx.org>"""
 
+import logging
 import os
 import warnings
-import logging
-from .exceptions import *
+
+from ._version import get_versions
+from .exceptions import UCXWarning
+from .public_api import *  # noqa
+from .utils import get_address  # noqa
 
 # Notice, if we have to update environment variables
 # we need to do it before importing UCX
@@ -21,10 +25,6 @@ if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
 _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
 logging.basicConfig(level=_level_enum, format="[UCX/%(levelname)s] %(message)s")
 
-from .public_api import *  # noqa
-from .utils import get_address  # noqa
-
-from ._version import get_versions
 
 __version__ = get_versions()["version"]
 del get_versions

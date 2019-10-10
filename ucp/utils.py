@@ -1,8 +1,7 @@
-import os
 import fcntl
+import os
 import socket
 import struct
-import os
 
 
 def get_address(ifname=None):

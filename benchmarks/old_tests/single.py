@@ -1,6 +1,7 @@
-import asyncio
 import argparse
+import asyncio
 import sys
+
 import ucp
 
 client_msg = b"hi"

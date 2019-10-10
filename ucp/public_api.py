@@ -2,9 +2,9 @@
 # See file LICENSE for terms.
 
 import os
-from ._libs import core
-from ._libs.core import Endpoint  # TODO: define a public Endpoint
 
+from ._libs import core
+from ._libs.core import Endpoint  # noqa TODO: define a public Endpoint
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay

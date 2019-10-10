@@ -8,8 +8,14 @@ import uuid
 import socket
 import logging
 from core_dep cimport *
-from ..exceptions import UCXError, UCXCloseError, UCXCanceled, \
-                         UCXWarning, UCXConfigError
+from ..exceptions import (
+    UCXError,
+    UCXCloseError,
+    UCXCanceled,
+    UCXWarning,
+    UCXConfigError,
+)
+
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
@@ -40,9 +46,9 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
         if status == UCS_ERR_NO_ELEM:
             raise UCXConfigError("Option %s doesn't exist" % k)
         elif status != UCS_OK:
-            raise UCXConfigError(
-                "Couldn't set option %s to %s: %s" % (k, v, ucs_status_string(status))
-            )
+            msg = "Couldn't set option %s to %s: %s" % \
+                  (k, v, ucs_status_string(status))
+            raise UCXConfigError(msg)
     return config
 
 
@@ -128,8 +134,11 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
     log = "[UCX Comm] %s <=Shutdown== %s" % (hex(ep._recv_tag), hex(ep._send_tag))
     ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(ucp_worker, shutdown_msg_mv, shutdown_msg_mv.nbytes,
-                            ep._ctrl_recv_tag, pending_msg=ep.pending_msg_list[-1])
+    shutdown_fut = tag_recv(ucp_worker,
+                            shutdown_msg_mv,
+                            shutdown_msg_mv.nbytes,
+                            ep._ctrl_recv_tag,
+                            pending_msg=ep.pending_msg_list[-1])
 
     def _close(future):
         logging.debug(log)
@@ -195,12 +204,12 @@ cdef class Listener:
 cdef class ApplicationContext:
     cdef:
         ucp_context_h context
-        ucp_worker_h worker  # For now, a application context only has one worker
+        # For now, a application context only has one worker
+        ucp_worker_h worker
         int epoll_fd
         object all_epoll_binded_to_event_loop
         object config
         bint initiated
-
 
     def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
@@ -215,12 +224,14 @@ cdef class ApplicationContext:
         self.config['VERSION'] = (a, b, c)
 
         memset(&ucp_params, 0, sizeof(ucp_params))
-        ucp_params.field_mask = UCP_PARAM_FIELD_FEATURES | \
-                                UCP_PARAM_FIELD_REQUEST_SIZE | \
-                                UCP_PARAM_FIELD_REQUEST_INIT
-        ucp_params.features = UCP_FEATURE_TAG | \
-                              UCP_FEATURE_WAKEUP | \
-                              UCP_FEATURE_STREAM
+        ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
+                                UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
+                                UCP_PARAM_FIELD_REQUEST_INIT)
+
+        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                               UCP_FEATURE_WAKEUP |  # noqa
+                               UCP_FEATURE_STREAM)
+
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_init
 
@@ -241,7 +252,8 @@ cdef class ApplicationContext:
         cdef epoll_event ev
         ev.data.fd = ucp_epoll_fd
         ev.events = EPOLLIN
-        cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
+        cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD,
+                                 ucp_epoll_fd, &ev)
         assert(err == 0)
 
         self.config = get_ucx_config_options(config)
@@ -253,12 +265,10 @@ cdef class ApplicationContext:
 
         self.initiated = True
 
-
     def __dealloc__(self):
         if self.initiated:
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
-
 
     def create_listener(self, callback_func, port=None):
         self._bind_epoll_fd_to_event_loop()
@@ -437,11 +447,12 @@ class Endpoint:
         self._closed = True
         logging.debug("Endpoint.close(): %s" % hex(self.uid))
 
-        cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)
+        cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
 
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
-                # TODO: make sure that a potential shutdown message isn't cancelled
+                # TODO: make sure that a potential shutdown
+                # message isn't cancelled
                 logging.debug("Future cancelling: %s" % msg['log'])
                 ucp_request_cancel(
                     worker,
@@ -449,7 +460,8 @@ class Endpoint:
                 )
 
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
+        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep,
+                                                       UCP_EP_CLOSE_MODE_FLUSH)
         if UCS_PTR_STATUS(status) != UCS_OK:
             assert not UCS_PTR_IS_ERR(status)
             # We spinlock here until `status` has finished

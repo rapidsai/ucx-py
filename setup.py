@@ -8,14 +8,13 @@ from __future__ import absolute_import, print_function
 import os
 from distutils.util import strtobool
 
+import versioneer
 from setuptools import setup
-from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext as _build_ext
+from setuptools.extension import Extension
 
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
-
-import versioneer
 
 
 class build_ext(_build_ext):

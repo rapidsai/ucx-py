@@ -1,11 +1,12 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import ucp
-import time
 import argparse
 import asyncio
 import concurrent.futures
+import time
+
+import ucp
 
 accept_cb_started = False
 new_client_ep = None
