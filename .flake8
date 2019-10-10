@@ -1,5 +1,5 @@
 [flake8]
-ignore = E901,E225,E226,E227,E999
+ignore = E901,E225,E226,E227,E999,E203
 exclude =
     .eggs,
     *.egg,
