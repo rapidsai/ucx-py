@@ -1,6 +1,4 @@
 import os
-import pytest
-import subprocess
 
 normal_env = {
     "UCX_RNDV_SCHEME": "put_zcopy",

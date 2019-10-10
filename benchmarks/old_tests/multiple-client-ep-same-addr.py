@@ -19,13 +19,14 @@
 # wrapped in strings (to workaround contiguous memory requirement) or
 # strings wrapped in bytes object
 
-import ucp
-import time
 import argparse
 import asyncio
+import concurrent.futures
 import socket
 import sys
-import concurrent.futures
+import time
+
+import ucp
 
 max_msg_log = 2
 count = 0

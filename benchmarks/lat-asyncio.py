@@ -4,11 +4,12 @@
 # Description: Check latency between client and server. Execution
 # command must specify if the benchmark is run intra-node.
 
-import ucp
-import time
 import argparse
 import asyncio
 import concurrent.futures
+import time
+
+import ucp
 
 accept_cb_started = False
 new_client_ep = None

@@ -1,7 +1,7 @@
-import os
 import asyncio
-import pytest
 import sys
+
+import pytest
 import ucp
 
 np = pytest.importorskip("numpy")
@@ -18,13 +18,14 @@ def make_echo_server(create_empty_data=None):
     import numpy as np
 
     if create_empty_data is None:
-        create_empty_data = lambda n: np.empty(n, dtype=np.uint8)
+        create_empty_data = lambda n: np.empty(n, dtype=np.uint8)  # noqa
 
     async def echo_server(ep):
         """
         Basic echo server for sized messages.
         We expect the other endpoint to follow the pattern::
-        >>> await ep.send(msg_size, np.uint64().nbytes)  # size of the real message (in bytes)
+        # size of the real message (in bytes)
+        >>> await ep.send(msg_size, np.uint64().nbytes)
         >>> await ep.send(msg, msg_size)       # send the real message
         >>> await ep.recv(responds, msg_size)  # receive the echo
         """

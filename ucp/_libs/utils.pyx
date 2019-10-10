@@ -61,8 +61,10 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
     if hasattr(buffer, "__cuda_array_interface__"):
         iface = buffer.__cuda_array_interface__
         if not cuda_support:
-            raise ValueError("UCX is not configured with CUDA support, please add "
-                    "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment variable")
+            msg = "UCX is not configured with CUDA support, please add " \
+                  "`cuda_copy` and/or `cuda_ipc` to " \
+                  "the UCX_TLS environment variable"
+            raise ValueError(msg)
     elif hasattr(buffer, "__array_interface__"):
         iface = buffer.__array_interface__
 
@@ -76,7 +78,8 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         if len(shape) > 0 and iface.get("strides", None) is not None:
             strides = [int(s) for s in iface['strides']]
             if len(strides) != len(shape):
-                raise ValueError("The length of shape and strides must be equal")
+                msg = "The length of shape and strides must be equal"
+                raise ValueError(msg)
             s = itemsize
             for i in reversed(range(len(shape))):
                 if s != strides[i]:

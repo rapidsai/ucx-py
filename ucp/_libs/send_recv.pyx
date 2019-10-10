@@ -55,7 +55,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer, check_writable=False))
+    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
+                                       check_writable=False))
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
                                                    data,
                                                    nbytes,
@@ -82,7 +83,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         msg += (<object> ucs_status_string(status)).decode("utf-8")
         future.set_exception(UCXError(msg))
     elif info.length != req.expected_receive:
-        msg += "length mismatch: %d != %d" % (info.length, req.expected_receive)
+        msg += "length mismatch: %d != %d" % (info.length,
+                                              req.expected_receive)
         future.set_exception(UCXError(msg))
     else:
         future.set_result(True)
@@ -93,7 +95,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
 
 def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
     cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(ucp_worker)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer, check_writable=True))
+    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
+                                       check_writable=True))
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker,
                                                    data,
                                                    nbytes,
@@ -107,7 +110,8 @@ def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
 
 def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer, check_writable=False))
+    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
+                                       check_writable=False))
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
                                                       data,
                                                       nbytes,
@@ -118,7 +122,8 @@ def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t length):
+cdef void _stream_recv_callback(void *request, ucs_status_t status,
+                                size_t length):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         req.finished = True
@@ -144,7 +149,8 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status, size_t lengt
 
 def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer, check_writable=True))
+    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
+                                       check_writable=True))
     cdef size_t length
     cdef ucp_request *req
     cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep,

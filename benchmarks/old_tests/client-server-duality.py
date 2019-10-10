@@ -14,11 +14,12 @@
 # 4. The process runs both (coro_server, coro_client) to completion
 
 
-import ucp
-import time
 import argparse
 import asyncio
 import concurrent.futures
+import time
+
+import ucp
 
 max_msg_log = 23
 

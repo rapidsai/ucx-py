@@ -7,7 +7,7 @@ Sample run:
 ===========
 
 server:
-python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 
+python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337
 
 client:
 python3 benchmarks/recv-into-client.py -r recv_into -o cupy --n-bytes 1000Mb -p 13337 -s A.B.C.D
@@ -29,11 +29,11 @@ inc      | False
 """
 import argparse
 import asyncio
-from distributed.utils import format_bytes, parse_bytes
 from time import perf_counter as clock
 
-import ucp
+from distributed.utils import format_bytes, parse_bytes
 
+import ucp
 
 ucp.init()
 

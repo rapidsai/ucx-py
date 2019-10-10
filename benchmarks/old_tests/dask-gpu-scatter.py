@@ -15,10 +15,11 @@ Took 2.00s
 import argparse
 from time import perf_counter as clock
 
-import cupy
 import dask
 from distributed import Client, wait
 from distributed.utils import format_bytes
+
+import cupy
 
 
 def parse_args(args=None):
