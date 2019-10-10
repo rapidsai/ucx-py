@@ -1,19 +1,19 @@
 import asyncio
 import multiprocessing
 import os
+import pickle
 import struct
 import time
 
-import cloudpickle
-import pickle
 import dask.dataframe as dd
-import numpy as np
-import pytest
 from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import log_errors, nbytes
-import rmm
 
+import cloudpickle
+import numpy as np
+import pytest
+import rmm
 import ucp
 from utils import more_than_two_gpus
 
@@ -25,10 +25,7 @@ cuda_array = lambda n: rmm.device_array(n, dtype=np.uint8)
 
 async def get_ep(name, port):
     addr = ucp.get_address()
-    print(addr)
-    print("IN GET EP: ", port)
     ep = await ucp.create_endpoint(addr, port)
-    print(name, ep)
     return ep
 
 
@@ -92,13 +89,6 @@ def client(env, port, func):
         await ep.send(close_msg)
 
         print("Shutting Down Client...")
-        # try:
-        #     await ep.signal_shutdown()
-        #     ep.close()
-        # except ucp.exceptions.UCXCloseError:
-        #     pass
-        # ucp.destroy_ep(ep)
-        # ucp.fin()
         return msg["data"]
 
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
@@ -172,11 +162,10 @@ def server(env, port, func):
             await ep.recv(msg)
             recv_msg = msg.tobytes()
             assert recv_msg == close_msg
-            # try:
+            print("Shutting Down Server...")
             await ep.signal_shutdown()
             ep.close()
             lf.close()
-            print("Shutting Down Server...")
 
         lf = ucp.create_listener(write, port=listener_port)
         try:
@@ -193,7 +182,7 @@ def dataframe():
     import cudf
     import numpy as np
 
-    size = 2 ** 15
+    size = 2 ** 26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -221,22 +210,19 @@ def empty_dataframe():
 def cupy():
     import cupy
 
-    return cupy.arange(10000)
-
-
-def raise_error():
-    raise Exception
+    size = 2 ** 26
+    return cupy.arange(size)
 
 
 @pytest.mark.skipif(
     not more_than_two_gpus, reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
-    "cuda_obj_generator",
-    [dataframe, column, empty_dataframe, series, cupy, raise_error],
+    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
 )
 def test_send_recv_cudf(cuda_obj_generator):
     import os
+
     base_env = os.environ
     env1 = base_env.copy()
     env2 = base_env.copy()
@@ -246,7 +232,7 @@ def test_send_recv_cudf(cuda_obj_generator):
     # serialize function and send to the client and server
     # server will use the return value of the contents,
     # serialize the values, then send serialized values to client.
-    # client will compare return values the deserialize the
+    # client will compare return values of the deserialized
     # data sent from the server
 
     func = cloudpickle.dumps(cuda_obj_generator)
