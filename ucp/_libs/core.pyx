@@ -106,6 +106,7 @@ def asyncio_handle_exception(loop, context):
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
+    from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
     #       get_exception_handler() is set.
@@ -114,23 +115,15 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     if loop.get_exception_handler() is None:
         loop.set_exception_handler(asyncio_handle_exception)
 
-    # Get the tags from the client and create a new Endpoint
+    # Get the tags from the client and create a new _Endpoint
     cdef Tags tags
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags.msg_tag, tags.ctrl_tag)
+    ep = _Endpoint(ucp_endpoint, ucp_worker, config, tags.msg_tag, tags.ctrl_tag)
 
     logging.debug("listener_handler() server: %s, msg-tag: %s, ctrl-tag: %s" %(
         hex(<size_t>ucp_endpoint), hex(ep._msg_tag), hex(ep._ctrl_tag))
     )
-
-    # Call `func` asynchronously (even if it isn't coroutine)
-    if asyncio.iscoroutinefunction(func):
-        func_fut = func(ep)
-    else:
-        async def _func(ep):  # coroutine wrapper
-            await func(ep)
-        func_fut = _func(ep)
 
     # Initiate the shutdown receive
     cdef uint64_t shutdown_msg
@@ -142,12 +135,22 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
                             shutdown_msg_mv.nbytes,
                             ep._ctrl_tag,
                             pending_msg=ep.pending_msg_list[-1])
+    ep = Endpoint(ep)
 
     def _close(future):
         logging.debug(log)
         if not ep.closed():
             ep.close()
     shutdown_fut.add_done_callback(_close)
+
+    # Call `func` asynchronously (even if it isn't coroutine)
+    if asyncio.iscoroutinefunction(func):
+        func_fut = func(ep)
+    else:
+        async def _func(ep):  # coroutine wrapper
+            func(ep)
+        func_fut = _func(ep)
+
     await func_fut
 
 
@@ -308,6 +311,7 @@ cdef class ApplicationContext:
         return ret
 
     async def create_endpoint(self, str ip_address, port):
+        from ..public_api import Endpoint
         self._bind_epoll_fd_to_event_loop()
 
         cdef ucp_ep_params_t params
@@ -324,34 +328,35 @@ cdef class ApplicationContext:
                           "ctrl_tag": hash(uuid.uuid4())}
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
 
-        ret = Endpoint(
+        ep = _Endpoint(
             PyLong_FromVoidPtr(<void*> ucp_ep),
             PyLong_FromVoidPtr(<void*> self.worker),
             self.config,
             tags.msg_tag,
             tags.ctrl_tag,
         )
-        await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
+        await stream_send(ep._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         # Initiate the shutdown receive
         cdef uint64_t shutdown_msg
         cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ret.uid), hex(ret._ctrl_tag))
-        ret.pending_msg_list.append({'log': log})
+        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag))
+        ep.pending_msg_list.append({'log': log})
         shutdown_fut = tag_recv(
             PyLong_FromVoidPtr(<void*>self.worker),
             shutdown_msg_mv,
             shutdown_msg_mv.nbytes,
-            ret._ctrl_tag,
-            pending_msg=ret.pending_msg_list[-1]
+            ep._ctrl_tag,
+            pending_msg=ep.pending_msg_list[-1]
         )
+        ep = Endpoint(ep)
 
         def _close(future):
             logging.debug(log)
-            if not ret.closed():
-                ret.close()
+            if not ep.closed():
+                ep.close()
         shutdown_fut.add_done_callback(_close)
-        return ret
+        return ep
 
     cdef _progress(self):
         while ucp_worker_progress(self.worker) != 0:
@@ -373,11 +378,11 @@ cdef class ApplicationContext:
         return self.config
 
 
-class Endpoint:
+class _Endpoint:
     """An endpoint represents a connection to a peer
 
     Please use `create_listener()` and `create_endpoint()`
-    to create an Endpoint.
+    to create an _Endpoint.
     """
 
     def __init__(self, ucp_endpoint, ucp_worker, config, msg_tag, ctrl_tag):
@@ -389,7 +394,7 @@ class Endpoint:
         self._send_count = 0
         self._recv_count = 0
         self._closed = False
-        self.pending_msg_list = [{}]
+        self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS
         self._cuda_support = "cuda" in config['TLS']
 
@@ -405,7 +410,7 @@ class Endpoint:
         To do that, use `.close()` or del the object.
         """
         if self._closed:
-            raise UCXCloseError("signal_shutdown() - Endpoint closed")
+            raise UCXCloseError("signal_shutdown() - _Endpoint closed")
 
         # Send a shutdown message to the peer
         cdef uint64_t msg = 42
@@ -431,9 +436,9 @@ class Endpoint:
         To do that, use `.signal_shutdown()` or del the object.
         """
         if self._closed:
-            raise UCXCloseError("close() - Endpoint closed")
+            raise UCXCloseError("close() - _Endpoint closed")
         self._closed = True
-        logging.debug("Endpoint.close(): %s" % hex(self.uid))
+        logging.debug("_Endpoint.close(): %s" % hex(self.uid))
 
         cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
 
@@ -475,7 +480,7 @@ class Endpoint:
             Number of bytes to send. Default is the whole buffer.
         """
         if self._closed:
-            raise UCXCloseError("send() - Endpoint closed")
+            raise UCXCloseError("send() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -504,7 +509,7 @@ class Endpoint:
             Number of bytes to receive. Default is the whole buffer.
         """
         if self._closed:
-            raise UCXCloseError("recv() - Endpoint closed")
+            raise UCXCloseError("recv() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -524,7 +529,7 @@ class Endpoint:
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
         if self._closed:
-            raise UCXCloseError("pprint_ep() - Endpoint closed")
+            raise UCXCloseError("pprint_ep() - _Endpoint closed")
 
         # Making `ucp_ep_print_info()` write into a memstream,
         # convert it to a Python string, clean up, and return string.
