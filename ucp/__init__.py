@@ -12,13 +12,13 @@ from .exceptions import UCXWarning
 from .public_api import *  # noqa
 from .utils import get_address  # noqa
 
+logger = logging.getLogger("ucx")
+
 # Notice, if we have to update environment variables
 # we need to do it before importing UCX
 if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
     # See <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>
-    warnings.warn(
-        "Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX", UCXWarning
-    )
+    logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
 # Set the root logger before importing modules that use it
