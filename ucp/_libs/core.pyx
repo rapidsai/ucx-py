@@ -379,10 +379,9 @@ cdef class ApplicationContext:
 
 
 class _Endpoint:
-    """An endpoint represents a connection to a peer
+    """This represents the private part of a Endpoint
 
-    Please use `create_listener()` and `create_endpoint()`
-    to create an _Endpoint.
+    See <..public_api.Endpoint> for documentation
     """
 
     def __init__(self, ucp_endpoint, ucp_worker, config, msg_tag, ctrl_tag):
@@ -400,15 +399,9 @@ class _Endpoint:
 
     @property
     def uid(self):
-        """The unique ID of the endpoint"""
         return self._ucp_endpoint
 
     async def signal_shutdown(self):
-        """Signal the connected peer to shutdown.
-
-        Notice, this functions doesn't close the endpoint.
-        To do that, use `.close()` or del the object.
-        """
         if self._closed:
             raise UCXCloseError("signal_shutdown() - _Endpoint closed")
 
@@ -426,15 +419,9 @@ class _Endpoint:
         )
 
     def closed(self):
-        """Is this endpoint closed?"""
         return self._closed
 
     def close(self):
-        """Close this endpoint.
-
-        Notice, this functions doesn't signal the connected peer to shutdown
-        To do that, use `.signal_shutdown()` or del the object.
-        """
         if self._closed:
             raise UCXCloseError("close() - _Endpoint closed")
         self._closed = True
@@ -469,16 +456,6 @@ class _Endpoint:
             self.close()
 
     async def send(self, buffer, nbytes=None):
-        """Send `buffer` to connected peer.
-
-        Parameters
-        ----------
-        buffer: exposing the buffer protocol or array/cuda interface
-            The buffer to send. Raise ValueError if buffer is smaller
-            than nbytes.
-        nbytes: int, optional
-            Number of bytes to send. Default is the whole buffer.
-        """
         if self._closed:
             raise UCXCloseError("send() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
@@ -498,16 +475,6 @@ class _Endpoint:
         )
 
     async def recv(self, buffer, nbytes=None):
-        """Receive from connected peer into `buffer`.
-
-        Parameters
-        ----------
-        buffer: exposing the buffer protocol or array/cuda interface
-            The buffer to receive into. Raise ValueError if buffer
-            is smaller than nbytes or read-only.
-        nbytes: int, optional
-            Number of bytes to receive. Default is the whole buffer.
-        """
         if self._closed:
             raise UCXCloseError("recv() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
@@ -527,7 +494,6 @@ class _Endpoint:
         )
 
     def ucx_info(self):
-        """Return low-level UCX info about this endpoint as a string"""
         if self._closed:
             raise UCXCloseError("pprint_ep() - _Endpoint closed")
 
@@ -546,5 +512,4 @@ class _Endpoint:
         return py_text.decode()
 
     def cuda_support(self):
-        """Return whether UCX is configured with CUDA support or not"""
         return self._cuda_support
