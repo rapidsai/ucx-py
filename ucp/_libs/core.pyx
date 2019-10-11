@@ -175,36 +175,21 @@ cdef void ucp_request_init(void* request):
     req.expected_receive = 0
 
 
-cdef class Listener:
+cdef class _Listener:
+    """This represents the private part of Listener
+
+    See <..public_api.Listener> for documentation
+    """
     cdef:
         cdef ucp_listener_h _ucp_listener
         cdef _listener_callback_args _cb_args
         cdef uint16_t _port
-        cdef bint _closed
 
-    def __cinit__(self):
-        # In order to prevent calling ucp_listener_destroy() on a
-        # initialized Listener, we flag the instance as closed
-        # initially.
-        self._closed = True
-
-    @property
-    def closed(self):
-        return self._closed
-
-    @property
     def port(self):
         return self._port
 
-    def __dealloc__(self):
-        if not self._closed:
-            ucp_listener_destroy(self._ucp_listener)
-
-    def close(self):
-        """Closing the listener"""
-        if not self._closed:
-            ucp_listener_destroy(self._ucp_listener)
-        self._closed = True
+    def destroy(self):
+        ucp_listener_destroy(self._ucp_listener)
 
 
 cdef class ApplicationContext:
@@ -277,6 +262,7 @@ cdef class ApplicationContext:
             ucp_cleanup(self.context)
 
     def create_listener(self, callback_func, port=None):
+        from ..public_api import Listener
         self._bind_epoll_fd_to_event_loop()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
@@ -285,7 +271,7 @@ cdef class ApplicationContext:
             port = s.getsockname()[1]
             s.close()
 
-        ret = Listener()
+        ret = _Listener()
         ret._port = port
 
         ret._cb_args.ucp_worker = self.worker
@@ -307,8 +293,7 @@ cdef class ApplicationContext:
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
-        ret._closed = False  # The Listener was successfully created
-        return ret
+        return Listener(ret)
 
     async def create_endpoint(self, str ip_address, port):
         from ..public_api import Endpoint
@@ -379,7 +364,7 @@ cdef class ApplicationContext:
 
 
 class _Endpoint:
-    """This represents the private part of a Endpoint
+    """This represents the private part of Endpoint
 
     See <..public_api.Endpoint> for documentation
     """

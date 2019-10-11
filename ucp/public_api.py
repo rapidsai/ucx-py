@@ -140,11 +140,42 @@ def reset():
     _ctx = None
 
 
+class Listener:
+    """A handle to the listening service started by `create_listener()`
+
+    The listening continues as long as this object exist or `.close()` is called.
+    Please use `create_listener()` to create an Listener.
+    """
+
+    def __init__(self, backend):
+        self._b = backend
+        self._closed = False
+
+    def __del__(self):
+        if not self.closed():
+            self.close()
+
+    def closed(self):
+        """Is the listener closed?"""
+        return self._closed
+
+    @property
+    def port(self):
+        """The network point listening on"""
+        return self._b.port()
+
+    def close(self):
+        """Closing the listener"""
+        if not self._closed:
+            self._b.destroy()
+            self._closed = True
+
+
 class Endpoint:
     """An endpoint represents a connection to a peer
 
     Please use `create_listener()` and `create_endpoint()`
-    to create an _Endpoint.
+    to create an Endpoint.
     """
 
     def __init__(self, ep):
