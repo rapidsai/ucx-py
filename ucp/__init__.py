@@ -23,7 +23,7 @@ if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
 
 # Set the root logger before importing modules that use it
 _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
-logging.basicConfig(level=_level_enum, format="[UCX/%(levelname)s] %(message)s")
+logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
 
 
 __version__ = get_versions()["version"]
