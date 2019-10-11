@@ -88,6 +88,12 @@ cdef struct _listener_callback_args:
     PyObject *py_func
 
 
+# The tags used when send/recv messages
+cdef struct Tags:
+    uint64_t msg_tag
+    uint64_t ctrl_tag
+
+
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     if isinstance(msg, UCXCanceled):
@@ -365,12 +371,6 @@ cdef class ApplicationContext:
 
     def get_config(self):
         return self.config
-
-
-# The tags used when send/recv messages
-cdef struct Tags:
-    uint64_t msg_tag
-    uint64_t ctrl_tag
 
 
 class Endpoint:
