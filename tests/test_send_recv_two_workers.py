@@ -45,7 +45,7 @@ def client(env, port, func):
     # must create context before importing
     # cudf/cupy/etc
     create_cuda_context()
-    # before_rx, before_tx = total_nvlink_transfer()
+    before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
         await asyncio.sleep(2)
@@ -93,13 +93,12 @@ def client(env, port, func):
     # nvlink only measures in KBs
     num_bytes = nbytes(rx_cuda_obj)
     print(f"TOTAL DATA: {num_bytes}")
-    # if num_bytes > 1000:
-    #     rx, tx = total_nvlink_transfer()
-    #     print(
-    #         f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} --
-    # TOTAL DATA: {num_bytes}"
-    #     )
-    #     assert rx > before_rx
+    if num_bytes > 1000:
+        rx, tx = total_nvlink_transfer()
+        msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
+               -- TOTAL DATA: {num_bytes}"
+        print(msg)
+        assert rx > before_rx
 
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
@@ -269,7 +268,7 @@ def total_nvlink_transfer():
     rx = 0
     tx = 0
     for i in range(nlinks):
-        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 1)
+        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
         rx += transfer["rx"]
         tx += transfer["tx"]
     return rx, tx
