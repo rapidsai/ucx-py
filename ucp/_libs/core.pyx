@@ -498,3 +498,9 @@ class _Endpoint:
 
     def cuda_support(self):
         return self._cuda_support
+
+    def get_ucp_worker(self):
+        return self._ucp_worker
+
+    def get_ucp_endpoint(self):
+        return self._ucp_endpoint

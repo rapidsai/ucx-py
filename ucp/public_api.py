@@ -243,3 +243,15 @@ class Endpoint:
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
         return self._ep._cuda_support
+
+    def get_ucp_worker(self):
+        """Returns the underlying UCP worker handle (ucp_worker_h)
+        as a Python integer.
+        """
+        return self._ucp_worker
+
+    def get_ucp_endpoint(self):
+        """Returns the underlying UCP endpoint handle (ucp_ep_h)
+        as a Python integer.
+        """
+        return self._ucp_endpoint
