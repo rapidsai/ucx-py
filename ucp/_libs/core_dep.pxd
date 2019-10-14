@@ -236,4 +236,5 @@ cdef extern from "sys/epoll.h":
 cdef struct ucp_request:
     bint finished
     PyObject *future
+    PyObject *log_str
     size_t expected_receive

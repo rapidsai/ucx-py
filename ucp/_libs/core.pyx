@@ -216,6 +216,7 @@ cdef void ucp_request_init(void* request):
     cdef ucp_request *req = <ucp_request*> request
     req.finished = False
     req.future = NULL
+    req.log_str = NULL
     req.expected_receive = 0
 
 
