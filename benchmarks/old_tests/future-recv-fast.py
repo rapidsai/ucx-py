@@ -17,13 +17,15 @@
 # 2. When connection is established, first recv and then send `Message`
 #    object to and from server respectively
 
-import ucp
-import time
 import argparse
 import asyncio
 import concurrent.futures
+import time
+
+import ucp
 
 max_msg_log = 23
+
 
 async def talk_to_client(ep):
 
@@ -72,6 +74,7 @@ async def talk_to_client(ep):
 
     print("passed talk_to_client")
     ucp.stop_listener()
+
 
 async def talk_to_server(ip, port):
 
@@ -124,11 +127,16 @@ async def talk_to_server(ip, port):
 
     print("passed talk_to_server")
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--server', help='enter server ip', required=False)
-parser.add_argument('-p','--port', help='enter server port number', required=False)
-parser.add_argument('-b','--blind_recv', help='Use blind recv. Default = False', action="store_true")
-parser.add_argument('-f','--use_fast', help='Use fast send/recv. Default = False', action="store_true")
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", required=False)
+parser.add_argument(
+    "-b", "--blind_recv", help="Use blind recv. Default = False", action="store_true"
+)
+parser.add_argument(
+    "-f", "--use_fast", help="Use fast send/recv. Default = False", action="store_true"
+)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -144,7 +152,7 @@ ucp.init()
 loop = asyncio.get_event_loop()
 # coro points to either client or server-side coroutine
 if server:
-    coro = ucp.start_listener(talk_to_client, is_coroutine = True)
+    coro = ucp.start_listener(talk_to_client, is_coroutine=True)
 else:
     coro = talk_to_server(init_str.encode(), int(args.port))
 

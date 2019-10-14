@@ -1,9 +1,11 @@
 import asyncio
+
 import ucp
 
 
 async def handler(ep):
     pass
+
 
 async def spin():
     while True:

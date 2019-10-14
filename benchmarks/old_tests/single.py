@@ -1,43 +1,41 @@
-import asyncio
 import argparse
+import asyncio
 import sys
+
 import ucp
 
-client_msg = b'hi'
-server_msg = b'ih'
+client_msg = b"hi"
+server_msg = b"ih"
 
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "host",
-        help="Host to use for the connection. Like 10.33.225.160"
+        "host", help="Host to use for the connection. Like 10.33.225.160"
     )
     parser.add_argument(
-        '--message',
-        action='store_const',
+        "--message",
+        action="store_const",
         default=True,
         const=True,
-        dest='message',
-        help="Whether to send messages, or just connect and close."
+        dest="message",
+        help="Whether to send messages, or just connect and close.",
     )
     parser.add_argument(
-        '--no-message',
-        action='store_const',
+        "--no-message",
+        action="store_const",
         const=False,
-        dest='message',
-        help="Whether to send messages, or just connect and close."
+        dest="message",
+        help="Whether to send messages, or just connect and close.",
     )
     parser.add_argument(
-        '-t', '--type',
-        choices=['bytes', 'memoryview'],
-        default='bytes'
+        "-t", "--type", choices=["bytes", "memoryview"], default="bytes"
     )
     return parser.parse_args(args)
 
 
-async def connect(host, port=13337, message=True, type_='bytes'):
-    if type_ == 'memoryview':
+async def connect(host, port=13337, message=True, type_="bytes"):
+    if type_ == "memoryview":
         box = memoryview
     else:
         box = bytes
@@ -47,7 +45,7 @@ async def connect(host, port=13337, message=True, type_='bytes'):
     if message:
         print("4. Client send")
         msg = box(client_msg)
-        await ep.send_obj(msg, name='connect-send')
+        await ep.send_obj(msg, name="connect-send")
 
         # resp = await ep.recv_future()
         size = len(client_msg)
@@ -59,7 +57,7 @@ async def connect(host, port=13337, message=True, type_='bytes'):
 
 
 def serve_wrapper(message, type_):
-    if type_ == 'memoryview':
+    if type_ == "memoryview":
         box = memoryview
     else:
         box = bytes
@@ -73,11 +71,12 @@ def serve_wrapper(message, type_):
             msg = ucp.get_obj_from_msg(msg)
             print("6. Server got message", bytes(msg).decode())
             # response = "Got: {}".format(server_msg.decode()).encode()
-            await ep.send_obj(box(server_msg), name='serve-send')
+            await ep.send_obj(box(server_msg), name="serve-send")
 
-        print('7. Stopping server')
+        print("7. Stopping server")
         ucp.destroy_ep(ep)
         ucp.stop_listener(lf)
+
     return serve
 
 
@@ -91,8 +90,9 @@ async def main(args=None):
     print("1. Calling connect")
     client = connect(host, port, message=message, type_=args.type)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(message, args.type),
-                                port, is_coroutine=True)
+    server = ucp.start_listener(
+        serve_wrapper(message, args.type), port, is_coroutine=True
+    )
     await asyncio.gather(server.coroutine, client)
     print("-" * 80)
 
@@ -100,10 +100,11 @@ async def main(args=None):
     print("1. Calling connect")
     client = connect(host, port, message, type_=args.type)
     print("2. Calling start_server")
-    server = ucp.start_listener(serve_wrapper(message, args.type),
-                                port, is_coroutine=True)
+    server = ucp.start_listener(
+        serve_wrapper(message, args.type), port, is_coroutine=True
+    )
     await asyncio.gather(server.coroutine, client)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

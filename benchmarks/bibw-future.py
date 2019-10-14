@@ -1,16 +1,18 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import ucp
-import time
 import argparse
 import concurrent.futures
+import time
+
+import ucp
 
 accept_cb_started = False
 new_client_ep = None
 max_msg_log = 23
 max_iters = 256
 window_size = 64
+
 
 def talk_to_client(client_ep):
 
@@ -24,7 +26,7 @@ def talk_to_client(client_ep):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
@@ -68,10 +70,10 @@ def talk_to_client(client_ep):
         end = time.time()
         lat = end - start
         bw = (iters * window_size * msg_len * 2) / lat
-        bw = bw / 1e9 #GB/s
+        bw = bw / 1e9  # GB/s
         print("{}\t\t{}".format(msg_len, bw))
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -81,6 +83,7 @@ def talk_to_client(client_ep):
     ucp.destroy_ep(client_ep)
     cb_not_done = False
     ucp.stop_server()
+
 
 def talk_to_server(ip, port):
 
@@ -95,7 +98,7 @@ def talk_to_server(ip, port):
     send_buffer_region = ucp.buffer_region()
     recv_buffer_region = ucp.buffer_region()
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.alloc_cuda(1 << msg_log)
         recv_buffer_region.alloc_cuda(1 << msg_log)
     else:
@@ -136,9 +139,9 @@ def talk_to_server(ip, port):
                         pending_list.remove(ft)
         end = time.time()
         lat = end - start
-        lat = ((lat/2) / iters)* 1000000
+        lat = ((lat / 2) / iters) * 1000000
 
-    if args.mem_type == 'cuda':
+    if args.mem_type == "cuda":
         send_buffer_region.free_cuda()
         recv_buffer_region.free_cuda()
     else:
@@ -147,11 +150,14 @@ def talk_to_server(ip, port):
 
     ucp.destroy_ep(server_ep)
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--server', help='enter server ip', required=False)
-parser.add_argument('-p','--port', help='enter server port number', required=False)
-parser.add_argument('-i','--intra_node', action='store_true')
-parser.add_argument('-m','--mem_type', help='host/cuda (default = host)', required=False)
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", required=False)
+parser.add_argument("-i", "--intra_node", action="store_true")
+parser.add_argument(
+    "-m", "--mem_type", help="host/cuda (default = host)", required=False
+)
 args = parser.parse_args()
 
 ## initiate ucp
@@ -168,7 +174,7 @@ ucp.init()
 if server:
     if args.intra_node:
         ucp.set_cuda_dev(1)
-    ucp.start_server(talk_to_client, is_coroutine = False)
+    ucp.start_server(talk_to_client, is_coroutine=False)
     while cb_not_done:
         ucp.progress()
 else:

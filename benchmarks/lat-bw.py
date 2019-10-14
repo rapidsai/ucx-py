@@ -1,10 +1,11 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import ucp
-import time
 import argparse
 import asyncio
+import time
+
+import ucp
 
 accept_cb_started = False
 new_client_ep = None
@@ -58,13 +59,16 @@ async def recv(ep, size, recv_obj=None):
 
 
 async def talk_to_client_async(ep, listener):
-    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)", "BW (GB/s)",
-                                  "Issue (us)", "Progress (us)"))
+    print(
+        "{}\t{}\t{}\t{}".format(
+            "Size (bytes)", "Latency (us)", "BW (GB/s)", "Issue (us)", "Progress (us)"
+        )
+    )
 
     for i in range(msg_log):
         msg_len = 2 ** i
-        send_obj = b'0' * msg_len
-        recv_obj = b'0' * msg_len
+        send_obj = b"0" * msg_len
+        recv_obj = b"0" * msg_len
 
         for j in range(warmup_iters):
             await ep.send_obj(send_obj)
@@ -78,23 +82,29 @@ async def talk_to_client_async(ep, listener):
 
         end = time.time()
         lat = end - start
-        print("{}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat, max_iters),
-                                              ((msg_len/(lat/2)) / 1000000)))
+        print(
+            "{}\t\t{:.2f}\t\t{:.2f}".format(
+                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1_000_000)
+            )
+        )
 
     ucp.destroy_ep(ep)
     ucp.stop_listener(listener)
 
 
 async def talk_to_server_async(ip, port):
-    print("{}\t{}\t{}\t{}".format("Size (bytes)", "Latency (us)", "BW (GB/s)",
-                                  "Issue (us)", "Progress (us)"))
+    print(
+        "{}\t{}\t{}\t{}".format(
+            "Size (bytes)", "Latency (us)", "BW (GB/s)", "Issue (us)", "Progress (us)"
+        )
+    )
 
     ep = ucp.get_endpoint(ip, port)
 
     for i in range(msg_log):
         msg_len = 2 ** i
-        send_obj = b'0' * msg_len
-        recv_obj = b'0' * msg_len
+        send_obj = b"0" * msg_len
+        recv_obj = b"0" * msg_len
 
         for j in range(warmup_iters):
             await recv(ep, msg_len, recv_obj)
@@ -108,23 +118,43 @@ async def talk_to_server_async(ip, port):
 
         end = time.time()
         lat = end - start
-        print("{}\t\t{:.2f}\t\t{:.2f}".format(msg_len, get_avg_us(lat, max_iters),
-                                              ((msg_len/(lat/2)) / 1000000)))
+        print(
+            "{}\t\t{:.2f}\t\t{:.2f}".format(
+                msg_len, get_avg_us(lat, max_iters), ((msg_len / (lat / 2)) / 1_000_000)
+            )
+        )
 
     print("past iters")
     ucp.destroy_ep(ep)
     print("past ep destroy")
 
+
 parser = argparse.ArgumentParser()
-parser.add_argument('-s', '--server', help='enter server ip', required=False)
-parser.add_argument('-p', '--port', help='enter server port number', default=13337)
-parser.add_argument('-i', '--intra_node', action='store_true')
-parser.add_argument('-m', '--mem_type', help='host/cuda (default = host)', required=False)
-parser.add_argument('-a', '--use_asyncio', help='use asyncio execution (default = false)', action="store_true")
+parser.add_argument("-s", "--server", help="enter server ip", required=False)
+parser.add_argument("-p", "--port", help="enter server port number", default=13337)
+parser.add_argument("-i", "--intra_node", action="store_true")
+parser.add_argument(
+    "-m", "--mem_type", help="host/cuda (default = host)", required=False
+)
+parser.add_argument(
+    "-a",
+    "--use_asyncio",
+    help="use asyncio execution (default = false)",
+    action="store_true",
+)
 # parser.add_argument('-f', '--use_fast', help='use fast send/recv (default = false)', action="store_true")
-parser.add_argument('-b', '--blind_recv', help='use blind recv (default = false)', action="store_true")
-parser.add_argument('-r', '--recv_into', help='use recv_into (default = false)', action="store_true")
-parser.add_argument('-w', '--wait', help='wait after every send/recv (default = false)', action="store_true")
+parser.add_argument(
+    "-b", "--blind_recv", help="use blind recv (default = false)", action="store_true"
+)
+parser.add_argument(
+    "-r", "--recv_into", help="use recv_into (default = false)", action="store_true"
+)
+parser.add_argument(
+    "-w",
+    "--wait",
+    help="wait after every send/recv (default = false)",
+    action="store_true",
+)
 args = parser.parse_args()
 
 # initiate ucp
