@@ -109,7 +109,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     if loop.get_exception_handler() is None:
         loop.set_exception_handler(asyncio_handle_exception)
 
-    # Get the tags from the client and create a new _Endpoint
+    # Get the tags from the client and create a new Endpoint
     cdef Tags tags
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
@@ -126,8 +126,9 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         ctrl_tag_recv=tags.ctrl_tag+1
     )
 
-    logging.debug("listener_handler() server: %s, msg-tag-send: %s, "
-                  "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+    logging.debug(
+        "listener_handler() server: %s, msg-tag-send: %s, "
+        "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
             hex(<size_t>ucp_endpoint),
             hex(ep._msg_tag_send),
             hex(ep._msg_tag_recv),
@@ -135,6 +136,14 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
             hex(ep._ctrl_tag_recv)
         )
     )
+
+    # Call `func` asynchronously (even if it isn't coroutine)
+    if asyncio.iscoroutinefunction(func):
+        func_fut = func(ep)
+    else:
+        async def _func(ep):  # coroutine wrapper
+            await func(ep)
+        func_fut = _func(ep)
 
     # Initiate the shutdown receive
     cdef uint64_t shutdown_msg
@@ -155,15 +164,6 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         if not ep.closed():
             ep.close()
     shutdown_fut.add_done_callback(_close)
-
-    # Call `func` asynchronously (even if it isn't coroutine)
-    if asyncio.iscoroutinefunction(func):
-        func_fut = func(ep)
-    else:
-        async def _func(ep):  # coroutine wrapper
-            func(ep)
-        func_fut = _func(ep)
-
     await func_fut
 
 
@@ -340,7 +340,7 @@ cdef class ApplicationContext:
         await stream_send(ep._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
-                    "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+                      "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
                 hex(ep._ucp_endpoint),
                 hex(ep._msg_tag_send),
                 hex(ep._msg_tag_recv),
@@ -391,6 +391,12 @@ cdef class ApplicationContext:
 
     def get_config(self):
         return self.config
+
+
+# The tags used when send/recv messages
+cdef struct Tags:
+    uint64_t msg_tag
+    uint64_t ctrl_tag
 
 
 class _Endpoint:
