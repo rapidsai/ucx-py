@@ -5,10 +5,8 @@
 
 import logging
 import os
-import warnings
 
 from ._version import get_versions
-from .exceptions import UCXWarning
 from .public_api import *  # noqa
 from .utils import get_address  # noqa
 
