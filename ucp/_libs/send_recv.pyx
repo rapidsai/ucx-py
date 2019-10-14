@@ -155,8 +155,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         future.set_exception(UCXError(msg))
     elif length != req.expected_receive:
         msg += "length mismatch: %d (got) != %d (expected)" % (
-           length, req.expected_receive
-        )
+            length, req.expected_receive)
         future.set_exception(UCXError(msg))
     else:
         future.set_result(True)
