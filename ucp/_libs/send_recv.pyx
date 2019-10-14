@@ -25,7 +25,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.expected_receive = 0
         else:
             Py_INCREF(ret)
-            req.future = <void*> ret
+            req.future = <PyObject*> ret
             req.expected_receive = expected_receive
             if pending_msg is not None:
                 pending_msg['future'] = ret
