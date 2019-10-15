@@ -27,7 +27,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
         ret.set_exception(UCXError(msg))
     else:
         req = <ucp_request*> status
-        if req.finished:
+        if req.finished:  # The callback function has already handle the request
             ret.set_result(True)
             req.finished = False
             req.future = NULL
