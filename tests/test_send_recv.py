@@ -49,7 +49,7 @@ def handle_exception(loop, context):
 async def test_send_recv_bytes(size):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
 
-    msg = b"message in bytes"
+    msg = b"m"*size
     msg_size = np.array([len(msg)], dtype=np.uint64)
 
     listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
