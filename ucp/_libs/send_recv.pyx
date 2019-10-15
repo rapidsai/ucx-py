@@ -19,16 +19,22 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
         log_str = None
 
     ret = asyncio.get_event_loop().create_future()
+    msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
     elif UCS_PTR_IS_ERR(status):
-        msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
         msg += (<object> ucs_status_string(UCS_PTR_STATUS(status))).decode("utf-8")
         ret.set_exception(UCXError(msg))
     else:
         req = <ucp_request*> status
         if req.finished:  # The callback function has already handle the request
-            ret.set_result(True)
+            if req.received != -1 and req.received != expected_receive:
+                msg += "length mismatch: %d (got) != %d (expected)" % (
+                    req.received, expected_receive
+                )
+                ret.set_exception(UCXError(msg))
+            else:
+                ret.set_result(True)
             ucp_request_reset(req)
         else:
             Py_INCREF(ret)
@@ -46,6 +52,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
+        # This callback function was called before ucp_tag_send_nb() returned
         req.finished = True
         return
     cdef object future = <object> req.future
@@ -83,7 +90,9 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
                              ucp_tag_recv_info_t *info):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
+        # This callback function was called before ucp_tag_recv_nb() returned
         req.finished = True
+        req.received = info.length
         return
     cdef object future = <object> req.future
     cdef object log_str = <object> req.log_str
@@ -139,7 +148,9 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
                                 size_t length):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
+        # This callback function was called before ucp_stream_recv_nb() returned
         req.finished = True
+        req.received = length
         return
     cdef object future = <object> req.future
     cdef object log_str = <object> req.log_str

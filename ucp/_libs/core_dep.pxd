@@ -238,6 +238,7 @@ cdef struct ucp_request:
     PyObject *future
     PyObject *log_str
     size_t expected_receive
+    int64_t received
 
 
 cdef inline void ucp_request_reset(void* request):
@@ -246,3 +247,4 @@ cdef inline void ucp_request_reset(void* request):
     req.future = NULL
     req.log_str = NULL
     req.expected_receive = 0
+    req.received = -1
