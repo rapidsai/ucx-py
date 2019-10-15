@@ -34,21 +34,21 @@ These three libraries provide a powerful combination of HPC message passing tool
 
 ### dask ###
 
-    git clone git@github.com:rapidsai/dask.git
+    git clone https://github.com/dask/dask.git
     cd dask
     pip install -e .
     cd ..
 
 ### dask distributed ###
 
-    git clone git@github.com:dask/distributed.git
+    git clone https://github.com:dask/distributed.git
     cd distributed
     pip install -e .
     cd ..
 
 ### dask-cuda ###
 
-    conda install -c rapidsai dask-cuda
+    conda install -c rapidsai-nightly dask-cuda
 
 ### conda-forge Dependencies ###
 
@@ -58,15 +58,11 @@ These three libraries provide a powerful combination of HPC message passing tool
 
     git clone https://github.com/openucx/ucx
     cd ucx
-    git remote add Akshay-Venkatesh git@github.com:Akshay-Venkatesh/ucx.git
-    git remote update Akshay-Venkatesh
-    git checkout ucx-cuda
     ./autogen.sh
     mkdir build
     cd build
-    ../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt --disable-cma CPPFLAGS="-I//$CUDA_HOME/include"
+    ../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I//$CUDA_HOME/include"
     make -j install
-    cd ../..
 
 ### ucx-py ###
 
