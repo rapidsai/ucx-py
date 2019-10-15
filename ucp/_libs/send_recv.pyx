@@ -13,9 +13,18 @@ from ..exceptions import UCXError, UCXCanceled
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     size_t expected_receive,
                                     pending_msg):
+    if pending_msg is not None:
+        log_str = pending_msg.get('log', None)
+    else:
+        log_str = None
+
     ret = asyncio.get_event_loop().create_future()
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
+    elif UCS_PTR_IS_ERR(status):
+        msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+        msg += (<object> ucs_status_string(UCS_PTR_STATUS(status))).decode("utf-8")
+        ret.set_exception(UCXError(msg))
     else:
         req = <ucp_request*> status
         if req.finished:
@@ -32,9 +41,6 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
                 pending_msg['future'] = ret
                 pending_msg['ucp_request'] = PyLong_FromVoidPtr(<void*>req)
                 pending_msg['expected_receive'] = expected_receive
-                log_str = pending_msg.get('log', None)
-            else:
-                log_str = None
             Py_INCREF(log_str)
             req.log_str = <PyObject*> log_str
     return ret
@@ -74,7 +80,6 @@ def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
                                                    ucp_dt_make_contig(1),
                                                    tag,
                                                    _send_callback)
-    assert(not UCS_PTR_IS_ERR(status))
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -119,7 +124,6 @@ def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
                                                    tag,
                                                    -1,
                                                    _tag_recv_callback)
-    assert(not UCS_PTR_IS_ERR(status))
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -133,7 +137,6 @@ def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
                                                       ucp_dt_make_contig(1),
                                                       _send_callback,
                                                       0)
-    assert(not UCS_PTR_IS_ERR(status))
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -179,5 +182,4 @@ def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
                                                       _stream_recv_callback,
                                                       &length,
                                                       0)
-    assert(not UCS_PTR_IS_ERR(status))
     return create_future_from_comm_status(status, nbytes, pending_msg)
