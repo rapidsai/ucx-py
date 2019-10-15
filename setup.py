@@ -18,17 +18,9 @@ extra_compile_args = ["-std=c99"]
 
 
 class build_ext(_build_ext):
-    user_options = [
-        ("with-cuda", None, "build the Cuda extension")
-    ] + _build_ext.user_options
-
-    with_cuda = strtobool(os.environ.get("UCX_PY_WITH_CUDA", "0"))
+    user_options = [] + _build_ext.user_options
 
     def run(self):
-        if self.with_cuda:
-            module = ext_modules[0]
-            module.libraries.extend(["cuda", "cudart"])
-            module.extra_compile_args.append("-DUCX_PY_CUDA")
         _build_ext.run(self)
 
 
