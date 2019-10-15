@@ -61,7 +61,7 @@ These three libraries provide a powerful combination of HPC message passing tool
     ./autogen.sh
     mkdir build
     cd build
-    ../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt --disable-cma CPPFLAGS="-I//$CUDA_HOME/include"
+    ../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I//$CUDA_HOME/include"
     make -j install
 
 ### ucx-py ###
