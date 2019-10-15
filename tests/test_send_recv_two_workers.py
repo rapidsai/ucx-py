@@ -224,7 +224,8 @@ def test_send_recv_cudf(cuda_obj_generator):
     base_env = os.environ
     env1 = base_env.copy()
     env2 = base_env.copy()
-    env2["CUDA_VISIBLE_DEVICES"] = "1,0"
+    # reverse CVD for other worker
+    env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
 
     port = 15338
     # serialize function and send to the client and server
