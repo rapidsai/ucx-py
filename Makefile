@@ -7,17 +7,10 @@ CFLAGS  = "-I$(UCX_PATH)/include -I$(CUDA_PATH)/include"
 LDFLAGS = "-L$(UCX_PATH)/lib -L$(CUDA_PATH)/lib64"
 
 install:
-	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i --with-cuda
-	$(PYTHON) -m pip install -e .
-
-install-cpu:
 	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i
 	$(PYTHON) -m pip install -e .
 
 conda-install:
-	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i --with-cuda install
-
-conda-install-cpu:
 	LDFLAGS=$(LDFLAGS) CFLAGS=$(CFLAGS) $(PYTHON) setup.py build_ext -i install
 
 
