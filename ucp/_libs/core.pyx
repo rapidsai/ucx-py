@@ -341,11 +341,11 @@ cdef class ApplicationContext:
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
-                hex(ep._ucp_endpoint),
-                hex(ep._msg_tag_send),
-                hex(ep._msg_tag_recv),
-                hex(ep._ctrl_tag_send),
-                hex(ep._ctrl_tag_recv)
+                hex(ep._ucp_endpoint),  # noqa
+                hex(ep._msg_tag_send),  # noqa
+                hex(ep._msg_tag_recv),  # noqa
+                hex(ep._ctrl_tag_send), # noqa
+                hex(ep._ctrl_tag_recv)  # noqa
             )
         )
 
