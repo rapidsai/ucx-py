@@ -29,10 +29,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
         req = <ucp_request*> status
         if req.finished:  # The callback function has already handle the request
             ret.set_result(True)
-            req.finished = False
-            req.future = NULL
-            req.log_str = NULL
-            req.expected_receive = 0
+            ucp_request_reset(req)
         else:
             Py_INCREF(ret)
             req.future = <PyObject*> ret
@@ -64,9 +61,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
     else:
         future.set_result(True)
     Py_DECREF(future)
-    req.future = NULL
     Py_DECREF(log_str)
-    req.log_str = NULL
+    ucp_request_reset(request)
     ucp_request_free(request)
 
 
@@ -107,9 +103,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     else:
         future.set_result(True)
     Py_DECREF(future)
-    req.future = NULL
     Py_DECREF(log_str)
-    req.log_str = NULL
+    ucp_request_reset(request)
     ucp_request_free(request)
 
 
@@ -163,9 +158,8 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     else:
         future.set_result(True)
     Py_DECREF(future)
-    req.future = NULL
     Py_DECREF(log_str)
-    req.log_str = NULL
+    ucp_request_reset(request)
     ucp_request_free(request)
 
 
