@@ -282,6 +282,8 @@ cdef class ApplicationContext:
         cdef int ucp_epoll_fd
         status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
         assert_ucs_status(status)
+        status = ucp_worker_arm(self.worker)
+        assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
         cdef epoll_event ev
@@ -393,17 +395,25 @@ cdef class ApplicationContext:
         # Return the public Endpoint
         return pub_ep
 
-    cdef _progress(self):
+    def progress(self):
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def progress(self):
-        self._progress()
+    def _fd_reader_callback(self):
+        cdef ucs_status_t status
+        self.progress()
+        while True:
+            status = ucp_worker_arm(self.worker)
+            if status == UCS_ERR_BUSY:
+                self.progress()
+            else:
+                break
+        assert_ucs_status(status)
 
     def _bind_epoll_fd_to_event_loop(self):
         loop = asyncio.get_event_loop()
         if loop not in self.all_epoll_binded_to_event_loop:
-            loop.add_reader(self.epoll_fd, self.progress)
+            loop.add_reader(self.epoll_fd, self._fd_reader_callback)
             self.all_epoll_binded_to_event_loop.add(loop)
 
     def get_ucp_worker(self):
