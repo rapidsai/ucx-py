@@ -45,7 +45,7 @@ def handle_exception(loop, context):
 async def test_send_recv_bytes(size):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
 
-    msg = bytearray(b"m"*size)
+    msg = bytearray(b"m" * size)
     msg_size = np.array([len(msg)], dtype=np.uint64)
 
     listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
@@ -117,3 +117,18 @@ async def test_send_recv_numba(size, dtype):
     resp = cuda.device_array_like(msg)
     await client.recv(resp)
     np.testing.assert_array_equal(np.array(resp), np.array(msg))
+
+
+@pytest.mark.asyncio
+async def test_send_recv_error():
+    async def say_hey_server(ep):
+        await ep.send(bytearray(b"Hey"))
+
+    listener = ucp.create_listener(say_hey_server)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(100)
+    with pytest.raises(
+        ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
+    ):
+        await client.recv(msg)
