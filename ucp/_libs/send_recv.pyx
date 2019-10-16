@@ -38,6 +38,8 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             ucp_request_reset(req)
             ucp_request_free(req)
         else:
+            # The callback function has not been called yet.
+            # We fill `ucp_request` for the callback function to use
             Py_INCREF(ret)
             req.future = <PyObject*> ret
             req.expected_receive = expected_receive
