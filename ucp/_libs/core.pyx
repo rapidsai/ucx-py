@@ -111,8 +111,8 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
 
     # We create the Endpoint in three steps:
     #  1) Receiving tags from the client
-    #  2) Use tags to create the private part _Endpoint
-    #  3) Finally, create the public Endpoint based on _Endpoint
+    #  2) Use tags to create the private part of an endpoint
+    #  3) Create the public Endpoint based on _Endpoint
     cdef Tags tags
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
@@ -142,35 +142,19 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         )
     )
 
-    # Initiate the shutdown receive
-    cdef uint64_t shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-    log = "[Recv shutdown] ep: %s, tag: %s" % (
-        hex(ep.uid), hex(ep._ctrl_tag_recv)
-    )
-    ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(ucp_worker,
-                            shutdown_msg_mv,
-                            shutdown_msg_mv.nbytes,
-                            ep._ctrl_tag_recv,
-                            pending_msg=ep.pending_msg_list[-1])
     # Create the public Endpoint
-    ep = Endpoint(ep)
+    pub_ep = Endpoint(ep)
 
-    # Make the "shutdown receive" close the Endpoint when is it finished
-    def _close(future):
-        logging.debug(log)
-        if not ep.closed():
-            ep.close()
-    shutdown_fut.add_done_callback(_close)
+    # Setup the control receive
+    setup_ctrl_recv(ep, pub_ep)
 
     # Finally, we call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
-        await func(ep)
+        await func(pub_ep)
     else:
         async def _func(ep):  # coroutine wrapper
             func(ep)
-        await _func(ep)
+        await _func(pub_ep)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
@@ -192,6 +176,28 @@ cdef void ucp_request_init(void* request):
     req.finished = False
     req.future = NULL
     req.expected_receive = 0
+
+
+def setup_ctrl_recv(priv_ep, pub_ep):
+    """Help function to setup the receive of the control message"""
+    cdef uint64_t shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
+    log = "[Recv shutdown] ep: %s, tag: %s" % (
+        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+    )
+    priv_ep.pending_msg_list.append({'log': log})
+    shutdown_fut = tag_recv(priv_ep._ucp_worker,
+                            shutdown_msg_mv,
+                            shutdown_msg_mv.nbytes,
+                            priv_ep._ctrl_tag_recv,
+                            pending_msg=priv_ep.pending_msg_list[-1])
+
+    # Make the "shutdown receive" close the Endpoint when is it finished
+    def _close(future):
+        logging.debug(log)
+        if not pub_ep.closed():
+            pub_ep.close()
+    shutdown_fut.add_done_callback(_close)
 
 
 cdef class _Listener:
@@ -327,7 +333,11 @@ cdef class ApplicationContext:
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
 
-        # Create a new Endpoint and send the tags to the peer
+        # We create the Endpoint in four steps:
+        #  1) Generate some unique IDs to use as tags
+        #  2) Send tags to the connected peer
+        #  3) Use tags to create the private part of an endpoint
+        #  4) Create the public Endpoint based on _Endpoint
         cdef Tags tags = {"msg_tag": hash(uuid.uuid4()),
                           "ctrl_tag": hash(uuid.uuid4())}
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
@@ -357,29 +367,14 @@ cdef class ApplicationContext:
             )
         )
 
-        # Initiate the shutdown receive
-        cdef uint64_t shutdown_msg
-        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-        log = "[Recv shutdown] ep: %s, tag: %s" % (
-            hex(ep.uid),
-            hex(ep._ctrl_tag_recv)
-        )
-        ep.pending_msg_list.append({'log': log})
-        shutdown_fut = tag_recv(
-            PyLong_FromVoidPtr(<void*>self.worker),
-            shutdown_msg_mv,
-            shutdown_msg_mv.nbytes,
-            ep._ctrl_tag_recv,
-            pending_msg=ep.pending_msg_list[-1]
-        )
-        ep = Endpoint(ep)
+        # Create the public Endpoint
+        pub_ep = Endpoint(ep)
 
-        def _close(future):
-            logging.debug(log)
-            if not ep.closed():
-                ep.close()
-        shutdown_fut.add_done_callback(_close)
-        return ep
+        # Setup the control receive
+        setup_ctrl_recv(ep, pub_ep)
+
+        # Return the public Endpoint
+        return pub_ep
 
     cdef _progress(self):
         while ucp_worker_progress(self.worker) != 0:
