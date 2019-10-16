@@ -12,6 +12,10 @@ conda create -n ucx -c conda-forge -c jakirkham/label/ucx-new cudatoolkit=<CUDA 
 
 The ucx recipe can be found here: https://github.com/conda-forge/ucx-split-feedstock/tree/f13e882cc0566e795ff12f2a039f490ce1653698/recipe
 
+Note: These packages depend on the following system libraries being present:
+`libibverbs`, `librdmacm`, and `libnuma` (`numactl` on Enterprise Linux). So
+please install these with your Linux system's package manager.
+
 # Build from source
 
 The following instructions assume you'll be using `ucx-py` on a CUDA enabled system. The instructions assume you're using CUDA 9.2 for unspecific reasons. Change the `CUDA_HOME` environment variable, and the environment created and used by `conda` to `cudf_dev_10.0.yml` in order to support CUDA 10.
