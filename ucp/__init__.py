@@ -7,7 +7,7 @@ import logging
 import os
 import warnings
 
-from ._version import get_versions
+from ._version import get_versions as _get_versions
 from .exceptions import UCXWarning
 from .public_api import *  # noqa
 from .utils import get_address  # noqa
@@ -26,5 +26,5 @@ _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
 logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
 
 
-__version__ = get_versions()["version"]
-del get_versions
+__version__ = _get_versions()["version"]
+__ucx_version__ = "%d.%d.%d" % get_ucx_version()

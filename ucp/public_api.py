@@ -24,6 +24,19 @@ def _get_ctx():
 # the functions here.
 
 
+def get_ucx_version():
+    """Return the version of the underlaying UCX installation
+
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    tuple
+        The version as a tuple e.g. (1, 7, 0)
+    """
+    return core.get_ucx_version()
+
+
 def init(options={}, env_takes_precedence=False):
     """Initiate UCX.
 
