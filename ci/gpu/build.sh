@@ -96,7 +96,6 @@ cd $WORKSPACE
 
 logger "Build ucx-py..."
 cd $WORKSPACE
-export UCX_PATH=$CONDA_PREFIX
 python setup.py build_ext --inplace
 python -m pip install -e .
 
