@@ -82,6 +82,12 @@ def get_config():
     return ret
 
 
+def get_ucx_version():
+    cdef unsigned int a, b, c
+    ucp_get_version(&a, &b, &c)
+    return (a, b, c)
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -247,9 +253,7 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
 
-        cdef unsigned int a, b, c
-        ucp_get_version(&a, &b, &c)
-        self.config['VERSION'] = (a, b, c)
+        self.config['VERSION'] = get_ucx_version()
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
