@@ -440,8 +440,8 @@ class _Endpoint:
         self._recv_count = 0
         self._closed = False
         self.pending_msg_list = []
-        # UCX supports CUDA if "cuda" is part of the TLS
-        self._cuda_support = "cuda" in config['TLS']
+        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
+        self._cuda_support = "cuda" in config['TLS'] or config['TLS'] == "all"
 
     @property
     def uid(self):
