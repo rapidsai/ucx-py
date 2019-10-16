@@ -126,9 +126,9 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         ucp_worker=ucp_worker,
         config=config,
         msg_tag_send=tags.msg_tag,
-        msg_tag_recv=tags.msg_tag+1,  # See comment above
+        msg_tag_recv=tags.msg_tag+1,   # See comment above
         ctrl_tag_send=tags.ctrl_tag,
-        ctrl_tag_recv=tags.ctrl_tag+1 # See comment above
+        ctrl_tag_recv=tags.ctrl_tag+1  # See comment above
     )
 
     logging.debug(
