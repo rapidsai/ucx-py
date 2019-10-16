@@ -36,6 +36,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             else:
                 ret.set_result(True)
             ucp_request_reset(req)
+            ucp_request_free(req)
         else:
             Py_INCREF(ret)
             req.future = <PyObject*> ret
