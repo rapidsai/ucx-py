@@ -359,7 +359,11 @@ cdef class ApplicationContext:
         #  4) Create the public Endpoint based on _Endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
-        peer_info = await exchange_peer_info(PyLong_FromVoidPtr(<void*> ucp_ep), msg_tag, ctrl_tag)
+        peer_info = await exchange_peer_info(
+            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
+            msg_tag=msg_tag,
+            ctrl_tag=ctrl_tag
+        )
         ep = _Endpoint(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
             ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
