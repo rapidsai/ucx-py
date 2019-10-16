@@ -24,6 +24,19 @@ def _get_ctx():
 # the functions here.
 
 
+def get_ucx_version():
+    """Return the version of the underlying UCX installation
+
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    tuple
+        The version as a tuple e.g. (1, 7, 0)
+    """
+    return core.get_ucx_version()
+
+
 def init(options={}, env_takes_precedence=False):
     """Initiate UCX.
 
@@ -34,7 +47,7 @@ def init(options={}, env_takes_precedence=False):
     Parameters
     ----------
     options: dict, optional
-        UCX options send to the underlaying UCX library
+        UCX options send to the underlying UCX library
     env_takes_precedence: bool, optional
         Whether environment variables takes precedence over the `options`
         specified here.
@@ -248,10 +261,10 @@ class Endpoint:
         """Returns the underlying UCP worker handle (ucp_worker_h)
         as a Python integer.
         """
-        return self._ucp_worker
+        return self._ep.get_ucp_worker()
 
     def get_ucp_endpoint(self):
         """Returns the underlying UCP endpoint handle (ucp_ep_h)
         as a Python integer.
         """
-        return self._ucp_endpoint
+        return self._ep.get_ucp_endpoint()

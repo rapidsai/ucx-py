@@ -4,6 +4,7 @@ build
 ucp/_libs/*.a
 ucp/_libs/*.o
 ucp/_libs/*.c
+_build
 
 dask-worker-space
 __pytestcache__

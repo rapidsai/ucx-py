@@ -6,36 +6,16 @@
 from __future__ import absolute_import, print_function
 
 import os
-from distutils.util import strtobool
+from distutils.sysconfig import get_config_var, get_python_inc
 
 import versioneer
 from setuptools import setup
-from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools.extension import Extension
 
+include_dirs = [os.path.dirname(get_python_inc())]
+library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
-
-
-class build_ext(_build_ext):
-    user_options = [
-        ("with-cuda", None, "build the Cuda extension"),
-        ("with-prof", None, "build with profiling"),
-    ] + _build_ext.user_options
-
-    with_cuda = strtobool(os.environ.get("UCX_PY_WITH_CUDA", "0"))
-
-    with_prof = strtobool(os.environ.get("UCX_PY_WITH_PROF", "0"))
-
-    def run(self):
-        if self.with_cuda:
-            module = ext_modules[0]
-            module.libraries.extend(["cuda", "cudart"])
-            module.extra_compile_args.append("-DUCX_PY_CUDA")
-        if self.with_prof:
-            module = ext_modules[0]
-            module.extra_compile_args.append("-DUCX_PY_PROF")
-        _build_ext.run(self)
 
 
 ext_modules = [
@@ -43,6 +23,8 @@ ext_modules = [
         "ucp._libs.utils",
         sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
@@ -50,6 +32,8 @@ ext_modules = [
         "ucp._libs.send_recv",
         sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
@@ -57,6 +41,8 @@ ext_modules = [
         "ucp._libs.core",
         sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
@@ -66,7 +52,7 @@ setup(
     name="ucp",
     packages=["ucp"],
     ext_modules=ext_modules,
-    cmdclass={"build_ext": build_ext, **versioneer.get_cmdclass()},
+    cmdclass=versioneer.get_cmdclass(),
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description="Python Bindings for the Unified Communication X library (UCX)",
