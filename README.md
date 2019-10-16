@@ -6,7 +6,7 @@ Some preliminary Conda packages can be installed as so. Replace `<CUDA
 version>` with either `9.2` or `10.0`.
 
 ```
-conda create -n ucx -c conda-forge -c jakirkham/label/ucx cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
+conda create -n ucx -c conda-forge -c jakirkham/label/ucx-new cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
 ```
 
 The ucx recipe can be found here: https://github.com/conda-forge/ucx-split-feedstock/tree/f13e882cc0566e795ff12f2a039f490ce1653698/recipe
