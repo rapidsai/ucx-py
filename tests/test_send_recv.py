@@ -10,15 +10,11 @@ msg_sizes = [2 ** i for i in range(0, 25, 4)]
 dtypes = ["|u1", "<i8", "f8"]
 
 
-def make_echo_server(create_empty_data=None):
+def make_echo_server(create_empty_data):
     """
     Returns an echo server that calls the function `create_empty_data(nbytes)`
-    to create the data container. If None, it uses `np.empty(size, dtype=np.uint8)`
+    to create the data container.`
     """
-    import numpy as np
-
-    if create_empty_data is None:
-        create_empty_data = lambda n: np.empty(n, dtype=np.uint8)  # noqa
 
     async def echo_server(ep):
         """
@@ -49,16 +45,16 @@ def handle_exception(loop, context):
 async def test_send_recv_bytes(size):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
 
-    msg = b"message in bytes"
+    msg = bytearray(b"m" * size)
     msg_size = np.array([len(msg)], dtype=np.uint64)
 
     listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
-    resp = np.empty_like(msg)
+    resp = bytearray(size)
     await client.recv(resp)
-    np.testing.assert_array_equal(resp, msg)
+    assert resp == msg
 
 
 @pytest.mark.asyncio
@@ -70,7 +66,9 @@ async def test_send_recv_numpy(size, dtype):
     msg = np.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
 
-    listener = ucp.create_listener(make_echo_server())
+    listener = ucp.create_listener(
+        make_echo_server(lambda n: np.empty(n, dtype=np.uint8))
+    )
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
@@ -119,3 +117,18 @@ async def test_send_recv_numba(size, dtype):
     resp = cuda.device_array_like(msg)
     await client.recv(resp)
     np.testing.assert_array_equal(np.array(resp), np.array(msg))
+
+
+@pytest.mark.asyncio
+async def test_send_recv_error():
+    async def say_hey_server(ep):
+        await ep.send(bytearray(b"Hey"))
+
+    listener = ucp.create_listener(say_hey_server)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(100)
+    with pytest.raises(
+        ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
+    ):
+        await client.recv(msg)

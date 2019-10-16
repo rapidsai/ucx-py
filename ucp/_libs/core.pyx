@@ -82,6 +82,12 @@ def get_config():
     return ret
 
 
+def get_ucx_version():
+    cdef unsigned int a, b, c
+    ucp_get_version(&a, &b, &c)
+    return (a, b, c)
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -99,7 +105,53 @@ def asyncio_handle_exception(loop, context):
     log("Ignored except: %s %s" % (type(msg), msg))
 
 
+cdef struct PeerInfoMsg:
+    uint64_t msg_tag
+    uint64_t ctrl_tag
+
+
+async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag):
+    """Help function that exchange endpoint information"""
+
+    cdef PeerInfoMsg my_info = {"msg_tag": msg_tag, "ctrl_tag": ctrl_tag}
+    cdef PeerInfoMsg[::1] my_info_mv = <PeerInfoMsg[:1:1]>(&my_info)
+    cdef PeerInfoMsg peer_info
+    cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
+
+    await asyncio.gather(
+        stream_recv(ucp_endpoint, peer_info_mv, peer_info_mv.nbytes),
+        stream_send(ucp_endpoint, my_info_mv, my_info_mv.nbytes),
+    )
+    return {
+        'msg_tag': peer_info.msg_tag,
+        'ctrl_tag': peer_info.ctrl_tag,
+    }
+
+
+def setup_ctrl_recv(priv_ep, pub_ep):
+    """Help function to setup the receive of the control message"""
+    cdef uint64_t shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
+    log = "[Recv shutdown] ep: %s, tag: %s" % (
+        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+    )
+    priv_ep.pending_msg_list.append({'log': log})
+    shutdown_fut = tag_recv(priv_ep._ucp_worker,
+                            shutdown_msg_mv,
+                            shutdown_msg_mv.nbytes,
+                            priv_ep._ctrl_tag_recv,
+                            pending_msg=priv_ep.pending_msg_list[-1])
+
+    # Make the "shutdown receive" close the Endpoint when is it finished
+    def _close(future):
+        logging.debug(log)
+        if not pub_ep.closed():
+            pub_ep.close()
+    shutdown_fut.add_done_callback(_close)
+
+
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
+    from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
     #       get_exception_handler() is set.
@@ -108,41 +160,48 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     if loop.get_exception_handler() is None:
         loop.set_exception_handler(asyncio_handle_exception)
 
-    # Get the tags from the client and create a new Endpoint
-    cdef Tags tags
-    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
-    await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-    ep = Endpoint(ucp_endpoint, ucp_worker, config, tags.msg_tag, tags.ctrl_tag)
-
-    logging.debug("listener_handler() server: %s, msg-tag: %s, ctrl-tag: %s" %(
-        hex(<size_t>ucp_endpoint), hex(ep._msg_tag), hex(ep._ctrl_tag))
+    # We create the Endpoint in four steps:
+    #  1) Generate unique IDs to use as tags
+    #  2) Exchange endpoint info such as tags
+    #  3) Use the info to create the private part of an endpoint
+    #  4) Create the public Endpoint based on _Endpoint
+    msg_tag = hash(uuid.uuid4())
+    ctrl_tag = hash(uuid.uuid4())
+    peer_info = await exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag)
+    ep = _Endpoint(
+        ucp_endpoint=ucp_endpoint,
+        ucp_worker=ucp_worker,
+        config=config,
+        msg_tag_send=peer_info['msg_tag'],
+        msg_tag_recv=msg_tag,
+        ctrl_tag_send=peer_info['ctrl_tag'],
+        ctrl_tag_recv=ctrl_tag
     )
 
-    # Call `func` asynchronously (even if it isn't coroutine)
+    logging.debug(
+        "listener_handler() server: %s, msg-tag-send: %s, "
+        "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+            hex(<size_t>ucp_endpoint),
+            hex(ep._msg_tag_send),
+            hex(ep._msg_tag_recv),
+            hex(ep._ctrl_tag_send),
+            hex(ep._ctrl_tag_recv)
+        )
+    )
+
+    # Create the public Endpoint
+    pub_ep = Endpoint(ep)
+
+    # Setup the control receive
+    setup_ctrl_recv(ep, pub_ep)
+
+    # Finally, we call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
-        func_fut = func(ep)
+        await func(pub_ep)
     else:
         async def _func(ep):  # coroutine wrapper
-            await func(ep)
-        func_fut = _func(ep)
-
-    # Initiate the shutdown receive
-    cdef uint64_t shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-    log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag))
-    ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(ucp_worker,
-                            shutdown_msg_mv,
-                            shutdown_msg_mv.nbytes,
-                            ep._ctrl_tag,
-                            pending_msg=ep.pending_msg_list[-1])
-
-    def _close(future):
-        logging.debug(log)
-        if not ep.closed():
-            ep.close()
-    shutdown_fut.add_done_callback(_close)
-    await func_fut
+            func(ep)
+        await _func(pub_ep)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
@@ -159,43 +218,21 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     )
 
 
-cdef void ucp_request_init(void* request):
-    cdef ucp_request *req = <ucp_request*> request
-    req.finished = False
-    req.future = NULL
-    req.expected_receive = 0
+cdef class _Listener:
+    """This represents the private part of Listener
 
-
-cdef class Listener:
+    See <..public_api.Listener> for documentation
+    """
     cdef:
         cdef ucp_listener_h _ucp_listener
         cdef _listener_callback_args _cb_args
         cdef uint16_t _port
-        cdef bint _closed
 
-    def __cinit__(self):
-        # In order to prevent calling ucp_listener_destroy() on a
-        # initialized Listener, we flag the instance as closed
-        # initially.
-        self._closed = True
-
-    @property
-    def closed(self):
-        return self._closed
-
-    @property
     def port(self):
         return self._port
 
-    def __dealloc__(self):
-        if not self._closed:
-            ucp_listener_destroy(self._ucp_listener)
-
-    def close(self):
-        """Closing the listener"""
-        if not self._closed:
-            ucp_listener_destroy(self._ucp_listener)
-        self._closed = True
+    def destroy(self):
+        ucp_listener_destroy(self._ucp_listener)
 
 
 cdef class ApplicationContext:
@@ -216,9 +253,7 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
 
-        cdef unsigned int a, b, c
-        ucp_get_version(&a, &b, &c)
-        self.config['VERSION'] = (a, b, c)
+        self.config['VERSION'] = get_ucx_version()
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -230,7 +265,7 @@ cdef class ApplicationContext:
                                UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = ucp_request_init
+        ucp_params.request_init = ucp_request_reset
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
@@ -243,6 +278,8 @@ cdef class ApplicationContext:
 
         cdef int ucp_epoll_fd
         status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
+        assert_ucs_status(status)
+        status = ucp_worker_arm(self.worker)
         assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
@@ -268,6 +305,7 @@ cdef class ApplicationContext:
             ucp_cleanup(self.context)
 
     def create_listener(self, callback_func, port=None):
+        from ..public_api import Listener
         self._bind_epoll_fd_to_event_loop()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
@@ -276,7 +314,7 @@ cdef class ApplicationContext:
             port = s.getsockname()[1]
             s.close()
 
-        ret = Listener()
+        ret = _Listener()
         ret._port = port
 
         ret._cb_args.ucp_worker = self.worker
@@ -298,10 +336,10 @@ cdef class ApplicationContext:
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
-        ret._closed = False  # The Listener was successfully created
-        return ret
+        return Listener(ret)
 
     async def create_endpoint(self, str ip_address, port):
+        from ..public_api import Endpoint
         self._bind_epoll_fd_to_event_loop()
 
         cdef ucp_ep_params_t params
@@ -313,51 +351,66 @@ cdef class ApplicationContext:
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
 
-        # Create a new Endpoint and send the tags to the peer
-        cdef Tags tags = {"msg_tag": hash(uuid.uuid4()),
-                          "ctrl_tag": hash(uuid.uuid4())}
-        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
-
-        ret = Endpoint(
-            PyLong_FromVoidPtr(<void*> ucp_ep),
-            PyLong_FromVoidPtr(<void*> self.worker),
-            self.config,
-            tags.msg_tag,
-            tags.ctrl_tag,
+        # We create the Endpoint in four steps:
+        #  1) Generate unique IDs to use as tags
+        #  2) Exchange endpoint info such as tags
+        #  3) Use the info to create the private part of an endpoint
+        #  4) Create the public Endpoint based on _Endpoint
+        msg_tag = hash(uuid.uuid4())
+        ctrl_tag = hash(uuid.uuid4())
+        peer_info = await exchange_peer_info(
+            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
+            msg_tag=msg_tag,
+            ctrl_tag=ctrl_tag
         )
-        await stream_send(ret._ucp_endpoint, tags_mv, tags_mv.nbytes)
-
-        # Initiate the shutdown receive
-        cdef uint64_t shutdown_msg
-        cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ret.uid), hex(ret._ctrl_tag))
-        ret.pending_msg_list.append({'log': log})
-        shutdown_fut = tag_recv(
-            PyLong_FromVoidPtr(<void*>self.worker),
-            shutdown_msg_mv,
-            shutdown_msg_mv.nbytes,
-            ret._ctrl_tag,
-            pending_msg=ret.pending_msg_list[-1]
+        ep = _Endpoint(
+            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
+            ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
+            config=self.config,
+            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_recv=msg_tag,
+            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_recv=ctrl_tag
         )
 
-        def _close(future):
-            logging.debug(log)
-            if not ret.closed():
-                ret.close()
-        shutdown_fut.add_done_callback(_close)
-        return ret
+        logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
+                      "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
+                hex(ep._ucp_endpoint),  # noqa
+                hex(ep._msg_tag_send),  # noqa
+                hex(ep._msg_tag_recv),  # noqa
+                hex(ep._ctrl_tag_send), # noqa
+                hex(ep._ctrl_tag_recv)  # noqa
+            )
+        )
 
-    cdef _progress(self):
+        # Create the public Endpoint
+        pub_ep = Endpoint(ep)
+
+        # Setup the control receive
+        setup_ctrl_recv(ep, pub_ep)
+
+        # Return the public Endpoint
+        return pub_ep
+
+    def progress(self):
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def progress(self):
-        self._progress()
+    def _fd_reader_callback(self):
+        cdef ucs_status_t status
+        self.progress()
+        while True:
+            status = ucp_worker_arm(self.worker)
+            if status == UCS_ERR_BUSY:
+                self.progress()
+            else:
+                break
+        assert_ucs_status(status)
 
     def _bind_epoll_fd_to_event_loop(self):
         loop = asyncio.get_event_loop()
         if loop not in self.all_epoll_binded_to_event_loop:
-            loop.add_reader(self.epoll_fd, self.progress)
+            loop.add_reader(self.epoll_fd, self._fd_reader_callback)
             self.all_epoll_binded_to_event_loop.add(loop)
 
     def get_ucp_worker(self):
@@ -367,73 +420,67 @@ cdef class ApplicationContext:
         return self.config
 
 
-# The tags used when send/recv messages
-cdef struct Tags:
-    uint64_t msg_tag
-    uint64_t ctrl_tag
+class _Endpoint:
+    """This represents the private part of Endpoint
 
-
-class Endpoint:
-    """An endpoint represents a connection to a peer
-
-    Please use `create_listener()` and `create_endpoint()`
-    to create an Endpoint.
+    See <..public_api.Endpoint> for documentation
     """
 
-    def __init__(self, ucp_endpoint, ucp_worker, config, msg_tag, ctrl_tag):
+    def __init__(
+        self,
+        ucp_endpoint,
+        ucp_worker,
+        config,
+        msg_tag_send,
+        msg_tag_recv,
+        ctrl_tag_send,
+        ctrl_tag_recv
+    ):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
         self._config = config
-        self._msg_tag = msg_tag
-        self._ctrl_tag = ctrl_tag
+        self._msg_tag_send = msg_tag_send
+        self._msg_tag_recv = msg_tag_recv
+        self._ctrl_tag_send = ctrl_tag_send
+        self._ctrl_tag_recv = ctrl_tag_recv
         self._send_count = 0
         self._recv_count = 0
         self._closed = False
-        self.pending_msg_list = [{}]
+        self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS
         self._cuda_support = "cuda" in config['TLS']
 
     @property
     def uid(self):
-        """The unique ID of the endpoint"""
         return self._ucp_endpoint
 
     async def signal_shutdown(self):
-        """Signal the connected peer to shutdown.
-
-        Notice, this functions doesn't close the endpoint.
-        To do that, use `.close()` or del the object.
-        """
         if self._closed:
-            raise UCXCloseError("signal_shutdown() - Endpoint closed")
+            raise UCXCloseError("signal_shutdown() - _Endpoint closed")
 
         # Send a shutdown message to the peer
         cdef uint64_t msg = 42
         cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
-        log = "[Send shutdown] ep: %s, tag: %s" % (hex(self.uid), hex(self._ctrl_tag))
+        log = "[Send shutdown] ep: %s, tag: %s" % (
+            hex(self.uid), hex(self._ctrl_tag_send)
+        )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         await tag_send(
             self._ucp_endpoint,
             msg_mv, msg_mv.nbytes,
-            self._ctrl_tag,
+            self._ctrl_tag_send,
             pending_msg=self.pending_msg_list[-1]
         )
 
     def closed(self):
-        """Is this endpoint closed?"""
         return self._closed
 
     def close(self):
-        """Close this endpoint.
-
-        Notice, this functions doesn't signal the connected peer to shutdown
-        To do that, use `.signal_shutdown()` or del the object.
-        """
         if self._closed:
-            raise UCXCloseError("close() - Endpoint closed")
+            raise UCXCloseError("close() - _Endpoint closed")
         self._closed = True
-        logging.debug("Endpoint.close(): %s" % hex(self.uid))
+        logging.debug("_Endpoint.close(): %s" % hex(self.uid))
 
         cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
 
@@ -464,22 +511,12 @@ class Endpoint:
             self.close()
 
     async def send(self, buffer, nbytes=None):
-        """Send `buffer` to connected peer.
-
-        Parameters
-        ----------
-        buffer: exposing the buffer protocol or array/cuda interface
-            The buffer to send. Raise ValueError if buffer is smaller
-            than nbytes.
-        nbytes: int, optional
-            Number of bytes to send. Default is the whole buffer.
-        """
         if self._closed:
-            raise UCXCloseError("send() - Endpoint closed")
+            raise UCXCloseError("send() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._send_count, hex(self.uid), hex(self._msg_tag), nbytes
+            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -488,27 +525,17 @@ class Endpoint:
             self._ucp_endpoint,
             buffer,
             nbytes,
-            self._msg_tag,
+            self._msg_tag_send,
             pending_msg=self.pending_msg_list[-1]
         )
 
     async def recv(self, buffer, nbytes=None):
-        """Receive from connected peer into `buffer`.
-
-        Parameters
-        ----------
-        buffer: exposing the buffer protocol or array/cuda interface
-            The buffer to receive into. Raise ValueError if buffer
-            is smaller than nbytes or read-only.
-        nbytes: int, optional
-            Number of bytes to receive. Default is the whole buffer.
-        """
         if self._closed:
-            raise UCXCloseError("recv() - Endpoint closed")
+            raise UCXCloseError("recv() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._recv_count, hex(self.uid), hex(self._msg_tag), nbytes
+            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -517,14 +544,13 @@ class Endpoint:
             self._ucp_worker,
             buffer,
             nbytes,
-            self._msg_tag,
+            self._msg_tag_recv,
             pending_msg=self.pending_msg_list[-1]
         )
 
     def ucx_info(self):
-        """Return low-level UCX info about this endpoint as a string"""
         if self._closed:
-            raise UCXCloseError("pprint_ep() - Endpoint closed")
+            raise UCXCloseError("pprint_ep() - _Endpoint closed")
 
         # Making `ucp_ep_print_info()` write into a memstream,
         # convert it to a Python string, clean up, and return string.
@@ -541,5 +567,10 @@ class Endpoint:
         return py_text.decode()
 
     def cuda_support(self):
-        """Return whether UCX is configured with CUDA support or not"""
         return self._cuda_support
+
+    def get_ucp_worker(self):
+        return self._ucp_worker
+
+    def get_ucp_endpoint(self):
+        return self._ucp_endpoint
