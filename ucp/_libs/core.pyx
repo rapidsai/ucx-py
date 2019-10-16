@@ -109,21 +109,26 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     if loop.get_exception_handler() is None:
         loop.set_exception_handler(asyncio_handle_exception)
 
-    # Get the tags from the client and create a new Endpoint
+    # We create the Endpoint in three steps:
+    #  1) Receiving tags from the client
+    #  2) Use tags to create the private part _Endpoint
+    #  3) Finally, create the public Endpoint based on _Endpoint
     cdef Tags tags
     cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
     await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
 
-    # NB: we add one to the receive tags on the server and we
-    #     add one to the send tags on the client
+    # Notice, we differentiate the send and receive tags by:
+    #   Server: +1 to the receive tags
+    #   Client: +1 to the send tags
+    # See <https://github.com/rapidsai/ucx-py/pull/247>
     ep = _Endpoint(
         ucp_endpoint=ucp_endpoint,
         ucp_worker=ucp_worker,
         config=config,
         msg_tag_send=tags.msg_tag,
-        msg_tag_recv=tags.msg_tag+1,
+        msg_tag_recv=tags.msg_tag+1,  # See comment above
         ctrl_tag_send=tags.ctrl_tag,
-        ctrl_tag_recv=tags.ctrl_tag+1
+        ctrl_tag_recv=tags.ctrl_tag+1 # See comment above
     )
 
     logging.debug(
@@ -137,14 +142,6 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
         )
     )
 
-    # Call `func` asynchronously (even if it isn't coroutine)
-    if asyncio.iscoroutinefunction(func):
-        func_fut = func(ep)
-    else:
-        async def _func(ep):  # coroutine wrapper
-            await func(ep)
-        func_fut = _func(ep)
-
     # Initiate the shutdown receive
     cdef uint64_t shutdown_msg
     cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
@@ -157,14 +154,23 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
                             shutdown_msg_mv.nbytes,
                             ep._ctrl_tag_recv,
                             pending_msg=ep.pending_msg_list[-1])
+    # Create the public Endpoint
     ep = Endpoint(ep)
 
+    # Make the "shutdown receive" close the Endpoint when is it finished
     def _close(future):
         logging.debug(log)
         if not ep.closed():
             ep.close()
     shutdown_fut.add_done_callback(_close)
-    await func_fut
+
+    # Finally, we call `func` asynchronously (even if it isn't coroutine)
+    if asyncio.iscoroutinefunction(func):
+        await func(ep)
+    else:
+        async def _func(ep):  # coroutine wrapper
+            func(ep)
+        await _func(ep)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
@@ -326,8 +332,10 @@ cdef class ApplicationContext:
                           "ctrl_tag": hash(uuid.uuid4())}
         cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
 
-        # NB: we add one to the send tags on the client and we
-        #     add one to the recv tags on the server
+        # Notice, we differentiate the send and receive tags by:
+        #   Client: +1 to the send tags
+        #   Server: +1 to the receive tags
+        # See <https://github.com/rapidsai/ucx-py/pull/247>
         ep = _Endpoint(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
             ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
@@ -494,9 +502,8 @@ class _Endpoint:
             raise UCXCloseError("send() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        tag = self._msg_tag_send
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._send_count, hex(self.uid), hex(tag), nbytes
+            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -505,7 +512,7 @@ class _Endpoint:
             self._ucp_endpoint,
             buffer,
             nbytes,
-            tag,
+            self._msg_tag_send,
             pending_msg=self.pending_msg_list[-1]
         )
 
@@ -514,9 +521,8 @@ class _Endpoint:
             raise UCXCloseError("recv() - _Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        tag = self._msg_tag_recv
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._recv_count, hex(self.uid), hex(tag), nbytes
+            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -525,7 +531,7 @@ class _Endpoint:
             self._ucp_worker,
             buffer,
             nbytes,
-            tag,
+            self._msg_tag_recv,
             pending_msg=self.pending_msg_list[-1]
         )
 
