@@ -3,7 +3,7 @@
 # Installing preliminary Conda packages
 
 Some preliminary Conda packages can be installed as so. Replace `<CUDA
-version>` with either `9.2` or `10.0`.
+version>` with either `9.2`, `10.0`, or `10.1`.
 
 ```
 conda create -n ucx -c conda-forge -c jakirkham/label/ucx-new cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
