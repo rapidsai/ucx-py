@@ -75,8 +75,8 @@ order:
 
     git clone git@github.com:rapidsai/ucx-py.git
     cd ucx-py
-    export UCX_PATH=$CONDA_PREFIX
-    make install
+    python setup.py build_ext --inplace
+    python -m pip install -e .
 
 You should be done! Test the result of your build with
 
