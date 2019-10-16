@@ -5,31 +5,12 @@
 
 from __future__ import absolute_import, print_function
 
-import os
-from distutils.util import strtobool
-
 import versioneer
 from setuptools import setup
-from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools.extension import Extension
 
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
-
-
-class build_ext(_build_ext):
-    user_options = [
-        ("with-cuda", None, "build the Cuda extension")
-    ] + _build_ext.user_options
-
-    with_cuda = strtobool(os.environ.get("UCX_PY_WITH_CUDA", "0"))
-
-    def run(self):
-        if self.with_cuda:
-            module = ext_modules[0]
-            module.libraries.extend(["cuda", "cudart"])
-            module.extra_compile_args.append("-DUCX_PY_CUDA")
-        _build_ext.run(self)
 
 
 ext_modules = [
@@ -60,7 +41,7 @@ setup(
     name="ucp",
     packages=["ucp"],
     ext_modules=ext_modules,
-    cmdclass={"build_ext": build_ext, **versioneer.get_cmdclass()},
+    cmdclass=versioneer.get_cmdclass(),
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description="Python Bindings for the Unified Communication X library (UCX)",
