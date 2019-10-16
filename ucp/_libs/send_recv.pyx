@@ -9,6 +9,7 @@ from core_dep cimport *
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
 
+
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     size_t expected_receive,
                                     pending_msg):
@@ -31,6 +32,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
                 pending_msg['ucp_request'] = PyLong_FromVoidPtr(<void*>req)
                 pending_msg['expected_receive'] = expected_receive
     return ret
+
 
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef ucp_request *req = <ucp_request*> request
