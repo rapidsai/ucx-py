@@ -99,6 +99,51 @@ def asyncio_handle_exception(loop, context):
     log("Ignored except: %s %s" % (type(msg), msg))
 
 
+cdef struct PeerInfoMsg:
+    uint64_t msg_tag
+    uint64_t ctrl_tag
+
+
+async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag):
+    """Help function that exchange endpoint information"""
+
+    cdef PeerInfoMsg my_info = {"msg_tag": msg_tag, "ctrl_tag": ctrl_tag}
+    cdef PeerInfoMsg[::1] my_info_mv = <PeerInfoMsg[:1:1]>(&my_info)
+    cdef PeerInfoMsg peer_info
+    cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
+
+    await asyncio.gather(
+        stream_recv(ucp_endpoint, peer_info_mv, peer_info_mv.nbytes),
+        stream_send(ucp_endpoint, my_info_mv, my_info_mv.nbytes),
+    )
+    return {
+        'msg_tag': peer_info.msg_tag,
+        'ctrl_tag': peer_info.ctrl_tag,
+    }
+
+
+def setup_ctrl_recv(priv_ep, pub_ep):
+    """Help function to setup the receive of the control message"""
+    cdef uint64_t shutdown_msg
+    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
+    log = "[Recv shutdown] ep: %s, tag: %s" % (
+        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+    )
+    priv_ep.pending_msg_list.append({'log': log})
+    shutdown_fut = tag_recv(priv_ep._ucp_worker,
+                            shutdown_msg_mv,
+                            shutdown_msg_mv.nbytes,
+                            priv_ep._ctrl_tag_recv,
+                            pending_msg=priv_ep.pending_msg_list[-1])
+
+    # Make the "shutdown receive" close the Endpoint when is it finished
+    def _close(future):
+        logging.debug(log)
+        if not pub_ep.closed():
+            pub_ep.close()
+    shutdown_fut.add_done_callback(_close)
+
+
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
@@ -109,26 +154,22 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     if loop.get_exception_handler() is None:
         loop.set_exception_handler(asyncio_handle_exception)
 
-    # We create the Endpoint in three steps:
-    #  1) Receiving tags from the client
-    #  2) Use tags to create the private part of an endpoint
-    #  3) Create the public Endpoint based on _Endpoint
-    cdef Tags tags
-    cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
-    await stream_recv(ucp_endpoint, tags_mv, tags_mv.nbytes)
-
-    # Notice, we differentiate the send and receive tags by:
-    #   Server: +1 to the receive tags
-    #   Client: +1 to the send tags
-    # See <https://github.com/rapidsai/ucx-py/pull/247>
+    # We create the Endpoint in four steps:
+    #  1) Generate unique IDs to use as tags
+    #  2) Exchange endpoint info such as tags
+    #  3) Use the info to create the private part of an endpoint
+    #  4) Create the public Endpoint based on _Endpoint
+    msg_tag = hash(uuid.uuid4())
+    ctrl_tag = hash(uuid.uuid4())
+    peer_info = await exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag)
     ep = _Endpoint(
         ucp_endpoint=ucp_endpoint,
         ucp_worker=ucp_worker,
         config=config,
-        msg_tag_send=tags.msg_tag,
-        msg_tag_recv=tags.msg_tag+1,   # See comment above
-        ctrl_tag_send=tags.ctrl_tag,
-        ctrl_tag_recv=tags.ctrl_tag+1  # See comment above
+        msg_tag_send=peer_info['msg_tag'],
+        msg_tag_recv=msg_tag,
+        ctrl_tag_send=peer_info['ctrl_tag'],
+        ctrl_tag_recv=ctrl_tag
     )
 
     logging.debug(
@@ -176,28 +217,6 @@ cdef void ucp_request_init(void* request):
     req.finished = False
     req.future = NULL
     req.expected_receive = 0
-
-
-def setup_ctrl_recv(priv_ep, pub_ep):
-    """Help function to setup the receive of the control message"""
-    cdef uint64_t shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
-    log = "[Recv shutdown] ep: %s, tag: %s" % (
-        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
-    )
-    priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(priv_ep._ucp_worker,
-                            shutdown_msg_mv,
-                            shutdown_msg_mv.nbytes,
-                            priv_ep._ctrl_tag_recv,
-                            pending_msg=priv_ep.pending_msg_list[-1])
-
-    # Make the "shutdown receive" close the Endpoint when is it finished
-    def _close(future):
-        logging.debug(log)
-        if not pub_ep.closed():
-            pub_ep.close()
-    shutdown_fut.add_done_callback(_close)
 
 
 cdef class _Listener:
@@ -334,28 +353,22 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         # We create the Endpoint in four steps:
-        #  1) Generate some unique IDs to use as tags
-        #  2) Send tags to the connected peer
-        #  3) Use tags to create the private part of an endpoint
+        #  1) Generate unique IDs to use as tags
+        #  2) Exchange endpoint info such as tags
+        #  3) Use the info to create the private part of an endpoint
         #  4) Create the public Endpoint based on _Endpoint
-        cdef Tags tags = {"msg_tag": hash(uuid.uuid4()),
-                          "ctrl_tag": hash(uuid.uuid4())}
-        cdef Tags[::1] tags_mv = <Tags[:1:1]>(&tags)
-
-        # Notice, we differentiate the send and receive tags by:
-        #   Client: +1 to the send tags
-        #   Server: +1 to the receive tags
-        # See <https://github.com/rapidsai/ucx-py/pull/247>
+        msg_tag = hash(uuid.uuid4())
+        ctrl_tag = hash(uuid.uuid4())
+        peer_info = await exchange_peer_info(PyLong_FromVoidPtr(<void*> ucp_ep), msg_tag, ctrl_tag)
         ep = _Endpoint(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
             ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
             config=self.config,
-            msg_tag_send=tags.msg_tag+1,
-            msg_tag_recv=tags.msg_tag,
-            ctrl_tag_send=tags.ctrl_tag+1,
-            ctrl_tag_recv=tags.ctrl_tag
+            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_recv=msg_tag,
+            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_recv=ctrl_tag
         )
-        await stream_send(ep._ucp_endpoint, tags_mv, tags_mv.nbytes)
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
@@ -394,12 +407,6 @@ cdef class ApplicationContext:
 
     def get_config(self):
         return self.config
-
-
-# The tags used when send/recv messages
-cdef struct Tags:
-    uint64_t msg_tag
-    uint64_t ctrl_tag
 
 
 class _Endpoint:
