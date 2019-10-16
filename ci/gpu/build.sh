@@ -79,9 +79,6 @@ conda list
 logger "Build ucx"
 git clone https://github.com/openucx/ucx
 cd ucx
-git remote add Akshay-Venkatesh https://github.com/Akshay-Venkatesh/ucx.git
-git remote update Akshay-Venkatesh
-git checkout ucx-cuda
 ls
 ./autogen.sh
 mkdir build
