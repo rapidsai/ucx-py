@@ -9,6 +9,7 @@ import warnings
 
 from ._version import get_versions as _get_versions
 from .exceptions import UCXWarning
+from .public_api import get_ucx_version
 from .public_api import *  # noqa
 from .utils import get_address  # noqa
 
