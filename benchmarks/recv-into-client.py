@@ -118,23 +118,15 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
                 print("\n")
                 print(df)
 
-            # await ep.signal_shutdown()
-            # ep.close()
+            await ep.signal_shutdown()
+            ep.close()
+            lf.close()
 
         lf = ucp.create_listener(inc, port)
         host = ucp.get_address()
 
-        ep = await ucp.create_endpoint(host, port)
-
-        close_msg = b"shutdown listener"
-        msg = np.empty(len(close_msg), dtype=np.uint8)
-        await ep.recv(msg)
-
-        recv_msg = msg.tobytes()
-        assert recv_msg == close_msg
-        lf.close()
-        # except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
-        #  pass
+        while not lf.closed():
+            await asyncio.sleep(0.1)
 
     return writer(port, n_bytes, n_iter, recv, np, verbose, increment)
 
