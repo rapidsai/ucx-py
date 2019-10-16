@@ -5,10 +5,15 @@
 
 from __future__ import absolute_import, print_function
 
+import os
+from distutils.sysconfig import get_config_var, get_python_inc
+
 import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
+include_dirs = [os.path.dirname(get_python_inc())]
+library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99"]
 
@@ -18,6 +23,8 @@ ext_modules = [
         "ucp._libs.utils",
         sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
@@ -25,6 +32,8 @@ ext_modules = [
         "ucp._libs.send_recv",
         sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
@@ -32,6 +41,8 @@ ext_modules = [
         "ucp._libs.core",
         sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
