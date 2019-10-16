@@ -53,13 +53,13 @@ order:
     pip install -e .
     cd ..
 
-### dask-cuda ###
-
-    conda install -c rapidsai-nightly dask-cuda
-
 ### conda-forge Dependencies ###
 
     conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cupy distributed
+
+### dask-cuda ###
+
+    conda install -c rapidsai-nightly dask-cuda
 
 ### UCX ###
 
