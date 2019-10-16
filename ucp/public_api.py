@@ -261,10 +261,10 @@ class Endpoint:
         """Returns the underlying UCP worker handle (ucp_worker_h)
         as a Python integer.
         """
-        return self._ucp_worker
+        return self._ep.get_ucp_worker()
 
     def get_ucp_endpoint(self):
         """Returns the underlying UCP endpoint handle (ucp_ep_h)
         as a Python integer.
         """
-        return self._ucp_endpoint
+        return self._ep.get_ucp_endpoint()
