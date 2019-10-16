@@ -59,7 +59,7 @@ order:
 
 ### dask-cuda ###
 
-    conda install -c rapidsai-nightly dask-cuda
+    conda install -c rapidsai-nightly -c nvidia -c conda-forge dask-cuda
 
 ### UCX ###
 
