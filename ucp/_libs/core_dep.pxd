@@ -128,7 +128,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef uint64_t ucp_datatype_t
 
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
-    bint UCS_PTR_STATUS(ucs_status_ptr_t)
+    ucs_status_t UCS_PTR_STATUS(ucs_status_ptr_t)
 
     ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)  # noqa
 
@@ -235,5 +235,16 @@ cdef extern from "sys/epoll.h":
 
 cdef struct ucp_request:
     bint finished
-    void *future
+    PyObject *future
+    PyObject *log_str
     size_t expected_receive
+    int64_t received
+
+
+cdef inline void ucp_request_reset(void* request):
+    cdef ucp_request *req = <ucp_request*> request
+    req.finished = False
+    req.future = NULL
+    req.log_str = NULL
+    req.expected_receive = 0
+    req.received = -1

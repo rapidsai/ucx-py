@@ -212,13 +212,6 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     )
 
 
-cdef void ucp_request_init(void* request):
-    cdef ucp_request *req = <ucp_request*> request
-    req.finished = False
-    req.future = NULL
-    req.expected_receive = 0
-
-
 cdef class _Listener:
     """This represents the private part of Listener
 
@@ -268,7 +261,7 @@ cdef class ApplicationContext:
                                UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = ucp_request_init
+        ucp_params.request_init = ucp_request_reset
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
