@@ -1,0 +1,21 @@
+name: ucx_dev
+channels:
+- jakirkham/label/ucx-new
+- nvidia
+- conda-forge
+- rapidsai
+dependencies:
+# required for building docs
+- sphinx
+- sphinx_rtd_theme
+- sphinxcontrib-websupport
+- nbsphinx
+- numpydoc
+- ucx-proc=*=cpu
+- recommonmark
+- pandoc=<2.0.0
+- pip
+- ucx
+- ucx-py
+- pip:
+  - sphinx-markdown-tables
