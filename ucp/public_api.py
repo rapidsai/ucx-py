@@ -25,7 +25,7 @@ def _get_ctx():
 
 
 def get_ucx_version():
-    """Return the version of the underlaying UCX installation
+    """Return the version of the underlying UCX installation
 
     Notice, this function doesn't initialize UCX.
 
@@ -47,7 +47,7 @@ def init(options={}, env_takes_precedence=False):
     Parameters
     ----------
     options: dict, optional
-        UCX options send to the underlaying UCX library
+        UCX options send to the underlying UCX library
     env_takes_precedence: bool, optional
         Whether environment variables takes precedence over the `options`
         specified here.
