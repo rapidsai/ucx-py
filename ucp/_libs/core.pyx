@@ -82,6 +82,12 @@ def get_config():
     return ret
 
 
+def get_ucx_version():
+    cdef unsigned int a, b, c
+    ucp_get_version(&a, &b, &c)
+    return (a, b, c)
+
+
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_config
@@ -212,13 +218,6 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     )
 
 
-cdef void ucp_request_init(void* request):
-    cdef ucp_request *req = <ucp_request*> request
-    req.finished = False
-    req.future = NULL
-    req.expected_receive = 0
-
-
 cdef class _Listener:
     """This represents the private part of Listener
 
@@ -254,9 +253,7 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
 
-        cdef unsigned int a, b, c
-        ucp_get_version(&a, &b, &c)
-        self.config['VERSION'] = (a, b, c)
+        self.config['VERSION'] = get_ucx_version()
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -268,7 +265,7 @@ cdef class ApplicationContext:
                                UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = ucp_request_init
+        ucp_params.request_init = ucp_request_reset
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
@@ -281,6 +278,8 @@ cdef class ApplicationContext:
 
         cdef int ucp_epoll_fd
         status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
+        assert_ucs_status(status)
+        status = ucp_worker_arm(self.worker)
         assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
@@ -393,17 +392,25 @@ cdef class ApplicationContext:
         # Return the public Endpoint
         return pub_ep
 
-    cdef _progress(self):
+    def progress(self):
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def progress(self):
-        self._progress()
+    def _fd_reader_callback(self):
+        cdef ucs_status_t status
+        self.progress()
+        while True:
+            status = ucp_worker_arm(self.worker)
+            if status == UCS_ERR_BUSY:
+                self.progress()
+            else:
+                break
+        assert_ucs_status(status)
 
     def _bind_epoll_fd_to_event_loop(self):
         loop = asyncio.get_event_loop()
         if loop not in self.all_epoll_binded_to_event_loop:
-            loop.add_reader(self.epoll_fd, self.progress)
+            loop.add_reader(self.epoll_fd, self._fd_reader_callback)
             self.all_epoll_binded_to_event_loop.add(loop)
 
     def get_ucp_worker(self):
