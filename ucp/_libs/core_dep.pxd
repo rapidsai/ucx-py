@@ -64,6 +64,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_ERR_CANCELED
     ucs_status_t UCS_INPROGRESS
     ucs_status_t UCS_ERR_NO_ELEM
+    ucs_status_t UCS_ERR_BUSY
 
     void ucp_get_version(unsigned * major_version,
                          unsigned *minor_version,
@@ -171,6 +172,7 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_ep_print_info(ucp_ep_h ep, FILE *stream)
 
     ucs_status_t ucp_worker_get_efd(ucp_worker_h worker, int *fd)
+    ucs_status_t ucp_worker_arm(ucp_worker_h worker)
 
     void ucp_listener_destroy(ucp_listener_h listener)
 
