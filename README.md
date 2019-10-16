@@ -18,7 +18,9 @@ The following instructions assume you'll be using `ucx-py` on a CUDA enabled sys
 
 ## Using Dask, Cudf, and UCX together ##
 
-These three libraries provide a powerful combination of HPC message passing tools. Using them involves using the correct dependencies, in the correct order:
+These three libraries provide a powerful combination of HPC message passing
+tools. Using them involves using the correct dependencies, in the correct
+order:
 
 ## NVIDIA repositories ##
 
