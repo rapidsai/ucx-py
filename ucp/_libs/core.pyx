@@ -443,7 +443,7 @@ cdef class ApplicationContext:
             pass
 
     def _blocking_progress_mode(self, event_loop):
-        """Bind an asyncio reader and a UCX epoll file descripter"""
+        """Bind an asyncio reader to a UCX epoll file descripter"""
         def _fd_reader_callback():
             cdef ucs_status_t status
             self.progress()
@@ -457,6 +457,7 @@ cdef class ApplicationContext:
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
     def _non_blocking_progress_mode(self, event_loop):
+        """Creates a task that keeps calling self.progress()"""
         async def _non_blocking_mode():
             while self.initiated:
                 self.progress()
