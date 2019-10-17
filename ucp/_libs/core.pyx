@@ -343,6 +343,8 @@ cdef class ApplicationContext:
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
             close(self.epoll_fd)
+            for task in self.progress_tasks:
+                task.cancel()
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
@@ -382,7 +384,7 @@ cdef class ApplicationContext:
 
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
-        self._bind_epoll_fd_to_event_loop()
+        self.continually_ucx_prograss()
 
         cdef ucp_ep_params_t params
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
@@ -440,7 +442,7 @@ cdef class ApplicationContext:
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def _bind_epoll_fd_to_event_loop(self, event_loop):
+    def _blocking_progress_mode(self, event_loop):
         """Bind an asyncio reader and a UCX epoll file descripter"""
         def _fd_reader_callback():
             cdef ucs_status_t status
@@ -454,12 +456,24 @@ cdef class ApplicationContext:
             assert_ucs_status(status)
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
+    def _non_blocking_progress_mode(self, event_loop):
+        async def _non_blocking_mode():
+            while self.initiated:
+                self.progress()
+                await asyncio.sleep(0)
+        self.progress_tasks.append(event_loop.create_task(_non_blocking_mode()))
+
     def continually_ucx_prograss(self):
         """Guaranties continually UCX prograss"""
         loop = asyncio.get_event_loop()
-        if loop not in self.all_epoll_binded_to_event_loop:
-            loop.add_reader(self.epoll_fd, self._fd_reader_callback)
-            self.all_epoll_binded_to_event_loop.add(loop)
+        if loop in self.event_loops_binded_for_progress:
+            return  # Progress has already been guaranteed for the current event loop
+        self.event_loops_binded_for_progress.add(loop)
+
+        if self.blocking_progress_mode:
+            self._blocking_progress_mode(loop)
+        else:
+            self._non_blocking_progress_mode(loop)
 
     def get_ucp_worker(self):
         return PyLong_FromVoidPtr(<void*>self.worker)
@@ -468,7 +482,7 @@ cdef class ApplicationContext:
         return self.config
 
     def unbind_epoll_fd_to_event_loop(self):
-        for loop in self.all_epoll_binded_to_event_loop:
+        for loop in self.event_loops_binded_for_progress:
             loop.remove_reader(self.epoll_fd)
 
 
