@@ -302,9 +302,13 @@ cdef class ApplicationContext:
                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
                                 UCP_PARAM_FIELD_REQUEST_INIT)
 
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+        # We only need the UCP_FEATURE_WAKEUP flag in blocking progress mode
+        if blocking_progress_mode:
+            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                                UCP_FEATURE_WAKEUP |  # noqa
+                                UCP_FEATURE_STREAM)
+        else:
+            ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_reset
@@ -333,8 +337,7 @@ cdef class ApplicationContext:
             assert(self.epoll_fd != -1)
             ev.data.fd = ucp_epoll_fd
             ev.events = EPOLLIN
-            err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD,
-                            ucp_epoll_fd, &ev)
+            err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
             assert(err == 0)
 
         self.config = get_ucx_config_options(config)
@@ -454,6 +457,7 @@ cdef class ApplicationContext:
     def _blocking_progress_mode(self, event_loop):
         """Bind an asyncio reader to a UCX epoll file descripter"""
         assert self.blocking_progress_mode is True
+
         def _fd_reader_callback():
             cdef ucs_status_t status
             self.progress()
@@ -469,6 +473,7 @@ cdef class ApplicationContext:
     def _non_blocking_progress_mode(self, event_loop):
         """Creates a task that keeps calling self.progress()"""
         assert self.blocking_progress_mode is False
+
         async def _non_blocking_mode():
             while self.initiated:
                 self.progress()
