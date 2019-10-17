@@ -40,7 +40,7 @@ def get_ucx_version():
     return core.get_ucx_version()
 
 
-def init(options={}, env_takes_precedence=False):
+def init(options={}, env_takes_precedence=False, blocking_progress_mode=True):
     """Initiate UCX.
 
     Usually this is done automatically at the first API call
@@ -54,6 +54,8 @@ def init(options={}, env_takes_precedence=False):
     env_takes_precedence: bool, optional
         Whether environment variables takes precedence over the `options`
         specified here.
+    blocking_progress_mode: bool, optional
+        Whether to use blocking or non-blocking UCX progress mode.
     """
     global _ctx
     if _ctx is not None:
@@ -66,7 +68,9 @@ def init(options={}, env_takes_precedence=False):
             if k in options:
                 del options[k]
 
-    _ctx = core.ApplicationContext(options)
+    _ctx = core.ApplicationContext(
+        options, blocking_progress_mode=blocking_progress_mode
+    )
 
 
 def create_listener(callback_func, port=None, guarantee_msg_order=True):
