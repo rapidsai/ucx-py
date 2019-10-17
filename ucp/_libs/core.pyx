@@ -277,7 +277,7 @@ cdef class ApplicationContext:
         # For now, a application context only has one worker
         ucp_worker_h worker
         int epoll_fd
-        object all_epoll_binded_to_event_loop
+        object event_loops_binded_for_progress
         bint initiated
 
     cdef public:
@@ -287,7 +287,7 @@ cdef class ApplicationContext:
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.all_epoll_binded_to_event_loop = set()
+        self.event_loops_binded_for_progress = set()
         self.config = {}
         self.initiated = False
 
@@ -346,7 +346,7 @@ cdef class ApplicationContext:
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
-        self._bind_epoll_fd_to_event_loop()
+        self.continually_ucx_prograss()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -440,18 +440,22 @@ cdef class ApplicationContext:
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def _fd_reader_callback(self):
-        cdef ucs_status_t status
-        self.progress()
-        while True:
-            status = ucp_worker_arm(self.worker)
-            if status == UCS_ERR_BUSY:
-                self.progress()
-            else:
-                break
-        assert_ucs_status(status)
+    def _bind_epoll_fd_to_event_loop(self, event_loop):
+        """Bind an asyncio reader and a UCX epoll file descripter"""
+        def _fd_reader_callback():
+            cdef ucs_status_t status
+            self.progress()
+            while True:
+                status = ucp_worker_arm(self.worker)
+                if status == UCS_ERR_BUSY:
+                    self.progress()
+                else:
+                    break
+            assert_ucs_status(status)
+        event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
-    def _bind_epoll_fd_to_event_loop(self):
+    def continually_ucx_prograss(self):
+        """Guaranties continually UCX prograss"""
         loop = asyncio.get_event_loop()
         if loop not in self.all_epoll_binded_to_event_loop:
             loop.add_reader(self.epoll_fd, self._fd_reader_callback)
