@@ -278,18 +278,22 @@ cdef class ApplicationContext:
         ucp_worker_h worker
         int epoll_fd
         object event_loops_binded_for_progress
+        object progress_tasks
         bint initiated
+        bint blocking_progress_mode
 
     cdef public:
         object config
 
-    def __cinit__(self, config_dict={}):
+    def __cinit__(self, config_dict={}, blocking_progress_mode=True):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
         self.event_loops_binded_for_progress = set()
+        self.progress_tasks = []
         self.config = {}
         self.initiated = False
+        self.blocking_progress_mode = blocking_progress_mode
 
         self.config['VERSION'] = get_ucx_version()
 
@@ -314,20 +318,24 @@ cdef class ApplicationContext:
         status = ucp_worker_create(self.context, &worker_params, &self.worker)
         assert_ucs_status(status)
 
+        # In blocking progress mode, we create an epoll file
+        # descriptor that we can wait on later.
         cdef int ucp_epoll_fd
-        status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
-        assert_ucs_status(status)
-        status = ucp_worker_arm(self.worker)
-        assert_ucs_status(status)
-
-        self.epoll_fd = epoll_create(1)
-        assert(self.epoll_fd != -1)
         cdef epoll_event ev
-        ev.data.fd = ucp_epoll_fd
-        ev.events = EPOLLIN
-        cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD,
-                                 ucp_epoll_fd, &ev)
-        assert(err == 0)
+        cdef int err
+        if blocking_progress_mode:
+            status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
+            assert_ucs_status(status)
+            status = ucp_worker_arm(self.worker)
+            assert_ucs_status(status)
+
+            self.epoll_fd = epoll_create(1)
+            assert(self.epoll_fd != -1)
+            ev.data.fd = ucp_epoll_fd
+            ev.events = EPOLLIN
+            err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD,
+                            ucp_epoll_fd, &ev)
+            assert(err == 0)
 
         self.config = get_ucx_config_options(config)
         ucp_config_release(config)
@@ -342,7 +350,8 @@ cdef class ApplicationContext:
         if self.initiated:
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
-            close(self.epoll_fd)
+            if self.blocking_progress_mode:
+                close(self.epoll_fd)
             for task in self.progress_tasks:
                 task.cancel()
 
@@ -444,6 +453,7 @@ cdef class ApplicationContext:
 
     def _blocking_progress_mode(self, event_loop):
         """Bind an asyncio reader to a UCX epoll file descripter"""
+        assert self.blocking_progress_mode is True
         def _fd_reader_callback():
             cdef ucs_status_t status
             self.progress()
@@ -458,6 +468,7 @@ cdef class ApplicationContext:
 
     def _non_blocking_progress_mode(self, event_loop):
         """Creates a task that keeps calling self.progress()"""
+        assert self.blocking_progress_mode is False
         async def _non_blocking_mode():
             while self.initiated:
                 self.progress()
