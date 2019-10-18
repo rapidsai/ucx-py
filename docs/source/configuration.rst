@@ -1,12 +1,23 @@
 Configuration
 =============
 
+UCX can be configured with a wide variety of options and optimizations including: transport, caching, etc.
+
+For novice user we recommend the following settings:
+
+::
+
+    UCX_MEMTYPE_CACHE=n UCX_TLS=all
+
+``UCX_TLS=all``  means try all available transport methods.  However, users who want define what transport methods and/or other optional settings may do so.  Below we layout the more common environment variables and provide some example combinations and usage.
+
 Env Vars
 ----------
 
 DEBUG
 ~~~~~
 
+Debug variables for both UCX and UCX-PY can be set
 
 ``UCX_PY_LOG_LEVEL``
 ``UCX_LOG_LEVEL``
@@ -18,7 +29,7 @@ MEMORY
 
 ``UCX_MEMTYPE_CACHE``
 
-UCX Memory optimization `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_.  UCX-PY regularly sets this to `n` -- toggles whether UCX library intercepts cu*alloc* calls.
+This is UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-PY defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
 Values: n
 
@@ -29,12 +40,13 @@ Values: put_zcopy
 
 ``UCX_TLS``
 
-Values:
-- rc = ibv_post_send, ibv_post_recv, ibv_poll_cq
-- cuda_copy = cuMemHostRegister, cuMemcpyAsync
-- cuda_ipc =  cuIpcCloseMemHandle ,  cuIpcOpenMemHandle, cuMemcpyAsync
-- sockcm = connection management over sockets
-- tcp = communication over TCP
+Transport Methods (Simplified):
+
+- ``rc`` -> (IB) ibv_post_send, ibv_post_recv, ibv_poll_cq
+- ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
+- cuda_ipc -> (NVLINK) cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync
+- sockcm -> connection management over sockets
+- tcp -> TCP over sockets (often used with sockcm)
 
 
 Example Usages
