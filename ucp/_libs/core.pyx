@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+import os
 import asyncio
 import weakref
 from functools import partial
@@ -285,7 +286,7 @@ cdef class ApplicationContext:
     cdef public:
         object config
 
-    def __cinit__(self, config_dict={}, blocking_progress_mode=True):
+    def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
@@ -293,7 +294,12 @@ cdef class ApplicationContext:
         self.progress_tasks = []
         self.config = {}
         self.initiated = False
-        self.blocking_progress_mode = blocking_progress_mode
+
+        if 'UCXPY_NON_BLOCK_MODE' in os.environ:
+            print("UCXPY_NON_BLOCK_MODE")
+            self.blocking_progress_mode = False
+        else:
+            self.blocking_progress_mode = blocking_progress_mode
 
         self.config['VERSION'] = get_ucx_version()
 

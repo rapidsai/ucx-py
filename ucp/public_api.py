@@ -40,7 +40,7 @@ def get_ucx_version():
     return core.get_ucx_version()
 
 
-def init(options={}, env_takes_precedence=False, blocking_progress_mode=True):
+def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
     """Initiate UCX.
 
     Usually this is done automatically at the first API call
@@ -55,7 +55,9 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=True):
         Whether environment variables takes precedence over the `options`
         specified here.
     blocking_progress_mode: bool, optional
-        Whether to use blocking or non-blocking UCX progress mode.
+        If None, blocking UCX progress mode is used unless the environment variable
+        `UCXPY_NON_BLOCK_MODE` is defined.
+        Otherwise, if True blocking mode is used and if False non-blocking mode is used.
     """
     global _ctx
     if _ctx is not None:
