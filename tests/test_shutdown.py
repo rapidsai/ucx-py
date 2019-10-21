@@ -88,3 +88,5 @@ async def test_listener_del():
     assert listener.closed() is False
     del listener
     await ep.recv(msg)
+    ucp.reset()
+
