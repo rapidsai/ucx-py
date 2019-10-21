@@ -144,6 +144,10 @@ def setup_ctrl_recv(priv_ep, pub_ep):
 
     # Make the "shutdown receive" close the Endpoint when is it finished
     def _close(future):
+        try:
+            future.result()
+        except UCXCanceled:
+            return  # The "shutdown receive" was canceled
         logging.debug(log)
         if not pub_ep.closed():
             pub_ep.close()
@@ -495,8 +499,7 @@ class _Endpoint:
                 )
 
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep,
-                                                       UCP_EP_CLOSE_MODE_FLUSH)
+        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
         if UCS_PTR_STATUS(status) != UCS_OK:
             assert not UCS_PTR_IS_ERR(status)
             # We spinlock here until `status` has finished
