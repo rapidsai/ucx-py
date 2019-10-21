@@ -295,8 +295,7 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
 
-        if 'UCXPY_NON_BLOCK_MODE' in os.environ:
-            print("UCXPY_NON_BLOCK_MODE")
+        if 'UCXPY_NON_BLOCKING_MODE' in os.environ:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = blocking_progress_mode

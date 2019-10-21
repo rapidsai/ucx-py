@@ -56,7 +56,7 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
         specified here.
     blocking_progress_mode: bool, optional
         If None, blocking UCX progress mode is used unless the environment variable
-        `UCXPY_NON_BLOCK_MODE` is defined.
+        `UCXPY_NON_BLOCKING_MODE` is defined.
         Otherwise, if True blocking mode is used and if False non-blocking mode is used.
     """
     global _ctx
