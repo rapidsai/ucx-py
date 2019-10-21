@@ -3,6 +3,8 @@
 # cython: language_level=3
 
 import asyncio
+import weakref
+from functools import partial
 from libc.stdint cimport uint64_t
 import uuid
 import socket
@@ -143,15 +145,16 @@ def setup_ctrl_recv(priv_ep, pub_ep):
                             pending_msg=priv_ep.pending_msg_list[-1])
 
     # Make the "shutdown receive" close the Endpoint when is it finished
-    def _close(future):
+    def _close(ep_weakref, future):
         try:
             future.result()
         except UCXCanceled:
             return  # The "shutdown receive" was canceled
         logging.debug(log)
-        if not pub_ep.closed():
-            pub_ep.close()
-    shutdown_fut.add_done_callback(_close)
+        ep = ep_weakref()
+        if ep is not None and not ep.closed():
+            ep.close()
+    shutdown_fut.add_done_callback(partial(_close, weakref.ref(pub_ep)))
 
 
 async def listener_handler(ucp_endpoint, ucp_worker, config, func):
