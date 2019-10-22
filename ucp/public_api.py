@@ -182,6 +182,7 @@ class Listener:
         if not self._closed:
             self._b.destroy()
             self._closed = True
+            self._b = None
 
 
 class Endpoint:
