@@ -41,10 +41,18 @@ def client(env, port, func):
     # send receipt
 
     os.environ.update(env)
+    # print(f"CLIENT: {os.environ}")
+    ucp.reset()
+    ucp.init(
+        options={
+            "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
+            "SOCKADDR_TLS_PRIORITY": "sockcm",
+        }
+    )
 
     # must create context before importing
     # cudf/cupy/etc
-    create_cuda_context()
+    # create_cuda_context()
     before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
@@ -123,7 +131,15 @@ def server(env, port, func):
     # confirm message is sent correctly
 
     os.environ.update(env)
-    create_cuda_context()
+    # print(f"SERVER {os.environ}")
+    ucp.reset()
+    ucp.init(
+        options={
+            "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
+            "SOCKADDR_TLS_PRIORITY": "sockcm",
+        }
+    )
+    # create_cuda_context()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
@@ -167,8 +183,8 @@ def server(env, port, func):
 
         lf = ucp.create_listener(write, port=listener_port)
         try:
-            while not lf.closed:
-                await asyncio.sleep(1)
+            while not lf.closed():
+                await asyncio.sleep(0.1)
         except ucp.UCXCloseError:
             pass
 
