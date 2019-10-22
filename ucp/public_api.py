@@ -1,12 +1,12 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import os
 import gc
+import os
 import weakref
 
-from ._libs import core
 from . import exceptions
+from ._libs import core
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
