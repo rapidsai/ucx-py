@@ -56,21 +56,21 @@ async def test_client_shutdown():
 async def test_listener_close():
     """The server close the listener"""
 
-    async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port)
-        await ep.send(np.arange(100, dtype=np.int64))
-        await ep.send(np.arange(100, dtype=np.int64))
-
-    async def server_node(ep):
+    async def client_node(listener):
+        ep = await ucp.create_endpoint(ucp.get_address(), listener.port)
         msg = np.empty(100, dtype=np.int64)
+        await ep.recv(msg)
         await ep.recv(msg)
         assert listener.closed() is False
         listener.close()
-        await ep.recv(msg)
         assert listener.closed() is True
 
+    async def server_node(ep):
+        await ep.send(np.arange(100, dtype=np.int64))
+        await ep.send(np.arange(100, dtype=np.int64))
+
     listener = ucp.create_listener(server_node)
-    await client_node(listener.port)
+    await client_node(listener)
 
 
 @pytest.mark.asyncio
@@ -78,13 +78,13 @@ async def test_listener_del():
     """The client delete the listener"""
 
     async def server_node(ep):
-        msg = np.empty(100, dtype=np.int64)
-        await ep.recv(msg)
-        await ep.recv(msg)
+        await ep.send(np.arange(100, dtype=np.int64))
+        await ep.send(np.arange(100, dtype=np.int64))
 
     listener = ucp.create_listener(server_node)
     ep = await ucp.create_endpoint(ucp.get_address(), listener.port)
-    await ep.send(np.arange(100, dtype=np.int64))
+    msg = np.empty(100, dtype=np.int64)
+    await ep.recv(msg)
     assert listener.closed() is False
     del listener
-    await ep.send(np.arange(100, dtype=np.int64))
+    await ep.recv(msg)

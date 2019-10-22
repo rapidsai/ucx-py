@@ -3,6 +3,8 @@
 # cython: language_level=3
 
 import asyncio
+import weakref
+from functools import partial
 from libc.stdint cimport uint64_t
 import uuid
 import socket
@@ -90,7 +92,7 @@ def get_ucx_version():
 
 cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
-    PyObject *py_config
+    PyObject *py_ctx
     PyObject *py_func
 
 
@@ -143,14 +145,19 @@ def setup_ctrl_recv(priv_ep, pub_ep):
                             pending_msg=priv_ep.pending_msg_list[-1])
 
     # Make the "shutdown receive" close the Endpoint when is it finished
-    def _close(future):
+    def _close(ep_weakref, future):
+        try:
+            future.result()
+        except UCXCanceled:
+            return  # The "shutdown receive" was canceled
         logging.debug(log)
-        if not pub_ep.closed():
-            pub_ep.close()
-    shutdown_fut.add_done_callback(_close)
+        ep = ep_weakref()
+        if ep is not None and not ep.closed():
+            ep.close()
+    shutdown_fut.add_done_callback(partial(_close, weakref.ref(pub_ep)))
 
 
-async def listener_handler(ucp_endpoint, ucp_worker, config, func):
+async def listener_handler(ucp_endpoint, ctx, ucp_worker, func):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -171,7 +178,7 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     ep = _Endpoint(
         ucp_endpoint=ucp_endpoint,
         ucp_worker=ucp_worker,
-        config=config,
+        ctx=ctx,
         msg_tag_send=peer_info['msg_tag'],
         msg_tag_recv=msg_tag,
         ctrl_tag_send=peer_info['ctrl_tag'],
@@ -195,6 +202,10 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
     # Setup the control receive
     setup_ctrl_recv(ep, pub_ep)
 
+    # Removing references here to avoid delayed clean up
+    del ep
+    del ctx
+
     # Finally, we call `func` asynchronously (even if it isn't coroutine)
     if asyncio.iscoroutinefunction(func):
         await func(pub_ep)
@@ -206,13 +217,13 @@ async def listener_handler(ucp_endpoint, ucp_worker, config, func):
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef _listener_callback_args *a = <_listener_callback_args *> args
-    cdef object config = <object> a.py_config
+    cdef object ctx = <object> a.py_ctx
     cdef object func = <object> a.py_func
     asyncio.ensure_future(
         listener_handler(
             PyLong_FromVoidPtr(<void*>ep),
+            ctx,
             PyLong_FromVoidPtr(<void*>a.ucp_worker),
-            config,
             func
         )
     )
@@ -227,23 +238,32 @@ cdef class _Listener:
         cdef ucp_listener_h _ucp_listener
         cdef _listener_callback_args _cb_args
         cdef uint16_t _port
+        cdef object _ctx
 
     def port(self):
         return self._port
 
     def destroy(self):
+        Py_DECREF(<object>self._cb_args.py_ctx)
+        self._cb_args.py_ctx = NULL
+        Py_DECREF(<object>self._cb_args.py_func)
+        self._cb_args.py_func = NULL
         ucp_listener_destroy(self._ucp_listener)
+        self._ctx = None
 
 
 cdef class ApplicationContext:
     cdef:
+        object __weakref__
         ucp_context_h context
         # For now, a application context only has one worker
         ucp_worker_h worker
         int epoll_fd
         object all_epoll_binded_to_event_loop
-        object config
         bint initiated
+
+    cdef public:
+        object config
 
     def __cinit__(self, config_dict={}):
         cdef ucp_params_t ucp_params
@@ -283,6 +303,7 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
+        assert(self.epoll_fd != -1)
         cdef epoll_event ev
         ev.data.fd = ucp_epoll_fd
         ev.events = EPOLLIN
@@ -303,6 +324,7 @@ cdef class ApplicationContext:
         if self.initiated:
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
+            close(self.epoll_fd)
 
     def create_listener(self, callback_func, port=None):
         from ..public_api import Listener
@@ -316,11 +338,12 @@ cdef class ApplicationContext:
 
         ret = _Listener()
         ret._port = port
+        ret._ctx = self
 
         ret._cb_args.ucp_worker = self.worker
         ret._cb_args.py_func = <PyObject*> callback_func
-        ret._cb_args.py_config = <PyObject*> self.config
-        Py_INCREF(self.config)
+        ret._cb_args.py_ctx = <PyObject*> self
+        Py_INCREF(self)
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
@@ -366,7 +389,7 @@ cdef class ApplicationContext:
         ep = _Endpoint(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
             ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
-            config=self.config,
+            ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
             ctrl_tag_send=peer_info['ctrl_tag'],
@@ -419,6 +442,10 @@ cdef class ApplicationContext:
     def get_config(self):
         return self.config
 
+    def unbind_epoll_fd_to_event_loop(self):
+        for loop in self.all_epoll_binded_to_event_loop:
+            loop.remove_reader(self.epoll_fd)
+
 
 class _Endpoint:
     """This represents the private part of Endpoint
@@ -430,7 +457,7 @@ class _Endpoint:
         self,
         ucp_endpoint,
         ucp_worker,
-        config,
+        ctx,
         msg_tag_send,
         msg_tag_recv,
         ctrl_tag_send,
@@ -438,7 +465,7 @@ class _Endpoint:
     ):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
-        self._config = config
+        self._ctx = ctx
         self._msg_tag_send = msg_tag_send
         self._msg_tag_recv = msg_tag_recv
         self._ctrl_tag_send = ctrl_tag_send
@@ -448,7 +475,7 @@ class _Endpoint:
         self._closed = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        self._cuda_support = "cuda" in config['TLS'] or config['TLS'] == "all"
+        self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
 
     @property
     def uid(self):
@@ -495,8 +522,7 @@ class _Endpoint:
                 )
 
         cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep,
-                                                       UCP_EP_CLOSE_MODE_FLUSH)
+        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
         if UCS_PTR_STATUS(status) != UCS_OK:
             assert not UCS_PTR_IS_ERR(status)
             # We spinlock here until `status` has finished
@@ -505,6 +531,7 @@ class _Endpoint:
                     pass
             assert not UCS_PTR_IS_ERR(status)
             ucp_request_free(status)
+        self._ctx = None
 
     def __del__(self):
         if not self._closed:
