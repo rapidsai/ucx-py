@@ -4,11 +4,7 @@ import sys
 import numpy as np
 import pytest
 import ucp
-
-
-async def shutdown(ep):
-    await ep.signal_shutdown()
-    ep.close()
+from utils import shutdown
 
 
 @pytest.mark.asyncio
@@ -89,4 +85,3 @@ async def test_listener_del():
     del listener
     await ep.recv(msg)
     ucp.reset()
-

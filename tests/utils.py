@@ -10,3 +10,8 @@ normal_env = {
 
 def set_env():
     os.environ.update(normal_env)
+
+
+async def shutdown(ep):
+    await ep.signal_shutdown()
+    ep.close()

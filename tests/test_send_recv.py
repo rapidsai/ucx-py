@@ -3,6 +3,7 @@ import sys
 
 import pytest
 import ucp
+from utils import shutdown
 
 np = pytest.importorskip("numpy")
 
@@ -132,3 +133,5 @@ async def test_send_recv_error():
         ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
     ):
         await client.recv(msg)
+
+    await shutdown(client)

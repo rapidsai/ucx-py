@@ -131,4 +131,3 @@ async def test_send_recv_cudf(event_loop, g):
     assert uu.client.closed()
     assert uu.comm.ep.closed()
     del uu.ucp_server
-    ucp.reset()
