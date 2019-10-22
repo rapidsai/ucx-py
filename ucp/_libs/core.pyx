@@ -303,6 +303,7 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
 
         self.epoll_fd = epoll_create(1)
+        assert(self.epoll_fd != -1)
         cdef epoll_event ev
         ev.data.fd = ucp_epoll_fd
         ev.events = EPOLLIN
@@ -323,6 +324,7 @@ cdef class ApplicationContext:
         if self.initiated:
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
+            close(self.epoll_fd)
 
     def create_listener(self, callback_func, port=None):
         from ..public_api import Listener
