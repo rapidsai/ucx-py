@@ -2,8 +2,11 @@
 # See file LICENSE for terms.
 
 import os
+import gc
+import weakref
 
 from ._libs import core
+from . import exceptions
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
@@ -69,9 +72,14 @@ def init(options={}, env_takes_precedence=False):
 def create_listener(callback_func, port=None):
     """Create and start a listener to accept incoming connections
 
-    NB: the listening is continued until the returned Listener
-        object goes out of scope thus remember to keep a reference
-        to the object.
+    callback_func is the function or coroutine that takes one
+    argument -- the Endpoint connected to the client.
+
+    In order to call ucp.reset() inside callback_func remember to
+    close the Endpoint given as an argument. It is not enough to
+
+    Also notice, the listening is closed when the returned Listener
+    goes out of scope thus remember to keep a reference to the object.
 
     Parameters
     ----------
@@ -150,7 +158,20 @@ def reset():
     The library is initiated at next API call.
     """
     global _ctx
-    _ctx = None
+    if _ctx is not None:
+        _ctx.unbind_epoll_fd_to_event_loop()
+        weakref_ctx = weakref.ref(_ctx)
+        _ctx = None
+        gc.collect()
+        if weakref_ctx() is not None:
+            msg = (
+                "Trying to reset UCX but not all Endpoints and/or Listeners "
+                "are closed(). The following objects are still referencing "
+                "ApplicationContext: "
+            )
+            for o in gc.get_referrers(weakref_ctx()):
+                msg += "\n  %s" % o
+            raise exceptions.UCXError(msg)
 
 
 class Listener:
