@@ -7,6 +7,7 @@ from libc.stdint cimport *
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport FILE, stdin, stdout, stderr, printf, fflush, fclose
 from posix.stdio cimport open_memstream
+from posix.unistd cimport close
 from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
@@ -64,6 +65,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_ERR_CANCELED
     ucs_status_t UCS_INPROGRESS
     ucs_status_t UCS_ERR_NO_ELEM
+    ucs_status_t UCS_ERR_BUSY
 
     void ucp_get_version(unsigned * major_version,
                          unsigned *minor_version,
@@ -128,7 +130,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef uint64_t ucp_datatype_t
 
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
-    bint UCS_PTR_STATUS(ucs_status_ptr_t)
+    ucs_status_t UCS_PTR_STATUS(ucs_status_ptr_t)
 
     ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)  # noqa
 
@@ -171,6 +173,7 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_ep_print_info(ucp_ep_h ep, FILE *stream)
 
     ucs_status_t ucp_worker_get_efd(ucp_worker_h worker, int *fd)
+    ucs_status_t ucp_worker_arm(ucp_worker_h worker)
 
     void ucp_listener_destroy(ucp_listener_h listener)
 
@@ -235,5 +238,16 @@ cdef extern from "sys/epoll.h":
 
 cdef struct ucp_request:
     bint finished
-    void *future
+    PyObject *future
+    PyObject *log_str
     size_t expected_receive
+    int64_t received
+
+
+cdef inline void ucp_request_reset(void* request):
+    cdef ucp_request *req = <ucp_request*> request
+    req.finished = False
+    req.future = NULL
+    req.log_str = NULL
+    req.expected_receive = 0
+    req.received = -1

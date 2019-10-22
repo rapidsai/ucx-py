@@ -80,9 +80,6 @@ conda list
 logger "Build ucx"
 git clone https://github.com/openucx/ucx
 cd ucx
-git remote add Akshay-Venkatesh https://github.com/Akshay-Venkatesh/ucx.git
-git remote update Akshay-Venkatesh
-git checkout ucx-cuda
 ls
 ./autogen.sh
 mkdir build
@@ -100,9 +97,8 @@ cd $WORKSPACE
 
 logger "Build ucx-py..."
 cd $WORKSPACE
-export UCX_PATH=$CONDA_PREFIX
-make clean
-make install
+python setup.py build_ext --inplace
+python -m pip install -e .
 
 ################################################################################
 # TEST - Run py.tests for ucx-py
