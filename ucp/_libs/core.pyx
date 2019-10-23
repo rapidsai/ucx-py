@@ -248,6 +248,20 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     )
 
 
+async def _non_blocking_mode(weakref_ctx):
+    """This help function maintains a UCX progress loop.
+    Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
+    possible to call `ucp.reset()` even when this loop is running.
+    """
+    while True:
+        ctx = weakref_ctx()
+        if ctx is None:
+            return
+        ctx.progress()
+        del ctx
+        await asyncio.sleep(0)
+
+
 cdef class _Listener:
     """This represents the private part of Listener
 
@@ -478,12 +492,9 @@ cdef class ApplicationContext:
     def _non_blocking_progress_mode(self, event_loop):
         """Creates a task that keeps calling self.progress()"""
         assert self.blocking_progress_mode is False
-
-        async def _non_blocking_mode():
-            while self.initiated:
-                self.progress()
-                await asyncio.sleep(0)
-        self.progress_tasks.append(event_loop.create_task(_non_blocking_mode()))
+        self.progress_tasks.append(
+            event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
+        )
 
     def continually_ucx_prograss(self):
         """Guaranties continually UCX prograss"""
