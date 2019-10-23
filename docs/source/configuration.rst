@@ -3,7 +3,7 @@ Configuration
 
 UCX can be configured with a wide variety of options and optimizations including: transport, caching, etc.
 
-For novice user we recommend the following settings:
+For novice users we recommend the following settings:
 
 ::
 
@@ -24,6 +24,7 @@ Debug variables for both UCX and UCX-PY can be set
 
 Values: DEBUG, TRACE
 
+If UCX has been built with debug mode enabled
 
 MEMORY
 ~~~~~~
@@ -49,9 +50,9 @@ Values:
 
 Transport Methods (Simplified):
 
-- ``rc`` -> (IB) ibv_post_send, ibv_post_recv, ibv_poll_cq
+- ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq)
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
-- ``cuda_ipc`` -> (NVLINK) cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync
+- ``cuda_ipc`` -> NVLINK (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
 - ``sockcm`` -> connection management over sockets
 - ``tcp`` -> TCP over sockets (often used with sockcm)
 
@@ -63,7 +64,13 @@ Select InfiniBand Device
 
 ``UCX_NET_DEVICES``
 
+Typically these will be the InfiniBand device corresponding to a particular set of GPUs.  Values:
 
+- ``mlx5_0:1``
+
+To find more information on the topology of InfiniBand-GPU pairing run the following::
+
+   nvidia-smi topo -m
 
 Example Configs
 ---------------
