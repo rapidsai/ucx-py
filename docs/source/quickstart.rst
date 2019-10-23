@@ -59,9 +59,9 @@ Process 1
 
     import asyncio
     import ucp
-    import numpy as np
+    import cupy as cp
 
-    n_bytes = 100
+    n_bytes = 2**30
     host = ucp.get_address(ifname='enp1s0f0')
     port = 13337
 
@@ -97,9 +97,10 @@ Process 2
     import numpy as np
 
     port = 13337
+    n_bytes = 2**30
     host = ucp.get_address(ifname='enp1s0f0')
     ep = await ucp.create_endpoint(host, port)
-    msg = cp.zeros(100, dtype='u1') # create some data to send
+    msg = cp.zeros(n_bytes, dtype='u1') # create some data to send
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
 
     # send message
