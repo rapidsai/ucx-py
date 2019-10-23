@@ -52,7 +52,7 @@ Transport Methods (Simplified):
 
 - ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq)
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
-- ``cuda_ipc`` -> NVLINK (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
+- ``cuda_ipc`` -> CUDA Interprocess Communication (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
 - ``sockcm`` -> connection management over sockets
 - ``tcp`` -> TCP over sockets (often used with sockcm)
 
