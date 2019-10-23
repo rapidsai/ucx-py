@@ -19,13 +19,11 @@ DEBUG
 
 Debug variables for both UCX and UCX-PY can be set
 
-``UCX_PY_LOG_LEVEL``
+``UCXPY_LOG_LEVEL``
 ``UCX_LOG_LEVEL``
 
 Values: DEBUG, TRACE
 
-
-> UCX_HANDLE_ERRORS=bt
 
 MEMORY
 ~~~~~~
