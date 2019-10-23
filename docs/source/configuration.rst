@@ -9,10 +9,10 @@ For novice user we recommend the following settings:
 
     UCX_MEMTYPE_CACHE=n UCX_TLS=all
 
-``UCX_TLS=all``  means try all available transport methods.  However, users who want define what transport methods and/or other optional settings may do so.  Below we layout the more common environment variables and provide some example combinations and usage.
+``UCX_TLS=all`` instructs UCX to try all available transport methods.  However, users who want to define what transport methods and/or other optional settings may do so.  Below we define the more common environment variables and provide some example combinations and usage.
 
 Env Vars
-----------
+--------
 
 DEBUG
 ~~~~~
@@ -24,6 +24,9 @@ Debug variables for both UCX and UCX-PY can be set
 
 Values: DEBUG, TRACE
 
+
+> UCX_HANDLE_ERRORS=bt
+
 MEMORY
 ~~~~~~
 
@@ -33,9 +36,15 @@ This is UCX Memory optimization which toggles whether UCX library intercepts cu*
 
 Values: n
 
-```UCX_RNDV_SCHEME``
+``UCX_RNDV_SCHEME``
 
-Values: put_zcopy
+Communication scheme in RNDV protocol
+
+Values:
+
+- ``put_zcopy``
+- ``get_zcopy``
+- ``auto`` (default)
 
 
 ``UCX_TLS``
@@ -44,13 +53,22 @@ Transport Methods (Simplified):
 
 - ``rc`` -> (IB) ibv_post_send, ibv_post_recv, ibv_poll_cq
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
-- cuda_ipc -> (NVLINK) cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync
-- sockcm -> connection management over sockets
-- tcp -> TCP over sockets (often used with sockcm)
+- ``cuda_ipc`` -> (NVLINK) cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync
+- ``sockcm`` -> connection management over sockets
+- ``tcp`` -> TCP over sockets (often used with sockcm)
 
 
-Example Usages
---------------
+InfiniBand Device
+~~~~~~~~~~~~~~~~~~
+
+Select InfiniBand Device
+
+``UCX_NET_DEVICES``
+
+
+
+Example Configs
+---------------
 
 IB -- Yes NVLINK
 ~~~~~~~~~~~~~~~~
