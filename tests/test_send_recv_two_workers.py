@@ -1,6 +1,7 @@
 import asyncio
 import multiprocessing
 import os
+import subprocess
 
 from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
@@ -13,8 +14,11 @@ import rmm
 import ucp
 from utils import more_than_two_gpus
 
-# nvidia-smi nvlink --setcontrol  0bz  # Get output in bytes
+cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
+subprocess.check_call(cmd, shell=True)
+
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
+ITERATIONS = 100
 
 
 def cuda_array(size):
@@ -41,14 +45,12 @@ def client(env, port, func):
     # send receipt
 
     os.environ.update(env)
-    # print(f"CLIENT: {os.environ}")
-    ucp.reset()
-    ucp.init(
-        options={
-            "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-            "SOCKADDR_TLS_PRIORITY": "sockcm",
-        }
-    )
+    # ucp.init(
+    #     options={
+    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
+    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
+    #     }
+    # )
 
     # must create context before importing
     # cudf/cupy/etc
@@ -56,37 +58,42 @@ def client(env, port, func):
     before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         ep = await get_ep("client", port)
-        try:
-            # Recv meta data
-            nframes = np.empty(1, dtype=np.uint64)
-            await ep.recv(nframes)
-            is_cudas = np.empty(nframes[0], dtype=np.bool)
-            await ep.recv(is_cudas)
-            sizes = np.empty(nframes[0], dtype=np.uint64)
-            await ep.recv(sizes)
-        except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
-            msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
-            raise e(msg)
-        else:
-            # Recv frames
-            frames = []
-            for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
-                if size > 0:
-                    if is_cuda:
-                        frame = cuda_array(size)
+        msg = None
+        for i in range(ITERATIONS):
+            # storing cu objects in msg
+            # we delete to minimize GPU memory usage
+            del msg
+            try:
+                # Recv meta data
+                nframes = np.empty(1, dtype=np.uint64)
+                await ep.recv(nframes)
+                is_cudas = np.empty(nframes[0], dtype=np.bool)
+                await ep.recv(is_cudas)
+                sizes = np.empty(nframes[0], dtype=np.uint64)
+                await ep.recv(sizes)
+            except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
+                msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
+                raise e(msg)
+            else:
+                # Recv frames
+                frames = []
+                for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
+                    if size > 0:
+                        if is_cuda:
+                            frame = cuda_array(size)
+                        else:
+                            frame = np.empty(size, dtype=np.uint8)
+                        await ep.recv(frame)
+                        frames.append(frame)
                     else:
-                        frame = np.empty(size, dtype=np.uint8)
-                    await ep.recv(frame)
-                    frames.append(frame)
-                else:
-                    if is_cuda:
-                        frames.append(cuda_array(size))
-                    else:
-                        frames.append(b"")
+                        if is_cuda:
+                            frames.append(cuda_array(size))
+                        else:
+                            frames.append(b"")
 
-        msg = await from_frames(frames)
+            msg = await from_frames(frames)
 
         close_msg = b"shutdown listener"
         close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
@@ -98,10 +105,11 @@ def client(env, port, func):
         return msg["data"]
 
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
-    # nvlink only measures in KBs
+
     num_bytes = nbytes(rx_cuda_obj)
-    print(f"TOTAL DATA: {num_bytes}")
-    if num_bytes > 1000:
+    print(f"TOTAL DATA RECEIVED: {num_bytes}")
+    # nvlink only measures in KBs
+    if num_bytes > 90000:
         rx, tx = total_nvlink_transfer()
         msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
                -- TOTAL DATA: {num_bytes}"
@@ -114,12 +122,7 @@ def client(env, port, func):
     from cudf.tests.utils import assert_eq
     import cupy
 
-    if hasattr(rx_cuda_obj, "shape"):
-        shape = rx_cuda_obj.shape
-    else:
-        # handle an sr._column object
-        shape = (1,)
-    if len(shape) == 1:
+    if isinstance(rx_cuda_obj, cupy.ndarray):
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
         assert_eq(rx_cuda_obj, pure_cuda_obj)
@@ -131,14 +134,12 @@ def server(env, port, func):
     # confirm message is sent correctly
 
     os.environ.update(env)
-    # print(f"SERVER {os.environ}")
-    ucp.reset()
-    ucp.init(
-        options={
-            "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-            "SOCKADDR_TLS_PRIORITY": "sockcm",
-        }
-    )
+    # ucp.init(
+    #     options={
+    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
+    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
+    #     }
+    # )
     # create_cuda_context()
 
     async def f(listener_port):
@@ -150,22 +151,21 @@ def server(env, port, func):
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
             msg = {"data": to_serialize(cuda_obj)}
-            await asyncio.sleep(1)
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
-
-            # Send meta data
-            await ep.send(np.array([len(frames)], dtype=np.uint64))
-            await ep.send(
-                np.array(
-                    [hasattr(f, "__cuda_array_interface__") for f in frames],
-                    dtype=np.bool,
+            for i in range(ITERATIONS):
+                # Send meta data
+                await ep.send(np.array([len(frames)], dtype=np.uint64))
+                await ep.send(
+                    np.array(
+                        [hasattr(f, "__cuda_array_interface__") for f in frames],
+                        dtype=np.bool,
+                    )
                 )
-            )
-            await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-            # Send frames
-            for frame in frames:
-                if nbytes(frame) > 0:
-                    await ep.send(frame)
+                await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
+                # Send frames
+                for frame in frames:
+                    if nbytes(frame) > 0:
+                        await ep.send(frame)
 
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"
@@ -206,13 +206,13 @@ def dataframe():
 def column():
     import cudf
 
-    return cudf.Series(np.arange(10000))._column
+    return cudf.Series(np.arange(90000))._column
 
 
 def series():
     import cudf
 
-    return cudf.Series(np.arange(10000))
+    return cudf.Series(np.arange(90000))
 
 
 def empty_dataframe():
@@ -234,7 +234,7 @@ def cupy():
 @pytest.mark.parametrize(
     "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
 )
-def test_send_recv_cudf(cuda_obj_generator):
+def test_send_recv_cu(cuda_obj_generator):
     import os
 
     base_env = os.environ
@@ -268,9 +268,14 @@ def test_send_recv_cudf(cuda_obj_generator):
     assert server_process.exitcode == 0
     assert client_process.exitcode == 0
 
+    # ensure ucp in the main process is not running
+    assert ucp.public_api._ctx is None
+
 
 def total_nvlink_transfer():
     import pynvml
+
+    pynvml.nvmlShutdown()
 
     pynvml.nvmlInit()
 
