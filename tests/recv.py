@@ -105,8 +105,8 @@ def client(env, port, func):
                             frames.append(cuda_array(size))
                         else:
                             frames.append(b"")
-            print(frames)
-            print(frames[-1].__cuda_array_interface__)
+            # print(frames)
+            # print(frames[-1].__cuda_array_interface__)
             msg = await from_frames(frames)
 
         close_msg = b"shutdown listener"
