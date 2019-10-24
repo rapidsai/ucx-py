@@ -84,10 +84,13 @@ def create_listener(callback_func, port=None, guarantee_msg_order=True):
     Parameters
     ----------
     callback_func: function or coroutine
-        a callback function that gets invoked when an incoming
+        A callback function that gets invoked when an incoming
         connection is accepted
     port: int, optional
-        an unused port number for listening
+        An unused port number for listening
+    guarantee_msg_order: boolean, optional
+        Whether to guarantee message order or not. Remember, both peers
+        of the endpoint must set guarantee_msg_order to the same value.
 
     Returns
     -------
@@ -106,7 +109,9 @@ async def create_endpoint(ip_address, port, guarantee_msg_order=True):
         IP address of the server the endpoint should connect to
     port: int
         IP address of the server the endpoint should connect to
-
+    guarantee_msg_order: boolean, optional
+        Whether to guarantee message order or not. Remember, both peers
+        of the endpoint must set guarantee_msg_order to the same value.
     Returns
     -------
     _Endpoint
