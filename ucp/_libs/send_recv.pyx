@@ -11,7 +11,7 @@ from ..exceptions import UCXError, UCXCanceled
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
-                                    size_t expected_receive,
+                                    int64_t expected_receive,
                                     pending_msg):
     if pending_msg is not None:
         log_str = pending_msg.get('log', None)
