@@ -69,7 +69,7 @@ def init(options={}, env_takes_precedence=False):
     _ctx = core.ApplicationContext(options)
 
 
-def create_listener(callback_func, port=None):
+def create_listener(callback_func, port=None, guarantee_msg_order=True):
     """Create and start a listener to accept incoming connections
 
     callback_func is the function or coroutine that takes one
@@ -94,10 +94,10 @@ def create_listener(callback_func, port=None):
     Listener
         The new listener. When this object is deleted, the listening stops
     """
-    return _get_ctx().create_listener(callback_func, port)
+    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
 
 
-async def create_endpoint(ip_address, port):
+async def create_endpoint(ip_address, port, guarantee_msg_order=True):
     """Create a new endpoint to a server
 
     Parameters
@@ -112,7 +112,7 @@ async def create_endpoint(ip_address, port):
     _Endpoint
         The new endpoint
     """
-    return await _get_ctx().create_endpoint(ip_address, port)
+    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
 
 
 def progress():
