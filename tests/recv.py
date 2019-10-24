@@ -1,27 +1,33 @@
 import asyncio
-import multiprocessing
 import os
 
-from distributed.comm.utils import from_frames, to_frames
-from distributed.protocol import to_serialize
+from distributed.comm.utils import from_frames
 from distributed.utils import nbytes
 
 import cloudpickle
 import numpy as np
+import pynvml
 import pytest
-import rmm
 import ucp
-from utils import more_than_two_gpus
+
+# import subprocess
+
+
+pynvml.nvmlInit()
+
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
-ITERATIONS = 100
+ITERATIONS = 1000
 
 
 def cuda_array(size):
-    return rmm.device_array(size, dtype=np.uint8)
+    import cupy as cp
+
+    return cp.empty(size, dtype=cp.uint8)
+    # return rmm.device_array(size, dtype=np.uint8)
 
 
 async def get_ep(name, port):
@@ -60,10 +66,15 @@ def client(env, port, func):
         await asyncio.sleep(1)
         ep = await get_ep("client", port)
         msg = None
-        import cupy
+        import cupy as cp
 
-        cupy.cuda.set_allocator(None)
+        cp.cuda.set_allocator(None)
+
         for i in range(ITERATIONS):
+            bytes_used = pynvml.nvmlDeviceGetMemoryInfo(
+                pynvml.nvmlDeviceGetHandleByIndex(0)
+            ).used
+            print("Bytes Used:", bytes_used, i)
             # storing cu objects in msg
             # we delete to minimize GPU memory usage
             # del msg
@@ -94,7 +105,8 @@ def client(env, port, func):
                             frames.append(cuda_array(size))
                         else:
                             frames.append(b"")
-
+            print(frames)
+            print(frames[-1].__cuda_array_interface__)
             msg = await from_frames(frames)
 
         close_msg = b"shutdown listener"
@@ -122,79 +134,12 @@ def client(env, port, func):
     pure_cuda_obj = cuda_obj_generator()
 
     from cudf.tests.utils import assert_eq
-    import cupy
+    import cupy as cp
 
-    if isinstance(rx_cuda_obj, cupy.ndarray):
-        cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
+    if isinstance(rx_cuda_obj, cp.ndarray):
+        cp.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
         assert_eq(rx_cuda_obj, pure_cuda_obj)
-
-
-def server(env, port, func):
-    # create listener receiver
-    # write cudf object
-    # confirm message is sent correctly
-
-    os.environ.update(env)
-    # ucp.init(
-    #     options={
-    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
-    #     }
-    # )
-    # create_cuda_context()
-
-    async def f(listener_port):
-        # coroutine shows up when the client asks
-        # to connect
-        async def write(ep):
-            import cupy
-
-            cupy.cuda.set_allocator(None)
-
-            print("CREATING CUDA OBJECT IN SERVER...")
-            cuda_obj_generator = cloudpickle.loads(func)
-            cuda_obj = cuda_obj_generator()
-            msg = {"data": to_serialize(cuda_obj)}
-            frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
-            for i in range(ITERATIONS):
-                # Send meta data
-                await ep.send(np.array([len(frames)], dtype=np.uint64))
-                await ep.send(
-                    np.array(
-                        [hasattr(f, "__cuda_array_interface__") for f in frames],
-                        dtype=np.bool,
-                    )
-                )
-                await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-                # Send frames
-                for frame in frames:
-                    if nbytes(frame) > 0:
-                        await ep.send(frame)
-
-            print("CONFIRM RECEIPT")
-            close_msg = b"shutdown listener"
-            msg_size = np.empty(1, dtype=np.uint64)
-            await ep.recv(msg_size)
-
-            msg = np.empty(msg_size[0], dtype=np.uint8)
-            await ep.recv(msg)
-            recv_msg = msg.tobytes()
-            assert recv_msg == close_msg
-            print("Shutting Down Server...")
-            await ep.signal_shutdown()
-            ep.close()
-            lf.close()
-
-        lf = ucp.create_listener(write, port=listener_port)
-        try:
-            while not lf.closed():
-                await asyncio.sleep(0.1)
-        except ucp.UCXCloseError:
-            pass
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(f(port))
 
 
 def dataframe():
@@ -227,23 +172,16 @@ def empty_dataframe():
 
 
 def cupy():
-    import cupy
+    import cupy as cp
 
     size = 10 ** 8
-    return cupy.arange(size)
+    return cp.arange(size)
 
 
-@pytest.mark.skipif(
-    not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
-)
-@pytest.mark.parametrize(
-    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
-)
 def test_send_recv_cu(cuda_obj_generator):
     import os
 
     base_env = os.environ
-    env1 = base_env.copy()
     env2 = base_env.copy()
     # reverse CVD for other worker
     env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
@@ -256,34 +194,10 @@ def test_send_recv_cu(cuda_obj_generator):
     # data sent from the server
 
     func = cloudpickle.dumps(cuda_obj_generator)
-
-    server_process = multiprocessing.Process(
-        name="server", target=server, args=[env1, port, func]
-    )
-    client_process = multiprocessing.Process(
-        name="client", target=client, args=[env2, port, func]
-    )
-
-    server_process.start()
-    client_process.start()
-
-    server_process.join()
-    client_process.join()
-
-    assert server_process.exitcode == 0
-    assert client_process.exitcode == 0
-
-    # ensure ucp in the main process is not running
-    assert ucp.public_api._ctx is None
+    client(env2, port, func)
 
 
 def total_nvlink_transfer():
-    import pynvml
-
-    pynvml.nvmlShutdown()
-
-    pynvml.nvmlInit()
-
     try:
         cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
     except Exception as e:
@@ -299,3 +213,7 @@ def total_nvlink_transfer():
         rx += transfer["rx"]
         tx += transfer["tx"]
     return rx, tx
+
+
+if __name__ == "__main__":
+    test_send_recv_cu(cupy)
