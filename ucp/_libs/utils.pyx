@@ -89,7 +89,6 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
             raise NotImplementedError("mask attribute not supported")
     else:
         mview = memoryview(buffer)
-        data = _data_from_memoryview(mview)
         nbytes = mview.nbytes
         if not mview.contiguous:
             raise ValueError("buffer must be contiguous")
