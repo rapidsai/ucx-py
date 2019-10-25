@@ -42,8 +42,11 @@ def handle_exception(loop, context):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
-async def test_send_recv_bytes(size):
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_bytes(size, blocking_progress_mode):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     msg = bytearray(b"m" * size)
     msg_size = np.array([len(msg)], dtype=np.uint64)
@@ -60,8 +63,11 @@ async def test_send_recv_bytes(size):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_numpy(size, dtype):
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_numpy(size, dtype, blocking_progress_mode):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     msg = np.arange(size, dtype=dtype)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
@@ -80,8 +86,11 @@ async def test_send_recv_numpy(size, dtype):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_cupy(size, dtype):
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_cupy(size, dtype, blocking_progress_mode):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
     cupy = pytest.importorskip("cupy")
 
     msg = cupy.arange(size, dtype=dtype)
@@ -101,8 +110,11 @@ async def test_send_recv_cupy(size, dtype):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("dtype", dtypes)
-async def test_send_recv_numba(size, dtype):
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_numba(size, dtype, blocking_progress_mode):
     asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
     cuda = pytest.importorskip("numba.cuda")
 
     ary = np.arange(size, dtype=dtype)
@@ -120,7 +132,12 @@ async def test_send_recv_numba(size, dtype):
 
 
 @pytest.mark.asyncio
-async def test_send_recv_error():
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_error(blocking_progress_mode):
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
+
     async def say_hey_server(ep):
         await ep.send(bytearray(b"Hey"))
 
