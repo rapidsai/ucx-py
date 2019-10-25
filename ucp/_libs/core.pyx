@@ -309,23 +309,25 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
 
-        if 'UCXPY_NON_BLOCKING_MODE' in os.environ:
+        if blocking_progress_mode is not None:
+            self.blocking_progress_mode = blocking_progress_mode
+        elif 'UCXPY_NON_BLOCKING_MODE' in os.environ:
             self.blocking_progress_mode = False
         else:
-            self.blocking_progress_mode = blocking_progress_mode
+            self.blocking_progress_mode = True
 
         self.config['VERSION'] = get_ucx_version()
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
-                                UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                UCP_PARAM_FIELD_REQUEST_INIT)
+                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
+                                 UCP_PARAM_FIELD_REQUEST_INIT)
 
         # We only need the UCP_FEATURE_WAKEUP flag in blocking progress mode
-        if blocking_progress_mode:
+        if self.blocking_progress_mode:
             ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                                UCP_FEATURE_WAKEUP |  # noqa
-                                UCP_FEATURE_STREAM)
+                                   UCP_FEATURE_WAKEUP |  # noqa
+                                   UCP_FEATURE_STREAM)
         else:
             ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_STREAM)
 
@@ -346,7 +348,7 @@ cdef class ApplicationContext:
         cdef int ucp_epoll_fd
         cdef epoll_event ev
         cdef int err
-        if blocking_progress_mode:
+        if self.blocking_progress_mode:
             status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
             assert_ucs_status(status)
             status = ucp_worker_arm(self.worker)
@@ -370,12 +372,12 @@ cdef class ApplicationContext:
 
     def __dealloc__(self):
         if self.initiated:
+            for task in self.progress_tasks:
+                task.cancel()
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
             if self.blocking_progress_mode:
                 close(self.epoll_fd)
-            for task in self.progress_tasks:
-                task.cancel()
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
