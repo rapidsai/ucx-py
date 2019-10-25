@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+import os
 import asyncio
 import weakref
 from functools import partial
@@ -247,6 +248,20 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     )
 
 
+async def _non_blocking_mode(weakref_ctx):
+    """This help function maintains a UCX progress loop.
+    Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
+    possible to call `ucp.reset()` even when this loop is running.
+    """
+    while True:
+        ctx = weakref_ctx()
+        if ctx is None:
+            return
+        ctx.progress()
+        del ctx
+        await asyncio.sleep(0)
+
+
 cdef class _Listener:
     """This represents the private part of Listener
 
@@ -277,30 +292,44 @@ cdef class ApplicationContext:
         # For now, a application context only has one worker
         ucp_worker_h worker
         int epoll_fd
-        object all_epoll_binded_to_event_loop
+        object event_loops_binded_for_progress
+        object progress_tasks
         bint initiated
+        bint blocking_progress_mode
 
     cdef public:
         object config
 
-    def __cinit__(self, config_dict={}):
+    def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.all_epoll_binded_to_event_loop = set()
+        self.event_loops_binded_for_progress = set()
+        self.progress_tasks = []
         self.config = {}
         self.initiated = False
+
+        if blocking_progress_mode is not None:
+            self.blocking_progress_mode = blocking_progress_mode
+        elif 'UCXPY_NON_BLOCKING_MODE' in os.environ:
+            self.blocking_progress_mode = False
+        else:
+            self.blocking_progress_mode = True
 
         self.config['VERSION'] = get_ucx_version()
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
-                                UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                UCP_PARAM_FIELD_REQUEST_INIT)
+                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
+                                 UCP_PARAM_FIELD_REQUEST_INIT)
 
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+        # We only need the UCP_FEATURE_WAKEUP flag in blocking progress mode
+        if self.blocking_progress_mode:
+            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                                   UCP_FEATURE_WAKEUP |  # noqa
+                                   UCP_FEATURE_STREAM)
+        else:
+            ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_reset
@@ -314,20 +343,23 @@ cdef class ApplicationContext:
         status = ucp_worker_create(self.context, &worker_params, &self.worker)
         assert_ucs_status(status)
 
+        # In blocking progress mode, we create an epoll file
+        # descriptor that we can wait on later.
         cdef int ucp_epoll_fd
-        status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
-        assert_ucs_status(status)
-        status = ucp_worker_arm(self.worker)
-        assert_ucs_status(status)
-
-        self.epoll_fd = epoll_create(1)
-        assert(self.epoll_fd != -1)
         cdef epoll_event ev
-        ev.data.fd = ucp_epoll_fd
-        ev.events = EPOLLIN
-        cdef int err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD,
-                                 ucp_epoll_fd, &ev)
-        assert(err == 0)
+        cdef int err
+        if self.blocking_progress_mode:
+            status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
+            assert_ucs_status(status)
+            status = ucp_worker_arm(self.worker)
+            assert_ucs_status(status)
+
+            self.epoll_fd = epoll_create(1)
+            assert(self.epoll_fd != -1)
+            ev.data.fd = ucp_epoll_fd
+            ev.events = EPOLLIN
+            err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
+            assert(err == 0)
 
         self.config = get_ucx_config_options(config)
         ucp_config_release(config)
@@ -340,13 +372,16 @@ cdef class ApplicationContext:
 
     def __dealloc__(self):
         if self.initiated:
+            for task in self.progress_tasks:
+                task.cancel()
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
-            close(self.epoll_fd)
+            if self.blocking_progress_mode:
+                close(self.epoll_fd)
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
-        self._bind_epoll_fd_to_event_loop()
+        self.continually_ucx_prograss()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -382,7 +417,7 @@ cdef class ApplicationContext:
 
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
-        self._bind_epoll_fd_to_event_loop()
+        self.continually_ucx_prograss()
 
         cdef ucp_ep_params_t params
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
@@ -440,22 +475,40 @@ cdef class ApplicationContext:
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def _fd_reader_callback(self):
-        cdef ucs_status_t status
-        self.progress()
-        while True:
-            status = ucp_worker_arm(self.worker)
-            if status == UCS_ERR_BUSY:
-                self.progress()
-            else:
-                break
-        assert_ucs_status(status)
+    def _blocking_progress_mode(self, event_loop):
+        """Bind an asyncio reader to a UCX epoll file descripter"""
+        assert self.blocking_progress_mode is True
 
-    def _bind_epoll_fd_to_event_loop(self):
+        def _fd_reader_callback():
+            cdef ucs_status_t status
+            self.progress()
+            while True:
+                status = ucp_worker_arm(self.worker)
+                if status == UCS_ERR_BUSY:
+                    self.progress()
+                else:
+                    break
+            assert_ucs_status(status)
+        event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
+
+    def _non_blocking_progress_mode(self, event_loop):
+        """Creates a task that keeps calling self.progress()"""
+        assert self.blocking_progress_mode is False
+        self.progress_tasks.append(
+            event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
+        )
+
+    def continually_ucx_prograss(self):
+        """Guaranties continually UCX prograss"""
         loop = asyncio.get_event_loop()
-        if loop not in self.all_epoll_binded_to_event_loop:
-            loop.add_reader(self.epoll_fd, self._fd_reader_callback)
-            self.all_epoll_binded_to_event_loop.add(loop)
+        if loop in self.event_loops_binded_for_progress:
+            return  # Progress has already been guaranteed for the current event loop
+        self.event_loops_binded_for_progress.add(loop)
+
+        if self.blocking_progress_mode:
+            self._blocking_progress_mode(loop)
+        else:
+            self._non_blocking_progress_mode(loop)
 
     def get_ucp_worker(self):
         return PyLong_FromVoidPtr(<void*>self.worker)
@@ -464,7 +517,7 @@ cdef class ApplicationContext:
         return self.config
 
     def unbind_epoll_fd_to_event_loop(self):
-        for loop in self.all_epoll_binded_to_event_loop:
+        for loop in self.event_loops_binded_for_progress:
             loop.remove_reader(self.epoll_fd)
 
 
