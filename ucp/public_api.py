@@ -69,7 +69,7 @@ def init(options={}, env_takes_precedence=False):
     _ctx = core.ApplicationContext(options)
 
 
-def create_listener(callback_func, port=None):
+def create_listener(callback_func, port=None, guarantee_msg_order=True):
     """Create and start a listener to accept incoming connections
 
     callback_func is the function or coroutine that takes one
@@ -84,20 +84,23 @@ def create_listener(callback_func, port=None):
     Parameters
     ----------
     callback_func: function or coroutine
-        a callback function that gets invoked when an incoming
+        A callback function that gets invoked when an incoming
         connection is accepted
     port: int, optional
-        an unused port number for listening
+        An unused port number for listening
+    guarantee_msg_order: boolean, optional
+        Whether to guarantee message order or not. Remember, both peers
+        of the endpoint must set guarantee_msg_order to the same value.
 
     Returns
     -------
     Listener
         The new listener. When this object is deleted, the listening stops
     """
-    return _get_ctx().create_listener(callback_func, port)
+    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
 
 
-async def create_endpoint(ip_address, port):
+async def create_endpoint(ip_address, port, guarantee_msg_order=True):
     """Create a new endpoint to a server
 
     Parameters
@@ -106,13 +109,15 @@ async def create_endpoint(ip_address, port):
         IP address of the server the endpoint should connect to
     port: int
         IP address of the server the endpoint should connect to
-
+    guarantee_msg_order: boolean, optional
+        Whether to guarantee message order or not. Remember, both peers
+        of the endpoint must set guarantee_msg_order to the same value.
     Returns
     -------
     _Endpoint
         The new endpoint
     """
-    return await _get_ctx().create_endpoint(ip_address, port)
+    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
 
 
 def progress():

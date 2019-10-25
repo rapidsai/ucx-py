@@ -94,6 +94,7 @@ cdef struct _listener_callback_args:
     ucp_worker_h ucp_worker
     PyObject *py_ctx
     PyObject *py_func
+    bint guarantee_msg_order
 
 
 def asyncio_handle_exception(loop, context):
@@ -110,12 +111,17 @@ def asyncio_handle_exception(loop, context):
 cdef struct PeerInfoMsg:
     uint64_t msg_tag
     uint64_t ctrl_tag
+    bint guarantee_msg_order
 
 
-async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag):
+async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     """Help function that exchange endpoint information"""
 
-    cdef PeerInfoMsg my_info = {"msg_tag": msg_tag, "ctrl_tag": ctrl_tag}
+    cdef PeerInfoMsg my_info = {
+        'msg_tag': msg_tag,
+        'ctrl_tag': ctrl_tag,
+        'guarantee_msg_order': guarantee_msg_order
+    }
     cdef PeerInfoMsg[::1] my_info_mv = <PeerInfoMsg[:1:1]>(&my_info)
     cdef PeerInfoMsg peer_info
     cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
@@ -124,9 +130,14 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag):
         stream_recv(ucp_endpoint, peer_info_mv, peer_info_mv.nbytes),
         stream_send(ucp_endpoint, my_info_mv, my_info_mv.nbytes),
     )
+
+    if peer_info.guarantee_msg_order != guarantee_msg_order:
+        raise ValueError("Both peers must set guarantee_msg_order identically")
+
     return {
         'msg_tag': peer_info.msg_tag,
         'ctrl_tag': peer_info.ctrl_tag,
+        'guarantee_msg_order': peer_info.guarantee_msg_order
     }
 
 
@@ -157,7 +168,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
     shutdown_fut.add_done_callback(partial(_close, weakref.ref(pub_ep)))
 
 
-async def listener_handler(ucp_endpoint, ctx, ucp_worker, func):
+async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_order):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -174,7 +185,12 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func):
     #  4) Create the public Endpoint based on _Endpoint
     msg_tag = hash(uuid.uuid4())
     ctrl_tag = hash(uuid.uuid4())
-    peer_info = await exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag)
+    peer_info = await exchange_peer_info(
+        ucp_endpoint=ucp_endpoint,
+        msg_tag=msg_tag,
+        ctrl_tag=ctrl_tag,
+        guarantee_msg_order=guarantee_msg_order
+    )
     ep = _Endpoint(
         ucp_endpoint=ucp_endpoint,
         ucp_worker=ucp_worker,
@@ -182,7 +198,8 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func):
         msg_tag_send=peer_info['msg_tag'],
         msg_tag_recv=msg_tag,
         ctrl_tag_send=peer_info['ctrl_tag'],
-        ctrl_tag_recv=ctrl_tag
+        ctrl_tag_recv=ctrl_tag,
+        guarantee_msg_order=guarantee_msg_order
     )
 
     logging.debug(
@@ -224,7 +241,8 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
             PyLong_FromVoidPtr(<void*>ep),
             ctx,
             PyLong_FromVoidPtr(<void*>a.ucp_worker),
-            func
+            func,
+            a.guarantee_msg_order
         )
     )
 
@@ -326,7 +344,7 @@ cdef class ApplicationContext:
             ucp_cleanup(self.context)
             close(self.epoll_fd)
 
-    def create_listener(self, callback_func, port=None):
+    def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
         self._bind_epoll_fd_to_event_loop()
         if port in (None, 0):
@@ -343,6 +361,7 @@ cdef class ApplicationContext:
         ret._cb_args.ucp_worker = self.worker
         ret._cb_args.py_func = <PyObject*> callback_func
         ret._cb_args.py_ctx = <PyObject*> self
+        ret._cb_args.guarantee_msg_order = guarantee_msg_order
         Py_INCREF(self)
         Py_INCREF(callback_func)
 
@@ -361,7 +380,7 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
         return Listener(ret)
 
-    async def create_endpoint(self, str ip_address, port):
+    async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
         self._bind_epoll_fd_to_event_loop()
 
@@ -384,7 +403,8 @@ cdef class ApplicationContext:
         peer_info = await exchange_peer_info(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
             msg_tag=msg_tag,
-            ctrl_tag=ctrl_tag
+            ctrl_tag=ctrl_tag,
+            guarantee_msg_order=guarantee_msg_order
         )
         ep = _Endpoint(
             ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
@@ -393,7 +413,8 @@ cdef class ApplicationContext:
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
             ctrl_tag_send=peer_info['ctrl_tag'],
-            ctrl_tag_recv=ctrl_tag
+            ctrl_tag_recv=ctrl_tag,
+            guarantee_msg_order=guarantee_msg_order
         )
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
@@ -461,7 +482,8 @@ class _Endpoint:
         msg_tag_send,
         msg_tag_recv,
         ctrl_tag_send,
-        ctrl_tag_recv
+        ctrl_tag_recv,
+        guarantee_msg_order
     ):
         self._ucp_endpoint = ucp_endpoint
         self._ucp_worker = ucp_worker
@@ -470,6 +492,7 @@ class _Endpoint:
         self._msg_tag_recv = msg_tag_recv
         self._ctrl_tag_send = ctrl_tag_send
         self._ctrl_tag_recv = ctrl_tag_recv
+        self._guarantee_msg_order = guarantee_msg_order
         self._send_count = 0
         self._recv_count = 0
         self._closed = False
@@ -548,11 +571,14 @@ class _Endpoint:
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         self._send_count += 1
+        tag = self._msg_tag_send
+        if self._guarantee_msg_order:
+            tag += self._send_count
         return await tag_send(
             self._ucp_endpoint,
             buffer,
             nbytes,
-            self._msg_tag_send,
+            tag,
             pending_msg=self.pending_msg_list[-1]
         )
 
@@ -567,11 +593,14 @@ class _Endpoint:
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         self._recv_count += 1
+        tag = self._msg_tag_recv
+        if self._guarantee_msg_order:
+            tag += self._recv_count
         return await tag_recv(
             self._ucp_worker,
             buffer,
             nbytes,
-            self._msg_tag_recv,
+            tag,
             pending_msg=self.pending_msg_list[-1]
         )
 
