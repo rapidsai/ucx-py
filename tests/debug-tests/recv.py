@@ -8,6 +8,7 @@ import cloudpickle
 import numpy as np
 import pynvml
 import pytest
+import rmm
 import ucp
 
 # import subprocess
@@ -24,10 +25,12 @@ ITERATIONS = 1000
 
 
 def cuda_array(size):
-    import cupy as cp
+    # import cupy as cp
 
-    return cp.empty(size, dtype=cp.uint8)
-    # return rmm.device_array(size, dtype=np.uint8)
+    # return numba.cuda.device_array((size,), dtype=np.uint8)
+
+    # return cp.empty(size, dtype=cp.uint8)
+    return rmm.device_array(size, dtype=np.uint8)
 
 
 async def get_ep(name, port):
@@ -148,8 +151,9 @@ def dataframe():
 
     size = 2 ** 26
     return cudf.DataFrame(
-        {"a": np.random.random(size), "b": np.random.random(size)},
-        index=np.random.randint(size, size=size),
+        # {"a": np.random.random(size), "b": np.random.random(size)},
+        {"a": np.arange(size)},
+        # index=np.random.randint(size, size=size),
     )
 
 
@@ -216,4 +220,4 @@ def total_nvlink_transfer():
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(cupy)
+    test_send_recv_cu(dataframe)
