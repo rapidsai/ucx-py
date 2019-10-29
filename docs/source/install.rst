@@ -6,7 +6,7 @@ Conda
 
 ::
 
-    conda create -n ucx -c conda-forge -c jakirkham/label/ucx \
+    conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx \
     cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
 
 Source
