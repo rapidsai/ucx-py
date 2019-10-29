@@ -1,3 +1,5 @@
+[![https://ucx-py.readthedocs.io/en/latest/](https://readthedocs.org/projects/ucx-py/badge/ "ReadTheDocs")]( https://ucx-py.readthedocs.io/en/latest/ )
+
 # Python Bindings for UCX
 
 ## Installing preliminary Conda packages
