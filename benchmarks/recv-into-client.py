@@ -151,10 +151,8 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose, increment):
     stop = clock()
 
     expected = np.ones(n_bytes, dtype="u1")
-    #            0 or n_iter
     expected *= int(increment) * n_iter
-    # breakpoint()
-    # np.testing.assert_array_equal(msg, expected)
+    np.testing.assert_array_equal(msg, expected)
 
     took = stop - start
 
