@@ -9,7 +9,7 @@ Conda
     conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx \
     cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
 
-Where ``processor type`` can be ``gpu`` or ``cpu``.
+Where ``<processor type>`` can be ``gpu`` or ``cpu``.
 
 Source
 ------
