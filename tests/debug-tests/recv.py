@@ -53,22 +53,11 @@ def client(env, port, func):
     # send receipt
 
     os.environ.update(env)
-    # ucp.init(
-    #     options={
-    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
-    #     }
-    # )
-
-    # must create context before importing
-    # cudf/cupy/etc
-    # create_cuda_context()
     before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
         await asyncio.sleep(1)
         ep = await get_ep("client", port)
-        msg = None
         import cupy as cp
 
         cp.cuda.set_allocator(None)
@@ -78,9 +67,7 @@ def client(env, port, func):
                 pynvml.nvmlDeviceGetHandleByIndex(0)
             ).used
             print("Bytes Used:", bytes_used, i)
-            # storing cu objects in msg
-            # we delete to minimize GPU memory usage
-            # del msg
+
             try:
                 # Recv meta data
                 nframes = np.empty(1, dtype=np.uint64)
@@ -108,8 +95,7 @@ def client(env, port, func):
                             frames.append(cuda_array(size))
                         else:
                             frames.append(b"")
-            # print(frames)
-            # print(frames[-1].__cuda_array_interface__)
+
             msg = await from_frames(frames)
 
         close_msg = b"shutdown listener"
@@ -150,29 +136,7 @@ def dataframe():
     import numpy as np
 
     size = 2 ** 26
-    return cudf.DataFrame(
-        # {"a": np.random.random(size), "b": np.random.random(size)},
-        {"a": np.arange(size)},
-        # index=np.random.randint(size, size=size),
-    )
-
-
-def column():
-    import cudf
-
-    return cudf.Series(np.arange(90000))._column
-
-
-def series():
-    import cudf
-
-    return cudf.Series(np.arange(90000))
-
-
-def empty_dataframe():
-    import cudf
-
-    return cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
+    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)})
 
 
 def cupy():
@@ -186,6 +150,11 @@ def test_send_recv_cu(cuda_obj_generator):
     import os
 
     base_env = os.environ
+    os.environ["UCXPY_IFNAME"] = "enp1s0f0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+    os.environ["UCX_TLS"] = "tcp,cuda_copy,cuda_ipc,sockcm"
+    os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
+
     env2 = base_env.copy()
     # reverse CVD for other worker
     env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
@@ -202,13 +171,18 @@ def test_send_recv_cu(cuda_obj_generator):
 
 
 def total_nvlink_transfer():
+    import pynvml
+
+    pynvml.nvmlShutdown()
+
+    pynvml.nvmlInit()
+
     try:
         cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
     except Exception as e:
         print(e)
         cuda_dev_id = 0
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    # ngpus = pynvml.nvmlDeviceGetCount()
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
     tx = 0

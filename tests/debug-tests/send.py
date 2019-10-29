@@ -11,8 +11,6 @@ import pytest
 import rmm
 import ucp
 
-# import numba.cuda
-
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
@@ -44,21 +42,11 @@ def server(env, port, func):
     # confirm message is sent correctly
 
     os.environ.update(env)
-    # ucp.init(
-    #     options={
-    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
-    #     }
-    # )
-    # create_cuda_context()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
         # to connect
         async def write(ep):
-            import cupy
-
-            cupy.cuda.set_allocator(None)
 
             print("CREATING CUDA OBJECT IN SERVER...")
             cuda_obj_generator = cloudpickle.loads(func)
@@ -110,29 +98,7 @@ def dataframe():
     import numpy as np
 
     size = 2 ** 26
-    return cudf.DataFrame(
-        # {"a": np.random.random(size), "b": np.random.random(size)},
-        {"a": np.arange(size)},
-        # index=np.random.randint(size, size=size),
-    )
-
-
-def column():
-    import cudf
-
-    return cudf.Series(np.arange(90000))._column
-
-
-def series():
-    import cudf
-
-    return cudf.Series(np.arange(90000))
-
-
-def empty_dataframe():
-    import cudf
-
-    return cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
+    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)})
 
 
 def cupy():
@@ -175,7 +141,6 @@ def total_nvlink_transfer():
         print(e)
         cuda_dev_id = 0
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    # ngpus = pynvml.nvmlDeviceGetCount()
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
     tx = 0
