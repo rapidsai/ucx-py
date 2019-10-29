@@ -1,6 +1,6 @@
 name: ucx_dev
 channels:
-- jakirkham/label/ucx-new
+- conda-forge/label/rc_ucx
 - nvidia
 - conda-forge
 - rapidsai
