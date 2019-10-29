@@ -44,16 +44,8 @@ def client(env, port, func):
     # send receipt
 
     os.environ.update(env)
-    # ucp.init(
-    #     options={
-    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
-    #     }
-    # )
-
     # must create context before importing
     # cudf/cupy/etc
-    # create_cuda_context()
     before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
@@ -136,13 +128,6 @@ def server(env, port, func):
     # confirm message is sent correctly
 
     os.environ.update(env)
-    # ucp.init(
-    #     options={
-    #         "TLS": "tcp,cuda_copy,cuda_ipc,sockcm",
-    #         "SOCKADDR_TLS_PRIORITY": "sockcm",
-    #     }
-    # )
-    # create_cuda_context()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
@@ -290,7 +275,6 @@ def total_nvlink_transfer():
         print(e)
         cuda_dev_id = 0
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    # ngpus = pynvml.nvmlDeviceGetCount()
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
     tx = 0
