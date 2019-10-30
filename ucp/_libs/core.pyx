@@ -142,31 +142,50 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
     }
 
 
+# "1" is shutdown, currently the only opcode.
+cdef struct CtrlMsgData:
+    int64_t op  # The control opcode, currently the only opcode is "1" (shutdown).
+    int64_t close_after_n_recv  # Number of recv before closing
+
+
+cdef class CtrlMsg:
+    cdef CtrlMsgData data
+
+
+def handle_ctrl_msg(ep_weakref, log, CtrlMsg msg, future):
+    """Function that is called when receiving the control message"""
+    try:
+        future.result()
+    except UCXCanceled:
+        return  # The ctrl signal was canceled
+    logging.debug(log)
+    ep = ep_weakref()
+    if ep is None or ep.closed():
+        return  # The endpoint is closed
+
+    if msg.data.op == 1:
+        ep.close_after_n_recv(msg.data.close_after_n_recv, count_from_ep_creation=True)
+    else:
+        raise UCXError("Received unknown control opcode: %s" % msg.data.op)
+
+
 def setup_ctrl_recv(priv_ep, pub_ep):
     """Help function to setup the receive of the control message"""
-    cdef uint64_t shutdown_msg
-    cdef uint64_t[::1] shutdown_msg_mv = <uint64_t[:1:1]>(&shutdown_msg)
+    cdef CtrlMsg msg = CtrlMsg()
+    cdef CtrlMsgData[::1] msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
     log = "[Recv shutdown] ep: %s, tag: %s" % (
         hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
     )
     priv_ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(priv_ep._ucp_worker,
-                            shutdown_msg_mv,
-                            shutdown_msg_mv.nbytes,
+                            msg_mv,
+                            msg_mv.nbytes,
                             priv_ep._ctrl_tag_recv,
                             pending_msg=priv_ep.pending_msg_list[-1])
 
-    # Make the "shutdown receive" close the Endpoint when is it finished
-    def _close(ep_weakref, future):
-        try:
-            future.result()
-        except UCXCanceled:
-            return  # The "shutdown receive" was canceled
-        logging.debug(log)
-        ep = ep_weakref()
-        if ep is not None and not ep.closed():
-            ep.close()
-    shutdown_fut.add_done_callback(partial(_close, weakref.ref(pub_ep)))
+    shutdown_fut.add_done_callback(
+        partial(handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
+    )
 
 
 async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_order):
@@ -546,12 +565,15 @@ class _Endpoint:
         self._ctrl_tag_send = ctrl_tag_send
         self._ctrl_tag_recv = ctrl_tag_recv
         self._guarantee_msg_order = guarantee_msg_order
-        self._send_count = 0
-        self._recv_count = 0
+        self._send_count = 0  # Number of calls to self.send()
+        self._recv_count = 0  # Number of calls to self.recv()
+        self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._closed = False
+        self._signaled_shutdown = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
+        self._close_after_n_recv = None
 
     @property
     def uid(self):
@@ -560,18 +582,22 @@ class _Endpoint:
     async def signal_shutdown(self):
         if self._closed:
             raise UCXCloseError("signal_shutdown() - _Endpoint closed")
-
+        self._signaled_shutdown = True
         # Send a shutdown message to the peer
-        cdef uint64_t msg = 42
-        cdef uint64_t[::1] msg_mv = <uint64_t[:1:1]>(&msg)
-        log = "[Send shutdown] ep: %s, tag: %s" % (
-            hex(self.uid), hex(self._ctrl_tag_send)
+        cdef CtrlMsg msg = CtrlMsg()
+        msg.data = {
+            'op': 1,  # "1" is shutdown, currently the only opcode.
+            'close_after_n_recv': self._send_count,
+        }
+        cdef CtrlMsgData[::1] ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
+        log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
+            hex(self.uid), hex(self._ctrl_tag_send), self._send_count
         )
         logging.debug(log)
         self.pending_msg_list.append({'log': log})
         await tag_send(
             self._ucp_endpoint,
-            msg_mv, msg_mv.nbytes,
+            ctrl_msg_mv, ctrl_msg_mv.nbytes,
             self._ctrl_tag_send,
             pending_msg=self.pending_msg_list[-1]
         )
@@ -615,7 +641,9 @@ class _Endpoint:
 
     async def send(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError("send() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
+        if self._signaled_shutdown:
+            raise UCXError("Cannot send on an Endpoint after signaling shutdown")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -637,7 +665,7 @@ class _Endpoint:
 
     async def recv(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError("recv() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -649,17 +677,22 @@ class _Endpoint:
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
-        return await tag_recv(
+        ret = await tag_recv(
             self._ucp_worker,
             buffer,
             nbytes,
             tag,
             pending_msg=self.pending_msg_list[-1]
         )
+        self._finished_recv_count += 1
+        if self._close_after_n_recv is not None \
+                and self._finished_recv_count >= self._close_after_n_recv:
+            self.close()
+        return ret
 
     def ucx_info(self):
         if self._closed:
-            raise UCXCloseError("pprint_ep() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
 
         # Making `ucp_ep_print_info()` write into a memstream,
         # convert it to a Python string, clean up, and return string.
