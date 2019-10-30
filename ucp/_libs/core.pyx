@@ -546,8 +546,9 @@ class _Endpoint:
         self._ctrl_tag_send = ctrl_tag_send
         self._ctrl_tag_recv = ctrl_tag_recv
         self._guarantee_msg_order = guarantee_msg_order
-        self._send_count = 0
-        self._recv_count = 0
+        self._send_count = 0  # Number of calls to self.send()
+        self._recv_count = 0  # Number of calls to self.recv()
+        self._finished_recv_count = 0 # Number of returned (finished) self.recv() calls
         self._closed = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
@@ -657,8 +658,9 @@ class _Endpoint:
             tag,
             pending_msg=self.pending_msg_list[-1]
         )
+        self._finished_recv_count += 1
         if self._close_after_n_recv is not None \
-                and self._recv_count >= self._close_after_n_recv:
+                and self._finished_recv_count >= self._close_after_n_recv:
             self.close()
         return ret
 

@@ -314,18 +314,18 @@ class Endpoint:
             from the creation of the endpoint.
         """
         if not count_from_ep_creation:
-            n += self._ep._recv_count  # Make `n` absolute
+            n += self._ep._finished_recv_count  # Make `n` absolute
         if self._ep._close_after_n_recv is not None:
             raise exceptions.UCXError(
                 "close_after_n_recv() is already set to: %d (abs)"
                 % self._ep._close_after_n_recv
             )
-        if n == self._ep._recv_count:
+        if n == self._ep._finished_recv_count:
             self._ep.close()
-        elif n > self._ep._recv_count:
+        elif n > self._ep._finished_recv_count:
             self._ep._close_after_n_recv = n
         else:
             raise exceptions.UCXError(
-                "n cannot be less than current recv_count: %d (abs) < %d (abs)"
-                % (n, self._ep._recv_count)
+                "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
+                % (n, self._ep._finished_recv_count)
             )
