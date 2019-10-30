@@ -569,6 +569,7 @@ class _Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._closed = False
+        self._signaled_shutdown = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
@@ -581,7 +582,7 @@ class _Endpoint:
     async def signal_shutdown(self):
         if self._closed:
             raise UCXCloseError("signal_shutdown() - _Endpoint closed")
-
+        self._signaled_shutdown = True
         # Send a shutdown message to the peer
         cdef CtrlMsg msg = CtrlMsg()
         msg.data = {
@@ -640,7 +641,9 @@ class _Endpoint:
 
     async def send(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError("send() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
+        if self._signaled_shutdown:
+            raise UCXError("Cannot send on an Endpoint after signaling shutdown")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -662,7 +665,7 @@ class _Endpoint:
 
     async def recv(self, buffer, nbytes=None):
         if self._closed:
-            raise UCXCloseError("recv() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -689,7 +692,7 @@ class _Endpoint:
 
     def ucx_info(self):
         if self._closed:
-            raise UCXCloseError("pprint_ep() - _Endpoint closed")
+            raise UCXCloseError("Endpoint closed")
 
         # Making `ucp_ep_print_info()` write into a memstream,
         # convert it to a Python string, clean up, and return string.
