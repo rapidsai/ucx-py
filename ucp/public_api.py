@@ -317,7 +317,7 @@ class Endpoint:
             n += self._ep._finished_recv_count  # Make `n` absolute
         if self._ep._close_after_n_recv is not None:
             raise exceptions.UCXError(
-                "close_after_n_recv() is already set to: %d (abs)"
+                "close_after_n_recv has already been set to: %d (abs)"
                 % self._ep._close_after_n_recv
             )
         if n == self._ep._finished_recv_count:

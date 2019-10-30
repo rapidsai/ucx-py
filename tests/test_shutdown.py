@@ -126,5 +126,21 @@ async def test_close_after_n_recv():
             await ep.recv(msg)
         assert ep.closed()
 
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
+
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="`n` cannot be less than current recv_count"
+        ):
+            ep.close_after_n_recv(5, count_from_ep_creation=True)
+
+        ep.close_after_n_recv(1)
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="close_after_n_recv has already been set to"
+        ):
+            ep.close_after_n_recv(1)
+
     listener = ucp.create_listener(server_node)
     await client_node(listener.port)
