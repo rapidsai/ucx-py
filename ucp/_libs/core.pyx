@@ -552,6 +552,7 @@ class _Endpoint:
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
+        self._close_after_n_recv = None
 
     @property
     def uid(self):
@@ -649,13 +650,17 @@ class _Endpoint:
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
-        return await tag_recv(
+        ret = await tag_recv(
             self._ucp_worker,
             buffer,
             nbytes,
             tag,
             pending_msg=self.pending_msg_list[-1]
         )
+        if self._close_after_n_recv is not None \
+                and self._recv_count >= self._close_after_n_recv:
+            self.close()
+        return ret
 
     def ucx_info(self):
         if self._closed:

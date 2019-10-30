@@ -301,3 +301,30 @@ class Endpoint:
         as a Python integer.
         """
         return self._ep.get_ucp_endpoint()
+
+    def close_after_n_recv(self, n, count_from_ep_creation=False):
+        """Close the endpoint after `n` received messages.
+
+        Parameters
+        ----------
+        n: int
+            Number of messages to received before closing the endpoint.
+        count_from_ep_creation: bool, optional
+            Whether to count `n` from this function call (default) or from the creation of the endpoint.
+        """
+        if not count_from_ep_creation:
+            n += self._ep._recv_count  # Make `n` absolute
+        if self._ep._close_after_n_recv is not None:
+            raise exceptions.UCXError(
+                "close_after_n_recv() is already set to: %d (abs)"
+                % self._ep._close_after_n_recv
+            )
+        if n == self._ep._recv_count:
+            self._ep.close()
+        elif n > self._ep._recv_count:
+            self._ep._close_after_n_recv = n
+        else:
+            raise exceptions.UCXError(
+                "n cannot be less than current recv_count: %d (abs) < %d (abs)"
+                % (n, self._ep._recv_count)
+            )
