@@ -310,7 +310,8 @@ class Endpoint:
         n: int
             Number of messages to received before closing the endpoint.
         count_from_ep_creation: bool, optional
-            Whether to count `n` from this function call (default) or from the creation of the endpoint.
+            Whether to count `n` from this function call (default) or
+            from the creation of the endpoint.
         """
         if not count_from_ep_creation:
             n += self._ep._recv_count  # Make `n` absolute

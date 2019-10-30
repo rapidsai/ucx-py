@@ -88,3 +88,43 @@ async def test_listener_del():
     assert listener.closed() is False
     del listener
     await ep.recv(msg)
+
+
+@pytest.mark.asyncio
+async def test_close_after_n_recv():
+    """The Endpoint.close_after_n_recv()"""
+
+    async def server_node(ep):
+        for _ in range(10):
+            await ep.send(np.arange(10))
+
+    async def client_node(port):
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        ep.close_after_n_recv(10)
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(5)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(10, count_from_ep_creation=True)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+    listener = ucp.create_listener(server_node)
+    await client_node(listener.port)
