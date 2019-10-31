@@ -49,7 +49,7 @@ ext_modules = [
 ]
 
 setup(
-    name="ucp",
+    name="ucxpy",
     packages=["ucp"],
     ext_modules=ext_modules,
     cmdclass=versioneer.get_cmdclass(),
