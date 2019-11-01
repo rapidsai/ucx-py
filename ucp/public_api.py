@@ -228,33 +228,32 @@ class Endpoint:
         self._ep = ep
 
     def __del__(self):
-        if not self.closed():
-            self.close()
+        self.abort()
 
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
         return self._ep.uid
 
-    async def signal_shutdown(self):
-        """Signal the connected peer to shutdown.
+    def abort(self):
+        """Close the communication immediately and abruptly.
+        Useful in destructors or generators' ``finally`` blocks.
 
-        Notice, this functions doesn't close the endpoint.
-        To do that, use `Endpoint.close()` or del the object.
+        Notice, this functions doesn't signal the connected peer to close.
+        To do that, use `Endpoint.close()`
         """
-        await self._ep.signal_shutdown()
+        self._ep.abort()
+
+    async def close(self):
+        """Close the endpoint cleanly.
+        This will attempt to flush outgoing buffers before actually
+        closing the underlying UCX endpoint.
+        """
+        await self._ep.close()
 
     def closed(self):
         """Is this endpoint closed?"""
         return self._ep._closed
-
-    def close(self):
-        """Close this endpoint.
-
-        Notice, this functions doesn't signal the connected peer to shutdown
-        To do that, use `Endpoint.signal_shutdown()`
-        """
-        return self._ep.close()
 
     async def send(self, buffer, nbytes=None):
         """Send `buffer` to connected peer.
@@ -301,3 +300,31 @@ class Endpoint:
         as a Python integer.
         """
         return self._ep.get_ucp_endpoint()
+
+    def close_after_n_recv(self, n, count_from_ep_creation=False):
+        """Close the endpoint after `n` received messages.
+
+        Parameters
+        ----------
+        n: int
+            Number of messages to received before closing the endpoint.
+        count_from_ep_creation: bool, optional
+            Whether to count `n` from this function call (default) or
+            from the creation of the endpoint.
+        """
+        if not count_from_ep_creation:
+            n += self._ep._finished_recv_count  # Make `n` absolute
+        if self._ep._close_after_n_recv is not None:
+            raise exceptions.UCXError(
+                "close_after_n_recv has already been set to: %d (abs)"
+                % self._ep._close_after_n_recv
+            )
+        if n == self._ep._finished_recv_count:
+            self._ep.abort()
+        elif n > self._ep._finished_recv_count:
+            self._ep._close_after_n_recv = n
+        else:
+            raise exceptions.UCXError(
+                "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
+                % (n, self._ep._finished_recv_count)
+            )

@@ -123,10 +123,8 @@ async def test_send_recv_cudf(event_loop, g):
     from dask.dataframe.utils import assert_eq
 
     assert_eq(res, msg)
-    await uu.comm.ep.signal_shutdown()
-    uu.comm.ep.close()
-    await uu.client.signal_shutdown()
-    uu.client.close()
+    await uu.comm.ep.close()
+    await uu.client.close()
 
     assert uu.client.closed()
     assert uu.comm.ep.closed()

@@ -58,8 +58,8 @@ conda install -c conda-forge "async_generator" "automake" "libtool" \
 # install cupy
 conda install -c rapidsai -c nvidia "cupy>=6.2.0"
 
-# install ucx from john's channel
-# conda install -c jakirkham/label/ucx "ucx-proc=*=gpu" "ucx"
+# install ucx from conda-forge rc channel
+# conda install -c conda-forge/label/rc_ucx "ucx-proc=*=gpu" "ucx"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"

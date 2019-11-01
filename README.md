@@ -1,3 +1,5 @@
+[![https://ucx-py.readthedocs.io/en/latest/](https://readthedocs.org/projects/ucx-py/badge/ "ReadTheDocs")]( https://ucx-py.readthedocs.io/en/latest/ )
+
 # Python Bindings for UCX
 
 ## Installing preliminary Conda packages
@@ -7,10 +9,10 @@ with either `9.2`, `10.0`, or `10.1`. Also replace `<processor type>`
 with `cpu` or `gpu`.
 
 ```bash
-conda create -n ucx -c conda-forge -c jakirkham/label/ucx-new cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
+conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
 ```
 
-The UCX recipe can be found [here](https://github.com/conda-forge/ucx-split-feedstock/tree/f13e882cc0566e795ff12f2a039f490ce1653698/recipe).
+The UCX recipe can be found [here](https://github.com/conda-forge/ucx-split-feedstock/tree/rc/recipe).
 
 Note: These packages depend on the following system libraries being present:
 `libibverbs`, `librdmacm`, and `libnuma` (`numactl` on Enterprise Linux). So

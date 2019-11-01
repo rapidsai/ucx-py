@@ -7,8 +7,7 @@ import ucp
 
 
 async def shutdown(ep):
-    await ep.signal_shutdown()
-    ep.close()
+    await ep.close()
 
 
 @pytest.mark.asyncio
@@ -88,3 +87,59 @@ async def test_listener_del():
     assert listener.closed() is False
     del listener
     await ep.recv(msg)
+
+
+@pytest.mark.asyncio
+async def test_close_after_n_recv():
+    """The Endpoint.close_after_n_recv()"""
+
+    async def server_node(ep):
+        for _ in range(10):
+            await ep.send(np.arange(10))
+
+    async def client_node(port):
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        ep.close_after_n_recv(10)
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(5)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(10, count_from_ep_creation=True)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
+
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
+
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="`n` cannot be less than current recv_count"
+        ):
+            ep.close_after_n_recv(5, count_from_ep_creation=True)
+
+        ep.close_after_n_recv(1)
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="close_after_n_recv has already been set to"
+        ):
+            ep.close_after_n_recv(1)
+
+    listener = ucp.create_listener(server_node)
+    await client_node(listener.port)

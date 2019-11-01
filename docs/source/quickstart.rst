@@ -5,8 +5,8 @@ Quickstart
 Setup
 -----
 
-    conda create -n ucx -c conda-forge -c jakirkham/label/ucx \
-    cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7 cupy
+    conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx \
+    cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
 
 For a more detailed guide on installation options please refer to the :doc:`install` page.
 
@@ -37,8 +37,7 @@ Process 1
         print("Sending incremented CuPy array")
         await ep.send(arr)
 
-        await ep.signal_shutdown()
-        ep.close()
+        await ep.close()
         lf.close()
 
     lf = ucp.create_listener(send, port)
