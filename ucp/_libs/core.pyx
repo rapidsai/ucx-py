@@ -630,6 +630,9 @@ class _Endpoint:
                 self._ctrl_tag_send,
                 pending_msg=self.pending_msg_list[-1]
             )
+            # Give all current outstanding send() calls a chance to return
+            self._ctx.progress()
+            await asyncio.sleep(0)
         finally:
             self.abort()
 
