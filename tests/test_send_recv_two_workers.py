@@ -193,12 +193,6 @@ def dataframe():
     )
 
 
-def column():
-    import cudf
-
-    return cudf.Series(np.arange(90000))._column
-
-
 def series():
     import cudf
 
@@ -222,7 +216,7 @@ def cupy():
     not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
-    "cuda_obj_generator", [dataframe, column, empty_dataframe, series, cupy]
+    "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy]
 )
 def test_send_recv_cu(cuda_obj_generator):
     import os
