@@ -228,33 +228,32 @@ class Endpoint:
         self._ep = ep
 
     def __del__(self):
-        if not self.closed():
-            self.close()
+        self.abort()
 
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
         return self._ep.uid
 
-    async def signal_shutdown(self):
-        """Signal the connected peer to shutdown.
+    def abort(self):
+        """Close the communication immediately and abruptly.
+        Useful in destructors or generators' ``finally`` blocks.
 
-        Notice, this functions doesn't close the endpoint.
-        To do that, use `Endpoint.close()` or del the object.
+        Notice, this functions doesn't signal the connected peer to close.
+        To do that, use `Endpoint.close()`
         """
-        await self._ep.signal_shutdown()
+        self._ep.abort()
+
+    async def close(self):
+        """Close the endpoint cleanly.
+        This will attempt to flush outgoing buffers before actually
+        closing the underlying UCX endpoint.
+        """
+        await self._ep.close()
 
     def closed(self):
         """Is this endpoint closed?"""
         return self._ep._closed
-
-    def close(self):
-        """Close this endpoint.
-
-        Notice, this functions doesn't signal the connected peer to shutdown
-        To do that, use `Endpoint.signal_shutdown()`
-        """
-        return self._ep.close()
 
     async def send(self, buffer, nbytes=None):
         """Send `buffer` to connected peer.
@@ -321,7 +320,7 @@ class Endpoint:
                 % self._ep._close_after_n_recv
             )
         if n == self._ep._finished_recv_count:
-            self._ep.close()
+            self._ep.abort()
         elif n > self._ep._finished_recv_count:
             self._ep._close_after_n_recv = n
         else:

@@ -37,8 +37,7 @@ Process 1
         print("Sending incremented CuPy array")
         await ep.send(arr)
 
-        await ep.signal_shutdown()
-        ep.close()
+        await ep.close()
         lf.close()
 
     lf = ucp.create_listener(send, port)

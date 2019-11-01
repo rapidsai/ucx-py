@@ -118,8 +118,7 @@ def serve(port, n_bytes, n_iter, recv, np, verbose, increment):
                 print("\n")
                 print(df)
 
-            await ep.signal_shutdown()
-            ep.close()
+            await ep.close()
             lf.close()
 
         lf = ucp.create_listener(inc, port)
@@ -169,8 +168,7 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose, increment):
     print(format_bytes(2 * n_iter * msg.nbytes / took), "/ s")
     print("===================")
 
-    # await ep.signal_shutdown()
-    # ep.close()
+    # await ep.close()
 
 
 def main(args=None):
