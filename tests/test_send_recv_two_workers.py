@@ -167,7 +167,7 @@ def server(env, port, func):
             recv_msg = msg.tobytes()
             assert recv_msg == close_msg
             print("Shutting Down Server...")
-            await ep.signal_shutdown()
+            await ep.close()
             ep.close()
             lf.close()
 
