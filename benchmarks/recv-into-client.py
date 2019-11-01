@@ -150,7 +150,6 @@ async def connect(host, port, n_bytes, n_iter, recv, np, verbose, increment):
     stop = clock()
 
     expected = np.ones(n_bytes, dtype="u1")
-    #            0 or n_iter
     expected *= int(increment) * n_iter
     np.testing.assert_array_equal(msg, expected)
 
@@ -181,6 +180,7 @@ def main(args=None):
     if args.server:
         if args.object_type == "cupy":
             xp.cuda.runtime.setDevice(0)
+            # xp.cuda.set_allocator(None)
             print("CUDA RUNTIME DEVICE: ", xp.cuda.runtime.getDevice())
         return connect(
             args.server,
