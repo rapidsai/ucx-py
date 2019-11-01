@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 import pytest
 import ucp
@@ -37,7 +36,6 @@ def make_echo_server(create_empty_data):
 def handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     print(msg)
-    sys.exit(-1)
 
 
 @pytest.mark.asyncio
