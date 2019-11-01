@@ -20,7 +20,7 @@ async def test_reset():
     reset = ResetAfterN(2)
 
     def server(ep):
-        ep.close()
+        ep.abort()
         reset()
 
     lt = ucp.create_listener(server)
@@ -35,7 +35,7 @@ async def test_lt_still_in_scope_error():
     reset = ResetAfterN(2)
 
     def server(ep):
-        ep.close()
+        ep.abort()
         reset()
 
     lt = ucp.create_listener(server)
@@ -53,7 +53,7 @@ async def test_ep_still_in_scope_error():
     reset = ResetAfterN(2)
 
     def server(ep):
-        ep.close()
+        ep.abort()
         reset()
 
     lt = ucp.create_listener(server)
@@ -61,5 +61,5 @@ async def test_ep_still_in_scope_error():
     del lt
     with pytest.raises(ucp.exceptions.UCXError, match="_ucp_endpoint"):
         ucp.reset()
-    ep.close()
+    ep.abort()
     ucp.reset()

@@ -7,8 +7,7 @@ import ucp
 
 
 async def shutdown(ep):
-    await ep.signal_shutdown()
-    ep.close()
+    await ep.close()
 
 
 @pytest.mark.asyncio

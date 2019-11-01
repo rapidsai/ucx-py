@@ -569,7 +569,6 @@ class _Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._closed = False
-        self._signaled_shutdown = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
@@ -579,44 +578,16 @@ class _Endpoint:
     def uid(self):
         return self._ucp_endpoint
 
-    async def signal_shutdown(self):
+    def abort(self):
         if self._closed:
-            raise UCXCloseError("signal_shutdown() - _Endpoint closed")
-        self._signaled_shutdown = True
-        # Send a shutdown message to the peer
-        cdef CtrlMsg msg = CtrlMsg()
-        msg.data = {
-            'op': 1,  # "1" is shutdown, currently the only opcode.
-            'close_after_n_recv': self._send_count,
-        }
-        cdef CtrlMsgData[::1] ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
-        log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
-            hex(self.uid), hex(self._ctrl_tag_send), self._send_count
-        )
-        logging.debug(log)
-        self.pending_msg_list.append({'log': log})
-        await tag_send(
-            self._ucp_endpoint,
-            ctrl_msg_mv, ctrl_msg_mv.nbytes,
-            self._ctrl_tag_send,
-            pending_msg=self.pending_msg_list[-1]
-        )
-
-    def closed(self):
-        return self._closed
-
-    def close(self):
-        if self._closed:
-            raise UCXCloseError("close() - _Endpoint closed")
+            return
         self._closed = True
-        logging.debug("_Endpoint.close(): %s" % hex(self.uid))
+        logging.debug("Endpoint.abort(): %s" % hex(self.uid))
 
         cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
 
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
-                # TODO: make sure that a potential shutdown
-                # message isn't cancelled
                 logging.debug("Future cancelling: %s" % msg['log'])
                 ucp_request_cancel(
                     worker,
@@ -635,15 +606,45 @@ class _Endpoint:
             ucp_request_free(status)
         self._ctx = None
 
+    async def close(self):
+        if self._closed:
+            return
+        cdef CtrlMsg msg
+        cdef CtrlMsgData[::1] ctrl_msg_mv
+        try:
+            # Send a shutdown message to the peer
+            msg = CtrlMsg()
+            msg.data = {
+                'op': 1,  # "1" is shutdown, currently the only opcode.
+                'close_after_n_recv': self._send_count,
+            }
+            ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
+            log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
+                hex(self.uid), hex(self._ctrl_tag_send), self._send_count
+            )
+            logging.debug(log)
+            self.pending_msg_list.append({'log': log})
+            await tag_send(
+                self._ucp_endpoint,
+                ctrl_msg_mv, ctrl_msg_mv.nbytes,
+                self._ctrl_tag_send,
+                pending_msg=self.pending_msg_list[-1]
+            )
+            # Give all current outstanding send() calls a chance to return
+            self._ctx.progress()
+            await asyncio.sleep(0)
+        finally:
+            self.abort()
+
+    def closed(self):
+        return self._closed
+
     def __del__(self):
-        if not self._closed:
-            self.close()
+        self.abort()
 
     async def send(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
-        if self._signaled_shutdown:
-            raise UCXError("Cannot send on an Endpoint after signaling shutdown")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -687,7 +688,7 @@ class _Endpoint:
         self._finished_recv_count += 1
         if self._close_after_n_recv is not None \
                 and self._finished_recv_count >= self._close_after_n_recv:
-            self.close()
+            self.abort()
         return ret
 
     def ucx_info(self):
