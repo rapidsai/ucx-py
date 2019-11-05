@@ -79,7 +79,6 @@ def server(env, port, func):
             assert recv_msg == close_msg
             print("Shutting Down Server...")
             await ep.close()
-            ep.close()
             lf.close()
 
         lf = ucp.create_listener(write, port=listener_port)
