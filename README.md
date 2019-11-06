@@ -39,6 +39,7 @@ export CUDA_HOME=/usr/local/cuda-9.2
 export CUDACXX=$CUDA_HOME/bin/nvcc
 conda env create --name cudf_dev_92 --file conda/environments/cudf_dev_cuda9.2.yml
 conda activate cudf_dev_92
+git submodule update --init --remote --recursive
 ./build.sh
 cd ..
 ```
