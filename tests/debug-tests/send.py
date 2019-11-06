@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from distributed.comm.utils import to_frames
+from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
@@ -68,6 +68,37 @@ def server(env, port, func):
                     if nbytes(frame) > 0:
                         await ep.send(frame)
 
+                try:
+                    # Recv meta data
+                    nframes = np.empty(1, dtype=np.uint64)
+                    await ep.recv(nframes)
+                    is_cudas = np.empty(nframes[0], dtype=np.bool)
+                    await ep.recv(is_cudas)
+                    sizes = np.empty(nframes[0], dtype=np.uint64)
+                    await ep.recv(sizes)
+                except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
+                    msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
+                    raise e(msg)
+                else:
+                    # Recv frames
+                    _frames = []
+                    for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
+                        if size > 0:
+                            if is_cuda:
+                                frame = cuda_array(size)
+                            else:
+                                frame = np.empty(size, dtype=np.uint8)
+                            await ep.recv(frame)
+                            _frames.append(frame)
+                        else:
+                            if is_cuda:
+                                _frames.append(cuda_array(size))
+                            else:
+                                _frames.append(b"")
+
+                msg = await from_frames(_frames)
+                print(msg["data"].shape)
+
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"
             msg_size = np.empty(1, dtype=np.uint64)
@@ -104,7 +135,7 @@ def cupy():
     import cupy
 
     size = 10 ** 8
-    return cupy.arange(size)
+    return cupy.arange(size).reshape(10 ** 3, 10 ** 5)
 
 
 def test_send_recv_cu(cuda_obj_generator):
@@ -151,4 +182,4 @@ def total_nvlink_transfer():
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(dataframe)
+    test_send_recv_cu(cupy)

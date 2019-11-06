@@ -1,7 +1,8 @@
 import asyncio
 import os
 
-from distributed.comm.utils import from_frames
+from distributed.comm.utils import from_frames, to_frames
+from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
 import cloudpickle
@@ -10,9 +11,6 @@ import pynvml
 import pytest
 import rmm
 import ucp
-
-# import subprocess
-
 
 pynvml.nvmlInit()
 
@@ -97,6 +95,23 @@ def client(env, port, func):
                             frames.append(b"")
 
             msg = await from_frames(frames)
+            msg = msg["data"]
+            # msg = msg.T
+            msg = {"data": to_serialize(msg)}
+            frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
+            # Send meta data
+            await ep.send(np.array([len(frames)], dtype=np.uint64))
+            await ep.send(
+                np.array(
+                    [hasattr(f, "__cuda_array_interface__") for f in frames],
+                    dtype=np.bool,
+                )
+            )
+            await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
+            # Send frames
+            for frame in frames:
+                if nbytes(frame) > 0:
+                    await ep.send(frame)
 
         close_msg = b"shutdown listener"
         close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
@@ -105,7 +120,7 @@ def client(env, port, func):
         await ep.send(close_msg)
 
         print("Shutting Down Client...")
-        return msg["data"]
+        return msg
 
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
     rx_cuda_obj + rx_cuda_obj
@@ -194,4 +209,4 @@ def total_nvlink_transfer():
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(dataframe)
+    test_send_recv_cu(cupy)
