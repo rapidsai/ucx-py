@@ -624,12 +624,15 @@ class _Endpoint:
             )
             logging.debug(log)
             self.pending_msg_list.append({'log': log})
-            await tag_send(
-                self._ucp_endpoint,
-                ctrl_msg_mv, ctrl_msg_mv.nbytes,
-                self._ctrl_tag_send,
-                pending_msg=self.pending_msg_list[-1]
-            )
+            try:
+                await tag_send(
+                    self._ucp_endpoint,
+                    ctrl_msg_mv, ctrl_msg_mv.nbytes,
+                    self._ctrl_tag_send,
+                    pending_msg=self.pending_msg_list[-1]
+                )
+            except UCXError:
+                pass  # The peer might already be shutting down
             # Give all current outstanding send() calls a chance to return
             self._ctx.progress()
             await asyncio.sleep(0)
