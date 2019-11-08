@@ -33,7 +33,14 @@ MEMORY
 
 This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-PY defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
-Values: n
+Values: n/y
+
+``UCX_CUDA_IPC_CACHE``
+
+This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-py defaults this value to ``y``
+
+Values: n/y
+
 
 ``UCX_RNDV_SCHEME``
 
