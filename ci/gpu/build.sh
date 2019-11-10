@@ -46,7 +46,7 @@ nvidia-smi
 logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
-              "cupy>=6.2.0" "numpy>=1.16" \
+              "cupy>=6.5.0" "numpy>=1.16" \
               "cudf>=0.10" "dask-cudf>=0.10" \
               "dask>=2.3.0" "distributed>=2.3.2" \
               "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
