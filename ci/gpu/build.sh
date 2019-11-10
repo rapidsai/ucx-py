@@ -57,7 +57,7 @@ conda install -c conda-forge "async_generator" "automake" "libtool" \
 
 
 # install cupy
-conda install -c rapidsai -c nvidia "cupy>=6.2.0"
+conda install -c conda-forge "cupy>=6.2.0"
 
 # install ucx from conda-forge rc channel
 # conda install -c conda-forge/label/rc_ucx "ucx-proc=*=gpu" "ucx"
