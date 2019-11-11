@@ -113,7 +113,6 @@ else
     logger "Check NICs"
     awk 'END{print $1}' /etc/hosts
     cat /etc/hosts
-    ifconfig
 
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
