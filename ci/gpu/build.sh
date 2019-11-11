@@ -80,6 +80,7 @@ conda list
 logger "Build ucx"
 git clone https://github.com/openucx/ucx
 cd ucx
+git checkout v1.7.x
 ls
 ./autogen.sh
 mkdir build
