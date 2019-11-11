@@ -22,7 +22,7 @@ cuda = pytest.importorskip("numba.cuda")
         lambda cudf: cudf.Series([1, None, 3]),
         lambda cudf: cudf.Series(range(2 ** 13)),
         lambda cudf: cudf.DataFrame({"a": np.random.random(1200000)}),
-        lambda cudf: cudf.DataFrame({"a": range(2 ** 25)}),
+        # lambda cudf: cudf.DataFrame({"a": range(2 ** 25)}),
         lambda cudf: cudf.Series(),
         lambda cudf: cudf.DataFrame(),
         lambda cudf: cudf.DataFrame({"a": [], "b": []}),
