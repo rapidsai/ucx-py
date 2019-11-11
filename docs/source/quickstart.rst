@@ -10,8 +10,74 @@ Setup
 
 For a more detailed guide on installation options please refer to the :doc:`install` page.
 
+Send/Recv NumPy Arrays
+---------------------
+
+Process 1
+~~~~~~~~~
+
+.. code-block:: python
+
+    import asyncio
+    import ucp
+    import numpy as np
+
+    n_bytes = 2**30
+    host = ucp.get_address(ifname='enp0s25')
+    port = 13337
+
+    async def send(ep):
+        # recv buffer
+        arr = np.empty(n_bytes, dtype=np.uint8)
+        await ep.recv(arr)
+        print("Received NumPy array")
+
+        # increment array and send back
+        arr += 1
+        print("Sending incremented NumPy array")
+        await ep.send(arr)
+
+        await ep.close()
+        lf.close()
+
+    lf = ucp.create_listener(send, port)
+    while not lf.closed():
+        await asyncio.sleep(0.1)
+
+
+
+Process 2
+~~~~~~~~~
+
+.. code-block:: python
+
+    import asyncio
+    import ucp
+    import numpy as np
+
+    port = 13337
+    n_bytes = 2**30
+    host = ucp.get_address(ifname='enp1s0f0')
+    ep = await ucp.create_endpoint(host, port)
+    msg = np.zeros(n_bytes, dtype='u1') # create some data to send
+    msg_size = np.array([msg.nbytes], dtype=np.uint64)
+
+    # send message
+    print("Send Original NumPy array")
+    await ep.send(msg, msg_size)  # send the real message
+
+    # recv response
+    print("Receive Incremented NumPy arrays")
+    resp = np.empty_like(msg)
+    await ep.recv(resp, msg_size)  # receive the echo
+    np.testing.assert_array_equal(msg + 1, resp)
+
+
 Send/Recv CuPy Arrays
 ---------------------
+
+.. note::
+    If you are passing CuPy arrays with GPUs you ensure you have correctly set ``UCX_TLS`` with ``cuda_ipc``. See the :doc:`configuration` for more details
 
 Process 1
 ~~~~~~~~~
