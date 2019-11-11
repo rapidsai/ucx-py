@@ -113,6 +113,7 @@ else
     logger "Check NICs"
     awk 'END{print $1}' /etc/hosts
     cat /etc/hosts
+    ifconfig
 
     logger "Python py.test for ucx-py..."
     cd $WORKSPACE
@@ -125,7 +126,7 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
+    UCXPY_LOG_LEVEL=DEBUG UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 
 fi
 
