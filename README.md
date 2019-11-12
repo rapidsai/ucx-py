@@ -65,7 +65,7 @@ cd ..
 #### conda-forge Dependencies
 
 ```bash
-conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cupy distributed
+conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cython cupy distributed
 ```
 
 #### dask-cuda
