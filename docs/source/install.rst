@@ -4,12 +4,19 @@ Install
 Conda
 -----
 
+With GPU support:
+
 ::
 
     conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx \
-    cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
+      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.7
 
-Where ``<processor type>`` can be ``gpu`` or ``cpu``.
+Without GPU support:
+
+::
+
+    conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx \
+      ucx-proc=*=cpu ucx ucx-py python=3.7
 
 Source
 ------
