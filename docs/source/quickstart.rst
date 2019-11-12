@@ -13,8 +13,8 @@ For a more detailed guide on installation options please refer to the :doc:`inst
 Send/Recv NumPy Arrays
 ---------------------
 
-Process 1
-~~~~~~~~~
+Process 1 - Server
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -23,13 +23,14 @@ Process 1
     import numpy as np
 
     n_bytes = 2**30
-    host = ucp.get_address(ifname='enp0s25')
+    host = ucp.get_address(ifname='eth0')  # ethernet device name
     port = 13337
 
     async def send(ep):
         # recv buffer
         arr = np.empty(n_bytes, dtype=np.uint8)
         await ep.recv(arr)
+        assert np.count_nonzero(arr) == 0
         print("Received NumPy array")
 
         # increment array and send back
@@ -46,8 +47,8 @@ Process 1
 
 
 
-Process 2
-~~~~~~~~~
+Process 2 - Client
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -57,7 +58,7 @@ Process 2
 
     port = 13337
     n_bytes = 2**30
-    host = ucp.get_address(ifname='enp1s0f0')
+    host = ucp.get_address(ifname='eth0')  # ethernet device name
     ep = await ucp.create_endpoint(host, port)
     msg = np.zeros(n_bytes, dtype='u1') # create some data to send
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
@@ -77,10 +78,10 @@ Send/Recv CuPy Arrays
 ---------------------
 
 .. note::
-    If you are passing CuPy arrays between GPUs, ensure you have correctly set ``UCX_TLS`` with ``cuda_ipc``. See the :doc:`configuration` for more details
+    If you are passing CuPy arrays between GPUs and want to use `NVLINK <https://www.nvidia.com/en-us/data-center/nvlink/>`_ ensure you have correctly set ``UCX_TLS`` with ``cuda_ipc``. See the :doc:`configuration` for more details
 
-Process 1
-~~~~~~~~~
+Process 1 - Server
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -89,13 +90,14 @@ Process 1
     import cupy as cp
 
     n_bytes = 2**30
-    host = ucp.get_address(ifname='enp1s0f0')
+    host = ucp.get_address(ifname='enp1s0f0')  # ethernet device name
     port = 13337
 
     async def send(ep):
         # recv buffer
         arr = cp.empty(n_bytes, dtype=cp.uint8)
         await ep.recv(arr)
+        assert cp.count_nonzero(d) == cp.array(0, dtype=cp.int64)
         print("Received CuPy array")
 
         # increment array and send back
@@ -112,8 +114,8 @@ Process 1
 
 
 
-Process 2
-~~~~~~~~~
+Process 2 - Client
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -124,7 +126,7 @@ Process 2
 
     port = 13337
     n_bytes = 2**30
-    host = ucp.get_address(ifname='enp1s0f0')
+    host = ucp.get_address(ifname='enp1s0f0')  # ethernet device name
     ep = await ucp.create_endpoint(host, port)
     msg = cp.zeros(n_bytes, dtype='u1') # create some data to send
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
