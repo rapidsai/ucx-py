@@ -13,7 +13,7 @@ def cuda_array(size):
     # import cupy
     # return cupy.empty(size, dtype=cupy.uint8)
     # return rmm.device_array(size, dtype=np.uint8)
-    import numba
+    import numba.cuda
 
     return numba.cuda.device_array((size,), dtype=np.uint8)
 
