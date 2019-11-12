@@ -77,7 +77,7 @@ Send/Recv CuPy Arrays
 ---------------------
 
 .. note::
-    If you are passing CuPy arrays with GPUs you ensure you have correctly set ``UCX_TLS`` with ``cuda_ipc``. See the :doc:`configuration` for more details
+    If you are passing CuPy arrays between GPUs, ensure you have correctly set ``UCX_TLS`` with ``cuda_ipc``. See the :doc:`configuration` for more details
 
 Process 1
 ~~~~~~~~~
