@@ -56,7 +56,7 @@ cd ..
 #### Dask distributed
 
 ```bash
-git clone https://github.com:dask/distributed.git
+git clone https://github.com/dask/distributed.git
 cd distributed
 pip install -e .
 cd ..
