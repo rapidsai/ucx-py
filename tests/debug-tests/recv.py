@@ -50,10 +50,6 @@ def client(env, port, func):
 
             frames, msg = await recv(ep)
 
-            # msg = msg["data"]
-            # # msg = msg.T
-            # msg = {"data": to_serialize(msg)}
-            # frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             # Send meta data
             await send(ep, frames)
 
@@ -78,16 +74,16 @@ def client(env, port, func):
         print(msg)
         assert rx > before_rx
 
-    # cuda_obj_generator = cloudpickle.loads(func)
-    # pure_cuda_obj = cuda_obj_generator()
+    cuda_obj_generator = cloudpickle.loads(func)
+    pure_cuda_obj = cuda_obj_generator()
 
-    # from cudf.tests.utils import assert_eq
-    # import cupy as cp
+    from cudf.tests.utils import assert_eq
+    import cupy as cp
 
-    # if isinstance(rx_cuda_obj, cp.ndarray):
-    #     cp.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
-    # else:
-    #     assert_eq(rx_cuda_obj, pure_cuda_obj)
+    if isinstance(rx_cuda_obj, cp.ndarray):
+        cp.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
+    else:
+        assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def dataframe():
