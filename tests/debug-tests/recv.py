@@ -19,26 +19,10 @@ cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
 
 
-def cuda_array(size):
-    # import cupy as cp
-    import numba
-
-    return numba.cuda.device_array((size,), dtype=np.uint8)
-
-    # return cp.empty(size, dtype=cp.uint8)
-    # return rmm.device_array(size, dtype=np.uint8)
-
-
 async def get_ep(name, port):
     addr = ucp.get_address()
     ep = await ucp.create_endpoint(addr, port)
     return ep
-
-
-def create_cuda_context():
-    import numba.cuda
-
-    numba.cuda.current_context()
 
 
 def client(env, port, func):

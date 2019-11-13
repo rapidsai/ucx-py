@@ -17,7 +17,7 @@ cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
-ITERATIONS = 100
+ITERATIONS = 1
 
 
 def cuda_array(size):
