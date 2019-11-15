@@ -17,7 +17,7 @@ cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
-ITERATIONS = 100
+ITERATIONS = 1
 
 
 def cuda_array(size):
@@ -43,7 +43,10 @@ def client(env, port, func):
     # assert deserialized msg is cdf
     # send receipt
 
+    ucp.reset()
     os.environ.update(env)
+    ucp.init()
+
     # must create context before importing
     # cudf/cupy/etc
     before_rx, before_tx = total_nvlink_transfer()
@@ -126,8 +129,9 @@ def server(env, port, func):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
-
+    ucp.reset()
     os.environ.update(env)
+    ucp.init()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
@@ -168,7 +172,6 @@ def server(env, port, func):
             assert recv_msg == close_msg
             print("Shutting Down Server...")
             await ep.close()
-            ep.close()
             lf.close()
 
         lf = ucp.create_listener(write, port=listener_port)
@@ -186,6 +189,8 @@ def dataframe():
     import cudf
     import numpy as np
 
+    # always generate the same random numbers
+    np.random.seed(0)
     size = 2 ** 26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
@@ -226,8 +231,9 @@ def test_send_recv_cu(cuda_obj_generator):
     env2 = base_env.copy()
     # reverse CVD for other worker
     env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
+    import random
 
-    port = 15338
+    port = random.randint(13000, 15500)
     # serialize function and send to the client and server
     # server will use the return value of the contents,
     # serialize the values, then send serialized values to client.
@@ -235,13 +241,9 @@ def test_send_recv_cu(cuda_obj_generator):
     # data sent from the server
 
     func = cloudpickle.dumps(cuda_obj_generator)
-
-    server_process = multiprocessing.Process(
-        name="server", target=server, args=[env1, port, func]
-    )
-    client_process = multiprocessing.Process(
-        name="client", target=client, args=[env2, port, func]
-    )
+    ctx = multiprocessing.get_context("spawn")
+    server_process = ctx.Process(name="server", target=server, args=[env1, port, func])
+    client_process = ctx.Process(name="client", target=client, args=[env2, port, func])
 
     server_process.start()
     client_process.start()
@@ -251,9 +253,6 @@ def test_send_recv_cu(cuda_obj_generator):
 
     assert server_process.exitcode == 0
     assert client_process.exitcode == 0
-
-    # ensure ucp in the main process is not running
-    assert ucp.public_api._ctx is None
 
 
 def total_nvlink_transfer():

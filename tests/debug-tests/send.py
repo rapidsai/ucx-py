@@ -3,37 +3,23 @@ import os
 
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
-from distributed.utils import nbytes
 
 import cloudpickle
 import numpy as np
 import pytest
-import rmm
 import ucp
+from utils import ITERATIONS, recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
 pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
-ITERATIONS = 1000
-
-
-def cuda_array(size):
-    # return cupy.empty(size, dtype=cupy.uint8)
-    return rmm.device_array(size, dtype=np.uint8)
-    # return numba.cuda.device_array((size,), dtype=np.uint8)
 
 
 async def get_ep(name, port):
     addr = ucp.get_address()
     ep = await ucp.create_endpoint(addr, port)
     return ep
-
-
-def create_cuda_context():
-    import numba.cuda
-
-    numba.cuda.current_context()
 
 
 def server(env, port, func):
@@ -55,18 +41,9 @@ def server(env, port, func):
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
                 # Send meta data
-                await ep.send(np.array([len(frames)], dtype=np.uint64))
-                await ep.send(
-                    np.array(
-                        [hasattr(f, "__cuda_array_interface__") for f in frames],
-                        dtype=np.bool,
-                    )
-                )
-                await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-                # Send frames
-                for frame in frames:
-                    if nbytes(frame) > 0:
-                        await ep.send(frame)
+                await send(ep, frames)
+
+                frames, msg = await recv(ep)
 
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"
@@ -79,7 +56,6 @@ def server(env, port, func):
             assert recv_msg == close_msg
             print("Shutting Down Server...")
             await ep.close()
-            ep.close()
             lf.close()
 
         lf = ucp.create_listener(write, port=listener_port)
@@ -104,7 +80,7 @@ def dataframe():
 def cupy():
     import cupy
 
-    size = 10 ** 8
+    size = 10 ** 9
     return cupy.arange(size)
 
 
@@ -152,4 +128,6 @@ def total_nvlink_transfer():
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(dataframe)
+    # args = parse_args(args)
+
+    test_send_recv_cu(cupy)
