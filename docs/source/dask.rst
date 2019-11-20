@@ -33,13 +33,14 @@ Inline
     )
 
     cluster = DGX(
-        interface="enp1s0f0",
+        interface="enp1s0f0",  # Ethernet interface
         protocol="ucx",
         enable_tcp_over_ucx=enable_tcp_over_ucx,
         enable_infiniband=enable_infiniband,
         enable_nvlink=enable_nvlink,
     )
     client = Cluster(client)
+
 
 CLI
 ~~~~
@@ -49,8 +50,10 @@ Dask-cuda can also be used when manually starting a cluster:
 .. code-block:: bash
 
     # server
+    # Note: --interface is an Ethernet interface
     UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
     UCX_SOCKADDR_TLS_PRIORITY=sockcm python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
+
 
     # worker
     UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
@@ -72,6 +75,7 @@ Lastly, we can also manually start each worker individually (this is typically o
 .. code-block:: bash
 
     # server
+    # Note:
     UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
     UCX_SOCKADDR_TLS_PRIORITY=sockcm python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
 
@@ -83,7 +87,7 @@ Lastly, we can also manually start each worker individually (this is typically o
     UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm \
     UCX_SOCKADDR_TLS_PRIORITY=sockcm python <python file>
 
-Note: ``CUDA_VISIBLE_DEVICES`` controls which GPU(s) the worker has access to.
+Note: ``CUDA_VISIBLE_DEVICES`` controls which GPU(s) the worker has access to and ``--interface`` is an Ethernet interface
 
 cuDF Example
 ------------
