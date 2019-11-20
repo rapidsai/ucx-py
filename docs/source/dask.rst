@@ -75,7 +75,6 @@ Lastly, we can also manually start each worker individually (this is typically o
 .. code-block:: bash
 
     # server
-    # Note:
     UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
     UCX_SOCKADDR_TLS_PRIORITY=sockcm python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
 
