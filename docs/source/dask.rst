@@ -7,7 +7,7 @@ and manually starting a dask cluster with UCX enabled.  Additionally, we demonst
 Starting with Dask-cuda
 -----------------------
 
-`dask-cuda <https://github.com/rapidsai/dask-cuda>`_ is Python tool designed to help with cluster deployment and management of Dask workers on CUDA-enabled systems.  Dask-cuda can be used to in two ways: inline and CLI.
+`dask-cuda <https://github.com/rapidsai/dask-cuda>`_ is a Python tool designed to help with cluster deployment and management of Dask workers on CUDA-enabled systems.  Dask-cuda can be used to in two ways: inline and CLI.
 
 Inline
 ~~~~~~
