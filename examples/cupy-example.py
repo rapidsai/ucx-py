@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import dask.array as da
@@ -6,7 +7,6 @@ from dask_cuda.initialize import initialize
 from distributed import Client
 
 import cupy
-from tornado.ioloop import IOLoop
 
 enable_tcp_over_ucx = True
 enable_infiniband = False
@@ -42,6 +42,4 @@ async def run():
 
 
 if __name__ == "__main__":
-    loop = IOLoop.current()
-
-    loop.run_sync(run)
+    asyncio.run(run())

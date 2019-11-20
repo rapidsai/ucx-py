@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 from dask_cuda import DGX
@@ -6,7 +7,6 @@ from distributed import Client
 
 import cudf
 import dask_cudf
-from tornado.ioloop import IOLoop
 
 enable_tcp_over_ucx = True
 enable_infiniband = False
@@ -30,7 +30,9 @@ async def run():
         asynchronous=True,
     ) as dgx:
         async with Client(dgx, asynchronous=True) as client:
-            d = dask_cudf.from_cudf(cudf.DataFrame([("a", range(10))]), npartitions=2)
+            d = dask_cudf.from_cudf(
+                cudf.DataFrame({"a": range(2 ** 16)}), npartitions=2
+            )
             r = d.sum()
 
             for i in range(100):
@@ -41,5 +43,4 @@ async def run():
 
 
 if __name__ == "__main__":
-    loop = IOLoop.current()
-    loop.run_sync(run)
+    asyncio.run(run())

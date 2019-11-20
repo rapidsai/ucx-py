@@ -16,5 +16,6 @@ UCX-PY is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a lo
    quickstart
    install
    configuration
+   dask
    deployment
    api
