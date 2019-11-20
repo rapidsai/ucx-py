@@ -20,6 +20,13 @@ if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
     logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
+if os.environ.get("UCX_CUDA_IPC_CACHE", "") != "n":
+    # See <https://github.com/openucx/ucx/issues/4410>
+    logger.debug(
+        "Setting env UCX_CUDA_IPC_CACHE=n, which is required to avoid NVLink memory leaks"
+    )
+    os.environ["UCX_CUDA_IPC_CACHE"] = "n"
+
 # Set the root logger before importing modules that use it
 _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
 logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
