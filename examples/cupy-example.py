@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import dask.array as da
@@ -5,7 +6,6 @@ from dask_cuda import DGX
 from dask_cuda.initialize import initialize
 from distributed import Client
 
-import asyncio
 import cupy
 
 enable_tcp_over_ucx = True
