@@ -3,11 +3,13 @@ Benchmark send receive on one machine
 """
 import argparse
 import asyncio
-from time import sleep, perf_counter as clock
 import multiprocessing as mp
+from time import perf_counter as clock, sleep
+
+from distributed.utils import format_bytes, parse_bytes
+
 import numpy
 import ucp
-from distributed.utils import format_bytes, parse_bytes
 
 mp = mp.get_context("spawn")
 
