@@ -23,7 +23,8 @@ if os.environ.get("UCX_MEMTYPE_CACHE", "") != "n":
 if os.environ.get("UCX_CUDA_IPC_CACHE", "") != "n":
     # See <https://github.com/openucx/ucx/issues/4410>
     logger.debug(
-        "Setting env UCX_CUDA_IPC_CACHE=n, which is required to avoid NVLink memory leaks"
+        "Setting env UCX_CUDA_IPC_CACHE=n, which is required to avoid NVLink memory "
+        "leaks"
     )
     os.environ["UCX_CUDA_IPC_CACHE"] = "n"
 
