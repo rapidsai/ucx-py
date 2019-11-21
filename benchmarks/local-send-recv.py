@@ -166,7 +166,7 @@ def parse_args():
         "--cuda-profile",
         default=False,
         action="store_true",
-        help="Setting profiler.start()/stop() around send/recv "
+        help="Setting CUDA profiler.start()/stop() around send/recv "
         "typically used with `nvprof --profile-from-start off "
         "--profile-child-processes`",
     )
