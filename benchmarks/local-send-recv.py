@@ -187,9 +187,9 @@ def main():
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
     if args.object_type == "cupy":
-        print(f"Device      | {args.server_dev}, {args.client_dev}")
+        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     else:
-        print(f"Device      | CPU")
+        print(f"Device(s)    | Single CPU")
     print(
         f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
     )
