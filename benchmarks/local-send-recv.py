@@ -37,7 +37,6 @@ def server(queue, args):
                     msg_recv_list.append(t)
 
             assert msg_recv_list[0].nbytes == args.n_bytes
-
             for i in range(args.n_iter):
                 await ep.recv(msg_recv_list[i], args.n_bytes)
                 await ep.send(msg_recv_list[i], args.n_bytes)
@@ -84,7 +83,8 @@ def client(queue, port, args):
                 msg_recv_list.append(t2)
         assert msg_send_list[0].nbytes == args.n_bytes
         assert msg_recv_list[0].nbytes == args.n_bytes
-
+        if args.cuda_profile:
+            np.cuda.profiler.start()
         times = []
         for i in range(args.n_iter):
             start = clock()
@@ -92,6 +92,8 @@ def client(queue, port, args):
             await ep.recv(msg_recv_list[i], args.n_bytes)
             stop = clock()
             times.append(stop - start)
+        if args.cuda_profile:
+            np.cuda.profiler.stop()
         queue.put(times)
 
     loop = asyncio.get_event_loop()
@@ -100,7 +102,7 @@ def client(queue, port, args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Roundtrip benchmark")
     parser.add_argument(
         "-n",
         "--n-bytes",
@@ -160,7 +162,18 @@ def parse_args():
         action="store_true",
         help="Reuse memory allocations between communication.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--cuda-profile",
+        default=False,
+        action="store_true",
+        help="Setting profiler.start()/stop() around send/recv "
+        "typically used with `nvprof --profile-from-start off "
+        "--profile-child-processes`",
+    )
+    args = parser.parse_args()
+    if args.cuda_profile and args.object_type != "cupy":
+        raise RuntimeError("`--cuda-profile` requires `--object_type=cupy`")
+    return args
 
 
 def main():
