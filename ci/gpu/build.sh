@@ -128,5 +128,8 @@ else
     logger "TEST WITH TCP ONLY..."
     UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 
+    logger "Run local benchmark..."
+    UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+
 fi
 
