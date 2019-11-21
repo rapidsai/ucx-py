@@ -50,6 +50,7 @@ async def test_join(enable_nvlink):
                 ],
                 axis=1,
             ).persist()
+
             n_rows = 10_000_000
 
             right = dd.concat(
@@ -74,18 +75,15 @@ async def test_join(enable_nvlink):
 
             took = stop - start
 
-            async def f(dask_scheduler):
-                return dask_scheduler.bandwidth_workers
-
-            data = await client.run_on_scheduler(f)
-            total = sum([d for w, d in data.items()])
-            total_str = format_bytes(total)
+            # bandwidth_workers = dgx.scheduler.bandwidth_workers
+            # bandwidth_workers_total = sum([d for w, d in bandwidth_workers.items()])
+            bandwidth = dgx.scheduler.bandwidth
 
             with open("benchmarks.txt", "a+") as f:
                 f.write("Join benchmark\n")
                 f.write(f"NVLINK: {enable_nvlink}\n")
                 f.write("-------------------\n")
-                f.write(f"n_bytes  | {format_bytes(total)}\n")
+                f.write(f"Aggregate Bandwidth  | {format_bytes(bandwidth)}\n")
                 f.write("\n===================\n")
                 f.write(f"{format_bytes(total / took)} / s\n")
                 f.write("===================\n\n\n")
