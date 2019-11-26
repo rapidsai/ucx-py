@@ -1,17 +1,13 @@
 import asyncio
 import time
-from time import perf_counter as clock
 
-import dask.array as da
 import dask.dataframe as dd
 from dask_cuda import DGX
 from dask_cuda.initialize import initialize
 from distributed import Client
 from distributed.utils import format_bytes
-from distributed.utils_test import captured_logger
 
 import cudf
-import dask_cudf
 import pytest
 
 enable_tcp_over_ucx = True
@@ -37,43 +33,37 @@ async def test_join(enable_nvlink):
         asynchronous=True,
     ) as dgx:
         async with Client(dgx, asynchronous=True) as client:
+            await client.run(cudf.set_allocator, "default", pool=True,
+                    initial_pool_size=int(2.4e10))
 
             n_rows = 1_000_000_000
-            n_keys = 5_000_000
+            n_partitions = 100
+            n_keys = 500_000_000
 
-            left = dd.concat(
-                [
-                    da.random.random(n_rows).to_dask_dataframe(columns="x"),
-                    da.random.randint(0, n_keys, size=n_rows).to_dask_dataframe(
-                        columns="id"
-                    ),
-                ],
-                axis=1,
-            ).persist()
+            def make_partition(n_rows, n_keys, name):
+                return cudf.DataFrame({
+                    name: cupy.random.random(n_rows),
+                    "id": cupy.random.randint(0, n_keys, size=n_rows),
+                })
 
-            n_rows = 10_000_000
+            left = dd.from_delayed(
+                [dask.delayed(make_partition)(n_rows // n_partitions, n_keys, "x") for _ in range(n_partitions)],
+                meta=make_partition(1, n_keys, "x")
+            )
+            right = dd.from_delayed(
+                [dask.delayed(make_partition)(n_rows // n_partitions, n_keys, "y") for _ in range(n_partitions)],
+                meta=make_partition(1, n_keys, "y")
+            )
 
-            right = dd.concat(
-                [
-                    da.random.random(n_rows).to_dask_dataframe(columns="y"),
-                    da.random.randint(0, n_keys, size=n_rows).to_dask_dataframe(
-                        columns="id"
-                    ),
-                ],
-                axis=1,
-            ).persist()
+            left, right = dask.persist(left, right)
+            await left
+            await right
 
-            gleft = left.map_partitions(cudf.from_pandas)
-            gright = right.map_partitions(cudf.from_pandas)
-            gleft = await gleft.persist()
-            gright = await gright.persist()  # persist data in device memory
+            start = time.time()
+            out = await gleft.merge(gright, on=["id"]).persist()
+            stop = time.time()
 
-            start = clock()
-            out = gleft.merge(gright, on=["id"])  # this is lazy
-            out = await out.persist()
-            stop = clock()
-
-            took = stop - start
+            duration = stop - start
 
             # bandwidth_workers = dgx.scheduler.bandwidth_workers
             # bandwidth_workers_total = sum([d for w, d in bandwidth_workers.items()])
