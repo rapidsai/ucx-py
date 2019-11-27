@@ -1,6 +1,50 @@
-import asyncio
-import time
+"""
+Conda Environment
+-----------------
 
+# environment.yml
+name: ucx-benchmark
+channels:
+  - conda-forge
+  - conda-forge/label/rc_ucx
+  - rapidsai-nightly
+  - nvidia
+dependencies:
+  - cudatoolkit
+  - ucx-proc=*=gpu
+  - ucx
+  - ucx-py
+  - dask-cudf=0.11
+  - dask-cuda=0.11
+  - pytest
+  - pytest-asyncio
+  - python=3.7
+  - numba=0.46
+  - pip
+  - pip:
+    - git+https://github.com/dask/distributed@0b68318112b13d70a9cdd741e5db00da2ec6a8f5
+
+$ conda env create -n ucx-benchmark -f myfile.yaml
+$ conda activate ucx-benchmark
+$ py.test benchmarks/dask-join.py
+
+
+Config
+------
+
+distributed:
+  worker:
+    multiprocessing-method: spawn
+  comm:
+    offload: False
+"""
+import os
+import time
+os.environ["UCX_CUDA_IPC_CACHE"] = "n"
+
+import cudf
+import cupy
+import pytest
 import dask
 import dask.dataframe as dd
 from dask_cuda import DGX
@@ -8,9 +52,6 @@ from dask_cuda.initialize import initialize
 from distributed import Client
 from distributed.utils import format_bytes
 
-import cudf
-import cupy
-import pytest
 
 enable_tcp_over_ucx = True
 enable_infiniband = False
@@ -80,5 +121,3 @@ async def test_join(enable_nvlink):
             print("NVLink:", enable_nvlink, "Rows:", n_rows, "Bandwidth:", format_bytes(bandwidth))
 
             _ = await client.profile(server=True, filename="join-communication.html")
-
-
