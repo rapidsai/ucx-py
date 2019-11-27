@@ -40,6 +40,7 @@ distributed:
 """
 import os
 import time
+
 os.environ["UCX_CUDA_IPC_CACHE"] = "n"
 
 import cudf
@@ -118,6 +119,13 @@ async def test_join(enable_nvlink):
             duration = stop - start
 
             bandwidth = dgx.scheduler.bandwidth
-            print("NVLink:", enable_nvlink, "Rows:", n_rows, "Bandwidth:", format_bytes(bandwidth))
+            print(
+                "NVLink:",
+                enable_nvlink,
+                "Rows:",
+                n_rows,
+                "Bandwidth:",
+                format_bytes(bandwidth),
+            )
 
             _ = await client.profile(server=True, filename="join-communication.html")
