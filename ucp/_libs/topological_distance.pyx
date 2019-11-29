@@ -43,8 +43,8 @@ cdef class TopologicalDistance:
         device: int
             PCI device index of CUDA device
         device_type: string
-            Type of device to find distance, currently supported types are "network"
-            and "openfabrics"
+            Type of device to find distance, currently supported types are "block",
+            "network" and "openfabrics"
 
         Returns
         -------
@@ -69,11 +69,15 @@ cdef class TopologicalDistance:
         >>> td.get_cuda_distances_from_device_index(domain, bus, device, "openfabrics")
         [{'distance': 2, 'name': b'mlx5_0'}, {'distance': 4, 'name': b'mlx5_1'},
          {'distance': 4, 'name': b'mlx5_2'}, {'distance': 4, 'name': b'mlx5_3'}]
+        >>> td.get_cuda_distances_from_device_index(domain, bus, device, "block")
+        [{'distance': 4, 'name': b'sdb'}, {'distance': 4, 'name': b'sda'}]
         """
         if device_type == "openfabrics":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_OPENFABRICS
-        if device_type == "network":
+        elif device_type == "network":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_NETWORK
+        elif device_type == "block":
+            hwloc_osdev_type = HWLOC_OBJ_OSDEV_BLOCK
 
         cdef hwloc_obj_t cuda_pcidev
         cuda_pcidev = <hwloc_obj_t> get_cuda_pcidev_from_pci_info(
@@ -107,8 +111,8 @@ cdef class TopologicalDistance:
         cuda_device_index: int
             Index of the CUDA device
         device_type: string
-            Type of device to find distance, currently supported types are "network"
-            and "openfabrics"
+            Type of device to find distance, currently supported types are "block",
+            "network" and "openfabrics"
 
         Returns
         -------
@@ -127,6 +131,8 @@ cdef class TopologicalDistance:
         >>> td.get_cuda_distances_from_device_index(0, "openfabrics")
         [{'distance': 2, 'name': b'mlx5_0'}, {'distance': 4, 'name': b'mlx5_1'},
          {'distance': 4, 'name': b'mlx5_2'}, {'distance': 4, 'name': b'mlx5_3'}]
+        >>> td.get_cuda_distances_from_device_index(0, "block")
+        [{'distance': 4, 'name': b'sdb'}, {'distance': 4, 'name': b'sda'}]
         """
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_device_index)
