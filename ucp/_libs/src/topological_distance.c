@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * See file LICENSE for terms.
+ */
+
 #include "topological_distance.h"
 
 int compare_topological_distance_objs(const void *obj1, const void *obj2)
