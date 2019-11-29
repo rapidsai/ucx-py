@@ -10,7 +10,6 @@ from libc.stdint cimport uint64_t
 import uuid
 import socket
 import logging
-import pynvml
 from core_dep cimport *
 from ..exceptions import (
     UCXError,
