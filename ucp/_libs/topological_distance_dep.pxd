@@ -2,7 +2,6 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
-#from libc.stdint cimport *
 from libc.stdlib cimport free
 
 
@@ -39,9 +38,9 @@ cdef extern from "src/topological_distance.h":
     hwloc_topology_t initialize_topology()
 
     hwloc_obj_t hwloc_get_common_pcidev_ancestor_obj(
-            hwloc_topology_t topology,
-            hwloc_obj_t obj1, hwloc_obj_t obj2
-        )
+        hwloc_topology_t topology,
+        hwloc_obj_t obj1, hwloc_obj_t obj2
+    )
 
     void print_obj(hwloc_obj_t obj)
 
@@ -49,8 +48,8 @@ cdef extern from "src/topological_distance.h":
                                          int n)
 
     topological_distance_and_name_t * get_topological_distance_and_name(
-            const topological_distance_objs_t *objs_dist, int n
-        )
+        const topological_distance_objs_t *objs_dist, int n
+    )
 
     hwloc_obj_t get_cuda_pcidev_from_pci_info(hwloc_topology_t topo,
                                               int domain, int bus, int dev)

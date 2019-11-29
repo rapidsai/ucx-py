@@ -30,7 +30,7 @@ cdef class TopologicalDistance:
         hwloc_topology_destroy(topo)
 
     def get_cuda_distances_from_pci_info(self, domain, bus, device,
-            device_type="openfabrics"):
+                                         device_type="openfabrics"):
         """ Find network or openfabrics devices closest to CUDA device at
         domain:bus:device address.
 
@@ -77,28 +77,29 @@ cdef class TopologicalDistance:
 
         cdef hwloc_obj_t cuda_pcidev
         cuda_pcidev = <hwloc_obj_t> get_cuda_pcidev_from_pci_info(
-                <hwloc_topology_t> self.topo, domain, bus, device
-            )
+            <hwloc_topology_t> self.topo, domain, bus, device
+        )
 
         cdef topological_distance_objs_t *dev_dist
         cdef int dev_count
         get_osdev_distance_to_pcidev(&dev_dist, &dev_count, self.topo, cuda_pcidev,
                                      hwloc_osdev_type)
 
-        cdef topological_distance_and_name_t *dist_name;
+        cdef topological_distance_and_name_t *dist_name
         dist_name = <topological_distance_and_name_t *> (
-                get_topological_distance_and_name(dev_dist, dev_count)
-            )
+            get_topological_distance_and_name(dev_dist, dev_count)
+        )
 
         ret = [{"distance": <int>(&dist_name[i]).distance,
                "name": <char *>(&dist_name[i]).name} for i in range(dev_count)]
 
-        free(dev_dist);
-        free(dist_name);
+        free(dev_dist)
+        free(dist_name)
 
         return ret
 
-    def get_cuda_distances_from_device_index(self, cuda_device_index, device_type="openfabrics"):
+    def get_cuda_distances_from_device_index(self, cuda_device_index,
+                                             device_type="openfabrics"):
         """ Find network or openfabrics devices closest to CUDA device of given index.
 
         Parameters
@@ -132,5 +133,5 @@ cdef class TopologicalDistance:
         pci_info = pynvml.nvmlDeviceGetPciInfo(handle)
 
         return self.get_cuda_distances_from_pci_info(
-                pci_info.domain, pci_info.bus, pci_info.device, device_type
-            )
+            pci_info.domain, pci_info.bus, pci_info.device, device_type
+        )

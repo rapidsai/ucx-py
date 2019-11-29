@@ -23,21 +23,47 @@ def test_topological_distance_dgx():
 
     dgx_network = ["ib" + str(i // 2) for i in range(dev_count)]
     if dgx_server == 1:
-        dgx_openfabrics = ["mlx5_0", "mlx5_0", "mlx5_1", "mlx5_1",
-                           "mlx5_2", "mlx5_2", "mlx5_3", "mlx5_3"]
+        dgx_openfabrics = [
+            "mlx5_0",
+            "mlx5_0",
+            "mlx5_1",
+            "mlx5_1",
+            "mlx5_2",
+            "mlx5_2",
+            "mlx5_3",
+            "mlx5_3",
+        ]
     elif dgx_server == 2:
-        dgx_openfabrics = ["mlx5_0", "mlx5_0", "mlx5_1", "mlx5_1",
-                           "mlx5_2", "mlx5_2", "mlx5_3", "mlx5_3",
-                           "mlx5_6", "mlx5_6", "mlx5_7", "mlx5_7",
-                           "mlx5_8", "mlx5_8", "mlx5_9", "mlx5_9"]
+        dgx_openfabrics = [
+            "mlx5_0",
+            "mlx5_0",
+            "mlx5_1",
+            "mlx5_1",
+            "mlx5_2",
+            "mlx5_2",
+            "mlx5_3",
+            "mlx5_3",
+            "mlx5_6",
+            "mlx5_6",
+            "mlx5_7",
+            "mlx5_7",
+            "mlx5_8",
+            "mlx5_8",
+            "mlx5_9",
+            "mlx5_9",
+        ]
     else:
         pytest.skip("DGX Server not recognized or not supported")
 
     td = TopologicalDistance()
 
     for i in range(dev_count):
-        closest_network = td.get_cuda_distances_from_device_index(i, "network")[0]["name"]
-        closest_openfabrics = td.get_cuda_distances_from_device_index(i, "openfabrics")[0]["name"]
+        closest_network = td.get_cuda_distances_from_device_index(i, "network")[0][
+            "name"
+        ]
+        closest_openfabrics = td.get_cuda_distances_from_device_index(i, "openfabrics")[
+            0
+        ]["name"]
 
         assert dgx_network[i] == closest_network.decode("utf-8")
         assert dgx_openfabrics[i] == closest_openfabrics.decode("utf-8")
