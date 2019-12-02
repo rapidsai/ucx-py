@@ -63,14 +63,14 @@ cdef class TopologicalDistance:
         >>> domain, bus, device = pci_info.domain, pci_info.bus, pci_info.device
         >>> td = TopologicalDistance()
         >>> td.get_cuda_distances_from_device_index(domain, bus, device, "network")
-        [{'distance': 2, 'name': b'ib0'}, {'distance': 4, 'name': b'enp1s0f0'},
-         {'distance': 4, 'name': b'enp1s0f1'}, {'distance': 4, 'name': b'ib1'},
-         {'distance': 4, 'name': b'ib2'}, {'distance': 4, 'name': b'ib3'}]
+        [{'distance': 2, 'name': 'ib0'}, {'distance': 4, 'name': 'enp1s0f0'},
+         {'distance': 4, 'name': 'enp1s0f1'}, {'distance': 4, 'name': 'ib1'},
+         {'distance': 4, 'name': 'ib2'}, {'distance': 4, 'name': 'ib3'}]
         >>> td.get_cuda_distances_from_device_index(domain, bus, device, "openfabrics")
-        [{'distance': 2, 'name': b'mlx5_0'}, {'distance': 4, 'name': b'mlx5_1'},
-         {'distance': 4, 'name': b'mlx5_2'}, {'distance': 4, 'name': b'mlx5_3'}]
+        [{'distance': 2, 'name': 'mlx5_0'}, {'distance': 4, 'name': 'mlx5_1'},
+         {'distance': 4, 'name': 'mlx5_2'}, {'distance': 4, 'name': 'mlx5_3'}]
         >>> td.get_cuda_distances_from_device_index(domain, bus, device, "block")
-        [{'distance': 4, 'name': b'sdb'}, {'distance': 4, 'name': b'sda'}]
+        [{'distance': 4, 'name': 'sdb'}, {'distance': 4, 'name': 'sda'}]
         """
         if device_type == "openfabrics":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_OPENFABRICS
@@ -95,7 +95,8 @@ cdef class TopologicalDistance:
         )
 
         ret = [{"distance": <int>(&dist_name[i]).distance,
-               "name": <char *>(&dist_name[i]).name} for i in range(dev_count)]
+               "name": (<char *>(&dist_name[i]).name).decode("utf-8")}
+               for i in range(dev_count)]
 
         free(dev_dist)
         free(dist_name)
@@ -125,14 +126,14 @@ cdef class TopologicalDistance:
         >>> from ucp._libs.topological_distance import TopologicalDistance
         >>> td = TopologicalDistance()
         >>> td.get_cuda_distances_from_device_index(0, "network")
-        [{'distance': 2, 'name': b'ib0'}, {'distance': 4, 'name': b'enp1s0f0'},
-         {'distance': 4, 'name': b'enp1s0f1'}, {'distance': 4, 'name': b'ib1'},
-         {'distance': 4, 'name': b'ib2'}, {'distance': 4, 'name': b'ib3'}]
+        [{'distance': 2, 'name': 'ib0'}, {'distance': 4, 'name': 'enp1s0f0'},
+         {'distance': 4, 'name': 'enp1s0f1'}, {'distance': 4, 'name': 'ib1'},
+         {'distance': 4, 'name': 'ib2'}, {'distance': 4, 'name': 'ib3'}]
         >>> td.get_cuda_distances_from_device_index(0, "openfabrics")
-        [{'distance': 2, 'name': b'mlx5_0'}, {'distance': 4, 'name': b'mlx5_1'},
-         {'distance': 4, 'name': b'mlx5_2'}, {'distance': 4, 'name': b'mlx5_3'}]
+        [{'distance': 2, 'name': 'mlx5_0'}, {'distance': 4, 'name': 'mlx5_1'},
+         {'distance': 4, 'name': 'mlx5_2'}, {'distance': 4, 'name': 'mlx5_3'}]
         >>> td.get_cuda_distances_from_device_index(0, "block")
-        [{'distance': 4, 'name': b'sdb'}, {'distance': 4, 'name': b'sda'}]
+        [{'distance': 4, 'name': 'sdb'}, {'distance': 4, 'name': 'sda'}]
         """
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_device_index)

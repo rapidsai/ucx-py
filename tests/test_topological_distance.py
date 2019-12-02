@@ -58,12 +58,8 @@ def test_topological_distance_dgx():
     td = TopologicalDistance()
 
     for i in range(dev_count):
-        closest_network = td.get_cuda_distances_from_device_index(i, "network")[0][
-            "name"
-        ]
-        closest_openfabrics = td.get_cuda_distances_from_device_index(i, "openfabrics")[
-            0
-        ]["name"]
+        closest_network = td.get_cuda_distances_from_device_index(i, "network")
+        closest_openfabrics = td.get_cuda_distances_from_device_index(i, "openfabrics")
 
-        assert dgx_network[i] == closest_network.decode("utf-8")
-        assert dgx_openfabrics[i] == closest_openfabrics.decode("utf-8")
+        assert dgx_network[i] == closest_network[0]["name"]
+        assert dgx_openfabrics[i] == closest_openfabrics[0]["name"]
