@@ -14,7 +14,7 @@ from setuptools.extension import Extension
 
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
-libraries = ["ucp", "uct", "ucm", "ucs"]
+libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
 extra_compile_args = ["-std=c99"]
 
 
@@ -41,6 +41,21 @@ ext_modules = [
         "ucp._libs.core",
         sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "ucp._libs.topological_distance",
+        sources=[
+            "ucp/_libs/topological_distance.pyx",
+            "ucp/_libs/src/topological_distance.c",
+        ],
+        depends=[
+            "ucp/_libs/src/topological_distance.h",
+            "ucp/_libs/topological_distance_dep.pxd",
+        ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
         libraries=libraries,

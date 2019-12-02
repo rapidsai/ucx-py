@@ -56,7 +56,7 @@ conda install "cudatoolkit=$CUDA_REL" \
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython" \
                               "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml"
+                              "pynvml" "libhwloc"
 
 # install ucx from conda-forge rc channel
 # conda install -c conda-forge/label/rc_ucx "ucx-proc=*=gpu" "ucx"
