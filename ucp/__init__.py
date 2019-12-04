@@ -28,6 +28,12 @@ if "UCX_CUDA_IPC_CACHE" not in os.environ:
     )
     os.environ["UCX_CUDA_IPC_CACHE"] = "n"
 
+if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
+    logger.debug(
+        "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, which is required to connect multiple nodes"
+    )
+    os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
+
 # Set the root logger before importing modules that use it
 _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
 logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
