@@ -30,7 +30,8 @@ if "UCX_CUDA_IPC_CACHE" not in os.environ:
 
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
     logger.debug(
-        "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, which is required to connect multiple nodes"
+        "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "
+        "which is required to connect multiple nodes"
     )
     os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
