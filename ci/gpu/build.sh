@@ -47,8 +47,8 @@ logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
               "cupy>=6.5.0" "numpy>=1.16" \
-              "cudf>=0.10" "dask-cudf>=0.10" \
-              "dask>=2.3.0" "distributed>=2.3.2" \
+              "cudf>=0.11" "dask-cudf>=0.11" \
+              "dask>=2.8.1" "distributed>=2.8.1" \
               "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
               -c rapidsai-nightly
 
@@ -128,8 +128,13 @@ else
     logger "TEST WITH TCP ONLY..."
     UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
 
+    # Test downstream packages, which requires Python v3.7
+    if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
+        logger "TEST OF DASK/UCX..."
+            UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term  `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+    fi
+
     logger "Run local benchmark..."
     UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-
 fi
 
