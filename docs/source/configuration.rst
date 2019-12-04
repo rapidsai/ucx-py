@@ -1,7 +1,19 @@
 Configuration
 =============
 
-UCX can be configured with a wide variety of options and optimizations including: transport, caching, etc.
+UCX/UCX-PY can be configured with a wide variety of options and optimizations including: transport, caching, etc.  Users can configure
+UCX/UCX-PY either with environment variables or programmatically during initialization.  Below we demonstrate setting ``UCX_MEMTYPE_CACHE`` to
+``n`` and checking the configuration:
+
+.. code-block:: python
+
+    import ucp
+    options = {"MEMTYPE_CACHE": "n"}
+    ucp.init(options)
+    assert ucp.get_config()['MEMTYPE_CACHE'] is 'n'
+
+.. note::
+    When programmatically configuring UCX-PY, the ``UCX`` prefix is not used.
 
 For novice users we recommend the following settings:
 
@@ -9,7 +21,7 @@ For novice users we recommend the following settings:
 
     UCX_MEMTYPE_CACHE=n UCX_TLS=all
 
-``UCX_TLS=all`` instructs UCX to try all available transport methods.  However, users who want to define what transport methods and/or other optional settings may do so.  Below we define the more common environment variables and provide some example combinations and usage.
+``UCX_TLS=all`` configures UCX to try all available transport methods.  However, users who want to define specific transport methods to use and/or other optional settings may do so.  Below we define the more common options and provide some example combinations and usage.
 
 Env Vars
 --------
