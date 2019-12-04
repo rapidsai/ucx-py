@@ -57,27 +57,29 @@ cdef class TopologicalDistance:
         >>> import pynvml
         >>> from ucp._libs.topological_distance import TopologicalDistance
         >>> pynvml.nvmlInit()
-        >>> handle = pynvmlDeviceGetHandleByIndex(0)
         >>> handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         >>> pci_info = pynvml.nvmlDeviceGetPciInfo(handle)
         >>> domain, bus, device = pci_info.domain, pci_info.bus, pci_info.device
         >>> td = TopologicalDistance()
-        >>> td.get_cuda_distances_from_device_index(domain, bus, device, "network")
+        >>> td.get_cuda_distances_from_pci_info(domain, bus, device, "network")
         [{'distance': 2, 'name': 'ib0'}, {'distance': 4, 'name': 'enp1s0f0'},
          {'distance': 4, 'name': 'enp1s0f1'}, {'distance': 4, 'name': 'ib1'},
          {'distance': 4, 'name': 'ib2'}, {'distance': 4, 'name': 'ib3'}]
-        >>> td.get_cuda_distances_from_device_index(domain, bus, device, "openfabrics")
+        >>> td.get_cuda_distances_from_pci_info(domain, bus, device, "openfabrics")
         [{'distance': 2, 'name': 'mlx5_0'}, {'distance': 4, 'name': 'mlx5_1'},
          {'distance': 4, 'name': 'mlx5_2'}, {'distance': 4, 'name': 'mlx5_3'}]
-        >>> td.get_cuda_distances_from_device_index(domain, bus, device, "block")
+        >>> td.get_cuda_distances_from_pci_info(domain, bus, device, "block")
         [{'distance': 4, 'name': 'sdb'}, {'distance': 4, 'name': 'sda'}]
         """
+        cdef hwloc_obj_osdev_type_t hwloc_osdev_type
         if device_type == "openfabrics":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_OPENFABRICS
         elif device_type == "network":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_NETWORK
         elif device_type == "block":
             hwloc_osdev_type = HWLOC_OBJ_OSDEV_BLOCK
+        else:
+            raise RuntimeError("Unknown device type: %s" % device_type)
 
         cdef hwloc_obj_t cuda_pcidev
         cuda_pcidev = <hwloc_obj_t> get_cuda_pcidev_from_pci_info(
