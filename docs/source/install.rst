@@ -56,7 +56,8 @@ RAPIDS Dependencies
 
 ::
 
-    conda install -c rapidsai-nightly -c nvidia -c conda-forge dask-cuda rmm
+    conda install -n ucx -c rapidsai-nightly -c nvidia -c conda-forge \
+        dask-cuda rmm
 
 UCX
 ~~~
