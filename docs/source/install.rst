@@ -23,11 +23,23 @@ Source
 
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
-Note: UCX depends on the following system libraries being present: ``libibverbs``, ``librdmacm``, and ``libnuma`` (numactl on Enterprise Linux).  Please install these with your Linux system's package manager.
+.. note::
+    UCX depends on the following system libraries being present: ``libibverbs``, ``librdmacm``, ``librdmacm``,
+    and ``libnuma`` (numactl on Enterprise Linux).  Please install these with your Linux system's package manager.
+    Additionally, we provide an example conda environment which installs necessary dependencies for building and testing ucx/ucx-py
 
 
 
-1) Install UCX
+
+1) Create Conda Env
+
+::
+
+    conda create -n ucx-foo -c conda-forge python=3.7 libtool cmake automake autoconf cython pytest \
+    pkg-config ipython numba>=0.46 pytest-asyncio libhwloc -y
+
+
+2) Install UCX
 
 ::
 
@@ -42,7 +54,7 @@ Note: UCX depends on the following system libraries being present: ``libibverbs`
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
 
-2) Install UCX-PY
+3) Install UCX-PY
 
 ::
 
