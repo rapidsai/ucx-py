@@ -77,7 +77,7 @@ UCX
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
 
-UCX-PY
+UCX-Py
 ~~~~~~
 
 ::
