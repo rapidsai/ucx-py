@@ -39,24 +39,25 @@ Source
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 
-conda-forge Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~
+Build Dependencies
+~~~~~~~~~~~~~~~~~~
 
 ::
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
         libhwloc \
-        python=3.7 setuptools cython cupy distributed numba>=0.46 \
-        pytest pytest-asyncio
+        python=3.7 setuptools cython
 
-RAPIDS Dependencies
-~~~~~~~~~~~~~~~~~~~
+Test Dependencies
+~~~~~~~~~~~~~~~~~
 
 ::
 
     conda install -n ucx -c rapidsai-nightly -c nvidia -c conda-forge \
-        dask-cuda rmm
+        pytest pytest-asyncio \
+        cupy numba>=0.46 rmm \
+        distributed
 
 UCX
 ~~~
