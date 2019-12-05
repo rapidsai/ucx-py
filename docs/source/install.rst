@@ -57,6 +57,7 @@ UCX
 
     git clone https://github.com/openucx/ucx
     cd ucx
+    git checkout v1.7.x
     ./autogen.sh
     mkdir build
     cd build
