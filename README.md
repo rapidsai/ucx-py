@@ -9,7 +9,7 @@ with either `9.2`, `10.0`, or `10.1`. Also replace `<processor type>`
 with `cpu` or `gpu`.
 
 ```bash
-conda create -n ucx -c conda-forge -c conda-forge/label/rc_ucx cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
+conda create -n ucx -c conda-forge -c rapidsai cudatoolkit=<CUDA version> ucx-proc=*=<processor type> ucx ucx-py python=3.7
 ```
 
 The UCX recipe can be found [here](https://github.com/conda-forge/ucx-split-feedstock/tree/rc/recipe).
