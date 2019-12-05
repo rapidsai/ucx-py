@@ -18,6 +18,8 @@ Without GPU support:
     conda create -n ucx -c conda-forge -c rapidsai \
       ucx-proc=*=cpu ucx ucx-py python=3.7
 
+Note: These use UCX's ``v1.7.x`` branch.
+
 Source
 ------
 
