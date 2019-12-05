@@ -43,6 +43,13 @@ conda-forge Dependencies
 
     conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cython cupy distributed setuptools
 
+dask-cuda
+~~~~~~~~~
+
+::
+
+    conda install -c rapidsai-nightly -c nvidia -c conda-forge dask-cuda
+
 UCX
 ~~~
 
