@@ -58,9 +58,6 @@ conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "pytest" "pkg-config" "pytest-asyncio" \
                               "pynvml" "libhwloc"
 
-# install ucx from conda-forge rc channel
-# conda install -c conda-forge/label/rc_ucx "ucx-proc=*=gpu" "ucx"
-
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
 pip install "git+https://github.com/dask/distributed.git" --upgrade --no-deps
