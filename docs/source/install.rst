@@ -50,12 +50,12 @@ conda-forge Dependencies
         pytest pytest-asyncio \
         ipython
 
-dask-cuda
-~~~~~~~~~
+RAPIDS Dependencies
+~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    conda install -c rapidsai-nightly -c nvidia -c conda-forge dask-cuda
+    conda install -c rapidsai-nightly -c nvidia -c conda-forge dask-cuda rmm
 
 UCX
 ~~~
