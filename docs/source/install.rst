@@ -44,7 +44,7 @@ conda-forge Dependencies
 
 ::
 
-    conda create -n ucx-foo -c conda-forge \
+    conda create -n ucx -c conda-forge \
         automake make cmake libtool pkg-config \
         libhwloc \
         python=3.7 setuptools cython cupy distributed numba>=0.46 \
