@@ -5,8 +5,8 @@ Prerequisites
 -------------
 
 UCX depends on the following system libraries being present: ``libibverbs``,
-``librdmacm``, and ``libnuma`` (numactl on Enterprise Linux).  Please install
-these with your Linux system's package manager.
+``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise Linux).  Please
+install these with your Linux system's package manager.
 
 Conda
 -----
