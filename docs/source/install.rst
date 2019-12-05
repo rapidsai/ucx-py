@@ -54,7 +54,7 @@ Test Dependencies
 
 ::
 
-    conda install -n ucx -c rapidsai-nightly -c nvidia -c conda-forge \
+    conda install -n ucx -c rapidsai -c nvidia -c conda-forge \
         pytest pytest-asyncio \
         cupy numba>=0.46 rmm \
         distributed
