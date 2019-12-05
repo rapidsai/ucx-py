@@ -1,6 +1,13 @@
 Install
 =======
 
+Prerequisites
+-------------
+
+UCX depends on the following system libraries being present: ``libibverbs``,
+``librdmacm``, and ``libnuma`` (numactl on Enterprise Linux).  Please install
+these with your Linux system's package manager.
+
 Conda
 -----
 
@@ -26,7 +33,6 @@ Source
 
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
-Note: UCX depends on the following system libraries being present: ``libibverbs``, ``librdmacm``, and ``libnuma`` (numactl on Enterprise Linux).  Please install these with your Linux system's package manager.
 
 
 
