@@ -4,6 +4,9 @@ Install
 Conda
 -----
 
+Some preliminary Conda packages can be installed as so. Replace
+``<CUDA version>`` with either ``9.2``, ``10.0``, or ``10.1``.
+
 With GPU support:
 
 ::
