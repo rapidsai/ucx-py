@@ -36,7 +36,12 @@ Source
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 
+conda-forge Dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~
 
+::
+
+    conda install -c conda-forge automake make cmake libtool pkg-config pytest-asyncio cython cupy distributed setuptools
 
 UCX
 ~~~
