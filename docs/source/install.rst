@@ -48,8 +48,7 @@ conda-forge Dependencies
         automake make libtool pkg-config \
         libhwloc \
         python=3.7 setuptools cython cupy distributed numba>=0.46 \
-        pytest pytest-asyncio \
-        ipython
+        pytest pytest-asyncio
 
 RAPIDS Dependencies
 ~~~~~~~~~~~~~~~~~~~
