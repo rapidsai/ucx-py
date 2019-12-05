@@ -38,7 +38,8 @@ The following instructions assume you'll be using ucx-py on a CUDA enabled syste
 
 
 
-1) Install UCX
+UCX
+~~~
 
 ::
 
@@ -53,7 +54,8 @@ The following instructions assume you'll be using ucx-py on a CUDA enabled syste
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
 
-2) Install UCX-PY
+UCX-PY
+~~~~~~
 
 ::
 
