@@ -64,6 +64,7 @@ UCX
 
 ::
 
+    conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
     git checkout v1.7.x
@@ -81,6 +82,7 @@ UCX-PY
 
 ::
 
+    conda activate ucx
     git clone git@github.com:rapidsai/ucx-py.git
     cd ucx-py
     python setup.py build_ext --inplace
