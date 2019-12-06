@@ -4,11 +4,11 @@ Install
 Prerequisites
 -------------
 
-UCX depends on the following system libraries being present: ``libibverbs``,
-``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise Linux).  Please
-install these with your Linux system's package manager. When building from
-source you will also need the ``*-dev`` (``*-devel`` on Enterprise Linux)
-packages as well.
+UCX depends on the following system libraries being present: ``libibcm``,
+``libibverbs``, ``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise
+Linux).  Please install these with your Linux system's package manager. When
+building from source you will also need the ``*-dev`` (``*-devel`` on
+Enterprise Linux) packages as well.
 
 Conda
 -----
