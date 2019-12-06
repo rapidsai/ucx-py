@@ -1,8 +1,21 @@
 Install
 =======
 
+Prerequisites
+-------------
+
+UCX depends on the following system libraries being present: ``libibverbs``,
+``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise Linux).  Please
+install these with your Linux system's package manager. When building from
+source you will also need the ``*-dev`` (``*-devel`` on Enterprise Linux)
+packages as well.
+
 Conda
 -----
+
+Some preliminary Conda packages can be installed as so. Replace
+``<CUDA version>`` with either ``9.2``, ``10.0``, or ``10.1``. These are
+available both on ``rapidsai`` and ``rapidsai-nightly``.
 
 With GPU support:
 
@@ -25,28 +38,36 @@ Source
 
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
-.. note::
-    UCX depends on the following system libraries being present: ``libibverbs``, ``librdmacm``, ``librdmacm``,
-    and ``libnuma`` (numactl on Enterprise Linux).  Please install these with your Linux system's package manager.
-    Additionally, we provide an example conda environment which installs necessary dependencies for building and testing ucx/ucx-py
 
-
-
-
-1) Create Conda Env
+Build Dependencies
+~~~~~~~~~~~~~~~~~~
 
 ::
 
-    conda create -n ucx-foo -c conda-forge python=3.7 libtool cmake automake autoconf cython pytest \
-    pkg-config ipython numba>=0.46 pytest-asyncio libhwloc -y
+    conda create -n ucx -c conda-forge \
+        automake make libtool pkg-config \
+        libhwloc \
+        python=3.7 setuptools cython
 
-
-2) Install UCX
+Test Dependencies
+~~~~~~~~~~~~~~~~~
 
 ::
 
+    conda install -n ucx -c rapidsai -c nvidia -c conda-forge \
+        pytest pytest-asyncio \
+        cupy numba>=0.46 rmm \
+        distributed
+
+UCX
+~~~
+
+::
+
+    conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
+    git checkout v1.7.x
     ./autogen.sh
     mkdir build
     cd build
@@ -56,10 +77,12 @@ The following instructions assume you'll be using ucx-py on a CUDA enabled syste
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
 
-3) Install UCX-PY
+UCX-Py
+~~~~~~
 
 ::
 
+    conda activate ucx
     git clone git@github.com:rapidsai/ucx-py.git
     cd ucx-py
     python setup.py build_ext --inplace
