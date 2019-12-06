@@ -39,7 +39,7 @@ Inline
         enable_infiniband=enable_infiniband,
         enable_nvlink=enable_nvlink,
     )
-    client = Cluster(client)
+    client = Client(client)
 
 
 CLI
