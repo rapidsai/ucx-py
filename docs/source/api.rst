@@ -48,6 +48,7 @@ API
 .. autofunction:: get_ucp_worker
 .. autofunction:: get_ucx_version
 .. autofunction:: init
+.. autofunction:: progress
 .. autofunction:: reset
 
 Endpoint
