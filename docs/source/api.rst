@@ -24,6 +24,9 @@ API
    Endpoint.close
    Endpoint.closed
    Endpoint.close_after_n_recv
+   Endpoint.cuda_support
+   Endpoint.get_ucp_endpoint
+   Endpoint.get_ucp_worker
    Endpoint.recv
    Endpoint.send
    Endpoint.ucx_info
