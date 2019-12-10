@@ -24,7 +24,6 @@ API
    Endpoint.abort
    Endpoint.cuda_support
    Endpoint.get_ucp_endpoint
-   Endpoint.get_ucp_endpoint
    Endpoint.close
    Endpoint.closed
    Endpoint.close_after_n_recv
@@ -68,4 +67,3 @@ Listener
 
 .. autoclass:: Listener
    :members:
-
