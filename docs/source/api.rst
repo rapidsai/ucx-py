@@ -33,6 +33,13 @@ API
    Endpoint.ucx_info
    Endpoint.uid
 
+**Listener**
+
+.. autosummary::
+   Listener
+   Listener.close
+   Listener.closed
+   Listener.port
 
 .. currentmodule:: ucp
 
