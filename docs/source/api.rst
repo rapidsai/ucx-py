@@ -21,7 +21,6 @@ API
 .. autosummary::
    Endpoint
    Endpoint.abort
-   Endpoint.cuda_support
    Endpoint.close
    Endpoint.closed
    Endpoint.close_after_n_recv
