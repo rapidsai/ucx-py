@@ -10,7 +10,6 @@ API
    ucp
    ucp.create_listener
    ucp.create_endpoint
-   ucp.init
    ucp.get_address
    ucp.get_config
    ucp.get_ucp_worker
