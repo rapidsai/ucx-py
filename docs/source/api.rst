@@ -6,7 +6,6 @@ API
 **ucp**
 
 .. autosummary::
-
    ucp
    ucp.create_listener
    ucp.create_endpoint
