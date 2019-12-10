@@ -14,6 +14,8 @@ API
    ucp.get_config
    ucp.get_ucp_worker
    ucp.get_ucx_version
+   ucp.init
+   ucp.progress
    ucp.reset
 
 **Endpoint**
