@@ -45,11 +45,11 @@ API
 
 .. autofunction:: create_listener
 .. autofunction:: create_endpoint
-.. autofunction:: init
 .. autofunction:: get_address
 .. autofunction:: get_config
 .. autofunction:: get_ucp_worker
 .. autofunction:: get_ucx_version
+.. autofunction:: init
 .. autofunction:: reset
 
 Endpoint
