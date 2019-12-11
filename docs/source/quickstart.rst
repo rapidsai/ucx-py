@@ -22,7 +22,7 @@ Without GPU support:
 For a more detailed guide on installation options please refer to the :doc:`install` page.
 
 Send/Recv NumPy Arrays
----------------------
+----------------------
 
 Process 1 - Server
 ~~~~~~~~~~~~~~~~~~
