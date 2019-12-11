@@ -26,7 +26,7 @@ author = "NVIDIA"
 # The short X.Y version
 version = "0.11"
 # The full version, including alpha/beta/rc tags
-release = "0.11.0a"
+release = "0.11.0"
 
 
 # -- General configuration ---------------------------------------------------
