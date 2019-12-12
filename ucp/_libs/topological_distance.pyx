@@ -25,7 +25,7 @@ cdef class TopologicalDistance:
         """
         self.topo = <hwloc_topology_t> initialize_topology()
 
-    def __del__(self):
+    def __dealloc__(self):
         cdef hwloc_topology_t topo = <hwloc_topology_t> self.topo
         hwloc_topology_destroy(topo)
 
