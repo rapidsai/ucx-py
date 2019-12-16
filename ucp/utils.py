@@ -1,9 +1,10 @@
+import asyncio
 import fcntl
+import multiprocessing as mp
 import os
 import socket
 import struct
-import asyncio
-import multiprocessing as mp
+
 import numpy as np
 
 mp = mp.get_context("spawn")
@@ -129,7 +130,7 @@ def run_on_local_network(
     n_workers : int
         Number of workers (nodes) in the network.
     worker_func: callable (can be a coroutine)
-        Function that each worker execute. 
+        Function that each worker execute.
         Must have signature: `worker(rank, eps, args)` where
             - rank is the worker id
             - eps is a dict of ranks to ucx endpoints

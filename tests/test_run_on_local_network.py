@@ -1,6 +1,8 @@
 import asyncio
+
 import numpy as np
 import ucp.utils
+
 
 async def worker(rank, eps, args):
     futures = []
@@ -15,7 +17,7 @@ async def worker(rank, eps, args):
     await asyncio.gather(*futures)
 
     # We expect to get the sum of all ranks excluding ours
-    expect = sum(range(len(eps)+1)) - rank
+    expect = sum(range(len(eps) + 1)) - rank
     got = np.concatenate(recv_list).sum()
     assert expect == got
 
