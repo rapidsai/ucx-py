@@ -2,7 +2,7 @@
 ucp/            @rapidsai/ucxpy-python-codeowners
 tests/          @rapidsai/ucxpy-python-codeowners
 examples/       @rapidsai/ucxpy-python-codeowners
-
+benchmarks/     @rapidsai/ucxpy-python-codeowners
 #build/ops code owners
 .github/           @rapidsai/ops-codeowners 
 ci/                @rapidsai/ops-codeowners
