@@ -2,6 +2,11 @@ import fcntl
 import os
 import socket
 import struct
+import asyncio
+import multiprocessing as mp
+import numpy as np
+
+mp = mp.get_context("spawn")
 
 
 def get_address(ifname=None):
@@ -74,3 +79,98 @@ def get_closest_net_devices(gpu_dev):
     return net_dev
 
 
+# Help function used by `run_on_local_network()`
+def _worker_process(
+    queue, rank, server_address, n_workers, ucx_options_list, func, args
+):
+    import ucp
+
+    if ucx_options_list is not None:
+        ucp.init(ucx_options_list[rank])
+
+    async def run():
+        eps = {}
+
+        async def server_handler(ep):
+            peer_rank = np.empty((1,), dtype=np.uint64)
+            await ep.recv(peer_rank)
+            assert peer_rank[0] not in eps
+            eps[peer_rank[0]] = ep
+
+        lf = ucp.create_listener(server_handler)
+        queue.put(lf.port)
+        port_list = queue.get()
+        for i in range(rank + 1, n_workers):
+            assert i not in eps
+            eps[i] = await ucp.create_endpoint(server_address, port_list[i])
+            await eps[i].send(np.array([rank], dtype=np.uint64))
+
+        while len(eps) != n_workers - 1:
+            await asyncio.sleep(1)
+
+        if asyncio.iscoroutinefunction(func):
+            await func(rank, eps, args)
+        else:
+            func(rank, eps, args)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run())
+    loop.close()
+
+
+def run_on_local_network(
+    n_workers, worker_func, worker_args=None, server_address=None, ucx_options_list=None
+):
+    """
+    Creates a local UCX network of `n_workers` that runs `worker_func`
+
+    Parameters
+    ----------
+    n_workers : int
+        Number of workers (nodes) in the network.
+    worker_func: callable (can be a coroutine)
+        Function that each worker execute. 
+        Must have signature: `worker(rank, eps, args)` where
+            - rank is the worker id
+            - eps is a dict of ranks to ucx endpoints
+            - args given here as `worker_args`
+    worker_args: object
+        The argument to pass to `worker_func`.
+    server_address: str
+        Server address for the workers. If None, get_address() is used.
+    ucx_options_list: list of dict
+        Options to pass to UCX when initializing workers, one for each worker.
+
+    Returns
+    -------
+    dev_names : str
+        Names of the closest net devices
+    """
+
+    if server_address is None:
+        server_address = get_address()
+    process_list = []
+    for rank in range(n_workers):
+        q = mp.Queue()
+        p = mp.Process(
+            target=_worker_process,
+            args=(
+                q,
+                rank,
+                server_address,
+                n_workers,
+                ucx_options_list,
+                worker_func,
+                worker_args,
+            ),
+        )
+        p.start()
+        port = q.get()
+        process_list.append((p, q, port))
+
+    for proc, queue, port in process_list:
+        queue.put([p[2] for p in process_list])  # Send list of ports
+
+    for proc, queue, port in process_list:
+        proc.join()
+        assert not proc.exitcode
