@@ -1,6 +1,6 @@
 #python code owners
 ucp/            @rapidsai/ucxpy-python-codeowners
-tests/          @rapidsai/ucxpy-dask-codeowners
+tests/          @rapidsai/ucxpy-python-codeowners
 examples/       @rapidsai/ucxpy-python-codeowners
 
 #build/ops code owners
