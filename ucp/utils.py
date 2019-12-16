@@ -107,7 +107,7 @@ def _worker_process(
             await eps[i].send(np.array([rank], dtype=np.uint64))
 
         while len(eps) != n_workers - 1:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)
 
         if asyncio.iscoroutinefunction(func):
             await func(rank, eps, args)
