@@ -1,0 +1,9 @@
+#python code owners
+ucp/            @rapidsai/ucxpy-python-codeowners
+tests/          @rapidsai/ucxpy-dask-codeowners
+examples/       @rapidsai/ucxpy-python-codeowners
+
+#build/ops code owners
+.github/           @rapidsai/ops-codeowners 
+ci/                @rapidsai/ops-codeowners
+conda/             @rapidsai/ops-codeowners
