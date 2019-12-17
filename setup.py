@@ -12,9 +12,7 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
-include_dirs = [os.path.dirname(get_python_inc())] + [
-    "/home/mkristensen/anaconda3/envs/rap-nightly/include"
-]
+include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
 extra_compile_args = ["-std=c99"]
