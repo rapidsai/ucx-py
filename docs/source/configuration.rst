@@ -69,11 +69,28 @@ Values:
 
 Transport Methods (Simplified):
 
-- ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq)
+- ``all`` -> use all the available transports
+- ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq) uses rc_v and rc_x (preferably if available)
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
 - ``cuda_ipc`` -> CUDA Interprocess Communication (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
 - ``sockcm`` -> connection management over sockets
-- ``tcp`` -> TCP over sockets (often used with sockcm)
+- ``sm/shm`` -> all shared memory transports (mm, cma, knem)
+- ``mm`` -> shared memory transports - only memory mappers
+- ``ugni`` -> ugni_smsg and ugni_rdma (uses ugni_udt for bootstrap)
+- ``ib`` -> all infiniband transports (rc/rc_mlx5, ud/ud_mlx5, dc_mlx5)
+- ``rc_v`` -> rc verbs (uses ud for bootstrap)
+- ``rc_x`` -> rc with accelerated verbs (uses ud_mlx5 for bootstrap)
+- ``ud_v`` -> ud verbs
+- ``ud_x`` -> ud with accelerated verbs
+- ``ud  `` -> ud_v and ud_x (preferably if available)
+- ``dc/dc_x`` -> dc with accelerated verbs
+- ``tcp`` -> sockets over TCP/IP
+- ``cuda`` -> CUDA (NVIDIA GPU) memory support
+- ``rocm`` -> ROCm (AMD GPU) memory support
+
+``SOCKADDR_TLS_PRIORITY``
+
+Priority of sockaddr transports
 
 
 InfiniBand Device
