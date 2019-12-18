@@ -284,14 +284,15 @@ def main():
     tp = sum(s["throughput"] for s in stats) / len(stats)
 
     print("cudf merge benchmark")
-    print("--------------------------")
-    print(f"chunk-size  | {format_bytes(args.chunk_size)}")
-    print(f"frac-match  | {args.frac_match}")
-    print(f"Device(s)   | {args.devs}")
-    print("==========================")
-    print(f"Wallclock  | {format_time(wc)}")
-    print(f"Bandwidth  | {format_bytes(bw)}/s")
-    print(f"Throughput | {format_bytes(tp)}/s")
+    print("----------------------------")
+    print(f"device(s)      | {args.devs}")
+    print(f"chunks-per-dev | {args.chunks_per_dev}")
+    print(f"chunk-size     | {format_bytes(args.chunk_size)}")
+    print(f"frac-match     | {args.frac_match}")
+    print("============================")
+    print(f"Wallclock      | {format_time(wc)}")
+    print(f"Bandwidth      | {format_bytes(bw)}/s")
+    print(f"Throughput     | {format_bytes(tp)}/s")
 
 
 if __name__ == "__main__":
