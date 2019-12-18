@@ -233,9 +233,9 @@ def parse_args():
     parser.add_argument(
         "--net-devices",
         metavar="LIST",
-        default="auto",
+        default=None,
         type=str,
-        help='List of net devices to use, one for each device (default "auto")',
+        help='List of net devices to use, one for each device or "auto"',
     )
     parser.add_argument(
         "--profile",
