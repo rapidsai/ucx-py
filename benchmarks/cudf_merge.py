@@ -294,7 +294,7 @@ def main():
     print(f"chunk-size     | {format_bytes(args.chunk_size)}")
     print(f"frac-match     | {args.frac_match}")
     print("============================")
-    print(f"Wallclock      | {format_time(wc)}")
+    print(f"Wall-clock     | {format_time(wc)}")
     print(f"Bandwidth      | {format_bytes(bw)}/s")
     print(f"Throughput     | {format_bytes(tp)}/s")
 
