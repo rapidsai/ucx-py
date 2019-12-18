@@ -1,19 +1,23 @@
 """
 Benchmark send receive on one machine
 """
-import sys
 import argparse
 import asyncio
+import cProfile
 import functools
-import pickle
+import io
 import multiprocessing as mp
+import pickle
+import pstats
+import sys
 from time import perf_counter as clock
-import cProfile, pstats, io
+
 from dask.utils import format_bytes, format_time, parse_bytes
-import numpy as np
+
 import cudf
-import rmm
 import cupy
+import numpy as np
+import rmm
 import ucp
 from ucp.utils import run_on_local_network
 
