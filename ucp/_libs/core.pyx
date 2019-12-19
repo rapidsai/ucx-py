@@ -23,6 +23,12 @@ from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 
 
+if 'UCXPY_COMM_BUFFER' in os.environ:
+    from collections import defaultdict
+    from rmm._lib.device_buffer import DeviceBuffer
+    import cupy
+
+
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
@@ -572,6 +578,11 @@ class _Endpoint:
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
         self._close_after_n_recv = None
 
+        if 'UCXPY_COMM_BUFFER' in os.environ:
+            self._cuda_alloc_cache = defaultdict(list)
+        else:
+            self._cuda_alloc_cache = None
+
     @property
     def uid(self):
         return self._ucp_endpoint
@@ -657,13 +668,39 @@ class _Endpoint:
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await tag_send(
-            self._ucp_endpoint,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
-        )
+
+        if hasattr(buffer, "__cuda_array_interface__"):
+            if self._cuda_alloc_cache is None:
+                tmp_buf = buffer
+            else:
+                cache = self._cuda_alloc_cache[nbytes]
+                if len(cache) > 0:
+                    tmp_buf = cache.pop()
+                else:
+                    tmp_buf = DeviceBuffer(size=nbytes)
+                cupy.cuda.runtime.memcpy(
+                    tmp_buf.ptr,
+                    buffer.__cuda_array_interface__["data"][0],
+                    nbytes,
+                    cupy.cuda.runtime.memcpyDeviceToDevice
+                )
+            ret = await tag_send(
+                self._ucp_endpoint,
+                tmp_buf,
+                nbytes,
+                tag,
+                pending_msg=self.pending_msg_list[-1]
+            )
+            if self._cuda_alloc_cache is not None:
+                cache.append(tmp_buf)
+        else:
+            return await tag_send(
+                self._ucp_endpoint,
+                buffer,
+                nbytes,
+                tag,
+                pending_msg=self.pending_msg_list[-1]
+            )
 
     async def recv(self, buffer, nbytes=None):
         if self._closed:
@@ -679,18 +716,50 @@ class _Endpoint:
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await tag_recv(
-            self._ucp_worker,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
-        )
-        self._finished_recv_count += 1
-        if self._close_after_n_recv is not None \
-                and self._finished_recv_count >= self._close_after_n_recv:
-            self.abort()
-        return ret
+
+        if hasattr(buffer, "__cuda_array_interface__"):
+            if self._cuda_alloc_cache is None:
+                tmp_buf = buffer
+            else:
+                cache = self._cuda_alloc_cache[nbytes]
+                if len(cache) > 0:
+                    tmp_buf = cache.pop()
+                else:
+                    tmp_buf = DeviceBuffer(size=nbytes)
+
+            ret = await tag_recv(
+                self._ucp_worker,
+                tmp_buf,
+                nbytes,
+                tag,
+                pending_msg=self.pending_msg_list[-1]
+            )
+            if self._cuda_alloc_cache is not None:
+                cupy.cuda.runtime.memcpy(
+                    buffer.__cuda_array_interface__["data"][0],
+                    tmp_buf.ptr,
+                    nbytes,
+                    cupy.cuda.runtime.memcpyDeviceToDevice
+                )
+                cache.append(tmp_buf)
+            self._finished_recv_count += 1
+            if self._close_after_n_recv is not None \
+                    and self._finished_recv_count >= self._close_after_n_recv:
+                self.abort()
+            return ret
+        else:
+            ret = await tag_recv(
+                self._ucp_worker,
+                buffer,
+                nbytes,
+                tag,
+                pending_msg=self.pending_msg_list[-1]
+            )
+            self._finished_recv_count += 1
+            if self._close_after_n_recv is not None \
+                    and self._finished_recv_count >= self._close_after_n_recv:
+                self.abort()
+            return ret
 
     def ucx_info(self):
         if self._closed:
