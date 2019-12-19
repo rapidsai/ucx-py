@@ -342,13 +342,11 @@ cdef class ApplicationContext:
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_INIT)
 
-        # We only need the UCP_FEATURE_WAKEUP flag in blocking progress mode
-        if self.blocking_progress_mode:
-            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                                   UCP_FEATURE_WAKEUP |  # noqa
-                                   UCP_FEATURE_STREAM)
-        else:
-            ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_STREAM)
+        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
+        # See <https://github.com/rapidsai/ucx-py/pull/377>
+        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                               UCP_FEATURE_WAKEUP |  # noqa
+                               UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = ucp_request_reset
