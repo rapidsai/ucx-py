@@ -199,14 +199,13 @@ async def worker(rank, eps, args):
     if args.cuda_profile:
         cupy.cuda.profiler.stop()
 
+    data_processed = len(df1) * sum([t.itemsize for t in df1.dtypes])
+    data_processed += len(df2) * sum([t.itemsize for t in df2.dtypes])
+
     return {
         "bw": sum(t[1] for t in timings) / sum(t[0] for t in timings),
         "wallclock": took,
-        "throughput": args.n_chunks
-        * len(df2)
-        * len(df2.columns)
-        * sum([t.itemsize for t in df2.dtypes])
-        / took,
+        "throughput": args.n_chunks * data_processed / took,
     }
 
 
@@ -305,9 +304,9 @@ def main():
         ucx_options_list=ucx_options_list,
     )
 
-    wc = sum(s["wallclock"] for s in stats) / len(stats)
+    wc = stats[0]["wallclock"]
     bw = sum(s["bw"] for s in stats) / len(stats)
-    tp = sum(s["throughput"] for s in stats) / len(stats)
+    tp = stats[0]["throughput"]
 
     print("cudf merge benchmark")
     print("----------------------------")
