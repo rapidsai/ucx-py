@@ -165,6 +165,9 @@ async def worker(rank, eps, args):
     cupy.cuda.runtime.setDevice(dev_id)
     rmm.reinitialize(pool_allocator=True, devices=dev_id)
 
+    # Make cupy use RMM
+    cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
     df1 = generate_chunk(rank, args.chunk_size, args.n_chunks, "build", args.frac_match)
     df2 = generate_chunk(rank, args.chunk_size, args.n_chunks, "other", args.frac_match)
 
