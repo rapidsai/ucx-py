@@ -175,6 +175,9 @@ async def worker(rank, eps, args):
     await distributed_join(args, rank, eps, df1, df2)
     await barrier(rank, eps)
 
+    if args.cuda_profile:
+        cupy.cuda.profiler.start()
+
     if args.profile:
         pr = cProfile.Profile()
         pr.enable()
@@ -190,6 +193,9 @@ async def worker(rank, eps, args):
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s)
         ps.dump_stats("%s.%0d" % (args.profile, rank))
+
+    if args.cuda_profile:
+        cupy.cuda.profiler.stop()
 
     return {
         "bw": sum(t[1] for t in timings) / sum(t[0] for t in timings),
@@ -248,6 +254,12 @@ def parse_args():
         default=None,
         type=str,
         help="Write profile for each worker to `filename.RANK`",
+    )
+    parser.add_argument(
+        "--cuda-profile",
+        default=False,
+        action="store_true",
+        help="Enable CUDA profiling, use with `nvprof --profile-child-processes --profile-from-start off`",
     )
     args = parser.parse_args()
     args.devs = [int(d) for d in args.devs.split(",")]
