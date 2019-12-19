@@ -116,9 +116,7 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
         df = cudf.DataFrame(
             {
                 "key": cupy.arange(start, stop=stop, dtype="int64"),
-                "payload": cupy.random.permutation(
-                    cupy.arange(local_size, dtype="int64")
-                ),
+                "payload": cupy.arange(local_size, dtype="int64"),
             }
         )
     else:
@@ -155,9 +153,7 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
         df = cudf.DataFrame(
             {
                 "key": cupy.random.permutation(key_array_combine),
-                "payload": cupy.random.permutation(
-                    cupy.arange(local_size, dtype="int64")
-                ),
+                "payload": cupy.arange(local_size, dtype="int64"),
             }
         )
     return df
