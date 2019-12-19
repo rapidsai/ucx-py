@@ -110,13 +110,14 @@ def _worker_process(
             await asyncio.sleep(0.1)
 
         if asyncio.iscoroutinefunction(func):
-            await func(rank, eps, args)
+            return await func(rank, eps, args)
         else:
-            func(rank, eps, args)
+            return func(rank, eps, args)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run())
+    ret = loop.run_until_complete(run())
     loop.close()
+    queue.put(ret)
 
 
 def run_on_local_network(
@@ -144,8 +145,8 @@ def run_on_local_network(
 
     Returns
     -------
-    dev_names : str
-        Names of the closest net devices
+    results : list
+        The output of `worker_func` for each worker (sorted by rank)
     """
 
     if server_address is None:
@@ -172,6 +173,10 @@ def run_on_local_network(
     for proc, queue, port in process_list:
         queue.put([p[2] for p in process_list])  # Send list of ports
 
+    results = []
     for proc, queue, port in process_list:
+        results.append(queue.get())
         proc.join()
         assert not proc.exitcode
+    assert len(results) == n_workers
+    return results
