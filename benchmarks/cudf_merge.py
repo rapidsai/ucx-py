@@ -160,9 +160,10 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
 
 
 async def worker(rank, eps, args):
-    # print(f"[{rank}] started, dev: {args.devs[rank]}, eps: {eps}")
-    cupy.cuda.runtime.setDevice(args.devs[rank % len(args.devs)])
-    cudf.set_allocator("default", pool=False)
+    # Setting current device and make RMM use it
+    dev_id = args.devs[rank % len(args.devs)]
+    cupy.cuda.runtime.setDevice(dev_id)
+    rmm.reinitialize(pool_allocator=True, devices=dev_id)
 
     df1 = generate_chunk(rank, args.chunk_size, args.n_chunks, "build", args.frac_match)
     df2 = generate_chunk(rank, args.chunk_size, args.n_chunks, "other", args.frac_match)
