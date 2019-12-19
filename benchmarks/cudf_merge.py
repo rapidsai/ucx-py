@@ -182,6 +182,7 @@ async def worker(rank, eps, args):
     timings = []
     t1 = clock()
     df3 = await distributed_join(args, rank, eps, df1, df2, timings)
+    await barrier(rank, eps)
     took = clock() - t1
 
     if args.profile:
