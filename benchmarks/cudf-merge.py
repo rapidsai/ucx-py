@@ -163,7 +163,9 @@ async def worker(rank, eps, args):
     # Setting current device and make RMM use it
     dev_id = args.devs[rank % len(args.devs)]
     cupy.cuda.runtime.setDevice(dev_id)
-    rmm.reinitialize(pool_allocator=True, devices=dev_id)
+    rmm.reinitialize(
+        pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
+    )
 
     # Make cupy use RMM
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
@@ -260,6 +262,13 @@ def parse_args():
         default=False,
         action="store_true",
         help="Enable CUDA profiling, use with `nvprof --profile-child-processes --profile-from-start off`",
+    )
+    parser.add_argument(
+        "--rmm-init-pool-size",
+        metavar="BYTES",
+        default=None,
+        type=int,
+        help="Initial RMM pool size (default  1/2 total GPU memory)",
     )
     args = parser.parse_args()
     args.devs = [int(d) for d in args.devs.split(",")]
