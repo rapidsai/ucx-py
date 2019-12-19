@@ -206,6 +206,7 @@ async def worker(rank, eps, args):
         "bw": sum(t[1] for t in timings) / sum(t[0] for t in timings),
         "wallclock": took,
         "throughput": args.n_chunks * data_processed / took,
+        "data_processed": data_processed,
     }
 
 
@@ -307,12 +308,14 @@ def main():
     wc = stats[0]["wallclock"]
     bw = sum(s["bw"] for s in stats) / len(stats)
     tp = stats[0]["throughput"]
+    dp = sum(s["data_processed"] for s in stats)
 
     print("cudf merge benchmark")
     print("----------------------------")
     print(f"device(s)      | {args.devs}")
     print(f"chunks-per-dev | {args.chunks_per_dev}")
-    print(f"chunk-size     | {format_bytes(args.chunk_size)}")
+    print(f"rows-per-chunk | {args.chunk_size}")
+    print(f"data-processed | {format_bytes(dp)}")
     print(f"frac-match     | {args.frac_match}")
     print("============================")
     print(f"Wall-clock     | {format_time(wc)}")
