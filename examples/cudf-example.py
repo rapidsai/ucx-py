@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from dask_cuda import DGX
+from dask_cuda import LocalCUDACluster
 from dask_cuda.initialize import initialize
 from distributed import Client
 
@@ -21,15 +21,15 @@ async def run():
         enable_nvlink=enable_nvlink,
     )
 
-    async with DGX(
+    async with LocalCUDACluster(
         interface="enp1s0f0",
         protocol="ucx",
         enable_tcp_over_ucx=enable_tcp_over_ucx,
         enable_infiniband=enable_infiniband,
         enable_nvlink=enable_nvlink,
         asynchronous=True,
-    ) as dgx:
-        async with Client(dgx, asynchronous=True) as client:
+    ) as cluster:
+        async with Client(cluster, asynchronous=True) as client:
             d = dask_cudf.from_cudf(
                 cudf.DataFrame({"a": range(2 ** 16)}), npartitions=2
             )
