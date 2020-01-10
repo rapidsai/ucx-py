@@ -137,6 +137,25 @@ def progress():
     return _get_ctx().progress()
 
 
+def continually_ucx_prograss(event_loop=None):
+    """Guaranties continually UCX prograss
+
+    Use this function to associate UCX progress with an even loop.
+    Notice, multiple even loops can be associate with UCX progress.
+
+    This function is automatically called when calling
+    `create_listener()` or `create_endpoint()`.
+
+    Parameters
+    ----------
+    event_loop: asyncio.event_loop, optional
+        The even loop to evoke UCX progress. If None,
+        `asyncio.get_event_loop()` is used.
+    """
+
+    _get_ctx().continually_ucx_prograss()
+
+
 def get_ucp_worker():
     """Returns the underlying UCP worker handle (ucp_worker_h)
     as a Python integer.

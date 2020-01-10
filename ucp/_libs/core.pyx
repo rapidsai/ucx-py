@@ -515,11 +515,12 @@ cdef class ApplicationContext:
             event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
         )
 
-    def continually_ucx_prograss(self):
+    def continually_ucx_prograss(self, event_loop=None):
         """Guaranties continually UCX prograss"""
-        loop = asyncio.get_event_loop()
+        loop = event_loop if event_loop is not None else asyncio.get_event_loop()
         if loop in self.event_loops_binded_for_progress:
             return  # Progress has already been guaranteed for the current event loop
+
         self.event_loops_binded_for_progress.add(loop)
 
         if self.blocking_progress_mode:
