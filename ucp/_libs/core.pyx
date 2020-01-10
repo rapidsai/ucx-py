@@ -398,7 +398,7 @@ cdef class ApplicationContext:
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
-        self.continually_ucx_prograss()
+        self.continuous_ucx_progress()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -434,7 +434,7 @@ cdef class ApplicationContext:
 
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
-        self.continually_ucx_prograss()
+        self.continuous_ucx_progress()
 
         cdef ucp_ep_params_t params
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
@@ -515,8 +515,8 @@ cdef class ApplicationContext:
             event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
         )
 
-    def continually_ucx_prograss(self, event_loop=None):
-        """Guaranties continually UCX prograss"""
+    def continuous_ucx_progress(self, event_loop=None):
+        """Guaranties continually UCX progress"""
         loop = event_loop if event_loop is not None else asyncio.get_event_loop()
         if loop in self.event_loops_binded_for_progress:
             return  # Progress has already been guaranteed for the current event loop

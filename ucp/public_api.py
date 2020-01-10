@@ -137,8 +137,8 @@ def progress():
     return _get_ctx().progress()
 
 
-def continually_ucx_prograss(event_loop=None):
-    """Guaranties continually UCX prograss
+def continuous_ucx_progress(event_loop=None):
+    """Guaranties continually UCX progress
 
     Use this function to associate UCX progress with an even loop.
     Notice, multiple even loops can be associate with UCX progress.
@@ -153,7 +153,7 @@ def continually_ucx_prograss(event_loop=None):
         `asyncio.get_event_loop()` is used.
     """
 
-    _get_ctx().continually_ucx_prograss()
+    _get_ctx().continuous_ucx_progress()
 
 
 def get_ucp_worker():
