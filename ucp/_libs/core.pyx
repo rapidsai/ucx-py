@@ -516,7 +516,7 @@ cdef class ApplicationContext:
         )
 
     def continuous_ucx_progress(self, event_loop=None):
-        """Guaranties continually UCX progress"""
+        """Guarantees continuous UCX progress"""
         loop = event_loop if event_loop is not None else asyncio.get_event_loop()
         if loop in self.event_loops_binded_for_progress:
             return  # Progress has already been guaranteed for the current event loop

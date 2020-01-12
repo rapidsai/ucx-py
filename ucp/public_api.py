@@ -138,10 +138,10 @@ def progress():
 
 
 def continuous_ucx_progress(event_loop=None):
-    """Guaranties continually UCX progress
+    """Guarantees continuous UCX progress
 
-    Use this function to associate UCX progress with an even loop.
-    Notice, multiple even loops can be associate with UCX progress.
+    Use this function to associate UCX progress with an event loop.
+    Notice, multiple event loops can be associate with UCX progress.
 
     This function is automatically called when calling
     `create_listener()` or `create_endpoint()`.
@@ -149,7 +149,7 @@ def continuous_ucx_progress(event_loop=None):
     Parameters
     ----------
     event_loop: asyncio.event_loop, optional
-        The even loop to evoke UCX progress. If None,
+        The event loop to evoke UCX progress. If None,
         `asyncio.get_event_loop()` is used.
     """
 
