@@ -2,7 +2,10 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+from libc.string cimport strlen
+
 import asyncio
+import codecs
 import uuid
 from functools import reduce
 import operator
@@ -10,6 +13,17 @@ from libc.stdint cimport uintptr_t
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
+
+
+cpdef unicode c_str_to_unicode(const char* c_str):
+    if c_str is NULL:
+        raise ValueError("Cannot convert `NULL` pointer to `unicode`.")
+
+    cdef size_t c_str_len = strlen(c_str)
+    cdef const char[::1] c_str_mv = <const char[:c_str_len:1]>c_str
+    cdef unicode py_unicode = codecs.decode(c_str_mv, "utf-8")
+
+    return py_unicode
 
 
 def get_buffer_data(buffer, check_writable=False):
