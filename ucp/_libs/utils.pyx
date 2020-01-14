@@ -17,8 +17,7 @@ def _data_from_memoryview(object mview):
     Help function that returns a pointer to the data
     of ´mview´ as a Python integer.
     """
-    cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(mview)
-    return int(<uintptr_t>buf.buf)
+    return int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
 
 
 def get_buffer_data(buffer, check_writable=False):
