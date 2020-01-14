@@ -7,6 +7,7 @@ import uuid
 from functools import reduce
 import operator
 from libc.stdint cimport uintptr_t
+from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
@@ -16,7 +17,7 @@ def _data_from_memoryview(object mview):
     Help function that returns a pointer to the data
     of ´mview´ as a Python integer.
     """
-    cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(<PyObject*>mview)
+    cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(mview)
     return int(<uintptr_t>buf.buf)
 
 
