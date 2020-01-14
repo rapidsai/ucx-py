@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import uuid
+from libc.stdint cimport uintptr_t
 from core_dep cimport *
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
@@ -77,9 +78,9 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 
 def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
                                                    data,
                                                    nbytes,
@@ -121,9 +122,9 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
 
 
 def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(ucp_worker)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+    cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>ucp_worker
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker,
                                                    data,
                                                    nbytes,
@@ -135,9 +136,9 @@ def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
 
 
 def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
                                                       data,
                                                       nbytes,
@@ -178,9 +179,9 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
 
 
 def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
     cdef size_t length
     cdef ucp_request *req
     cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep,
