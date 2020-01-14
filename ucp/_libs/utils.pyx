@@ -12,14 +12,6 @@ from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
 
-def _data_from_memoryview(object mview):
-    """
-    Help function that returns a pointer to the data
-    of ´mview´ as a Python integer.
-    """
-    return int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
-
-
 def get_buffer_data(buffer, check_writable=False):
     """
     Returns data pointer of the buffer. Raising ValueError if the buffer
@@ -35,7 +27,7 @@ def get_buffer_data(buffer, check_writable=False):
         data_ptr, data_readonly = iface['data']
     else:
         mview = memoryview(buffer)
-        data_ptr = _data_from_memoryview(mview)
+        data_ptr = int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
         data_readonly = mview.readonly
 
     # Workaround for numba giving None, rather than an 0.
