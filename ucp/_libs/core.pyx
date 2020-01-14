@@ -421,9 +421,8 @@ cdef class ApplicationContext:
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
-        cdef ucp_listener_accept_callback_t _listener_cb = (
-            <ucp_listener_accept_callback_t>_listener_callback
-        )
+        cdef ucp_listener_accept_callback_t _listener_cb
+        _listener_cb = <ucp_listener_accept_callback_t>_listener_callback
         if c_util_get_ucp_listener_params(&params,
                                           port,
                                           _listener_cb,
