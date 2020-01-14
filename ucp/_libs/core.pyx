@@ -349,7 +349,9 @@ cdef class ApplicationContext:
                                UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = ucp_request_reset
+        ucp_params.request_init = (
+            <ucp_request_init_callback_t>ucp_request_reset
+        )
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
@@ -418,9 +420,12 @@ cdef class ApplicationContext:
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
+        cdef ucp_listener_accept_callback_t cb = (
+            <ucp_listener_accept_callback_t>_listener_callback
+        )
         if c_util_get_ucp_listener_params(&params,
                                           port,
-                                          _listener_callback,
+                                          cb,
                                           <void*> &ret._cb_args):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
