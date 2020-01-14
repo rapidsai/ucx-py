@@ -6,7 +6,7 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport uint64_t, uintptr_t
+from libc.stdint cimport uint16_t, uint64_t, uintptr_t
 import uuid
 import socket
 import logging
@@ -401,7 +401,8 @@ cdef class ApplicationContext:
             if self.blocking_progress_mode:
                 close(self.epoll_fd)
 
-    def create_listener(self, callback_func, port, guarantee_msg_order):
+    def create_listener(self, callback_func,
+                        port, guarantee_msg_order):
         from ..public_api import Listener
         self.continuous_ucx_progress()
         if port in (None, 0):
@@ -423,11 +424,12 @@ cdef class ApplicationContext:
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
+        cdef uint16_t port_int = port
         cdef ucp_listener_accept_callback_t _listener_cb
         with nogil:
             _listener_cb = <ucp_listener_accept_callback_t>_listener_callback
             if c_util_get_ucp_listener_params(&params,
-                                              port,
+                                              port_int,
                                               _listener_cb,
                                               <void*> &ret._cb_args):
                 with gil:
