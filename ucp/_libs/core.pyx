@@ -66,8 +66,8 @@ cdef get_ucx_config_options(ucp_config_t *config):
     ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
-    cdef bytes py_text = <bytes> text
-    for line in py_text.decode().splitlines():
+    cdef unicode py_text = c_str_to_unicode(text)
+    for line in py_text.splitlines():
         k, v = line.split("=")
         k = k[len("UCX_"):]
         ret[k] = v
@@ -713,10 +713,10 @@ class _Endpoint:
         cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         ucp_ep_print_info(ep, text_fd)
         fflush(text_fd)
-        cdef bytes py_text = <bytes> text
+        cdef unicode py_text = c_str_to_unicode(text)
         fclose(text_fd)
         free(text)
-        return py_text.decode()
+        return py_text
 
     def cuda_support(self):
         return self._cuda_support
