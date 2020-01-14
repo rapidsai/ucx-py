@@ -11,7 +11,7 @@ from posix.unistd cimport close
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
-cdef extern from "src/c_util.h":
+cdef extern from "src/c_util.h" nogil:
     ctypedef struct ucp_listener_params_t:
         pass
 
@@ -37,7 +37,7 @@ cdef extern from "src/c_util.h":
     void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
 
 
-cdef extern from "ucp/api/ucp.h":
+cdef extern from "ucp/api/ucp.h" nogil:
     ctypedef struct ucp_context:
         pass
 
@@ -202,7 +202,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
                                    const char *value)
 
-cdef extern from "sys/epoll.h":
+cdef extern from "sys/epoll.h" nogil:
 
     cdef enum:
         EPOLL_CTL_ADD = 1

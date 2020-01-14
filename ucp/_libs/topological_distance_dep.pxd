@@ -5,7 +5,7 @@
 from libc.stdlib cimport free
 
 
-cdef extern from "hwloc.h":
+cdef extern from "hwloc.h" nogil:
     ctypedef struct hwloc_obj_t:
         pass
 
@@ -25,7 +25,7 @@ cdef extern from "hwloc.h":
     void hwloc_topology_destroy(hwloc_topology_t topology)
 
 
-cdef extern from "src/topological_distance.h":
+cdef extern from "src/topological_distance.h" nogil:
     ctypedef struct topological_distance_objs_t:
         pass
 
