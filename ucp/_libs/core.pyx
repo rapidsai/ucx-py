@@ -41,7 +41,8 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
     status = ucp_config_read(NULL, NULL, &config)
     if status != UCS_OK:
         raise UCXConfigError(
-            "Couldn't read the UCX options: %s" % ucs_status_string(status)
+            "Couldn't read the UCX options: %s" %
+            ucs_status_string(status)
         )
 
     # Modify the UCX configuration options based on `config_dict`
