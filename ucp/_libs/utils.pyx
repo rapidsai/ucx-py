@@ -6,6 +6,7 @@ import asyncio
 import uuid
 from functools import reduce
 import operator
+from libc.stdint cimport uintptr_t
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
@@ -16,7 +17,7 @@ def _data_from_memoryview(object mview):
     of ´mview´ as a Python integer.
     """
     cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(<PyObject*>mview)
-    return PyLong_FromVoidPtr(buf.buf)
+    return int(<uintptr_t>buf.buf)
 
 
 def get_buffer_data(buffer, check_writable=False):

@@ -8,7 +8,6 @@ from libc.stdlib cimport malloc, free
 from libc.stdio cimport FILE, stdin, stdout, stderr, printf, fflush, fclose
 from posix.stdio cimport open_memstream
 from posix.unistd cimport close
-from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
