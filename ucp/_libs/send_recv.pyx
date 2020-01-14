@@ -77,7 +77,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
     ucp_request_free(request)
 
 
-def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
+def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -121,7 +122,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
+def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
     cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>ucp_worker
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -135,7 +137,7 @@ def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
+def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -178,7 +180,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
+def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
