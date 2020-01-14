@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import uuid
+from libc.stdint cimport uintptr_t
 from core_dep cimport *
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
@@ -76,10 +77,11 @@ cdef void _send_callback(void *request, ucs_status_t status):
     ucp_request_free(request)
 
 
-def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
                                                    data,
                                                    nbytes,
@@ -120,10 +122,11 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(ucp_worker)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
+    cdef ucp_worker_h worker = <ucp_worker_h>ucp_worker
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker,
                                                    data,
                                                    nbytes,
@@ -134,10 +137,10 @@ def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
                                                       data,
                                                       nbytes,
@@ -177,10 +180,10 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
     cdef size_t length
     cdef ucp_request *req
     cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep,

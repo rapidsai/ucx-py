@@ -20,8 +20,10 @@ cdef extern from "src/c_util.h" nogil:
     ctypedef struct ucp_listener_params_t:
         pass
 
-    ctypedef struct ucp_ep_h:
+    ctypedef struct ucp_ep:
         pass
+
+    ctypedef ucp_ep* ucp_ep_h
 
     ctypedef struct ucp_ep_params_t:
         pass
@@ -41,11 +43,15 @@ cdef extern from "src/c_util.h" nogil:
 
 
 cdef extern from "ucp/api/ucp.h" nogil:
-    ctypedef struct ucp_context_h:
+    ctypedef struct ucp_context:
         pass
 
-    ctypedef struct ucp_worker_h:
+    ctypedef ucp_context* ucp_context_h
+
+    ctypedef struct ucp_worker:
         pass
+
+    ctypedef ucp_worker* ucp_worker_h
 
     ctypedef enum ucs_status_t:
         pass
