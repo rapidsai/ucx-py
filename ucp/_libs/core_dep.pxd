@@ -20,8 +20,10 @@ cdef extern from "src/c_util.h":
     ctypedef struct ucp_listener_params_t:
         pass
 
-    ctypedef struct ucp_ep_h:
+    ctypedef struct ucp_ep:
         pass
+
+    ctypedef ucp_ep* ucp_ep_h
 
     ctypedef struct ucp_ep_params_t:
         pass
