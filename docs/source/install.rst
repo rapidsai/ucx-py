@@ -47,7 +47,7 @@ Build Dependencies
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
         libhwloc \
-        python=3.7 setuptools cython
+        python=3.7 setuptools cython>=0.29.14,<3.0.0a0
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
