@@ -7,6 +7,7 @@ import logging
 import uuid
 from libc.stdint cimport uintptr_t
 from core_dep cimport *
+from utils cimport c_str_to_unicode
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
 
@@ -24,7 +25,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
     elif UCS_PTR_IS_ERR(status):
-        msg += (<object> ucs_status_string(UCS_PTR_STATUS(status))).decode("utf-8")
+        msg += c_str_to_unicode(ucs_status_string(UCS_PTR_STATUS(status)))
         ret.set_exception(UCXError(msg))
     else:
         req = <ucp_request*> status
@@ -67,7 +68,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += c_str_to_unicode(ucs_status_string(status))
         future.set_exception(UCXError(msg))
     else:
         future.set_result(True)
@@ -108,7 +109,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += c_str_to_unicode(ucs_status_string(status))
         future.set_exception(UCXError(msg))
     elif info.length != req.expected_receive:
         msg += "length mismatch: %d (got) != %d (expected)" % (
@@ -171,7 +172,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += c_str_to_unicode(ucs_status_string(status))
         future.set_exception(UCXError(msg))
     elif length != req.expected_receive:
         msg += "length mismatch: %d (got) != %d (expected)" % (

@@ -4,6 +4,7 @@
 
 import pynvml
 from topological_distance_dep cimport *
+from utils cimport c_str_to_unicode
 
 
 cdef class TopologicalDistance:
@@ -97,7 +98,7 @@ cdef class TopologicalDistance:
         )
 
         ret = [{"distance": <int>(&dist_name[i]).distance,
-               "name": (<char *>(&dist_name[i]).name).decode("utf-8")}
+               "name": c_str_to_unicode((&dist_name[i]).name)}
                for i in range(dev_count)]
 
         free(dev_dist)

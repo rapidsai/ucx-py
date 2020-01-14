@@ -20,13 +20,14 @@ from ..exceptions import (
 )
 
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv
+from utils cimport c_str_to_unicode
 from .utils import get_buffer_nbytes
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += c_str_to_unicode(ucs_status_string(status))
         raise UCXError(msg)
 
 
