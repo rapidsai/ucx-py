@@ -34,6 +34,7 @@ ext_modules = [
         depends=[
             "ucp/_libs/src/c_util.h",
             "ucp/_libs/core_dep.pxd",
+            "ucp/_libs/utils.pxd",
         ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
@@ -46,6 +47,7 @@ ext_modules = [
         depends=[
             "ucp/_libs/src/c_util.h",
             "ucp/_libs/core_dep.pxd",
+            "ucp/_libs/utils.pxd",
         ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
@@ -61,6 +63,7 @@ ext_modules = [
         depends=[
             "ucp/_libs/src/topological_distance.h",
             "ucp/_libs/topological_distance_dep.pxd",
+            "ucp/_libs/utils.pxd",
         ],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
