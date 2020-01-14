@@ -420,12 +420,12 @@ cdef class ApplicationContext:
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
-        cdef ucp_listener_accept_callback_t cb = (
+        cdef ucp_listener_accept_callback_t _listener_cb = (
             <ucp_listener_accept_callback_t>_listener_callback
         )
         if c_util_get_ucp_listener_params(&params,
                                           port,
-                                          cb,
+                                          _listener_cb,
                                           <void*> &ret._cb_args):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
