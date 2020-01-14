@@ -16,7 +16,7 @@ cdef extern from "Python.h":
     Py_buffer* PyMemoryView_GET_BUFFER(PyObject *mview)
 
 
-cdef extern from "src/c_util.h":
+cdef extern from "src/c_util.h" nogil:
     ctypedef struct ucp_listener_params_t:
         pass
 
@@ -40,7 +40,7 @@ cdef extern from "src/c_util.h":
     void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
 
 
-cdef extern from "ucp/api/ucp.h":
+cdef extern from "ucp/api/ucp.h" nogil:
     ctypedef struct ucp_context_h:
         pass
 
@@ -201,7 +201,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
                                    const char *value)
 
-cdef extern from "sys/epoll.h":
+cdef extern from "sys/epoll.h" nogil:
 
     cdef enum:
         EPOLL_CTL_ADD = 1
