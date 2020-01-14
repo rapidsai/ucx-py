@@ -46,7 +46,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.expected_receive = expected_receive
             if pending_msg is not None:
                 pending_msg['future'] = ret
-                pending_msg['ucp_request'] = PyLong_FromVoidPtr(<void*>req)
+                pending_msg['ucp_request'] = int(<uintptr_t><void*>req)
                 pending_msg['expected_receive'] = expected_receive
             Py_INCREF(log_str)
             req.log_str = <PyObject*> log_str
@@ -79,7 +79,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
              ucp_tag_t tag, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
@@ -124,7 +124,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
 
 def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
              ucp_tag_t tag, pending_msg=None):
-    cdef ucp_worker_h worker = <ucp_worker_h>ucp_worker
+    cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>ucp_worker
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker,
@@ -138,7 +138,7 @@ def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
 
 
 def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
@@ -181,7 +181,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
 
 
 def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h>ucp_ep
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
     cdef size_t length

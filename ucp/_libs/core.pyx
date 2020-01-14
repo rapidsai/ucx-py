@@ -6,7 +6,7 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport uint64_t
+from libc.stdint cimport uint64_t, uintptr_t
 import uuid
 import socket
 import logging
@@ -258,9 +258,9 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef object func = <object> a.py_func
     asyncio.ensure_future(
         listener_handler(
-            PyLong_FromVoidPtr(<void*>ep),
+            int(<uintptr_t><void*>ep),
             ctx,
-            PyLong_FromVoidPtr(<void*>a.ucp_worker),
+            int(<uintptr_t><void*>a.ucp_worker),
             func,
             a.guarantee_msg_order
         )
@@ -453,14 +453,14 @@ cdef class ApplicationContext:
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
-            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
+            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
         ep = _Endpoint(
-            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
-            ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
+            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
+            ucp_worker=int(<uintptr_t><void*>self.worker),
             ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
@@ -529,7 +529,7 @@ cdef class ApplicationContext:
             self._non_blocking_progress_mode(loop)
 
     def get_ucp_worker(self):
-        return PyLong_FromVoidPtr(<void*>self.worker)
+        return int(<uintptr_t><void*>self.worker)
 
     def get_config(self):
         return self.config
@@ -583,17 +583,17 @@ class _Endpoint:
         self._closed = True
         logging.debug("Endpoint.abort(): %s" % hex(self.uid))
 
-        cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
+        cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>self._ucp_worker
 
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
                 logging.debug("Future cancelling: %s" % msg['log'])
                 ucp_request_cancel(
                     worker,
-                    PyLong_AsVoidPtr(msg['ucp_request'])
+                    <void*><uintptr_t>msg['ucp_request']
                 )
 
-        cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
+        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
         if UCS_PTR_STATUS(status) != UCS_OK:
             assert not UCS_PTR_IS_ERR(status)
@@ -703,7 +703,7 @@ class _Endpoint:
         cdef size_t text_len
         cdef FILE *text_fd = open_memstream(&text, &text_len)
         assert(text_fd != NULL)
-        cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
+        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         ucp_ep_print_info(ep, text_fd)
         fflush(text_fd)
         cdef bytes py_text = <bytes> text
