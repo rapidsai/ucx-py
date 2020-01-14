@@ -30,10 +30,7 @@ ext_modules = [
     ),
     Extension(
         "ucp._libs.send_recv",
-        sources=[
-            "ucp/_libs/send_recv.pyx",
-            "ucp/_libs/src/c_util.c",
-        ],
+        sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
         depends=[
             "ucp/_libs/src/c_util.h",
             "ucp/_libs/core_dep.pxd",
@@ -46,10 +43,7 @@ ext_modules = [
     ),
     Extension(
         "ucp._libs.core",
-        sources=[
-            "ucp/_libs/core.pyx",
-            "ucp/_libs/src/c_util.c",
-        ],
+        sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
         depends=[
             "ucp/_libs/src/c_util.h",
             "ucp/_libs/core_dep.pxd",
