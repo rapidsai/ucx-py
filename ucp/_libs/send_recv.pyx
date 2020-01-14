@@ -53,26 +53,27 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     return ret
 
 
-cdef void _send_callback(void *request, ucs_status_t status):
+cdef void _send_callback(void *request, ucs_status_t status) nogil:
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         # This callback function was called before ucp_tag_send_nb() returned
         req.finished = True
         return
-    future = <object> req.future
-    log_str = <object> req.log_str
-    if asyncio.get_event_loop().is_closed():
-        pass
-    elif status == UCS_ERR_CANCELED:
-        future.set_exception(UCXCanceled())
-    elif status != UCS_OK:
-        msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
-        future.set_exception(UCXError(msg))
-    else:
-        future.set_result(True)
-    Py_DECREF(future)
-    Py_DECREF(log_str)
+    with gil:
+        future = <object> req.future
+        log_str = <object> req.log_str
+        if asyncio.get_event_loop().is_closed():
+            pass
+        elif status == UCS_ERR_CANCELED:
+            future.set_exception(UCXCanceled())
+        elif status != UCS_OK:
+            msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
+            msg += (<object> ucs_status_string(status)).decode("utf-8")
+            future.set_exception(UCXError(msg))
+        else:
+            future.set_result(True)
+        Py_DECREF(future)
+        Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
@@ -93,32 +94,33 @@ def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
 
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
-                             ucp_tag_recv_info_t *info):
+                             ucp_tag_recv_info_t *info) nogil:
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         # This callback function was called before ucp_tag_recv_nb() returned
         req.finished = True
         req.received = info.length
         return
-    future = <object> req.future
-    log_str = <object> req.log_str
-    msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
-    if asyncio.get_event_loop().is_closed():
-        pass
-    elif status == UCS_ERR_CANCELED:
-        future.set_exception(UCXCanceled())
-    elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
-        future.set_exception(UCXError(msg))
-    elif info.length != req.expected_receive:
-        msg += "length mismatch: %d (got) != %d (expected)" % (
-            info.length, req.expected_receive
-        )
-        future.set_exception(UCXError(msg))
-    else:
-        future.set_result(True)
-    Py_DECREF(future)
-    Py_DECREF(log_str)
+    with gil:
+        future = <object> req.future
+        log_str = <object> req.log_str
+        msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
+        if asyncio.get_event_loop().is_closed():
+            pass
+        elif status == UCS_ERR_CANCELED:
+            future.set_exception(UCXCanceled())
+        elif status != UCS_OK:
+            msg += (<object> ucs_status_string(status)).decode("utf-8")
+            future.set_exception(UCXError(msg))
+        elif info.length != req.expected_receive:
+            msg += "length mismatch: %d (got) != %d (expected)" % (
+                info.length, req.expected_receive
+            )
+            future.set_exception(UCXError(msg))
+        else:
+            future.set_result(True)
+        Py_DECREF(future)
+        Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
@@ -156,31 +158,32 @@ def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
 
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
-                                size_t length):
+                                size_t length) nogil:
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         # This callback function was called before ucp_stream_recv_nb() returned
         req.finished = True
         req.received = length
         return
-    future = <object> req.future
-    log_str = <object> req.log_str
-    msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
-    if asyncio.get_event_loop().is_closed():
-        pass
-    elif status == UCS_ERR_CANCELED:
-        future.set_exception(UCXCanceled())
-    elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
-        future.set_exception(UCXError(msg))
-    elif length != req.expected_receive:
-        msg += "length mismatch: %d (got) != %d (expected)" % (
-            length, req.expected_receive)
-        future.set_exception(UCXError(msg))
-    else:
-        future.set_result(True)
-    Py_DECREF(future)
-    Py_DECREF(log_str)
+    with gil:
+        future = <object> req.future
+        log_str = <object> req.log_str
+        msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
+        if asyncio.get_event_loop().is_closed():
+            pass
+        elif status == UCS_ERR_CANCELED:
+            future.set_exception(UCXCanceled())
+        elif status != UCS_OK:
+            msg += (<object> ucs_status_string(status)).decode("utf-8")
+            future.set_exception(UCXError(msg))
+        elif length != req.expected_receive:
+            msg += "length mismatch: %d (got) != %d (expected)" % (
+                length, req.expected_receive)
+            future.set_exception(UCXError(msg))
+        else:
+            future.set_result(True)
+        Py_DECREF(future)
+        Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
