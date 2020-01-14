@@ -31,7 +31,7 @@ cdef extern from "src/topological_distance.h":
 
     ctypedef struct topological_distance_and_name_t:
         int distance
-        char name
+        char* name
 
     int compare_topological_distance_objs_t(const void *obj1, const void *obj2)
 
