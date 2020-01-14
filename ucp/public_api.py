@@ -153,7 +153,7 @@ def continuous_ucx_progress(event_loop=None):
         `asyncio.get_event_loop()` is used.
     """
 
-    _get_ctx().continuous_ucx_progress()
+    _get_ctx().continuous_ucx_progress(event_loop=event_loop)
 
 
 def get_ucp_worker():
