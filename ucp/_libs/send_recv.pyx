@@ -85,13 +85,14 @@ def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb
     cdef ucs_status_ptr_t status
-    _send_cb = <ucp_send_callback_t>_send_callback
-    status = ucp_tag_send_nb(ep,
-                             data,
-                             nbytes,
-                             ucp_dt_make_contig(1),
-                             tag,
-                             _send_cb)
+    with nogil:
+        _send_cb = <ucp_send_callback_t>_send_callback
+        status = ucp_tag_send_nb(ep,
+                                 data,
+                                 nbytes,
+                                 ucp_dt_make_contig(1),
+                                 tag,
+                                 _send_cb)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -134,14 +135,15 @@ def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
                                          check_writable=True))
     cdef ucp_tag_recv_callback_t _tag_recv_cb
     cdef ucs_status_ptr_t status
-    _tag_recv_cb = <ucp_tag_recv_callback_t>_tag_recv_callback
-    status = ucp_tag_recv_nb(worker,
-                             data,
-                             nbytes,
-                             ucp_dt_make_contig(1),
-                             tag,
-                             -1,
-                             _tag_recv_cb)
+    with nogil:
+        _tag_recv_cb = <ucp_tag_recv_callback_t>_tag_recv_callback
+        status = ucp_tag_recv_nb(worker,
+                                 data,
+                                 nbytes,
+                                 ucp_dt_make_contig(1),
+                                 tag,
+                                 -1,
+                                 _tag_recv_cb)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -151,13 +153,14 @@ def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb
     cdef ucs_status_ptr_t status
-    _send_cb = <ucp_send_callback_t>_send_callback
-    status = ucp_stream_send_nb(ep,
-                                data,
-                                nbytes,
-                                ucp_dt_make_contig(1),
-                                _send_cb,
-                                0)
+    with nogil:
+        _send_cb = <ucp_send_callback_t>_send_callback
+        status = ucp_stream_send_nb(ep,
+                                    data,
+                                    nbytes,
+                                    ucp_dt_make_contig(1),
+                                    _send_cb,
+                                    0)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -200,12 +203,13 @@ def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     cdef ucp_request *req
     cdef ucp_stream_recv_callback_t _stream_recv_cb
     cdef ucs_status_ptr_t status
-    _stream_recv_cb = <ucp_stream_recv_callback_t>_stream_recv_callback
-    status = ucp_stream_recv_nb(ep,
-                                data,
-                                nbytes,
-                                ucp_dt_make_contig(1),
-                                _stream_recv_cb,
-                                &length,
-                                0)
+    with nogil:
+        _stream_recv_cb = <ucp_stream_recv_callback_t>_stream_recv_callback
+        status = ucp_stream_recv_nb(ep,
+                                    data,
+                                    nbytes,
+                                    ucp_dt_make_contig(1),
+                                    _stream_recv_cb,
+                                    &length,
+                                    0)
     return create_future_from_comm_status(status, nbytes, pending_msg)

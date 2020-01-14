@@ -338,24 +338,26 @@ cdef class ApplicationContext:
 
         self.config['VERSION'] = get_ucx_version()
 
-        memset(&ucp_params, 0, sizeof(ucp_params))
-        ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT)
+        with nogil:
+            memset(&ucp_params, 0, sizeof(ucp_params))
+            ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
+                                     UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
+                                     UCP_PARAM_FIELD_REQUEST_INIT)
 
-        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
-        # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+            # We always request UCP_FEATURE_WAKEUP even when in blocking mode
+            # See <https://github.com/rapidsai/ucx-py/pull/377>
+            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                                   UCP_FEATURE_WAKEUP |  # noqa
+                                   UCP_FEATURE_STREAM)
 
-        ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = (
-            <ucp_request_init_callback_t>ucp_request_reset
-        )
+            ucp_params.request_size = sizeof(ucp_request)
+            ucp_params.request_init = (
+                <ucp_request_init_callback_t>ucp_request_reset
+            )
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
-        status = ucp_init(&ucp_params, config, &self.context)
+        with nogil:
+            status = ucp_init(&ucp_params, config, &self.context)
         assert_ucs_status(status)
 
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
@@ -422,12 +424,14 @@ cdef class ApplicationContext:
 
         cdef ucp_listener_params_t params
         cdef ucp_listener_accept_callback_t _listener_cb
-        _listener_cb = <ucp_listener_accept_callback_t>_listener_callback
-        if c_util_get_ucp_listener_params(&params,
-                                          port,
-                                          _listener_cb,
-                                          <void*> &ret._cb_args):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        with nogil:
+            _listener_cb = <ucp_listener_accept_callback_t>_listener_callback
+            if c_util_get_ucp_listener_params(&params,
+                                              port,
+                                              _listener_cb,
+                                              <void*> &ret._cb_args):
+                with gil:
+                    raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         logging.info("create_listener() - Start listening on port %d" % port)
         cdef ucs_status_t status = ucp_listener_create(
