@@ -59,8 +59,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
         # This callback function was called before ucp_tag_send_nb() returned
         req.finished = True
         return
-    cdef object future = <object> req.future
-    cdef object log_str = <object> req.log_str
+    future = <object> req.future
+    log_str = <object> req.log_str
     if asyncio.get_event_loop().is_closed():
         pass
     elif status == UCS_ERR_CANCELED:
@@ -100,8 +100,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         req.finished = True
         req.received = info.length
         return
-    cdef object future = <object> req.future
-    cdef object log_str = <object> req.log_str
+    future = <object> req.future
+    log_str = <object> req.log_str
     msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
     if asyncio.get_event_loop().is_closed():
         pass
@@ -163,8 +163,8 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         req.finished = True
         req.received = length
         return
-    cdef object future = <object> req.future
-    cdef object log_str = <object> req.log_str
+    future = <object> req.future
+    log_str = <object> req.log_str
     msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
     if asyncio.get_event_loop().is_closed():
         pass
