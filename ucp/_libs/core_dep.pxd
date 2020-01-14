@@ -245,7 +245,7 @@ cdef struct ucp_request:
     int64_t received
 
 
-cdef inline void ucp_request_reset(void* request):
+cdef inline void ucp_request_reset(void* request) nogil:
     cdef ucp_request *req = <ucp_request*> request
     req.finished = False
     req.future = NULL
