@@ -33,7 +33,6 @@ ext_modules = [
         sources=[
             "ucp/_libs/send_recv.pyx",
             "ucp/_libs/src/c_util.c",
-            "ucp/_libs/utils.pyx",
         ],
         depends=[
             "ucp/_libs/src/c_util.h",
@@ -50,7 +49,6 @@ ext_modules = [
         sources=[
             "ucp/_libs/core.pyx",
             "ucp/_libs/src/c_util.c",
-            "ucp/_libs/utils.pyx",
         ],
         depends=[
             "ucp/_libs/src/c_util.h",
@@ -67,7 +65,6 @@ ext_modules = [
         sources=[
             "ucp/_libs/topological_distance.pyx",
             "ucp/_libs/src/topological_distance.c",
-            "ucp/_libs/utils.pyx",
         ],
         depends=[
             "ucp/_libs/src/topological_distance.h",
