@@ -11,10 +11,6 @@ from posix.unistd cimport close
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 
-cdef extern from "Python.h":
-    Py_buffer* PyMemoryView_GET_BUFFER(PyObject *mview)
-
-
 cdef extern from "src/c_util.h":
     ctypedef struct ucp_listener_params_t:
         pass
