@@ -35,15 +35,6 @@ async def send_df(ep, df):
         await ep.send(frame)
 
 
-def device_array(shape, dtype):
-    dtype = np.dtype(dtype)
-    nbytes = np.prod(shape) * dtype.itemsize
-    buf = rmm.DeviceBuffer(size=nbytes)
-    arr = cupy.asarray(buf).view(dtype).reshape(shape)
-    arr = numba.cuda.as_cuda_array(arr)
-    return arr
-
-
 async def recv_df(ep):
     header_nbytes = np.empty((1,), dtype=np.uint64)
     await ep.recv(header_nbytes)
@@ -52,7 +43,7 @@ async def recv_df(ep):
     header = pickle.loads(header)
 
     frames = [
-        device_array(iface["shape"], dtype=iface["typestr"])
+        cupy.empty(iface["shape"], dtype=iface["typestr"])
         for iface in header["frame_ifaces"]
     ]
     for frame in frames:
