@@ -1,6 +1,5 @@
 name: ucx_dev
 channels:
-- conda-forge/label/rc_ucx
 - nvidia
 - conda-forge
 - rapidsai
