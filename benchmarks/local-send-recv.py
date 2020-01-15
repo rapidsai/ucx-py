@@ -30,7 +30,7 @@ def server(queue, args):
         rmm.reinitialize(
             pool_allocator=True,
             managed_memory=False,
-            initial_pool_size=0,
+            initial_pool_size=args.rmm_init_pool_size,
             devices=[args.server_dev],
         )
         np.cuda.runtime.setDevice(args.server_dev)
@@ -85,7 +85,7 @@ def client(queue, port, args):
         rmm.reinitialize(
             pool_allocator=True,
             managed_memory=False,
-            initial_pool_size=0,
+            initial_pool_size=args.rmm_init_pool_size,
             devices=[args.client_dev],
         )
         np.cuda.runtime.setDevice(args.client_dev)
@@ -194,6 +194,13 @@ def parse_args():
         help="Setting CUDA profiler.start()/stop() around send/recv "
         "typically used with `nvprof --profile-from-start off "
         "--profile-child-processes`",
+    )
+    parser.add_argument(
+        "--rmm-init-pool-size",
+        metavar="BYTES",
+        default=None,
+        type=int,
+        help="Initial RMM pool size (default  1/2 total GPU memory)",
     )
     args = parser.parse_args()
     if args.cuda_profile and args.object_type != "cupy":
