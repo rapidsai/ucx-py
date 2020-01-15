@@ -16,12 +16,25 @@ mp = mp.get_context("spawn")
 
 def server(queue, args):
     ucp.init()
+
     if args.object_type == "numpy":
         import numpy as np
-    else:
+    elif args.object_type == "cupy":
         import cupy as np
 
         np.cuda.runtime.setDevice(args.server_dev)
+    else:
+        import cupy as np
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=False,
+            initial_pool_size=0,
+            devices=[args.server_dev],
+        )
+        np.cuda.runtime.setDevice(args.server_dev)
+        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     async def run():
         async def server_handler(ep):
@@ -61,10 +74,22 @@ def client(queue, port, args):
 
     if args.object_type == "numpy":
         import numpy as np
-    else:
+    elif args.object_type == "cupy":
         import cupy as np
 
         np.cuda.runtime.setDevice(args.client_dev)
+    else:
+        import cupy as np
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=False,
+            initial_pool_size=0,
+            devices=[args.client_dev],
+        )
+        np.cuda.runtime.setDevice(args.client_dev)
+        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     async def run():
         ep = await ucp.create_endpoint(args.server_address, port)
@@ -122,7 +147,7 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy"],
+        choices=["numpy", "cupy", "rmm"],
         help="In-memory array type.",
     )
     parser.add_argument(
