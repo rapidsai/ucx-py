@@ -16,8 +16,6 @@ from dask.utils import format_bytes, format_time, parse_bytes
 
 import cudf
 import cupy
-import numba
-import numba.cuda
 import numpy as np
 import rmm
 import ucp
