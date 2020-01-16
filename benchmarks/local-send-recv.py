@@ -203,9 +203,10 @@ def parse_args():
         help="Initial RMM pool size (default  1/2 total GPU memory)",
     )
     args = parser.parse_args()
-    if args.cuda_profile and args.object_type != "cupy":
+    if args.cuda_profile and args.object_type == "numpy":
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy`"
+            " or `--object_type=rmm`"
         )
     return args
 
