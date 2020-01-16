@@ -1,9 +1,8 @@
 name: ucx_dev
 channels:
-- conda-forge/label/rc_ucx
+- rapidsai
 - nvidia
 - conda-forge
-- rapidsai
 dependencies:
 # required for building docs
 - sphinx
