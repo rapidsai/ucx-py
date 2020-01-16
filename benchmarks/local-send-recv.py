@@ -234,10 +234,10 @@ def main():
     print(f"object      | {args.object_type}")
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
-    if args.object_type == "cupy":
-        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
-    else:
+    if args.object_type == "numpy":
         print(f"Device(s)    | Single CPU")
+    else:
+        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     print(
         f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
     )
