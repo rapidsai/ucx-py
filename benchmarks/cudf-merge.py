@@ -41,7 +41,7 @@ async def recv_df(ep):
     header = pickle.loads(header)
 
     frames = [
-        rmm.device_array(iface["shape"], dtype=np.dtype(iface["typestr"]))
+        cupy.empty(iface["shape"], dtype=iface["typestr"])
         for iface in header["frame_ifaces"]
     ]
     for frame in frames:
