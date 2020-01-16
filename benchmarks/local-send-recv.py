@@ -204,7 +204,9 @@ def parse_args():
     )
     args = parser.parse_args()
     if args.cuda_profile and args.object_type != "cupy":
-        raise RuntimeError("`--cuda-profile` requires `--object_type=cupy`")
+        raise RuntimeError(
+            "`--cuda-profile` requires `--object_type=cupy`"
+        )
     return args
 
 
