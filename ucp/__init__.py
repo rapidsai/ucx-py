@@ -20,14 +20,6 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
     logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
-if "UCX_CUDA_IPC_CACHE" not in os.environ:
-    # See <https://github.com/openucx/ucx/issues/4410>
-    logger.debug(
-        "Setting env UCX_CUDA_IPC_CACHE=n, which is required to avoid NVLink memory "
-        "leaks"
-    )
-    os.environ["UCX_CUDA_IPC_CACHE"] = "n"
-
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
     logger.debug(
         "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "

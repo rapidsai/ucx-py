@@ -26,7 +26,7 @@ from .utils import get_buffer_nbytes
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += ucs_status_string(status).decode("utf-8")
         raise UCXError(msg)
 
 
@@ -40,7 +40,8 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
     status = ucp_config_read(NULL, NULL, &config)
     if status != UCS_OK:
         raise UCXConfigError(
-            "Couldn't read the UCX options: %s" % ucs_status_string(status)
+            "Couldn't read the UCX options: %s" %
+            ucs_status_string(status).decode("utf-8")
         )
 
     # Modify the UCX configuration options based on `config_dict`
@@ -50,7 +51,7 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
             raise UCXConfigError("Option %s doesn't exist" % k)
         elif status != UCS_OK:
             msg = "Couldn't set option %s to %s: %s" % \
-                  (k, v, ucs_status_string(status))
+                  (k, v, ucs_status_string(status).decode("utf-8"))
             raise UCXConfigError(msg)
     return config
 
@@ -64,8 +65,8 @@ cdef get_ucx_config_options(ucp_config_t *config):
     ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
-    cdef bytes py_text = <bytes> text
-    for line in py_text.decode().splitlines():
+    cdef unicode py_text = text.decode()
+    for line in py_text.splitlines():
         k, v = line.split("=")
         k = k[len("UCX_"):]
         ret[k] = v
@@ -717,10 +718,10 @@ class _Endpoint:
         cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         ucp_ep_print_info(ep, text_fd)
         fflush(text_fd)
-        cdef bytes py_text = <bytes> text
+        cdef unicode py_text = text.decode()
         fclose(text_fd)
         free(text)
-        return py_text.decode()
+        return py_text
 
     def cuda_support(self):
         return self._cuda_support

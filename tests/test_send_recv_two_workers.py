@@ -21,7 +21,7 @@ ITERATIONS = 1
 
 
 def cuda_array(size):
-    return rmm.device_array(size, dtype=np.uint8)
+    return rmm.DeviceBuffer(size=size)
 
 
 async def get_ep(name, port):
