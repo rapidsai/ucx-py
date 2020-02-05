@@ -84,6 +84,7 @@ def get_closest_net_devices(gpu_dev):
 def _worker_process(
     queue, rank, server_address, n_workers, ucx_options_list, func, args
 ):
+    #os.environ["CUDA_VISIBLE_DEVICES"] = "%s" % rank
     import ucp
 
     if ucx_options_list is not None:

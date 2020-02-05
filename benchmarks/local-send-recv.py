@@ -10,11 +10,13 @@ from distributed.utils import format_bytes, parse_bytes
 
 import numpy
 import ucp
+import numba
 
 mp = mp.get_context("spawn")
 
 
 def server(queue, args):
+    numba.cuda.current_context()
     ucp.init()
 
     if args.object_type == "numpy":
@@ -68,6 +70,7 @@ def server(queue, args):
 
 
 def client(queue, port, args):
+    numba.cuda.current_context()
     import ucp
 
     ucp.init()

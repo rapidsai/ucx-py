@@ -10,6 +10,7 @@ from libc.stdint cimport uint64_t, uintptr_t
 import uuid
 import socket
 import logging
+import pickle
 from core_dep cimport *
 from ..exceptions import (
     UCXError,
@@ -143,6 +144,64 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
     }
 
 
+async def exchange_extra_peer_info(ep, info):
+    """Help function to exchange extra endpoint information"""
+
+    async def send():
+        data = pickle.dumps(info)
+        nbytes = len(data).to_bytes(4, byteorder='big')
+        await ep.send(nbytes)
+        await ep.send(data)
+
+    async def recv():
+        nbytes = bytearray(4)
+        await ep.recv(nbytes)
+        nbytes = int.from_bytes(nbytes, byteorder='big')
+        data = bytearray(nbytes)
+        await ep.recv(data)
+        return pickle.loads(data)
+
+    _, info = await asyncio.gather(send(), recv())
+    return info
+
+
+
+async def exchange_cuda_device_info(ep):
+    """
+    Help function to exchange CUDA device information
+    Notice, this function updates `ep.peer_extra_info`
+    """
+    try:
+        import numba
+        cuda_device_info = numba.cuda.get_current_device().get_device_identity()
+    except ImportError:
+        cuda_device_info = None
+
+    ep.peer_extra_info.update(
+        await exchange_extra_peer_info(
+            ep, {"cuda_device_info": cuda_device_info}
+        )
+    )
+    peer_dev_info = ep.peer_extra_info["cuda_device_info"]
+    ep.peer_extra_info["cuda_direct_peer_access"] = False
+    if cuda_device_info and peer_dev_info is not None:
+        if peer_dev_info == cuda_device_info:
+            ep.peer_extra_info["cuda_direct_peer_access"] = True
+        else:
+            try:
+                peer_dev = numba.cuda.cudadrv.driver.Device.from_identity(peer_dev_info)
+            except RuntimeError:
+                cuda_vis = os.environ.get('CUDA_VISIBLE_DEVICES', "unset")
+                logging.info(
+                    'Cannot use nvlink between {cuda_device_info} != {peer_dev_info}, '
+                    'please make sure that CUDA_VISIBLE_DEVICES includes both devices (is: "{cuda_vis}")')
+            else:
+                direct_access = numba.cuda.current_context().can_access_peer(peer_dev.id)
+                ep.peer_extra_info["cuda_direct_peer_access"] = direct_access
+                if not direct_access:
+                    logging.warning(f"No nvlink between: {cuda_device_info} != {peer_dev_info}")
+
+
 # "1" is shutdown, currently the only opcode.
 cdef struct CtrlMsgData:
     int64_t op  # The control opcode, currently the only opcode is "1" (shutdown).
@@ -234,6 +293,10 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_or
         )
     )
 
+    # Exchange CUDA device information
+    if ctx.own_cuda_ipc:
+        await exchange_cuda_device_info(ep)
+
     # Create the public Endpoint
     pub_ep = Endpoint(ep)
 
@@ -320,16 +383,20 @@ cdef class ApplicationContext:
 
     cdef public:
         object config
+        object remote_rmm_allocs
+        object own_cuda_ipc
 
-    def __cinit__(self, config_dict={}, blocking_progress_mode=None):
+    def __cinit__(self, config_dict={}, blocking_progress_mode=None, own_cuda_ipc=None):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
         self.event_loops_binded_for_progress = set()
         self.progress_tasks = []
         self.config = {}
+        self.remote_rmm_allocs = {}
         self.initiated = False
         self.dangling_arm_task = None
+        self.own_cuda_ipc = False
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -337,6 +404,13 @@ cdef class ApplicationContext:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = True
+
+        if own_cuda_ipc is not None:
+            self.own_cuda_ipc = own_cuda_ipc
+        elif 'UCXPY_OWN_CUDA_IPC' in os.environ:
+            self.own_cuda_ipc = True
+        else:
+            self.own_cuda_ipc = False
 
         self.config['VERSION'] = get_ucx_version()
 
@@ -490,6 +564,10 @@ cdef class ApplicationContext:
             )
         )
 
+        # Exchange CUDA device information
+        if self.own_cuda_ipc:
+            await exchange_cuda_device_info(ep)
+
         # Create the public Endpoint
         pub_ep = Endpoint(ep)
 
@@ -606,6 +684,7 @@ class _Endpoint:
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
         self._close_after_n_recv = None
+        self.peer_extra_info = {}
 
     @property
     def uid(self):

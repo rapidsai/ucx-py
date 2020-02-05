@@ -236,6 +236,48 @@ class Listener:
             self._b = None
 
 
+import numpy as np
+import pickle
+from numba import cuda
+import rmm
+import ctypes
+
+
+def is_rmm_alloc(mem_ptr):
+    try:
+        rmm._lib.rmm_getallocationoffset(mem_ptr, 0)
+    except rmm.RMMError:
+        return False
+    else:
+        return True
+
+
+def pickle_ipc_handle(rmm_mem_ptr, nbytes):
+
+    ary_offset = rmm._lib.rmm_getallocationoffset(rmm_mem_ptr, 0)
+    rmm_block = rmm_mem_ptr - ary_offset
+    source_info = cuda.get_current_device().get_device_identity()
+
+    ipc_handle = cuda.cudadrv.drvapi.cu_ipc_mem_handle()
+    cuda.cudadrv.driver.driver.cuIpcGetMemHandle(ctypes.byref(ipc_handle), rmm_block)
+
+    data = dict(
+        handle=tuple(ipc_handle),
+        source_info=source_info,
+        rmm_block=rmm_block,
+        ary_offset=ary_offset,
+        ary_nbytes=nbytes,
+    )
+    return pickle.dumps(data)
+
+
+def unpickle_ipc_handle(buffer):
+    ret = pickle.loads(buffer)
+    ret["handle"] = cuda.cudadrv.drvapi.cu_ipc_mem_handle(*ret["handle"])
+    #print("unpickle_ipc_handle: ", ret)
+    return ret
+
+
 class Endpoint:
     """An endpoint represents a connection to a peer
 
@@ -285,7 +327,22 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
         """
-        await self._ep.send(buffer, nbytes=nbytes)
+
+        ipc_handle = None
+        if self._ep._ctx.own_cuda_ipc and self._ep.peer_extra_info["cuda_direct_peer_access"] and hasattr(buffer, "__cuda_array_interface__"):
+            data, _ = buffer.__cuda_array_interface__["data"]
+            if is_rmm_alloc(data):
+                import cupy
+
+                ipc_handle = pickle_ipc_handle(data, cupy.asarray(buffer).nbytes)
+
+        if ipc_handle is None:
+            await self._ep.send(np.array([0], dtype="u4"))
+            await self._ep.send(buffer, nbytes=nbytes)
+        else:
+            await self._ep.send(np.array([len(ipc_handle)], dtype="u4"))
+            await self._ep.send(ipc_handle)
+            await self._ep.recv(bytearray(1))
 
     async def recv(self, buffer, nbytes=None):
         """Receive from connected peer into `buffer`.
@@ -298,7 +355,53 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
         """
-        await self._ep.recv(buffer, nbytes=nbytes)
+        ipc_handle_size = np.empty((1,), dtype="u4")
+        await self._ep.recv(ipc_handle_size)
+        ipc_handle_size = ipc_handle_size[0]
+        if ipc_handle_size == 0:
+            await self._ep.recv(buffer, nbytes=nbytes)
+        else:
+            ipc_handle = np.empty((ipc_handle_size,), dtype="u1")
+            await self._ep.recv(ipc_handle)
+            ipc_handle = unpickle_ipc_handle(ipc_handle)
+
+            assert ipc_handle["ary_nbytes"] == core.get_buffer_nbytes(
+                buffer, False, True
+            )
+
+            remote_rmm_alloc_hash = hash(tuple(ipc_handle["handle"]))
+            if remote_rmm_alloc_hash not in self._ep._ctx.remote_rmm_allocs:
+                # Open remote RMM memory block
+                remote_rmm_block = cuda.cudadrv.drvapi.cu_device_ptr()
+                cuda.cudadrv.driver.driver.cuIpcOpenMemHandle(
+                    ctypes.byref(remote_rmm_block), ipc_handle["handle"], 1
+                )
+                self._ep._ctx.remote_rmm_allocs[
+                    remote_rmm_alloc_hash
+                ] = remote_rmm_block
+            else:
+                remote_rmm_block = self._ep._ctx.remote_rmm_allocs[
+                    remote_rmm_alloc_hash
+                ]
+
+            remote_ary_mem = remote_rmm_block.value + ipc_handle["ary_offset"]
+            mem_nbytes = ipc_handle["ary_nbytes"]
+
+            cuda.cudadrv.driver.driver.cuMemcpyDtoD(
+                 buffer.__cuda_array_interface__["data"][0], remote_ary_mem, mem_nbytes
+            )
+
+            # TODO: can we do this async?
+            # cuda.cudadrv.driver.driver.cuMemcpyDtoDAsync(
+            #     buffer.__cuda_array_interface__["data"][0], remote_ary_mem, mem_nbytes, 0
+            # )
+            # import asyncio
+            # await asyncio.sleep(0)
+            # cuda.cudadrv.driver.driver.cuStreamSynchronize(0)
+
+            #print("DtoD copy")
+            await self._ep.send(bytearray(1))
+            # cuda.cudadrv.driver.driver.cuIpcCloseMemHandle(remote_ary_mem)
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
