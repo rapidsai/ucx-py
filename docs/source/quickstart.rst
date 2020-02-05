@@ -22,7 +22,7 @@ Without GPU support:
 For a more detailed guide on installation options please refer to the :doc:`install` page.
 
 Send/Recv NumPy Arrays
----------------------
+----------------------
 
 Process 1 - Server
 ~~~~~~~~~~~~~~~~~~
@@ -43,7 +43,7 @@ Process 1 - Server
         arr = np.empty(n_bytes, dtype='u1')
         await ep.recv(arr)
         assert np.count_nonzero(arr) == np.array(0, dtype=np.int64)
-        print("Received CuPy array")
+        print("Received NumPy array")
 
         # increment array and send back
         arr += 1

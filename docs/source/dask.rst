@@ -15,7 +15,7 @@ Inline
 .. code-block:: python
 
     from dask.distributed import Client
-    from dask_cuda import DGX
+    from dask_cuda import LocalCUDACluster
     from dask_cuda.initialize import initialize
 
     # ON/OFF settings for various devices
@@ -32,14 +32,14 @@ Inline
         enable_nvlink=enable_nvlink,
     )
 
-    cluster = DGX(
+    cluster = LocalCUDACluster(
         interface="enp1s0f0",  # Ethernet interface
         protocol="ucx",
         enable_tcp_over_ucx=enable_tcp_over_ucx,
         enable_infiniband=enable_infiniband,
         enable_nvlink=enable_nvlink,
     )
-    client = Cluster(client)
+    client = Client(cluster)
 
 
 CLI

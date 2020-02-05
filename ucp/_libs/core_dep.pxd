@@ -8,20 +8,17 @@ from libc.stdlib cimport malloc, free
 from libc.stdio cimport FILE, stdin, stdout, stderr, printf, fflush, fclose
 from posix.stdio cimport open_memstream
 from posix.unistd cimport close
-from cpython.long cimport PyLong_AsVoidPtr, PyLong_FromVoidPtr
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
-
-
-cdef extern from "Python.h":
-    Py_buffer* PyMemoryView_GET_BUFFER(PyObject *mview)
 
 
 cdef extern from "src/c_util.h":
     ctypedef struct ucp_listener_params_t:
         pass
 
-    ctypedef struct ucp_ep_h:
+    ctypedef struct ucp_ep:
         pass
+
+    ctypedef ucp_ep* ucp_ep_h
 
     ctypedef struct ucp_ep_params_t:
         pass
@@ -41,11 +38,15 @@ cdef extern from "src/c_util.h":
 
 
 cdef extern from "ucp/api/ucp.h":
-    ctypedef struct ucp_context_h:
+    ctypedef struct ucp_context:
         pass
 
-    ctypedef struct ucp_worker_h:
+    ctypedef ucp_context* ucp_context_h
+
+    ctypedef struct ucp_worker:
         pass
+
+    ctypedef ucp_worker* ucp_worker_h
 
     ctypedef enum ucs_status_t:
         pass

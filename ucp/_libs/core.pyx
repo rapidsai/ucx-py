@@ -6,7 +6,7 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport uint64_t
+from libc.stdint cimport uint64_t, uintptr_t
 import uuid
 import socket
 import logging
@@ -26,7 +26,7 @@ from .utils import get_buffer_nbytes
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += ucs_status_string(status).decode("utf-8")
         raise UCXError(msg)
 
 
@@ -40,7 +40,8 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
     status = ucp_config_read(NULL, NULL, &config)
     if status != UCS_OK:
         raise UCXConfigError(
-            "Couldn't read the UCX options: %s" % ucs_status_string(status)
+            "Couldn't read the UCX options: %s" %
+            ucs_status_string(status).decode("utf-8")
         )
 
     # Modify the UCX configuration options based on `config_dict`
@@ -50,7 +51,7 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
             raise UCXConfigError("Option %s doesn't exist" % k)
         elif status != UCS_OK:
             msg = "Couldn't set option %s to %s: %s" % \
-                  (k, v, ucs_status_string(status))
+                  (k, v, ucs_status_string(status).decode("utf-8"))
             raise UCXConfigError(msg)
     return config
 
@@ -64,8 +65,8 @@ cdef get_ucx_config_options(ucp_config_t *config):
     ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
-    cdef bytes py_text = <bytes> text
-    for line in py_text.decode().splitlines():
+    cdef unicode py_text = text.decode()
+    for line in py_text.splitlines():
         k, v = line.split("=")
         k = k[len("UCX_"):]
         ret[k] = v
@@ -258,9 +259,9 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef object func = <object> a.py_func
     asyncio.ensure_future(
         listener_handler(
-            PyLong_FromVoidPtr(<void*>ep),
+            int(<uintptr_t><void*>ep),
             ctx,
-            PyLong_FromVoidPtr(<void*>a.ucp_worker),
+            int(<uintptr_t><void*>a.ucp_worker),
             func,
             a.guarantee_msg_order
         )
@@ -342,16 +343,16 @@ cdef class ApplicationContext:
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_INIT)
 
-        # We only need the UCP_FEATURE_WAKEUP flag in blocking progress mode
-        if self.blocking_progress_mode:
-            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                                   UCP_FEATURE_WAKEUP |  # noqa
-                                   UCP_FEATURE_STREAM)
-        else:
-            ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_STREAM)
+        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
+        # See <https://github.com/rapidsai/ucx-py/pull/377>
+        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                               UCP_FEATURE_WAKEUP |  # noqa
+                               UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = ucp_request_reset
+        ucp_params.request_init = (
+            <ucp_request_init_callback_t>ucp_request_reset
+        )
 
         cdef ucp_config_t *config = read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self.context)
@@ -400,7 +401,7 @@ cdef class ApplicationContext:
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
-        self.continually_ucx_prograss()
+        self.continuous_ucx_progress()
         if port in (None, 0):
             # Ref https://unix.stackexchange.com/a/132524
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -420,9 +421,12 @@ cdef class ApplicationContext:
         Py_INCREF(callback_func)
 
         cdef ucp_listener_params_t params
+        cdef ucp_listener_accept_callback_t _listener_cb = (
+            <ucp_listener_accept_callback_t>_listener_callback
+        )
         if c_util_get_ucp_listener_params(&params,
                                           port,
-                                          _listener_callback,
+                                          _listener_cb,
                                           <void*> &ret._cb_args):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
@@ -436,7 +440,7 @@ cdef class ApplicationContext:
 
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
-        self.continually_ucx_prograss()
+        self.continuous_ucx_progress()
 
         cdef ucp_ep_params_t params
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
@@ -455,14 +459,14 @@ cdef class ApplicationContext:
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
-            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
+            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
         ep = _Endpoint(
-            ucp_endpoint=PyLong_FromVoidPtr(<void*> ucp_ep),
-            ucp_worker=PyLong_FromVoidPtr(<void*> self.worker),
+            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
+            ucp_worker=int(<uintptr_t><void*>self.worker),
             ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
@@ -517,11 +521,12 @@ cdef class ApplicationContext:
             event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
         )
 
-    def continually_ucx_prograss(self):
-        """Guaranties continually UCX prograss"""
-        loop = asyncio.get_event_loop()
+    def continuous_ucx_progress(self, event_loop=None):
+        """Guarantees continuous UCX progress"""
+        loop = event_loop if event_loop is not None else asyncio.get_event_loop()
         if loop in self.event_loops_binded_for_progress:
             return  # Progress has already been guaranteed for the current event loop
+
         self.event_loops_binded_for_progress.add(loop)
 
         if self.blocking_progress_mode:
@@ -530,7 +535,7 @@ cdef class ApplicationContext:
             self._non_blocking_progress_mode(loop)
 
     def get_ucp_worker(self):
-        return PyLong_FromVoidPtr(<void*>self.worker)
+        return int(<uintptr_t><void*>self.worker)
 
     def get_config(self):
         return self.config
@@ -584,17 +589,17 @@ class _Endpoint:
         self._closed = True
         logging.debug("Endpoint.abort(): %s" % hex(self.uid))
 
-        cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(self._ucp_worker)  # noqa
+        cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>self._ucp_worker
 
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
                 logging.debug("Future cancelling: %s" % msg['log'])
                 ucp_request_cancel(
                     worker,
-                    PyLong_AsVoidPtr(msg['ucp_request'])
+                    <void*><uintptr_t>msg['ucp_request']
                 )
 
-        cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
+        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
         if UCS_PTR_STATUS(status) != UCS_OK:
             assert not UCS_PTR_IS_ERR(status)
@@ -704,13 +709,13 @@ class _Endpoint:
         cdef size_t text_len
         cdef FILE *text_fd = open_memstream(&text, &text_len)
         assert(text_fd != NULL)
-        cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(self._ucp_endpoint)
+        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         ucp_ep_print_info(ep, text_fd)
         fflush(text_fd)
-        cdef bytes py_text = <bytes> text
+        cdef unicode py_text = text.decode()
         fclose(text_fd)
         free(text)
-        return py_text.decode()
+        return py_text
 
     def cuda_support(self):
         return self._cuda_support

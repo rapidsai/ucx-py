@@ -6,17 +6,10 @@ import asyncio
 import uuid
 from functools import reduce
 import operator
+from libc.stdint cimport uintptr_t
+from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
-
-
-def _data_from_memoryview(object mview):
-    """
-    Help function that returns a pointer to the data
-    of ´mview´ as a Python integer.
-    """
-    cdef Py_buffer* buf = PyMemoryView_GET_BUFFER(<PyObject*>mview)
-    return PyLong_FromVoidPtr(buf.buf)
 
 
 def get_buffer_data(buffer, check_writable=False):
@@ -34,7 +27,7 @@ def get_buffer_data(buffer, check_writable=False):
         data_ptr, data_readonly = iface['data']
     else:
         mview = memoryview(buffer)
-        data_ptr = _data_from_memoryview(mview)
+        data_ptr = int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
         data_readonly = mview.readonly
 
     # Workaround for numba giving None, rather than an 0.

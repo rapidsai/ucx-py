@@ -16,12 +16,25 @@ mp = mp.get_context("spawn")
 
 def server(queue, args):
     ucp.init()
+
     if args.object_type == "numpy":
         import numpy as np
-    else:
+    elif args.object_type == "cupy":
         import cupy as np
 
         np.cuda.runtime.setDevice(args.server_dev)
+    else:
+        import cupy as np
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=False,
+            initial_pool_size=args.rmm_init_pool_size,
+            devices=[args.server_dev],
+        )
+        np.cuda.runtime.setDevice(args.server_dev)
+        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     async def run():
         async def server_handler(ep):
@@ -61,10 +74,22 @@ def client(queue, port, args):
 
     if args.object_type == "numpy":
         import numpy as np
-    else:
+    elif args.object_type == "cupy":
         import cupy as np
 
         np.cuda.runtime.setDevice(args.client_dev)
+    else:
+        import cupy as np
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=False,
+            initial_pool_size=args.rmm_init_pool_size,
+            devices=[args.client_dev],
+        )
+        np.cuda.runtime.setDevice(args.client_dev)
+        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     async def run():
         ep = await ucp.create_endpoint(args.server_address, port)
@@ -122,7 +147,7 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy"],
+        choices=["numpy", "cupy", "rmm"],
         help="In-memory array type.",
     )
     parser.add_argument(
@@ -170,9 +195,18 @@ def parse_args():
         "typically used with `nvprof --profile-from-start off "
         "--profile-child-processes`",
     )
+    parser.add_argument(
+        "--rmm-init-pool-size",
+        metavar="BYTES",
+        default=None,
+        type=int,
+        help="Initial RMM pool size (default  1/2 total GPU memory)",
+    )
     args = parser.parse_args()
-    if args.cuda_profile and args.object_type != "cupy":
-        raise RuntimeError("`--cuda-profile` requires `--object_type=cupy`")
+    if args.cuda_profile and args.object_type == "numpy":
+        raise RuntimeError(
+            "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
+        )
     return args
 
 
@@ -199,10 +233,10 @@ def main():
     print(f"object      | {args.object_type}")
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
-    if args.object_type == "cupy":
-        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
-    else:
+    if args.object_type == "numpy":
         print(f"Device(s)    | Single CPU")
+    else:
+        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     print(
         f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
     )

@@ -4,11 +4,11 @@ Install
 Prerequisites
 -------------
 
-UCX depends on the following system libraries being present: ``libibverbs``,
-``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise Linux).  Please
-install these with your Linux system's package manager. When building from
-source you will also need the ``*-dev`` (``*-devel`` on Enterprise Linux)
-packages as well.
+UCX depends on the following system libraries being present: ``libibcm``,
+``libibverbs``, ``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise
+Linux).  Please install these with your Linux system's package manager. When
+building from source you will also need the ``*-dev`` (``*-devel`` on
+Enterprise Linux) packages as well.
 
 Conda
 -----
@@ -47,7 +47,7 @@ Build Dependencies
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
         libhwloc \
-        python=3.7 setuptools cython
+        python=3.7 setuptools cython>=0.29.14,<3.0.0a0
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~

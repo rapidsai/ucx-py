@@ -5,6 +5,7 @@
 import asyncio
 import logging
 import uuid
+from libc.stdint cimport uintptr_t
 from core_dep cimport *
 from .utils import get_buffer_data
 from ..exceptions import UCXError, UCXCanceled
@@ -23,7 +24,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
     elif UCS_PTR_IS_ERR(status):
-        msg += (<object> ucs_status_string(UCS_PTR_STATUS(status))).decode("utf-8")
+        msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         ret.set_exception(UCXError(msg))
     else:
         req = <ucp_request*> status
@@ -45,7 +46,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.expected_receive = expected_receive
             if pending_msg is not None:
                 pending_msg['future'] = ret
-                pending_msg['ucp_request'] = PyLong_FromVoidPtr(<void*>req)
+                pending_msg['ucp_request'] = int(<uintptr_t><void*>req)
                 pending_msg['expected_receive'] = expected_receive
             Py_INCREF(log_str)
             req.log_str = <PyObject*> log_str
@@ -66,7 +67,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
         msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += ucs_status_string(status).decode("utf-8")
         future.set_exception(UCXError(msg))
     else:
         future.set_result(True)
@@ -76,16 +77,18 @@ cdef void _send_callback(void *request, ucs_status_t status):
     ucp_request_free(request)
 
 
-def tag_send(ucp_ep, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
+    cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
                                                    data,
                                                    nbytes,
                                                    ucp_dt_make_contig(1),
                                                    tag,
-                                                   _send_callback)
+                                                   _send_cb)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
@@ -105,7 +108,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += ucs_status_string(status).decode("utf-8")
         future.set_exception(UCXError(msg))
     elif info.length != req.expected_receive:
         msg += "length mismatch: %d (got) != %d (expected)" % (
@@ -120,29 +123,34 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def tag_recv(ucp_worker, buffer, nbytes, tag, pending_msg=None):
-    cdef ucp_worker_h worker = <ucp_worker_h> PyLong_AsVoidPtr(ucp_worker)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+def tag_recv(uintptr_t ucp_worker, buffer, size_t nbytes,
+             ucp_tag_t tag, pending_msg=None):
+    cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>ucp_worker
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
+    cdef ucp_tag_recv_callback_t _tag_recv_cb = (
+        <ucp_tag_recv_callback_t>_tag_recv_callback
+    )
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker,
                                                    data,
                                                    nbytes,
                                                    ucp_dt_make_contig(1),
                                                    tag,
                                                    -1,
-                                                   _tag_recv_callback)
+                                                   _tag_recv_cb)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-def stream_send(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=False))
+def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
+    cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
                                                       data,
                                                       nbytes,
                                                       ucp_dt_make_contig(1),
-                                                      _send_callback,
+                                                      _send_cb,
                                                       0)
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
@@ -163,7 +171,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     elif status == UCS_ERR_CANCELED:
         future.set_exception(UCXCanceled())
     elif status != UCS_OK:
-        msg += (<object> ucs_status_string(status)).decode("utf-8")
+        msg += ucs_status_string(status).decode("utf-8")
         future.set_exception(UCXError(msg))
     elif length != req.expected_receive:
         msg += "length mismatch: %d (got) != %d (expected)" % (
@@ -177,17 +185,20 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
 
-def stream_recv(ucp_ep, buffer, nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h> PyLong_AsVoidPtr(ucp_ep)
-    cdef void *data = PyLong_AsVoidPtr(get_buffer_data(buffer,
-                                       check_writable=True))
+def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
     cdef size_t length
     cdef ucp_request *req
+    cdef ucp_stream_recv_callback_t _stream_recv_cb = (
+        <ucp_stream_recv_callback_t>_stream_recv_callback
+    )
     cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep,
                                                       data,
                                                       nbytes,
                                                       ucp_dt_make_contig(1),
-                                                      _stream_recv_callback,
+                                                      _stream_recv_cb,
                                                       &length,
                                                       0)
     return create_future_from_comm_status(status, nbytes, pending_msg)

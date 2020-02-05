@@ -54,7 +54,7 @@ conda install "cudatoolkit=$CUDA_REL" \
 
 # needed for asynccontextmanager in py36
 conda install -c conda-forge "async_generator" "automake" "libtool" \
-                              "cmake" "automake" "autoconf" "cython" \
+                              "cmake" "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
                               "pytest" "pkg-config" "pytest-asyncio" \
                               "pynvml" "libhwloc"
 
@@ -118,20 +118,23 @@ else
     # list test directory
     ls tests/
 
-    # Test with IB
-    # UCX_MEMTYPE_CACHE=n UCX_TLS=rc,cuda_copy,cuda_ipc py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=ucp --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
+    # Setting UCX options
+    export UCXPY_IFNAME=eth0
+    export UCX_MEMTYPE_CACHE=n
+    export UCX_TLS=tcp,cuda_copy,sockcm
+    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term tests/
+    py.test --cache-clear tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
         logger "TEST OF DASK/UCX..."
-            UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear --junitxml=${WORKSPACE}/junit-ucx-py.xml -v --cov-config=.coveragerc --cov=cudf --cov-report=xml:${WORKSPACE}/ucp-coverage.xml --cov-report term  `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+        py.test --cache-clear -v `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
     fi
 
     logger "Run local benchmark..."
-    UCXPY_IFNAME=eth0 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 100
 fi
-
