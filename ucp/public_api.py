@@ -368,7 +368,8 @@ class Endpoint:
             assert ipc_handle["ary_nbytes"] == core.get_buffer_nbytes(
                 buffer, False, True
             )
-
+            ctx = cuda.get_current_device().get_primary_context()
+            ctx.push()
             remote_rmm_alloc_hash = hash(tuple(ipc_handle["handle"]))
             if remote_rmm_alloc_hash not in self._ep._ctx.remote_rmm_allocs:
                 # Open remote RMM memory block
@@ -390,16 +391,9 @@ class Endpoint:
             cuda.cudadrv.driver.driver.cuMemcpyDtoD(
                  buffer.__cuda_array_interface__["data"][0], remote_ary_mem, mem_nbytes
             )
+            ctx.pop()
 
             # TODO: can we do this async?
-            # cuda.cudadrv.driver.driver.cuMemcpyDtoDAsync(
-            #     buffer.__cuda_array_interface__["data"][0], remote_ary_mem, mem_nbytes, 0
-            # )
-            # import asyncio
-            # await asyncio.sleep(0)
-            # cuda.cudadrv.driver.driver.cuStreamSynchronize(0)
-
-            #print("DtoD copy")
             await self._ep.send(bytearray(1))
             # cuda.cudadrv.driver.driver.cuIpcCloseMemHandle(remote_ary_mem)
 

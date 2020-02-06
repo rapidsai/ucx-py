@@ -9,7 +9,6 @@ import cupy
 
 
 async def worker(rank, eps, args):
-    numba.cuda.current_context()
     rmm.reinitialize(pool_allocator=True, initial_pool_size=1000000)
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
