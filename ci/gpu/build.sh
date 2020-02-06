@@ -131,6 +131,9 @@ else
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
         logger "TEST OF DASK/UCX..."
+        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
+        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
+        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -v `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
     fi
 
