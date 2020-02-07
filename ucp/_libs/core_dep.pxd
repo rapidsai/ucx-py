@@ -31,9 +31,10 @@ cdef extern from "src/c_util.h":
                                        void *callback_args)
     void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param)
 
-    int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
+    int c_util_get_ucp_ep_params_ip(ucp_ep_params_t *param,
                                  const char *ip_address,
                                  uint16_t port)
+    int c_util_get_ucp_ep_params_ucp(ucp_ep_params_t *param, ucp_address_t *addr)
     void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
 
 
@@ -52,6 +53,21 @@ cdef extern from "ucp/api/ucp.h":
         pass
 
     ctypedef struct ucp_config_t:
+        pass
+
+    ctypedef struct ucp_address_t:
+        pass
+
+    ctypedef struct ucp_rkey_h:
+        pass
+
+    ctypedef struct ucp_mem_h:
+        pass
+
+    ctypedef struct ucp_mem_attr_t:
+        pass
+
+    ctypedef struct ucp_mem_map_params_t:
         pass
 
     ctypedef void(* ucp_request_init_callback_t)(void *request)
@@ -125,6 +141,13 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t ucp_ep_create(ucp_worker_h worker,
                                const ucp_ep_params_t *params,
                                ucp_ep_h *ep_p)
+
+    ucs_status_t ucp_worker_get_address(ucp_worker_h worker,
+                                        ucp_address_t **address,
+                                        size_t *len)
+
+    void ucp_worker_release_address(ucp_worker_h worker,
+                                    ucp_address_t *address)
 
     ctypedef void* ucs_status_ptr_t
     ctypedef uint64_t ucp_tag_t
@@ -201,6 +224,25 @@ cdef extern from "ucp/api/ucp.h":
 
     ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
                                    const char *value)
+
+    ucs_status_t ucp_mem_map(ucp_context_h context, const ucp_mem_map_params_t *params,
+                             ucp_mem_h *memh_p)
+    ucs_status_t ucp_mem_unmap(ucp_context_h context, ucp_mem_h memh)
+    ucs_status_t ucp_mem_query(const ucp_mem_h memh, ucp_mem_attr_t *attr)
+
+    ucs_status_t ucp_rkey_pack(ucp_context_h context, ucp_mem_h memh,
+                               void **rkey_buffer_p, size_t *size_p)
+    void ucp_rkey_buffer_release(void *rkey_buffer)
+    ucs_status_t ucp_rkey_ptr(ucp_rkey_h rkey, uint64_t raddr, void **addr_p)
+    void ucp_rkey_destroy(ucp_rkey_h rkey)
+
+    ucs_status_ptr_t ucp_put_nb(ucp_ep_h ep, const void *buffer, size_t length,
+                                uint64_t remote_addr, ucp_rkey_h rkey,
+                                ucp_send_callback_t cb)
+    ucs_status_ptr_t ucp_get_nb(ucp_ep_h ep, void *buffer, size_t length,
+                                uint64_t remote_addr, ucp_rkey_h rkey,
+                                ucp_send_callback_t cb)
+
 
 cdef extern from "sys/epoll.h":
 

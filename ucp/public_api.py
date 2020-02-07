@@ -106,7 +106,8 @@ def create_listener(callback_func, port=None, guarantee_msg_order=True):
     return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
 
 
-async def create_endpoint(ip_address, port, guarantee_msg_order=True):
+#async def create_endpoint(ip_address, port, guarantee_msg_order=True):
+async def create_endpoint(*args, **kwargs):
     """Create a new endpoint to a server
 
     Parameters
@@ -123,7 +124,7 @@ async def create_endpoint(ip_address, port, guarantee_msg_order=True):
     _Endpoint
         The new endpoint
     """
-    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
+    return await _get_ctx().create_endpoint(*args, **kwargs)
 
 
 def progress():
@@ -162,6 +163,12 @@ def get_ucp_worker():
     """
     return _get_ctx().get_ucp_worker()
 
+def get_ucp_worker_address():
+    """Returns a WorkerAddress object that wraps a
+    ucp_worker_address_h handle in a python object. This object
+    can be passed to `create_endpoint()` to create an endpoint
+    to this worker"""
+    return _get_ctx().get_address()
 
 def get_config():
     """Returns all UCX configuration options as a dict.
@@ -203,6 +210,85 @@ def reset():
                 msg += "\n  %s" % o
             raise exceptions.UCXError(msg)
 
+async def flush():
+    """Flushes outstanding AMO and RMA operations. This ensures that the
+       operations issued on this worker have completed both locally and remotely.
+       This function does not guarentee ordering. If more operations are issued
+       after flush is called and before awaiting on the future then those may
+       complete before outstanding operations in the flush have finish.
+    """
+    await _get_ctx().flush_worker()
+
+def fence():
+    """Ensures ordering of non-blocking communication operations on the UCP worker.
+       This function returns nothing, but will raise an error if it cannot make
+       this guarantee. This function does not ensure any operations have completed.
+
+       NOTE: Some transports cannot guarentee ordering and will always raise
+       an error if there are outstanding operations. This means that sane
+       useage of fence should not use retry loops. See `flush` instead.
+
+       Example:
+       # Code that does RMA ops that need to complete first
+       # Now to ensure order
+       try:
+           ucp.fence()
+       except UCXError:
+           await ucp.flush()
+       # Continue with more RMA operations
+    """
+    if not _get_ctx().fence_worker():
+        raise exceptions.UCXError("Could not fence.")
+
+def mem_map(memory=None):
+    """Map memory and register memory for use in RMA and AMO operations on this context.
+       This function may either recieve an object with backing memory and register that,
+       or it may allocate memory and return a new handle. After this remote hardware may
+       directly access this memory without intervention of the local CPU.
+       Returns a MemoryHandle object that maybe used in other operations
+    """
+    if memory is not None:
+        raise exceptions.UCXError("Maping existing memory is not yet implemented")
+    _memh = _get_ctx.mem_map(memory)
+    return MemoryHandle(_memh)
+
+class MemoryHandle:
+    """This class represents a memory handle registered to UCX. This memory will be registered
+       with a NIC (eg, a Mellanox IB card) for high speed RMA/AMO operations from remote nodes
+    """
+    def __init__(self, memh):
+        self._memh = memh
+    def pack_rkey():
+        """Pack a remote key (rkey). This rkey will have all the information a remote
+           machine will need to do RMA/AMO operations on the memory of the local MemHandle.
+           This key will pack in a buffer for distribution with either an in band mechanism,
+           such as tag_send()/tag_recv() or an out of band machanism such as PMI.
+        """
+        return self._memh.pack_rkey()
+
+class RemoteMemory:
+    """This class represents an unpacked rkey and associated meta data to do RMA/AMO
+       operations with the memory represented by the packed rkey
+    """
+    def __init__(self, rkey, ep):
+        self.ep = ep
+        self._rkey = rkey
+
+    async def put(self, memory, start=None):
+        """RMA put operation. Takes the memory specified in the buffer object and writes it.
+           If the first parameter is a UcpBuffer then it is the only parmeter needed.
+           If the first parameter is is any other buffer object, then a second start
+           parameter is needed to specify where in remote memory the object should be written.
+        """
+        await self.ep._put(memory, start, self._rkey)
+
+    async def get(self, memory, start=None):
+        """RMA get operation. Reads remote memory into a local buffer
+           If the first parameter is a UcpBuffer then it is the only parmeter needed.
+           If the first parameter is is any other buffer object, then a second start
+           parameter is needed to specify where in remote memory the object should be read.
+        """
+        await self.ep._get(memory, start, self._rkey)
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -347,3 +433,16 @@ class Endpoint:
                 "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
                 % (n, self._ep._finished_recv_count)
             )
+
+    def unpack_rkey(self, rkey):
+        """Unpack an rkey on this Endpoint. Returns a RemoteMem object that can
+           be use for RMA/AMO operations            
+        """
+        _rkey = self._ep.unpack_rkey(rkey)
+        return RemoteMem(_rkey, self)
+
+    async def _put(memory, start, rkey):
+        await self._ep.put(memory, start, rkey)
+
+    async def _get(memory, start, rkey):
+        await self._ep.get(memory, start, rkey)

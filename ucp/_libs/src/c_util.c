@@ -36,12 +36,13 @@ int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
     return 0;
 }
 
+
 void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param) {
     free((void*) param->sockaddr.addr);
 }
 
 
-int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
+int c_util_get_ucp_ep_params_ip(ucp_ep_params_t *param,
                              const char *ip_address,
                              uint16_t port) {
 
@@ -67,6 +68,15 @@ int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
     return 0;
 }
 
+int c_util_get_ucp_ep_params_ucp(ucp_ep_params_t *param, ucp_address_t *addr) {
+    param->flags           = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS;
+    param->address         = addr;
+    printf("passing addr pointer: %x\n", addr);
+    return 0;
+}
+
 void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param) {
-    free((void*) param->sockaddr.addr);
+    if( param->field_mask & UCP_EP_PARAM_FIELD_SOCK_ADDR) {
+        free((void*) param->sockaddr.addr);
+    }
 }

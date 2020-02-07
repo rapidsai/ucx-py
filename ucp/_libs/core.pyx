@@ -443,13 +443,24 @@ cdef class ApplicationContext:
         assert_ucs_status(status)
         return Listener(ret)
 
-    async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
+    #async def create_endpoint_ip(self, str ip_address, port, guarantee_msg_order):
+    async def create_endpoint(self, *args, **kwargs):
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
 
+        guarantee_msg_order = kwargs.get("guarantee_msg_order", True)
+
         cdef ucp_ep_params_t params
-        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        print(type(args[0]))
+        if args[0] is str:
+            if c_util_get_ucp_ep_params_ip(&params, args[0].encode(), args[1]):
+                raise MemoryError("Failed allocation of ucp_ep_params_t")
+        elif isinstance(args[0], WorkerAddress):
+            if c_util_get_ucp_ep_params_ucp(&params, <ucp_address_t*><uintptr_t>args[0]._get_cptr()):
+                raise MemoryError("Failed allocation of ucp_ep_params_t")
+        else:
+            #TODO: Probably not the right error
+            raise RuntimeError("create_endpoint params should either be a ip/port pair or UCP woker address")
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
@@ -498,6 +509,7 @@ cdef class ApplicationContext:
 
         # Return the public Endpoint
         return pub_ep
+
 
     def progress(self):
         while ucp_worker_progress(self.worker) != 0:
@@ -572,6 +584,49 @@ cdef class ApplicationContext:
         for loop in self.event_loops_binded_for_progress:
             loop.remove_reader(self.epoll_fd)
 
+    def get_address(self):
+        return WorkerAddress(self.get_ucp_worker())
+
+from cpython cimport Py_buffer, PyBUF_ND, PyBUF_SIMPLE
+
+cdef class WorkerAddress:
+    """This represents the private part of WorkerAddress
+    See <..public_api.WorkerAddress> for documentation
+    """
+    cdef ucp_address_t *address
+    cdef size_t length
+    cdef worker
+    cdef Py_ssize_t strides[1]
+
+    def __cinit__(self, worker):
+        cdef ucs_status_t status
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker
+
+        self.strides[0] = 0
+
+        status = ucp_worker_get_address(ucp_worker, &self.address, &self.length)
+        print("Worker address ptr is {} size {}".format(hex(<uintptr_t>self.address), <int>self.length))
+        assert_ucs_status(status)
+        self.worker = worker
+
+    def _get_cptr(self):
+        return <uintptr_t>self.address
+
+    def __dealloc__(self):
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>self.worker
+        ucp_worker_release_address(ucp_worker, <ucp_address_t *>self.address)
+
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        buffer.buf = <char *>self.address
+        buffer.format = <char*>NULL
+        buffer.internal = <void*>NULL
+        buffer.len = <Py_ssize_t>self.length	
+        buffer.obj = self
+        if flags & PyBUF_SIMPLE:
+            return
+        buffer.ndim = 1
+        buffer.shape = &buffer.len
+        buffer.strides = &(self.strides[0])
 
 class _Endpoint:
     """This represents the private part of Endpoint
