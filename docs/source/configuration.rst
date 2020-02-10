@@ -55,7 +55,7 @@ Values: n/y
 
 ``UCX_RNDV_THRESHOLD``
 
-This a tunable configuration parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLINK enabled, UCX can deliver messages either through TCP or NVLINK.  Sending GPU buffers over TCP is costly as it triggers a device-to-host then host-to-device transfer --  we want to avoid these kinds of transfers when NVLINK is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESHOLD=8192``
+This is a configurable parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLink enabled, UCX can deliver messages either through TCP or NVLink.  Sending GPU buffers over TCP is costly as it triggers a device-to-host on the sender side, and then host-to-device transfer on the receiver side --  we want to avoid these kinds of transfers when NVLink is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESHOLD=8192``
 
 
 ``UCX_RNDV_SCHEME``
