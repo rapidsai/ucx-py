@@ -371,6 +371,7 @@ cdef class ApplicationContext:
         if self.blocking_progress_mode:
             status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
             assert_ucs_status(status)
+            self.progress()
             status = ucp_worker_arm(self.worker)
             assert_ucs_status(status)
 
