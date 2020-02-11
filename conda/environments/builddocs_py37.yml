@@ -10,7 +10,6 @@ dependencies:
 - sphinxcontrib-websupport
 - nbsphinx
 - numpydoc
-- ucx-proc=*=cpu
 - recommonmark
 - pandoc=<2.0.0
 - pip
