@@ -316,6 +316,7 @@ cdef class ApplicationContext:
         object progress_tasks
         bint initiated
         bint blocking_progress_mode
+        object dangling_arm_task
 
     cdef public:
         object config
@@ -328,6 +329,7 @@ cdef class ApplicationContext:
         self.progress_tasks = []
         self.config = {}
         self.initiated = False
+        self.dangling_arm_task = None
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -395,6 +397,8 @@ cdef class ApplicationContext:
         if self.initiated:
             for task in self.progress_tasks:
                 task.cancel()
+            if self.dangling_arm_task is not None:
+                self.dangling_arm_task.cancel()
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
             if self.blocking_progress_mode:
@@ -532,7 +536,7 @@ cdef class ApplicationContext:
                     break
 
         def _fd_reader_callback():
-            event_loop.create_task(_arm())
+            self.dangling_arm_task = event_loop.create_task(_arm())
 
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
