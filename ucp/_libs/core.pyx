@@ -316,6 +316,7 @@ cdef class ApplicationContext:
         object progress_tasks
         bint initiated
         bint blocking_progress_mode
+        object dangling_arm_task
 
     cdef public:
         object config
@@ -328,6 +329,7 @@ cdef class ApplicationContext:
         self.progress_tasks = []
         self.config = {}
         self.initiated = False
+        self.dangling_arm_task = None
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -371,6 +373,7 @@ cdef class ApplicationContext:
         if self.blocking_progress_mode:
             status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
             assert_ucs_status(status)
+            self.progress()
             status = ucp_worker_arm(self.worker)
             assert_ucs_status(status)
 
@@ -394,6 +397,8 @@ cdef class ApplicationContext:
         if self.initiated:
             for task in self.progress_tasks:
                 task.cancel()
+            if self.dangling_arm_task is not None:
+                self.dangling_arm_task.cancel()
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
             if self.blocking_progress_mode:
@@ -502,16 +507,39 @@ cdef class ApplicationContext:
         """Bind an asyncio reader to a UCX epoll file descripter"""
         assert self.blocking_progress_mode is True
 
-        def _fd_reader_callback():
-            cdef ucs_status_t status
+        # Creating a job that is ready straightaway but with low priority.
+        # Calling `await event_loop.sock_recv(rsock, 1)` will return when
+        # all non-IO tasks are finished.
+        # See <https://stackoverflow.com/a/48491563>.
+        rsock, wsock = socket.socketpair()
+        wsock.close()
+
+        async def _arm():
+            # When arming the worker, the following must be true:
+            #  - No more progress in UCX (see doc of ucp_worker_arm())
+            #  - All asyncio tasks that isn't waiting on UCX must be executed
+            #    so that the asyncio's next state is epoll wait.
+            #    See <https://github.com/rapidsai/ucx-py/issues/413>
+
             self.progress()
+            await event_loop.sock_recv(rsock, 1)
+
             while True:
                 status = ucp_worker_arm(self.worker)
                 if status == UCS_ERR_BUSY:
                     self.progress()
+                    await event_loop.sock_recv(rsock, 1)
                 else:
+                    # At this point we know that asyncio's next state is
+                    # epoll wait.
+                    assert_ucs_status(status)
                     break
-            assert_ucs_status(status)
+
+        def _fd_reader_callback():
+            # Notice, we can safely overwrite `self.dangling_arm_task`
+            # since previous arm task is finished by now.
+            self.dangling_arm_task = event_loop.create_task(_arm())
+
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
     def _non_blocking_progress_mode(self, event_loop):
