@@ -503,6 +503,13 @@ cdef class ApplicationContext:
         """Bind an asyncio reader to a UCX epoll file descripter"""
         assert self.blocking_progress_mode is True
 
+        # Creating a job that is ready straightaway but with low priority.
+        # Calling `await event_loop.sock_recv(rsock, 1)` will return when
+        # all non-IO tasks are finished.
+        # See <https://stackoverflow.com/a/48491563>.
+        rsock, wsock = socket.socketpair()
+        wsock.close()
+
         async def _arm():
             # When arming the worker, the following must be true:
             #  - No more progress in UCX (see doc of ucp_worker_arm())
@@ -511,11 +518,6 @@ cdef class ApplicationContext:
             #    See <https://github.com/rapidsai/ucx-py/issues/413>
 
             self.progress()
-
-            # Creating a job that is ready straightaway but with low priority.
-            # See <https://stackoverflow.com/a/48491563>.
-            rsock, wsock = socket.socketpair()
-            wsock.close()
             await event_loop.sock_recv(rsock, 1)
 
             while True:
@@ -528,7 +530,6 @@ cdef class ApplicationContext:
                     # epoll wait.
                     assert_ucs_status(status)
                     break
-            rsock.close()
 
         def _fd_reader_callback():
             event_loop.create_task(_arm())
