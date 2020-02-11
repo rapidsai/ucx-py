@@ -505,7 +505,7 @@ cdef class ApplicationContext:
 
         async def _arm():
             # When arming the worker, the following must be true:
-            #  - Nothing more in UCX to progress. See doc of ucp_worker_arm()
+            #  - No more progress in UCX (see doc of ucp_worker_arm())
             #  - All asyncio tasks that isn't waiting on UCX must be executed
             #    so that the asyncio's next state is epoll wait.
             #    See <https://github.com/rapidsai/ucx-py/issues/413>
