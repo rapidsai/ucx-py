@@ -21,9 +21,9 @@ from ..exceptions import (
     UCXConfigError,
 )
 
-from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 from . import ucx_api
+from .ucx_api import tag_send, tag_recv, stream_send, stream_recv
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
