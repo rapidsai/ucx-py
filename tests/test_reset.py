@@ -41,7 +41,10 @@ async def test_lt_still_in_scope_error():
     lt = ucp.create_listener(server)
     ep = await ucp.create_endpoint(ucp.get_address(), lt.port)
     del ep
-    with pytest.raises(ucp.exceptions.UCXError, match="ucp._libs.core._Listener"):
+    with pytest.raises(
+        ucp.exceptions.UCXError,
+        match="'context': <ucp._libs.core.ApplicationContext object at"
+    ):
         ucp.reset()
 
     lt.close()
