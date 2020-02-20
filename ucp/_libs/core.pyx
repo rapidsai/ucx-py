@@ -112,7 +112,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
         hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
     )
     priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(priv_ep._worker.handle,
+    shutdown_fut = tag_recv(priv_ep._worker,
                             msg_mv,
                             msg_mv.nbytes,
                             priv_ep._ctrl_tag_recv,
@@ -528,7 +528,7 @@ class _Endpoint:
             tag += self._recv_count
 
         ret = await tag_recv(
-            self._worker.handle,
+            self._worker,
             buffer,
             nbytes,
             tag,
