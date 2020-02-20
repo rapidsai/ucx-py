@@ -23,7 +23,7 @@ from ..exceptions import (
 
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
-from .ucx_api import ucx_tag_send, tag_recv, stream_send, stream_recv
+from .ucx_api import ucx_tag_send, stream_send, stream_recv
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -389,6 +389,31 @@ class ApplicationContext:
         if self.blocking_progress_mode:
             for loop in self.event_loops_binded_for_progress:
                 loop.remove_reader(self.epoll_fd)
+
+
+def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
+
+    def recv_cb(exception, received, future, expected_receive):
+        if asyncio.get_event_loop().is_closed():
+            return
+        if exception is not None:
+            future.set_exception(exception)
+        elif received != expected_receive:
+            log_str = None
+            msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+            msg += "length mismatch: %d (got) != %d (expected)" % (
+                received, expected_receive
+            )
+            future.set_exception(UCXError(msg))
+        else:
+            future.set_result(True)
+
+    ret = asyncio.get_event_loop().create_future()
+    req = worker.tag_recv(buffer, nbytes, tag, recv_cb, (ret, nbytes))
+    if pending_msg is not None:
+        pending_msg['future'] = ret
+        pending_msg['ucp_request'] = req
+    return ret
 
 
 class _Endpoint:

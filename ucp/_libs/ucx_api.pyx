@@ -258,11 +258,54 @@ cdef class UCXWorker:
         return int(<uintptr_t><void*>self._handle)
 
     def request_cancel(self, ucp_request_as_int):
+        cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
         ucp_request_cancel(
             self._handle,
-            <void*><uintptr_t>ucp_request_as_int
+            req
         )
+        #ucp_request_reset(req)
+        #ucp_request_free(req)
 
+    def tag_recv(self, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
+        cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer, check_writable=True))
+        cdef ucp_tag_recv_callback_t _tag_recv_cb = (
+            <ucp_tag_recv_callback_t>_ucx_recv_callback
+        )
+        cdef ucs_status_ptr_t status = ucp_tag_recv_nb(self._handle,
+                                                       data,
+                                                       nbytes,
+                                                       ucp_dt_make_contig(1),
+                                                       tag,
+                                                       -1,
+                                                       _tag_recv_cb)
+        return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes)
+
+
+cdef void _ucx_recv_callback(void *request, ucs_status_t status,
+                             ucp_tag_recv_info_t *info):
+    cdef ucp_request *req = <ucp_request*> request
+    if req.data == NULL:
+        # This callback function was called before handle_comm_result
+        # had a chance to set req.data
+        req.finished = True
+        req.received = info.length
+        return
+    cdef object req_data = <object> req.data
+
+    log_str = None
+    msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
+    if status == UCS_ERR_CANCELED:
+        exception = UCXCanceled()
+    elif status != UCS_OK:
+        msg += ucs_status_string(status).decode("utf-8")
+        exception = UCXError(msg)
+    else:
+        exception = None
+
+    ucp_request_reset(request)
+    ucp_request_free(request)
+    req_data["cb_func"](exception, info.length, *req_data["cb_args"])
+    Py_DECREF(req_data)
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
@@ -331,54 +374,6 @@ cdef void _send_callback(void *request, ucs_status_t status):
     ucp_request_free(request)
 
 
-cdef void _tag_recv_callback(void *request, ucs_status_t status,
-                             ucp_tag_recv_info_t *info):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_tag_recv_nb() returned
-        req.finished = True
-        req.received = info.length
-        return
-    cdef object future = <object> req.future
-    cdef object log_str = <object> req.log_str
-    msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
-    if asyncio.get_event_loop().is_closed():
-        pass
-    elif status == UCS_ERR_CANCELED:
-        future.set_exception(UCXCanceled())
-    elif status != UCS_OK:
-        msg += ucs_status_string(status).decode("utf-8")
-        future.set_exception(UCXError(msg))
-    elif info.length != req.expected_receive:
-        msg += "length mismatch: %d (got) != %d (expected)" % (
-            info.length, req.expected_receive
-        )
-        future.set_exception(UCXError(msg))
-    else:
-        future.set_result(True)
-    Py_DECREF(future)
-    Py_DECREF(log_str)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
-
-def tag_recv(UCXWorker worker, buffer, size_t nbytes,
-             ucp_tag_t tag, pending_msg=None):
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=True))
-    cdef ucp_tag_recv_callback_t _tag_recv_cb = (
-        <ucp_tag_recv_callback_t>_tag_recv_callback
-    )
-    cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker._handle,
-                                                   data,
-                                                   nbytes,
-                                                   ucp_dt_make_contig(1),
-                                                   tag,
-                                                   -1,
-                                                   _tag_recv_cb)
-    return create_future_from_comm_status(status, nbytes, pending_msg)
-
-
 def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
@@ -442,35 +437,38 @@ def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-cdef int handle_send_result(ucs_status_ptr_t status, dict req_data):
+cdef uintptr_t handle_comm_result(ucs_status_ptr_t status, dict req_data, expected_receive=None):
     log_str = None
     msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+    exception = None
     if UCS_PTR_STATUS(status) == UCS_OK:
-        req_data["cb_func"](None, *req_data["cb_args"])
-        return 0
+        pass
     elif UCS_PTR_IS_ERR(status):
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
-        req_data["cb_func"](UCXError(msg), *req_data["cb_args"])
-        return 0
+        exception = UCXError(msg)
     else:
         req = <ucp_request*> status
         if req.finished:  # The callback function has already handle the request
             ucp_request_reset(req)
             ucp_request_free(req)
-            req_data["cb_func"](None, *req_data["cb_args"])
-            return 0
         else:
             # The callback function has not been called yet.
             # We fill `ucp_request` for the callback function to use
             Py_INCREF(req_data)
             req.data = <PyObject*> req_data
-            return int(<uintptr_t><void*>req)
+            return <uintptr_t><void*>req
+
+    if expected_receive:
+        req_data["cb_func"](exception, expected_receive, *req_data["cb_args"])
+    else:
+        req_data["cb_func"](exception, *req_data["cb_args"])
+    return 0
 
 
 cdef void _ucx_send_callback(void *request, ucs_status_t status):
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
-        # This callback function was called before handle_send_result
+        # This callback function was called before handle_comm_result
         # had a chance to set req.data
         req.finished = True
         return
@@ -504,4 +502,4 @@ def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes, ucp_tag_t tag, cb_func
                                                    ucp_dt_make_contig(1),
                                                    tag,
                                                    _send_cb)
-    return handle_send_result(status, {"cb_func": cb_func, "cb_args": cb_args})
+    return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
