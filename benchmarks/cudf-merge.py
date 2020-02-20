@@ -47,7 +47,7 @@ async def recv_df(ep):
     for frame in frames:
         await ep.recv(frame)
 
-    cudf_typ = pickle.loads(header["type"])
+    cudf_typ = pickle.loads(header["type-serialized"])
     return cudf_typ.deserialize(header, frames)
 
 
