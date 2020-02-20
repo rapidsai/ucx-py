@@ -33,68 +33,6 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
         raise UCXError(msg)
 
 
-cdef ucp_config_t * read_ucx_config(dict user_options) except *:
-    """
-    Reads the UCX config and returns a config handle,
-    which should freed using `ucp_config_release()`.
-    """
-    cdef ucp_config_t *config
-    cdef ucs_status_t status
-    status = ucp_config_read(NULL, NULL, &config)
-    if status != UCS_OK:
-        raise UCXConfigError(
-            "Couldn't read the UCX options: %s" %
-            ucs_status_string(status).decode("utf-8")
-        )
-
-    # Modify the UCX configuration options based on `config_dict`
-    for k, v in user_options.items():
-        status = ucp_config_modify(config, k.encode(), v.encode())
-        if status == UCS_ERR_NO_ELEM:
-            raise UCXConfigError("Option %s doesn't exist" % k)
-        elif status != UCS_OK:
-            msg = "Couldn't set option %s to %s: %s" % \
-                  (k, v, ucs_status_string(status).decode("utf-8"))
-            raise UCXConfigError(msg)
-    return config
-
-
-cdef get_ucx_config_options(ucp_config_t *config):
-    """Returns a dict of the UCX config options"""
-    cdef char *text
-    cdef size_t text_len
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    assert(text_fd != NULL)
-    ret = {}
-    ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    fflush(text_fd)
-    cdef unicode py_text = text.decode()
-    for line in py_text.splitlines():
-        k, v = line.split("=")
-        k = k[len("UCX_"):]
-        ret[k] = v
-    fclose(text_fd)
-    free(text)
-    return ret
-
-
-def get_config():
-    """
-    Returns the current UCX options
-    if UCX were to be initialized now.
-    """
-    cdef ucp_config_t *config = read_ucx_config({})
-    ret = get_ucx_config_options(config)
-    ucp_config_release(config)
-    return ret
-
-
-def get_ucx_version():
-    cdef unsigned int a, b, c
-    ucp_get_version(&a, &b, &c)
-    return (a, b, c)
-
-
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     if isinstance(msg, UCXCanceled):

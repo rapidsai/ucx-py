@@ -6,7 +6,7 @@ import os
 import weakref
 
 from . import exceptions
-from ._libs import core
+from ._libs import core, ucx_api
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
@@ -37,7 +37,7 @@ def get_ucx_version():
     tuple
         The version as a tuple e.g. (1, 7, 0)
     """
-    return core.get_ucx_version()
+    return ucx_api.get_ucx_version()
 
 
 def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
@@ -166,7 +166,7 @@ def get_ucp_worker():
 def get_config():
     """Returns all UCX configuration options as a dict.
 
-    If UCX is initialized, the options returned are the
+    If UCX is uninitialized, the options returned are the
     options used if UCX were to be initialized now.
     Notice, this function doesn't initialize UCX.
 
@@ -177,7 +177,7 @@ def get_config():
     """
 
     if _ctx is None:
-        return core.get_config()
+        return ucx_api.get_default_options()
     else:
         return _get_ctx().get_config()
 

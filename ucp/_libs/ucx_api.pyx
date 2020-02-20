@@ -21,7 +21,7 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
         raise UCXError(msg)
 
 
-cdef ucp_config_t * read_ucx_config(dict user_options) except *:
+cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     """
     Reads the UCX config and returns a config handle,
     which should freed using `ucp_config_release()`.
@@ -47,8 +47,8 @@ cdef ucp_config_t * read_ucx_config(dict user_options) except *:
     return config
 
 
-cdef get_ucx_config_options(ucp_config_t *config):
-    """Returns a dict of the UCX config options"""
+cdef ucx_config_to_dict(ucp_config_t *config):
+    """Returns a dict of a UCX config"""
     cdef char *text
     cdef size_t text_len
     cdef FILE *text_fd = open_memstream(&text, &text_len)
@@ -63,6 +63,17 @@ cdef get_ucx_config_options(ucp_config_t *config):
         ret[k] = v
     fclose(text_fd)
     free(text)
+    return ret
+
+
+def get_default_options():
+    """
+    Returns the current UCX options
+    if UCX were to be initialized now.
+    """
+    cdef ucp_config_t *config = _read_ucx_config({})
+    ret = ucx_config_to_dict(config)
+    ucp_config_release(config)
     return ret
 
 
@@ -141,7 +152,6 @@ cdef class UCXContext:
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
         self._initialized = False
-        self._config = {'VERSION': get_ucx_version()}
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -159,12 +169,12 @@ cdef class UCXContext:
             <ucp_request_init_callback_t>ucp_request_reset
         )
 
-        cdef ucp_config_t *config = read_ucx_config(config_dict)
+        cdef ucp_config_t *config = _read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self._context)
         assert_ucs_status(status)
         self._initialized = True
 
-        self._config = get_ucx_config_options(config)
+        self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
 
         logging.info("UCP initiated using config: ")
