@@ -21,9 +21,9 @@ from ..exceptions import (
     UCXConfigError,
 )
 
-from .utils import get_buffer_nbytes
+from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
-from .ucx_api import tag_send, tag_recv, stream_send, stream_recv
+from .ucx_api import ucx_tag_send, tag_recv, stream_send, stream_recv
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -451,6 +451,26 @@ class _Endpoint:
             ucp_request_free(status)
         self._ctx = None
 
+
+    def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
+        cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer, check_writable=False))
+
+        def send_cb(exception, future):
+            if asyncio.get_event_loop().is_closed():
+                return
+            if exception is not None:
+                future.set_exception(exception)
+            else:
+                future.set_result(True)
+
+        ret = asyncio.get_event_loop().create_future()
+        req = ucx_api.ucx_tag_send(self._ucp_endpoint, buffer, nbytes, tag, send_cb, (ret,))
+        if pending_msg is not None:
+            pending_msg['future'] = ret
+            pending_msg['ucp_request'] = req
+        return ret
+
+
     async def close(self):
         if self._closed:
             return
@@ -470,8 +490,7 @@ class _Endpoint:
             logging.debug(log)
             self.pending_msg_list.append({'log': log})
             try:
-                await tag_send(
-                    self._ucp_endpoint,
+                await self.tag_send(
                     ctrl_msg_mv, ctrl_msg_mv.nbytes,
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
@@ -504,8 +523,7 @@ class _Endpoint:
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await tag_send(
-            self._ucp_endpoint,
+        return await self.tag_send(
             buffer,
             nbytes,
             tag,
