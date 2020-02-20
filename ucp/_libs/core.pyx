@@ -448,8 +448,9 @@ class ApplicationContext:
         return self._ctx.get_config()
 
     def unbind_epoll_fd_to_event_loop(self):
-        for loop in self.event_loops_binded_for_progress:
-            loop.remove_reader(self.epoll_fd)
+        if self.blocking_progress_mode:
+            for loop in self.event_loops_binded_for_progress:
+                loop.remove_reader(self.epoll_fd)
 
 
 class _Endpoint:
