@@ -122,72 +122,72 @@ def setup_ctrl_recv(priv_ep, pub_ep):
     )
 
 
-async def listener_handler_async(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
-    from ..public_api import Endpoint
-    loop = asyncio.get_event_loop()
-    # TODO: exceptions in this callback is never showed when no
-    #       get_exception_handler() is set.
-    #       Is this the correct way to handle exceptions in asyncio?
-    #       Do we need to set this in other places?
-    if loop.get_exception_handler() is None:
-        loop.set_exception_handler(asyncio_handle_exception)
-
-    # We create the Endpoint in four steps:
-    #  1) Generate unique IDs to use as tags
-    #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the private part of an endpoint
-    #  4) Create the public Endpoint based on _Endpoint
-    msg_tag = hash(uuid.uuid4())
-    ctrl_tag = hash(uuid.uuid4())
-    peer_info = await exchange_peer_info(
-        ucp_endpoint=ucp_endpoint,
-        msg_tag=msg_tag,
-        ctrl_tag=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order
-    )
-    ep = _Endpoint(
-        ucp_endpoint=ucp_endpoint,
-        worker=worker,
-        ctx=ctx,
-        msg_tag_send=peer_info['msg_tag'],
-        msg_tag_recv=msg_tag,
-        ctrl_tag_send=peer_info['ctrl_tag'],
-        ctrl_tag_recv=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order
-    )
-
-    logging.debug(
-        "listener_handler() server: %s, msg-tag-send: %s, "
-        "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
-            hex(<size_t>ucp_endpoint),
-            hex(ep._msg_tag_send),
-            hex(ep._msg_tag_recv),
-            hex(ep._ctrl_tag_send),
-            hex(ep._ctrl_tag_recv)
-        )
-    )
-
-    # Create the public Endpoint
-    pub_ep = Endpoint(ep)
-
-    # Setup the control receive
-    setup_ctrl_recv(ep, pub_ep)
-
-    # Removing references here to avoid delayed clean up
-    del ep
-    del ctx
-
-    # Finally, we call `func` asynchronously (even if it isn't coroutine)
-    if asyncio.iscoroutinefunction(func):
-        await func(pub_ep)
-    else:
-        async def _func(ep):  # coroutine wrapper
-            func(ep)
-        await _func(pub_ep)
-
-
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
-    asyncio.ensure_future(listener_handler_async(ucp_endpoint, ctx, worker, func, guarantee_msg_order))
+
+    async def run(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
+        from ..public_api import Endpoint
+        loop = asyncio.get_event_loop()
+        # TODO: exceptions in this callback is never showed when no
+        #       get_exception_handler() is set.
+        #       Is this the correct way to handle exceptions in asyncio?
+        #       Do we need to set this in other places?
+        if loop.get_exception_handler() is None:
+            loop.set_exception_handler(asyncio_handle_exception)
+
+        # We create the Endpoint in four steps:
+        #  1) Generate unique IDs to use as tags
+        #  2) Exchange endpoint info such as tags
+        #  3) Use the info to create the private part of an endpoint
+        #  4) Create the public Endpoint based on _Endpoint
+        msg_tag = hash(uuid.uuid4())
+        ctrl_tag = hash(uuid.uuid4())
+        peer_info = await exchange_peer_info(
+            ucp_endpoint=ucp_endpoint,
+            msg_tag=msg_tag,
+            ctrl_tag=ctrl_tag,
+            guarantee_msg_order=guarantee_msg_order
+        )
+        ep = _Endpoint(
+            ucp_endpoint=ucp_endpoint,
+            worker=worker,
+            ctx=ctx,
+            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_recv=msg_tag,
+            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_recv=ctrl_tag,
+            guarantee_msg_order=guarantee_msg_order
+        )
+
+        logging.debug(
+            "listener_handler() server: %s, msg-tag-send: %s, "
+            "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+                hex(<size_t>ucp_endpoint),
+                hex(ep._msg_tag_send),
+                hex(ep._msg_tag_recv),
+                hex(ep._ctrl_tag_send),
+                hex(ep._ctrl_tag_recv)
+            )
+        )
+
+        # Create the public Endpoint
+        pub_ep = Endpoint(ep)
+
+        # Setup the control receive
+        setup_ctrl_recv(ep, pub_ep)
+
+        # Removing references here to avoid delayed clean up
+        del ep
+        del ctx
+
+        # Finally, we call `func` asynchronously (even if it isn't coroutine)
+        if asyncio.iscoroutinefunction(func):
+            await func(pub_ep)
+        else:
+            async def _func(ep):  # coroutine wrapper
+                func(ep)
+            await _func(pub_ep)
+
+    asyncio.ensure_future(run(ucp_endpoint, ctx, worker, func, guarantee_msg_order))
 
 
 async def _non_blocking_mode(weakref_ctx):
