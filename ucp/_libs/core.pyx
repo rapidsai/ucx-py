@@ -6,7 +6,8 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport uint64_t, uintptr_t
+from libc.stdint cimport int64_t, uint64_t, uintptr_t
+from posix.unistd cimport close
 from random import randint
 import psutil
 import uuid

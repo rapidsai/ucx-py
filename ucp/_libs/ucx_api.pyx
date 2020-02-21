@@ -2,7 +2,13 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+from libc.stdio cimport FILE, fflush, fclose
+from libc.stdlib cimport free
+from libc.string cimport memset
 from libc.stdint cimport uintptr_t
+from posix.stdio cimport open_memstream
+from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
+
 import logging
 from core_dep cimport *
 from ..exceptions import (
