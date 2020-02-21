@@ -161,7 +161,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         logging.debug(
             "listener_handler() server: %s, msg-tag-send: %s, "
             "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
-                hex(<size_t>ucp_endpoint),
+                hex(ucp_endpoint.handle),
                 hex(ep._msg_tag_send),
                 hex(ep._msg_tag_recv),
                 hex(ep._ctrl_tag_send),
@@ -301,7 +301,7 @@ class ApplicationContext:
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
-                hex(ep._ucp_endpoint),  # noqa
+                hex(ep._ucp_endpoint.handle),  # noqa
                 hex(ep._msg_tag_send),  # noqa
                 hex(ep._msg_tag_recv),  # noqa
                 hex(ep._ctrl_tag_send), # noqa
@@ -501,7 +501,7 @@ class _Endpoint:
 
     @property
     def uid(self):
-        return self._ucp_endpoint
+        return self._ucp_endpoint.handle
 
     def abort(self):
         if self._closed:
@@ -514,7 +514,7 @@ class _Endpoint:
                 logging.debug("Future cancelling: %s" % msg['log'])
                 self._worker.request_cancel(msg['ucp_request'])
 
-        ucx_api.ucx_ep_close(self._ucp_endpoint, self._worker)
+        self._ucp_endpoint.close(self._worker)
         self._ctx = None
 
     def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
@@ -629,8 +629,7 @@ class _Endpoint:
     def ucx_info(self):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
-
-        return ucx_api.ucx_ep_info(self._ucp_endpoint)
+        return self._ucp_endpoint.info()
 
     def cuda_support(self):
         return self._cuda_support
@@ -639,4 +638,4 @@ class _Endpoint:
         return self._worker.handle
 
     def get_ucp_endpoint(self):
-        return self._ucp_endpoint
+        return self._ucp_endpoint.handle

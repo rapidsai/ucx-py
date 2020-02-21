@@ -85,7 +85,7 @@ def get_ucx_version():
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef dict cb_data = <dict> args
     cb_data['cb_func'](
-        int(<uintptr_t><void*>ep),
+        ucx_ep_create(ep),
         *cb_data['cb_args']
     )
 
@@ -245,7 +245,7 @@ cdef class UCXWorker:
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
-        return int(<uintptr_t><void*>ucp_ep)
+        return ucx_ep_create(ucp_ep)
 
     def progress(self):
         while ucp_worker_progress(self._handle) != 0:
@@ -281,6 +281,55 @@ cdef class UCXWorker:
         return handle_comm_result(
             status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
         )
+
+
+cdef class UCXEndpoint:
+    """Python representation of `ucp_ep_h`
+    Please use `ucx_ep_create()` to contruct an instance of this class
+    """
+    cdef:
+        ucp_ep_h _handle
+        bint initialized
+
+    def close(self, UCXWorker worker):
+        cdef ucs_status_ptr_t status
+        if self.initialized:
+            status = ucp_ep_close_nb(self._handle, UCP_EP_CLOSE_MODE_FLUSH)
+            self.initialized = False
+            if UCS_PTR_STATUS(status) != UCS_OK:
+                assert not UCS_PTR_IS_ERR(status)
+                # We spinlock here until `status` has finished
+                while ucp_request_check_status(status) != UCS_INPROGRESS:
+                    worker._worker.progress()
+                assert not UCS_PTR_IS_ERR(status)
+                ucp_request_free(status)
+
+    def info(self):
+        assert self.initialized
+        # Making `ucp_ep_print_info()` write into a memstream,
+        # convert it to a Python string, clean up, and return string.
+        cdef char *text
+        cdef size_t text_len
+        cdef FILE *text_fd = open_memstream(&text, &text_len)
+        assert(text_fd != NULL)
+        ucp_ep_print_info(self._handle, text_fd)
+        fflush(text_fd)
+        cdef unicode py_text = text.decode()
+        fclose(text_fd)
+        free(text)
+        return py_text
+
+    @property
+    def handle(self):
+        assert self.initialized
+        return int(<uintptr_t><void*>self._handle)
+
+
+cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep):
+    ret = UCXEndpoint()
+    ret._handle = ep
+    ret.initialized = True
+    return ret
 
 
 cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
@@ -370,13 +419,12 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status):
     Py_DECREF(req_data)
 
 
-def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
+def ucx_tag_send(UCXEndpoint ep, buffer, size_t nbytes,
                  ucp_tag_t tag, cb_func, cb_args):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_ucx_send_callback
-    cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep,
+    cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep._handle,
                                                    data,
                                                    nbytes,
                                                    ucp_dt_make_contig(1),
@@ -385,12 +433,11 @@ def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
 
 
-def ucx_stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+def ucx_stream_send(UCXEndpoint ep, buffer, size_t nbytes, cb_func, cb_args):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_ucx_send_callback
-    cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
+    cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep._handle,
                                                       data,
                                                       nbytes,
                                                       ucp_dt_make_contig(1),
@@ -399,8 +446,7 @@ def ucx_stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
 
 
-def ucx_stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+def ucx_stream_recv(UCXEndpoint ep, buffer, size_t nbytes, cb_func, cb_args):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(
         buffer, check_writable=True)
     )
@@ -409,7 +455,7 @@ def ucx_stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
     cdef ucp_stream_recv_callback_t _recv_cb = (
         <ucp_stream_recv_callback_t>_ucx_recv_callback
     )
-    cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep,
+    cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep._handle,
                                                       data,
                                                       nbytes,
                                                       ucp_dt_make_contig(1),
@@ -419,31 +465,3 @@ def ucx_stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
     return handle_comm_result(
         status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
     )
-
-
-def ucx_ep_close(uintptr_t ucp_ep, UCXWorker worker):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
-    cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
-    if UCS_PTR_STATUS(status) != UCS_OK:
-        assert not UCS_PTR_IS_ERR(status)
-        # We spinlock here until `status` has finished
-        while ucp_request_check_status(status) != UCS_INPROGRESS:
-            worker._worker.progress()
-        assert not UCS_PTR_IS_ERR(status)
-        ucp_request_free(status)
-
-
-def ucx_ep_info(uintptr_t ucp_ep):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
-    # Making `ucp_ep_print_info()` write into a memstream,
-    # convert it to a Python string, clean up, and return string.
-    cdef char *text
-    cdef size_t text_len
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    assert(text_fd != NULL)
-    ucp_ep_print_info(ep, text_fd)
-    fflush(text_fd)
-    cdef unicode py_text = text.decode()
-    fclose(text_fd)
-    free(text)
-    return py_text
