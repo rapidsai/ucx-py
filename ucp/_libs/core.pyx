@@ -270,7 +270,6 @@ class ApplicationContext:
         )
         return Listener(ret)
 
-
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
@@ -447,7 +446,8 @@ class _Endpoint:
         self._closed = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        self._cuda_support = "cuda" in ctx.get_config()['TLS'] or ctx.get_config()['TLS'] == "all"
+        tls = ctx.get_config()['TLS']
+        self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
     @property
@@ -476,9 +476,10 @@ class _Endpoint:
             ucp_request_free(status)
         self._ctx = None
 
-
     def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
-        cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer, check_writable=False))
+        cdef void *data = <void*><uintptr_t>(get_buffer_data(
+            buffer, check_writable=False)
+        )
 
         def send_cb(exception, future):
             if asyncio.get_event_loop().is_closed():
@@ -489,12 +490,13 @@ class _Endpoint:
                 future.set_result(True)
 
         ret = asyncio.get_event_loop().create_future()
-        req = ucx_api.ucx_tag_send(self._ucp_endpoint, buffer, nbytes, tag, send_cb, (ret,))
+        req = ucx_api.ucx_tag_send(
+            self._ucp_endpoint, buffer, nbytes, tag, send_cb, (ret,)
+        )
         if pending_msg is not None:
             pending_msg['future'] = ret
             pending_msg['ucp_request'] = req
         return ret
-
 
     async def close(self):
         if self._closed:

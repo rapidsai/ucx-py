@@ -43,7 +43,7 @@ async def test_lt_still_in_scope_error():
     del ep
     with pytest.raises(
         ucp.exceptions.UCXError,
-        match="'context': <ucp._libs.core.ApplicationContext object at"
+        match="'context': <ucp._libs.core.ApplicationContext object at",
     ):
         ucp.reset()
 

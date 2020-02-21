@@ -108,7 +108,8 @@ cdef class UCXListener:
         self,
         UCXWorker worker,
         uint16_t port,
-        object cb_kwargs):
+        object cb_kwargs
+    ):
 
         self.initialized = False
         self._port = port
@@ -267,7 +268,9 @@ cdef class UCXWorker:
         #ucp_request_free(req)
 
     def tag_recv(self, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
-        cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer, check_writable=True))
+        cdef void *data = <void*><uintptr_t>(get_buffer_data(
+            buffer, check_writable=True)
+        )
         cdef ucp_tag_recv_callback_t _tag_recv_cb = (
             <ucp_tag_recv_callback_t>_ucx_recv_callback
         )
@@ -278,7 +281,9 @@ cdef class UCXWorker:
                                                        tag,
                                                        -1,
                                                        _tag_recv_cb)
-        return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes)
+        return handle_comm_result(
+            status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
+        )
 
 
 cdef void _ucx_recv_callback(void *request, ucs_status_t status,
@@ -437,7 +442,9 @@ def stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-cdef uintptr_t handle_comm_result(ucs_status_ptr_t status, dict req_data, expected_receive=None):
+cdef uintptr_t handle_comm_result(
+    ucs_status_ptr_t status, dict req_data, expected_receive=None
+):
     log_str = None
     msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
     exception = None
@@ -491,7 +498,8 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status):
     Py_DECREF(req_data)
 
 
-def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
+def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
+                 ucp_tag_t tag, cb_func, cb_args):
     cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
