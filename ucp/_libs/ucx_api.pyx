@@ -419,3 +419,15 @@ def ucx_stream_recv(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
     return handle_comm_result(
         status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
     )
+
+
+def ucx_ep_close(uintptr_t ucp_ep, UCXWorker worker):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
+    if UCS_PTR_STATUS(status) != UCS_OK:
+        assert not UCS_PTR_IS_ERR(status)
+        # We spinlock here until `status` has finished
+        while ucp_request_check_status(status) != UCS_INPROGRESS:
+            worker._worker.progress()
+        assert not UCS_PTR_IS_ERR(status)
+        ucp_request_free(status)

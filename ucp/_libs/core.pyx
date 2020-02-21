@@ -514,15 +514,7 @@ class _Endpoint:
                 logging.debug("Future cancelling: %s" % msg['log'])
                 self._worker.request_cancel(msg['ucp_request'])
 
-        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
-        if UCS_PTR_STATUS(status) != UCS_OK:
-            assert not UCS_PTR_IS_ERR(status)
-            # We spinlock here until `status` has finished
-            while ucp_request_check_status(status) != UCS_INPROGRESS:
-                self._worker.progress()
-            assert not UCS_PTR_IS_ERR(status)
-            ucp_request_free(status)
+        ucx_api.ucx_ep_close(self._ucp_endpoint, self._worker)
         self._ctx = None
 
     def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
