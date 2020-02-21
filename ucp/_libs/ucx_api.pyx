@@ -4,7 +4,6 @@
 
 from libc.stdint cimport uintptr_t
 import logging
-import asyncio
 from core_dep cimport *
 from ..exceptions import (
     UCXError,
@@ -84,16 +83,10 @@ def get_ucx_version():
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
-    from .core import listener_handler
-    cdef object cb_kwargs = <dict> args
-    asyncio.ensure_future(
-        listener_handler(
-            int(<uintptr_t><void*>ep),
-            cb_kwargs["context"],
-            cb_kwargs["worker"],
-            cb_kwargs["cb_func"],
-            cb_kwargs["guarantee_msg_order"]
-        )
+    cdef dict cb_data = <dict> args
+    cb_data['cb_func'](
+        int(<uintptr_t><void*>ep),
+        *cb_data['cb_args']
     )
 
 
@@ -101,19 +94,23 @@ cdef class UCXListener:
     cdef:
         ucp_listener_h handle
         uint16_t _port
-        object cb_kwargs
+        dict cb_data
         bint initialized
 
     def __cinit__(
         self,
         UCXWorker worker,
         uint16_t port,
-        object cb_kwargs
+        cb_func,
+        cb_args
     ):
 
         self.initialized = False
         self._port = port
-        self.cb_kwargs = cb_kwargs
+        self.cb_data = {
+            'cb_func': cb_func,
+            'cb_args': cb_args,
+        }
 
         cdef ucp_listener_params_t params
         cdef ucp_listener_accept_callback_t _listener_cb = (
@@ -122,7 +119,7 @@ cdef class UCXListener:
         if c_util_get_ucp_listener_params(&params,
                                           port,
                                           _listener_cb,
-                                          <void*> cb_kwargs):
+                                          <void*> self.cb_data):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         logging.info("create_listener() - Start listening on port %d" % port)

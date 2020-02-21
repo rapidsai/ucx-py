@@ -200,7 +200,7 @@ def reset():
                 "ApplicationContext: "
             )
             for o in gc.get_referrers(weakref_ctx()):
-                msg += "\n  %s" % o
+                msg += "\n  %s" % str(o)
             raise exceptions.UCXError(msg)
 
 

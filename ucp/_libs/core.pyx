@@ -122,7 +122,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
     )
 
 
-async def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
+async def listener_handler_async(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -184,6 +184,10 @@ async def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order)
         async def _func(ep):  # coroutine wrapper
             func(ep)
         await _func(pub_ep)
+
+
+def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
+    asyncio.ensure_future(listener_handler_async(ucp_endpoint, ctx, worker, func, guarantee_msg_order))
 
 
 async def _non_blocking_mode(weakref_ctx):
@@ -258,14 +262,10 @@ class ApplicationContext:
                     break
 
         ret = ucx_api.UCXListener(
-            self._worker,
-            port,
-            {
-                'context': self,
-                'worker': self._worker,
-                'cb_func': callback_func,
-                'guarantee_msg_order': guarantee_msg_order
-            }
+            worker=self._worker,
+            port=port,
+            cb_func=listener_handler,
+            cb_args=(self, self._worker, callback_func, guarantee_msg_order)
         )
         return Listener(ret)
 
