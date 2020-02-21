@@ -13,7 +13,6 @@ import psutil
 import uuid
 import socket
 import logging
-from core_dep cimport *
 from ..exceptions import (
     UCXError,
     UCXCloseError,
@@ -510,7 +509,7 @@ class _Endpoint:
         self._ucp_endpoint.close(self._worker)
         self._ctx = None
 
-    def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
+    def tag_send(self, buffer, nbytes, tag, pending_msg=None):
         cdef void *data = <void*><uintptr_t>(
             get_buffer_data(buffer, check_writable=False)
         )

@@ -10,7 +10,7 @@ from posix.stdio cimport open_memstream
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 
 import logging
-from core_dep cimport *
+from ucx_api_dep cimport *
 from ..exceptions import (
     UCXError,
     UCXConfigError,
