@@ -23,7 +23,7 @@ from ..exceptions import (
 
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
-from .ucx_api import ucx_tag_send, stream_send, stream_recv
+from .ucx_api import ucx_tag_send, ucx_stream_send, stream_recv
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -415,6 +415,29 @@ def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
     return ret
 
 
+def stream_send(ucp_endpoint, buffer, size_t nbytes, pending_msg=None):
+    cdef void *data = <void*><uintptr_t>(
+        get_buffer_data(buffer, check_writable=False)
+    )
+
+    def send_cb(exception, future):
+        if asyncio.get_event_loop().is_closed():
+            return
+        if exception is not None:
+            future.set_exception(exception)
+        else:
+            future.set_result(True)
+
+    ret = asyncio.get_event_loop().create_future()
+    req = ucx_api.ucx_stream_send(
+        ucp_endpoint, buffer, nbytes, send_cb, (ret,)
+    )
+    if pending_msg is not None:
+        pending_msg['future'] = ret
+        pending_msg['ucp_request'] = req
+    return ret
+
+
 class _Endpoint:
     """This represents the private part of Endpoint
 
@@ -477,8 +500,8 @@ class _Endpoint:
         self._ctx = None
 
     def tag_send(self, buffer, size_t nbytes, ucp_tag_t tag, pending_msg=None):
-        cdef void *data = <void*><uintptr_t>(get_buffer_data(
-            buffer, check_writable=False)
+        cdef void *data = <void*><uintptr_t>(
+            get_buffer_data(buffer, check_writable=False)
         )
 
         def send_cb(exception, future):

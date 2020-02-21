@@ -355,44 +355,6 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     return ret
 
 
-cdef void _send_callback(void *request, ucs_status_t status):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_tag_send_nb() returned
-        req.finished = True
-        return
-    cdef object future = <object> req.future
-    cdef object log_str = <object> req.log_str
-    if asyncio.get_event_loop().is_closed():
-        pass
-    elif status == UCS_ERR_CANCELED:
-        future.set_exception(UCXCanceled())
-    elif status != UCS_OK:
-        msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
-        msg += ucs_status_string(status).decode("utf-8")
-        future.set_exception(UCXError(msg))
-    else:
-        future.set_result(True)
-    Py_DECREF(future)
-    Py_DECREF(log_str)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
-
-def stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, pending_msg=None):
-    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=False))
-    cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
-    cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
-                                                      data,
-                                                      nbytes,
-                                                      ucp_dt_make_contig(1),
-                                                      _send_cb,
-                                                      0)
-    return create_future_from_comm_status(status, nbytes, pending_msg)
-
-
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
                                 size_t length):
     cdef ucp_request *req = <ucp_request*> request
@@ -510,4 +472,18 @@ def ucx_tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
                                                    ucp_dt_make_contig(1),
                                                    tag,
                                                    _send_cb)
+    return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
+
+
+def ucx_stream_send(uintptr_t ucp_ep, buffer, size_t nbytes, cb_func, cb_args):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
+    cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_ucx_send_callback
+    cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep,
+                                                      data,
+                                                      nbytes,
+                                                      ucp_dt_make_contig(1),
+                                                      _send_cb,
+                                                      0)
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
