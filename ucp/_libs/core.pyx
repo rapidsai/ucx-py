@@ -23,7 +23,6 @@ from ..exceptions import (
 
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
-from .ucx_api import ucx_tag_send, ucx_stream_send, stream_recv
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -415,7 +414,7 @@ def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
     return ret
 
 
-def stream_send(ucp_endpoint, buffer, size_t nbytes, pending_msg=None):
+def stream_send(ucp_endpoint, buffer, nbytes, pending_msg=None):
     cdef void *data = <void*><uintptr_t>(
         get_buffer_data(buffer, check_writable=False)
     )
@@ -431,6 +430,33 @@ def stream_send(ucp_endpoint, buffer, size_t nbytes, pending_msg=None):
     ret = asyncio.get_event_loop().create_future()
     req = ucx_api.ucx_stream_send(
         ucp_endpoint, buffer, nbytes, send_cb, (ret,)
+    )
+    if pending_msg is not None:
+        pending_msg['future'] = ret
+        pending_msg['ucp_request'] = req
+    return ret
+
+
+def stream_recv(ucp_endpoint, buffer, nbytes, pending_msg=None):
+
+    def recv_cb(exception, received, future, expected_receive):
+        if asyncio.get_event_loop().is_closed():
+            return
+        if exception is not None:
+            future.set_exception(exception)
+        elif received != expected_receive:
+            log_str = None
+            msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+            msg += "length mismatch: %d (got) != %d (expected)" % (
+                received, expected_receive
+            )
+            future.set_exception(UCXError(msg))
+        else:
+            future.set_result(True)
+
+    ret = asyncio.get_event_loop().create_future()
+    req = ucx_api.ucx_stream_recv(
+        ucp_endpoint, buffer, nbytes, recv_cb, (ret, nbytes)
     )
     if pending_msg is not None:
         pending_msg['future'] = ret
