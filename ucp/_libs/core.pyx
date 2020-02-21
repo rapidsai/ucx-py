@@ -18,18 +18,10 @@ from ..exceptions import (
     UCXCloseError,
     UCXCanceled,
     UCXWarning,
-    UCXConfigError,
 )
 
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
-
-
-cdef assert_ucs_status(ucs_status_t status, msg_context=None):
-    if status != UCS_OK:
-        msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += ucs_status_string(status).decode("utf-8")
-        raise UCXError(msg)
 
 
 def asyncio_handle_exception(loop, context):
