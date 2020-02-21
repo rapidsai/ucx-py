@@ -431,3 +431,19 @@ def ucx_ep_close(uintptr_t ucp_ep, UCXWorker worker):
             worker._worker.progress()
         assert not UCS_PTR_IS_ERR(status)
         ucp_request_free(status)
+
+
+def ucx_ep_info(uintptr_t ucp_ep):
+    cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>ucp_ep
+    # Making `ucp_ep_print_info()` write into a memstream,
+    # convert it to a Python string, clean up, and return string.
+    cdef char *text
+    cdef size_t text_len
+    cdef FILE *text_fd = open_memstream(&text, &text_len)
+    assert(text_fd != NULL)
+    ucp_ep_print_info(ep, text_fd)
+    fflush(text_fd)
+    cdef unicode py_text = text.decode()
+    fclose(text_fd)
+    free(text)
+    return py_text
