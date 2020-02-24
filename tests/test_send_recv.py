@@ -166,10 +166,10 @@ async def test_send_recv_timeout():
     listener = ucp.create_listener(timeout_server)
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
 
-    msg = bytearray(10 ** 5)
+    msg = bytearray(10 ** 10)
 
     with pytest.raises(asyncio.TimeoutError):
-        await client.send(msg, timeout=0.01)
+        await client.send(msg, timeout=0.001)
 
     with pytest.raises(asyncio.TimeoutError):
         await client.recv(msg, timeout=1)
