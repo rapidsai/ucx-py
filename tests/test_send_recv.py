@@ -162,9 +162,13 @@ async def test_send_recv_timeout():
 
     async def timeout_server(ep):
         asyncio.sleep(3)
+        await ep.send(b"Hey")
 
     listener = ucp.create_listener(timeout_server)
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(3)
+    await client.recv(msg, timeout=3.5)
 
     msg = bytearray(10 ** 10)
 
