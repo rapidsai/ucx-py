@@ -152,3 +152,30 @@ async def test_send_recv_error(blocking_progress_mode):
     del client
     assert listener.closed() is True
     del listener
+
+
+@pytest.mark.asyncio
+async def test_send_recv_timeout():
+    asyncio.get_event_loop().set_exception_handler(handle_exception)
+    ucp.reset()
+    ucp.init(blocking_progress_mode=True)
+
+    async def timeout_server(ep):
+        asyncio.sleep(3)
+
+    listener = ucp.create_listener(timeout_server)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(10 ** 5)
+
+    with pytest.raises(asyncio.TimeoutError):
+        await client.send(msg, timeout=0.01)
+
+    with pytest.raises(asyncio.TimeoutError):
+        await client.recv(msg, timeout=1)
+
+    await client.close()
+    listener.close()
+    del client
+    assert listener.closed() is True
+    del listener

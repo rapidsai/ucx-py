@@ -1,6 +1,7 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import asyncio
 import gc
 import os
 import weakref
@@ -274,7 +275,7 @@ class Endpoint:
         """Is this endpoint closed?"""
         return self._ep._closed
 
-    async def send(self, buffer, nbytes=None):
+    async def send(self, buffer, nbytes=None, timeout=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -284,10 +285,12 @@ class Endpoint:
             than nbytes.
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
+        timeout: float, optional
+            Number of seconds to wait for send to complete before timing out
         """
-        await self._ep.send(buffer, nbytes=nbytes)
+        await asyncio.wait_for(self._ep.send(buffer, nbytes=nbytes), timeout=timeout)
 
-    async def recv(self, buffer, nbytes=None):
+    async def recv(self, buffer, nbytes=None, timeout=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -297,8 +300,10 @@ class Endpoint:
             is smaller than nbytes or read-only.
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
+        timeout: float, optional
+            Number of seconds to wait for receive to complete before timing out
         """
-        await self._ep.recv(buffer, nbytes=nbytes)
+        await asyncio.wait_for(self._ep.recv(buffer, nbytes=nbytes), timeout)
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
