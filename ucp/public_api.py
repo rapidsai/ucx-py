@@ -303,7 +303,7 @@ class Endpoint:
         timeout: float, optional
             Number of seconds to wait for receive to complete before timing out
         """
-        await asyncio.wait_for(self._ep.recv(buffer, nbytes=nbytes), timeout)
+        await asyncio.wait_for(self._ep.recv(buffer, nbytes=nbytes), timeout=timeout)
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
