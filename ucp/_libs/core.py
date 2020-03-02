@@ -258,7 +258,7 @@ class ApplicationContext:
         )
         return Listener(ret)
 
-    async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
+    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
 
