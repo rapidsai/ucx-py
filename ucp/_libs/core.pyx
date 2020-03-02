@@ -5,21 +5,21 @@
 import os
 import asyncio
 import weakref
+import struct
+import uuid
+import socket
+import logging
 from functools import partial
 from libc.stdint cimport int64_t, uint64_t, uintptr_t
 from posix.unistd cimport close
 from random import randint
 import psutil
-import uuid
-import socket
-import logging
 from ..exceptions import (
     UCXError,
     UCXCloseError,
     UCXCanceled,
     UCXWarning,
 )
-
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
 
@@ -35,36 +35,25 @@ def asyncio_handle_exception(loop, context):
     log("Ignored except: %s %s" % (type(msg), msg))
 
 
-cdef struct PeerInfoMsg:
-    uint64_t msg_tag
-    uint64_t ctrl_tag
-    bint guarantee_msg_order
-
-
 async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     """Help function that exchange endpoint information"""
 
-    cdef PeerInfoMsg my_info = {
-        'msg_tag': msg_tag,
-        'ctrl_tag': ctrl_tag,
-        'guarantee_msg_order': guarantee_msg_order
-    }
-    cdef PeerInfoMsg[::1] my_info_mv = <PeerInfoMsg[:1:1]>(&my_info)
-    cdef PeerInfoMsg peer_info
-    cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
+    my_info = struct.pack("QQi", msg_tag, ctrl_tag, guarantee_msg_order)
+    peer_info = bytearray(len(my_info))
 
     await asyncio.gather(
-        stream_recv(ucp_endpoint, peer_info_mv, peer_info_mv.nbytes),
-        stream_send(ucp_endpoint, my_info_mv, my_info_mv.nbytes),
+        stream_recv(ucp_endpoint, peer_info, len(peer_info)),
+        stream_send(ucp_endpoint, my_info, len(my_info)),
     )
+    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack("QQi", peer_info)
 
-    if peer_info.guarantee_msg_order != guarantee_msg_order:
+    if peer_guarantee_msg_order != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
 
     return {
-        'msg_tag': peer_info.msg_tag,
-        'ctrl_tag': peer_info.ctrl_tag,
-        'guarantee_msg_order': peer_info.guarantee_msg_order
+        'msg_tag': peer_msg_tag,
+        'ctrl_tag': peer_ctrl_tag,
+        'guarantee_msg_order': peer_guarantee_msg_order
     }
 
 
