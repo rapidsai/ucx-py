@@ -407,9 +407,6 @@ def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
 
 
 def stream_send(ucp_endpoint, buffer, nbytes, pending_msg=None):
-    cdef void *data = <void*><uintptr_t>(
-        get_buffer_data(buffer, check_writable=False)
-    )
 
     def send_cb(exception, future):
         if asyncio.get_event_loop().is_closed():
@@ -510,9 +507,6 @@ class _Endpoint:
         self._ctx = None
 
     def tag_send(self, buffer, nbytes, tag, pending_msg=None):
-        cdef void *data = <void*><uintptr_t>(
-            get_buffer_data(buffer, check_writable=False)
-        )
 
         def send_cb(exception, future):
             if asyncio.get_event_loop().is_closed():
