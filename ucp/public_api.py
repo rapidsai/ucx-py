@@ -5,10 +5,7 @@ import gc
 import os
 import asyncio
 import weakref
-import uuid
-import socket
 import logging
-from functools import partial
 
 from .exceptions import (
     UCXError,
@@ -18,7 +15,7 @@ from .exceptions import (
 )
 from . import send_recv
 from ._libs import ucx_api
-from ._libs.utils import get_buffer_nbytes, get_buffer_data
+from ._libs.utils import get_buffer_nbytes
 
 
 # The module should only instantiate one instance of the application context
