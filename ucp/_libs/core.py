@@ -92,22 +92,22 @@ def handle_ctrl_msg(ep_weakref, log, msg, future):
         raise UCXError("Received unknown control opcode: %s" % opcode)
 
 
-def setup_ctrl_recv(priv_ep, pub_ep):
+def setup_ctrl_recv(ep):
     """Help function to setup the receive of the control message"""
 
     msg = bytearray(CtrlMsg.nbytes)
     log = "[Recv shutdown] ep: %s, tag: %s" % (
-        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+        hex(ep.uid), hex(ep._ctrl_tag_recv)
     )
-    priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(priv_ep._worker,
+    ep.pending_msg_list.append({'log': log})
+    shutdown_fut = tag_recv(ep._worker,
                             msg,
                             len(msg),
-                            priv_ep._ctrl_tag_recv,
-                            pending_msg=priv_ep.pending_msg_list[-1])
+                            ep._ctrl_tag_recv,
+                            pending_msg=ep.pending_msg_list[-1])
 
     shutdown_fut.add_done_callback(
-        partial(handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
+        partial(handle_ctrl_msg, weakref.ref(ep), log, msg)
     )
 
 
@@ -127,7 +127,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create the private part of an endpoint
-        #  4) Create the public Endpoint based on _Endpoint
+        #  4) Create the public Endpoint based on Endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
@@ -136,7 +136,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
-        ep = _Endpoint(
+        ep = Endpoint(
             ucp_endpoint=ucp_endpoint,
             worker=worker,
             ctx=ctx,
@@ -158,23 +158,19 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
             )
         )
 
-        # Create the public Endpoint
-        pub_ep = Endpoint(ep)
-
         # Setup the control receive
-        setup_ctrl_recv(ep, pub_ep)
+        setup_ctrl_recv(ep)
 
         # Removing references here to avoid delayed clean up
-        del ep
         del ctx
 
         # Finally, we call `func` asynchronously (even if it isn't coroutine)
         if asyncio.iscoroutinefunction(func):
-            await func(pub_ep)
+            await func(ep)
         else:
             async def _func(ep):  # coroutine wrapper
                 func(ep)
-            await _func(pub_ep)
+            await _func(ep)
 
     asyncio.ensure_future(run(ucp_endpoint, ctx, worker, func, guarantee_msg_order))
 
@@ -277,7 +273,7 @@ class ApplicationContext:
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
-        ep = _Endpoint(
+        ep = Endpoint(
             ucp_endpoint=ucp_ep,
             worker=self._worker,
             ctx=self,
@@ -290,7 +286,7 @@ class ApplicationContext:
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
-                hex(ep._ucp_endpoint.handle),  # noqa
+                hex(ep._ep.handle),  # noqa
                 hex(ep._msg_tag_send),  # noqa
                 hex(ep._msg_tag_recv),  # noqa
                 hex(ep._ctrl_tag_send), # noqa
@@ -298,14 +294,11 @@ class ApplicationContext:
             )
         )
 
-        # Create the public Endpoint
-        pub_ep = Endpoint(ep)
-
         # Setup the control receive
-        setup_ctrl_recv(ep, pub_ep)
+        setup_ctrl_recv(ep)
 
         # Return the public Endpoint
-        return pub_ep
+        return ep
 
     def progress(self):
         self._worker.progress()
@@ -448,170 +441,3 @@ def stream_recv(ucp_endpoint, buffer, nbytes, pending_msg=None):
         pending_msg['future'] = ret
         pending_msg['ucp_request'] = req
     return ret
-
-
-class _Endpoint:
-    """This represents the private part of Endpoint
-
-    See <..public_api.Endpoint> for documentation
-    """
-
-    def __init__(
-        self,
-        ucp_endpoint,
-        worker,
-        ctx,
-        msg_tag_send,
-        msg_tag_recv,
-        ctrl_tag_send,
-        ctrl_tag_recv,
-        guarantee_msg_order
-    ):
-        self._ucp_endpoint = ucp_endpoint
-        self._worker = worker
-        self._ctx = ctx
-        self._msg_tag_send = msg_tag_send
-        self._msg_tag_recv = msg_tag_recv
-        self._ctrl_tag_send = ctrl_tag_send
-        self._ctrl_tag_recv = ctrl_tag_recv
-        self._guarantee_msg_order = guarantee_msg_order
-        self._send_count = 0  # Number of calls to self.send()
-        self._recv_count = 0  # Number of calls to self.recv()
-        self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
-        self._closed = False
-        self.pending_msg_list = []
-        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        tls = ctx.get_config()['TLS']
-        self._cuda_support = "cuda" in tls or tls == "all"
-        self._close_after_n_recv = None
-
-    @property
-    def uid(self):
-        return self._ucp_endpoint.handle
-
-    def abort(self):
-        if self._closed:
-            return
-        self._closed = True
-        logging.debug("Endpoint.abort(): %s" % hex(self.uid))
-
-        for msg in self.pending_msg_list:
-            if 'future' in msg and not msg['future'].done():
-                logging.debug("Future cancelling: %s" % msg['log'])
-                self._worker.request_cancel(msg['ucp_request'])
-
-        self._ucp_endpoint.close(self._worker)
-        self._ctx = None
-
-    def tag_send(self, buffer, nbytes, tag, pending_msg=None):
-
-        def send_cb(exception, future):
-            if asyncio.get_event_loop().is_closed():
-                return
-            if exception is not None:
-                future.set_exception(exception)
-            else:
-                future.set_result(True)
-
-        ret = asyncio.get_event_loop().create_future()
-        req = ucx_api.ucx_tag_send(
-            self._ucp_endpoint, buffer, nbytes, tag, send_cb, (ret,)
-        )
-        if pending_msg is not None:
-            pending_msg['future'] = ret
-            pending_msg['ucp_request'] = req
-        return ret
-
-    async def close(self):
-        if self._closed:
-            return
-        try:
-            # Send a shutdown message to the peer
-            msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
-            log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
-                hex(self.uid), hex(self._ctrl_tag_send), self._send_count
-            )
-            logging.debug(log)
-            self.pending_msg_list.append({'log': log})
-            try:
-                await self.tag_send(
-                    msg, len(msg),
-                    self._ctrl_tag_send,
-                    pending_msg=self.pending_msg_list[-1]
-                )
-            except UCXError:
-                pass  # The peer might already be shutting down
-            # Give all current outstanding send() calls a chance to return
-            self._ctx.progress()
-            await asyncio.sleep(0)
-        finally:
-            self.abort()
-
-    def closed(self):
-        return self._closed
-
-    def __del__(self):
-        self.abort()
-
-    async def send(self, buffer, nbytes=None):
-        if self._closed:
-            raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
-        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes
-        )
-        logging.debug(log)
-        self.pending_msg_list.append({'log': log})
-        self._send_count += 1
-        tag = self._msg_tag_send
-        if self._guarantee_msg_order:
-            tag += self._send_count
-        return await self.tag_send(
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
-        )
-
-    async def recv(self, buffer, nbytes=None):
-        if self._closed:
-            raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
-        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes
-        )
-        logging.debug(log)
-        self.pending_msg_list.append({'log': log})
-        self._recv_count += 1
-        tag = self._msg_tag_recv
-        if self._guarantee_msg_order:
-            tag += self._recv_count
-
-        ret = await tag_recv(
-            self._worker,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
-        )
-        self._finished_recv_count += 1
-        if self._close_after_n_recv is not None \
-                and self._finished_recv_count >= self._close_after_n_recv:
-            self.abort()
-        return ret
-
-    def ucx_info(self):
-        if self._closed:
-            raise UCXCloseError("Endpoint closed")
-        return self._ucp_endpoint.info()
-
-    def cuda_support(self):
-        return self._cuda_support
-
-    def get_ucp_worker(self):
-        return self._worker.handle
-
-    def get_ucp_endpoint(self):
-        return self._ucp_endpoint.handle

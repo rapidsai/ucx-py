@@ -62,7 +62,10 @@ async def test_ep_still_in_scope_error():
     lt = ucp.create_listener(server)
     ep = await ucp.create_endpoint(ucp.get_address(), lt.port)
     del lt
-    with pytest.raises(ucp.exceptions.UCXError, match="_ucp_endpoint"):
+    with pytest.raises(
+        ucp.exceptions.UCXError,
+        match="The following objects are still referencing ApplicationContext",
+    ):
         ucp.reset()
     ep.abort()
     ucp.reset()
