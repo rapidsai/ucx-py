@@ -10,8 +10,6 @@ import uuid
 import socket
 import logging
 from functools import partial
-from libc.stdint cimport int64_t, uint64_t, uintptr_t
-from posix.unistd cimport close
 from random import randint
 import psutil
 from ..exceptions import (
@@ -229,7 +227,7 @@ class ApplicationContext:
         if self._ctx is not None:
             self._ctx.destroy()
         if self.blocking_progress_mode and self.epoll_fd != -1:
-            close(self.epoll_fd)
+            os.close(self.epoll_fd)
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
