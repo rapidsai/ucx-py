@@ -7,6 +7,8 @@ import asyncio
 import weakref
 from functools import partial
 from libc.stdint cimport uint64_t, uintptr_t
+from random import randint
+import psutil
 import uuid
 import socket
 import logging
@@ -408,11 +410,22 @@ cdef class ApplicationContext:
         from ..public_api import Listener
         self.continuous_ucx_progress()
         if port in (None, 0):
-            # Ref https://unix.stackexchange.com/a/132524
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.bind(('', 0))
-            port = s.getsockname()[1]
-            s.close()
+            # Get a random port number and check if it's not used yet. Doing this
+            # without relying on `socket` allows preventing UCX errors such as
+            # "none of the available transports can listen for connections", due
+            # to the socket still being in TIME_WAIT state.
+            try:
+                with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
+                    start_port, end_port = [int(i) for i in next(f).split()]
+            except FileNotFoundError:
+                start_port, end_port = (32768, 60000)
+
+            used_ports = set(conn.laddr[1] for conn in psutil.net_connections())
+            while True:
+                port = randint(start_port, end_port)
+
+                if port not in used_ports:
+                    break
 
         ret = _Listener()
         ret._port = port
