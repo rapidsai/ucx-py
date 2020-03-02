@@ -18,6 +18,7 @@ from ..exceptions import (
     UCXCanceled,
     UCXWarning,
 )
+from .. import send_recv
 from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
 
@@ -40,8 +41,8 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
     peer_info = bytearray(len(my_info))
 
     await asyncio.gather(
-        stream_recv(ucp_endpoint, peer_info, len(peer_info)),
-        stream_send(ucp_endpoint, my_info, len(my_info)),
+        send_recv.stream_recv(ucp_endpoint, peer_info, len(peer_info)),
+        send_recv.stream_send(ucp_endpoint, my_info, len(my_info)),
     )
     peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack("QQi", peer_info)
 
@@ -100,11 +101,13 @@ def setup_ctrl_recv(ep):
         hex(ep.uid), hex(ep._ctrl_tag_recv)
     )
     ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(ep._worker,
-                            msg,
-                            len(msg),
-                            ep._ctrl_tag_recv,
-                            pending_msg=ep.pending_msg_list[-1])
+    shutdown_fut = send_recv.tag_recv(
+        ep._worker,
+        msg,
+        len(msg),
+        ep._ctrl_tag_recv,
+        pending_msg=ep.pending_msg_list[-1]
+    )
 
     shutdown_fut.add_done_callback(
         partial(handle_ctrl_msg, weakref.ref(ep), log, msg)
@@ -369,75 +372,3 @@ class ApplicationContext:
         if self.blocking_progress_mode:
             for loop in self.event_loops_binded_for_progress:
                 loop.remove_reader(self.epoll_fd)
-
-
-def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
-
-    def recv_cb(exception, received, future, expected_receive):
-        if asyncio.get_event_loop().is_closed():
-            return
-        if exception is not None:
-            future.set_exception(exception)
-        elif received != expected_receive:
-            log_str = None
-            msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
-            msg += "length mismatch: %d (got) != %d (expected)" % (
-                received, expected_receive
-            )
-            future.set_exception(UCXError(msg))
-        else:
-            future.set_result(True)
-
-    ret = asyncio.get_event_loop().create_future()
-    req = worker.tag_recv(buffer, nbytes, tag, recv_cb, (ret, nbytes))
-    if pending_msg is not None:
-        pending_msg['future'] = ret
-        pending_msg['ucp_request'] = req
-    return ret
-
-
-def stream_send(ucp_endpoint, buffer, nbytes, pending_msg=None):
-
-    def send_cb(exception, future):
-        if asyncio.get_event_loop().is_closed():
-            return
-        if exception is not None:
-            future.set_exception(exception)
-        else:
-            future.set_result(True)
-
-    ret = asyncio.get_event_loop().create_future()
-    req = ucx_api.ucx_stream_send(
-        ucp_endpoint, buffer, nbytes, send_cb, (ret,)
-    )
-    if pending_msg is not None:
-        pending_msg['future'] = ret
-        pending_msg['ucp_request'] = req
-    return ret
-
-
-def stream_recv(ucp_endpoint, buffer, nbytes, pending_msg=None):
-
-    def recv_cb(exception, received, future, expected_receive):
-        if asyncio.get_event_loop().is_closed():
-            return
-        if exception is not None:
-            future.set_exception(exception)
-        elif received != expected_receive:
-            log_str = None
-            msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
-            msg += "length mismatch: %d (got) != %d (expected)" % (
-                received, expected_receive
-            )
-            future.set_exception(UCXError(msg))
-        else:
-            future.set_result(True)
-
-    ret = asyncio.get_event_loop().create_future()
-    req = ucx_api.ucx_stream_recv(
-        ucp_endpoint, buffer, nbytes, recv_cb, (ret, nbytes)
-    )
-    if pending_msg is not None:
-        pending_msg['future'] = ret
-        pending_msg['ucp_request'] = req
-    return ret

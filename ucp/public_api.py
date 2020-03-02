@@ -16,6 +16,7 @@ from .exceptions import (
     UCXCanceled,
     UCXWarning,
 )
+from . import send_recv
 from ._libs import core, ucx_api
 from ._libs.utils import get_buffer_nbytes, get_buffer_data
 
@@ -328,7 +329,8 @@ class Endpoint:
             logging.debug(log)
             self.pending_msg_list.append({'log': log})
             try:
-                await self._tag_send(
+                await send_recv.tag_send(
+                    self._ep,
                     msg, len(msg),
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
@@ -369,7 +371,8 @@ class Endpoint:
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await self._tag_send(
+        return await send_recv.tag_send(
+            self._ep,
             buffer,
             nbytes,
             tag,
@@ -401,7 +404,7 @@ class Endpoint:
         if self._guarantee_msg_order:
             tag += self._recv_count
 
-        ret = await core.tag_recv(
+        ret = await send_recv.tag_recv(
             self._worker,
             buffer,
             nbytes,
@@ -463,22 +466,3 @@ class Endpoint:
                 "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
                 % (n, self._finished_recv_count)
             )
-
-    def _tag_send(self, buffer, nbytes, tag, pending_msg=None):
-
-        def send_cb(exception, future):
-            if asyncio.get_event_loop().is_closed():
-                return
-            if exception is not None:
-                future.set_exception(exception)
-            else:
-                future.set_result(True)
-
-        ret = asyncio.get_event_loop().create_future()
-        req = ucx_api.ucx_tag_send(
-            self._ep, buffer, nbytes, tag, send_cb, (ret,)
-        )
-        if pending_msg is not None:
-            pending_msg['future'] = ret
-            pending_msg['ucp_request'] = req
-        return ret
