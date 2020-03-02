@@ -19,7 +19,6 @@ from ..exceptions import (
     UCXWarning,
 )
 from .. import send_recv
-from .utils import get_buffer_nbytes, get_buffer_data
 from . import ucx_api
 
 
