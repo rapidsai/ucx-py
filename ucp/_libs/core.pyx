@@ -57,17 +57,26 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
     }
 
 
-# "1" is shutdown, currently the only opcode.
-cdef struct CtrlMsgData:
-    int64_t op  # The control opcode, currently the only opcode is "1" (shutdown).
-    int64_t close_after_n_recv  # Number of recv before closing
+class CtrlMsg:
+    """Serialization and deserialization of a control message
+
+    For now we have one opcode `1` which means shutdown.
+    The opcode takes `close_after_n_recv`, which is the number of
+    messages to receive before the worker should close.
+    """
+    fmt = "QQ"
+    nbytes = struct.calcsize(fmt)
+
+    @staticmethod
+    def serialize(opcode, close_after_n_recv):
+        return struct.pack(CtrlMsg.fmt, opcode, close_after_n_recv)
+
+    @staticmethod
+    def deserialize(serialized_bytes):
+        return struct.unpack(CtrlMsg.fmt, serialized_bytes)
 
 
-cdef class CtrlMsg:
-    cdef CtrlMsgData data
-
-
-def handle_ctrl_msg(ep_weakref, log, CtrlMsg msg, future):
+def handle_ctrl_msg(ep_weakref, log, msg, future):
     """Function that is called when receiving the control message"""
     try:
         future.result()
@@ -78,23 +87,24 @@ def handle_ctrl_msg(ep_weakref, log, CtrlMsg msg, future):
     if ep is None or ep.closed():
         return  # The endpoint is closed
 
-    if msg.data.op == 1:
-        ep.close_after_n_recv(msg.data.close_after_n_recv, count_from_ep_creation=True)
+    opcode, close_after_n_recv = CtrlMsg.deserialize(msg)
+    if opcode == 1:
+        ep.close_after_n_recv(close_after_n_recv, count_from_ep_creation=True)
     else:
-        raise UCXError("Received unknown control opcode: %s" % msg.data.op)
+        raise UCXError("Received unknown control opcode: %s" % opcode)
 
 
 def setup_ctrl_recv(priv_ep, pub_ep):
     """Help function to setup the receive of the control message"""
-    cdef CtrlMsg msg = CtrlMsg()
-    cdef CtrlMsgData[::1] msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
+
+    msg = bytearray(CtrlMsg.nbytes)
     log = "[Recv shutdown] ep: %s, tag: %s" % (
         hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
     )
     priv_ep.pending_msg_list.append({'log': log})
     shutdown_fut = tag_recv(priv_ep._worker,
-                            msg_mv,
-                            msg_mv.nbytes,
+                            msg,
+                            len(msg),
                             priv_ep._ctrl_tag_recv,
                             pending_msg=priv_ep.pending_msg_list[-1])
 
@@ -517,16 +527,9 @@ class _Endpoint:
     async def close(self):
         if self._closed:
             return
-        cdef CtrlMsg msg
-        cdef CtrlMsgData[::1] ctrl_msg_mv
         try:
             # Send a shutdown message to the peer
-            msg = CtrlMsg()
-            msg.data = {
-                'op': 1,  # "1" is shutdown, currently the only opcode.
-                'close_after_n_recv': self._send_count,
-            }
-            ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
+            msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid), hex(self._ctrl_tag_send), self._send_count
             )
@@ -534,7 +537,7 @@ class _Endpoint:
             self.pending_msg_list.append({'log': log})
             try:
                 await self.tag_send(
-                    ctrl_msg_mv, ctrl_msg_mv.nbytes,
+                    msg, len(msg),
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
                 )
