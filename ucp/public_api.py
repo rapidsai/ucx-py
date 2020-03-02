@@ -17,7 +17,7 @@ from .exceptions import (
     UCXWarning,
 )
 from . import send_recv
-from ._libs import core, ucx_api
+from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes, get_buffer_data
 
 
@@ -30,7 +30,8 @@ _ctx = None
 def _get_ctx():
     global _ctx
     if _ctx is None:
-        _ctx = core.ApplicationContext()
+        from . import application_context
+        _ctx = application_context.ApplicationContext()
     return _ctx
 
 
@@ -83,7 +84,8 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
             if k in options:
                 del options[k]
 
-    _ctx = core.ApplicationContext(
+    from . import application_context
+    _ctx = application_context.ApplicationContext(
         options, blocking_progress_mode=blocking_progress_mode
     )
 
@@ -322,7 +324,8 @@ class Endpoint:
             return
         try:
             # Send a shutdown message to the peer
-            msg = core.CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
+            from .application_context import CtrlMsg
+            msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid), hex(self._ctrl_tag_send), self._send_count
             )

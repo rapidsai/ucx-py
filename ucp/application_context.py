@@ -1,6 +1,5 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
-# cython: language_level=3
 
 import os
 import asyncio
@@ -10,16 +9,17 @@ import uuid
 import socket
 import logging
 from functools import partial
+from os import environ, close as close_fd
 from random import randint
 import psutil
-from ..exceptions import (
+from .exceptions import (
     UCXError,
     UCXCloseError,
     UCXCanceled,
     UCXWarning,
 )
-from .. import send_recv
-from . import ucx_api
+from . import send_recv, public_api
+from ._libs import ucx_api
 
 
 def asyncio_handle_exception(loop, context):
@@ -116,7 +116,6 @@ def setup_ctrl_recv(ep):
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
 
     async def run(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
-        from ..public_api import Endpoint
         loop = asyncio.get_event_loop()
         # TODO: exceptions in this callback is never showed when no
         #       get_exception_handler() is set.
@@ -138,7 +137,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
-        ep = Endpoint(
+        ep = public_api.Endpoint(
             ucp_endpoint=ucp_endpoint,
             worker=worker,
             ctx=ctx,
@@ -202,7 +201,7 @@ class ApplicationContext:
         self._worker = None
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
-        elif 'UCXPY_NON_BLOCKING_MODE' in os.environ:
+        elif 'UCXPY_NON_BLOCKING_MODE' in environ:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = True
@@ -225,7 +224,7 @@ class ApplicationContext:
         if self._ctx is not None:
             self._ctx.destroy()
         if self.blocking_progress_mode and self.epoll_fd != -1:
-            os.close(self.epoll_fd)
+            close_fd(self.epoll_fd)
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
@@ -254,10 +253,9 @@ class ApplicationContext:
             cb_func=listener_handler,
             cb_args=(self, self._worker, callback_func, guarantee_msg_order)
         )
-        return Listener(ret)
+        return public_api.Listener(ret)
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
-        from ..public_api import Endpoint
         self.continuous_ucx_progress()
 
         ucp_ep = self._worker.ep_create(ip_address, port)
@@ -275,7 +273,7 @@ class ApplicationContext:
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
-        ep = Endpoint(
+        ep = public_api.Endpoint(
             ucp_endpoint=ucp_ep,
             worker=self._worker,
             ctx=self,
