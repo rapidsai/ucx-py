@@ -51,8 +51,6 @@ def make_echo_server(create_empty_data):
     return echo_server
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])

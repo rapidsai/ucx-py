@@ -337,6 +337,7 @@ class ApplicationContext:
         def _fd_reader_callback():
             # Notice, we can safely overwrite `self.dangling_arm_task`
             # since previous arm task is finished by now.
+            assert self.dangling_arm_task is None or self.dangling_arm_task.done()
             self.dangling_arm_task = event_loop.create_task(_arm())
 
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
