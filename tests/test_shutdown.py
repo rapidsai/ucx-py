@@ -6,6 +6,18 @@ import pytest
 import ucp
 
 
+# Let's make sure that UCX gets time to cancel
+# progress tasks before closing the event loop.
+@pytest.yield_fixture()
+def event_loop(scope="function"):
+    loop = asyncio.new_event_loop()
+    ucp.reset()
+    yield loop
+    ucp.reset()
+    loop.run_until_complete(asyncio.sleep(0))
+    loop.close()
+
+
 async def shutdown(ep):
     await ep.close()
 
