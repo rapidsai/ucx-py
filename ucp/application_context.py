@@ -14,7 +14,6 @@ from random import randint
 import psutil
 from .exceptions import (
     UCXError,
-    UCXCloseError,
     UCXCanceled,
     UCXWarning,
 )
@@ -43,15 +42,17 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
         send_recv.stream_recv(ucp_endpoint, peer_info, len(peer_info)),
         send_recv.stream_send(ucp_endpoint, my_info, len(my_info)),
     )
-    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack("QQi", peer_info)
+    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack(
+        "QQi", peer_info
+    )
 
     if peer_guarantee_msg_order != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
 
     return {
-        'msg_tag': peer_msg_tag,
-        'ctrl_tag': peer_ctrl_tag,
-        'guarantee_msg_order': peer_guarantee_msg_order
+        "msg_tag": peer_msg_tag,
+        "ctrl_tag": peer_ctrl_tag,
+        "guarantee_msg_order": peer_guarantee_msg_order,
     }
 
 
@@ -62,6 +63,7 @@ class CtrlMsg:
     The opcode takes `close_after_n_recv`, which is the number of
     messages to receive before the worker should close.
     """
+
     fmt = "QQ"
     nbytes = struct.calcsize(fmt)
 
@@ -96,21 +98,17 @@ def setup_ctrl_recv(ep):
     """Help function to setup the receive of the control message"""
 
     msg = bytearray(CtrlMsg.nbytes)
-    log = "[Recv shutdown] ep: %s, tag: %s" % (
-        hex(ep.uid), hex(ep._ctrl_tag_recv)
-    )
-    ep.pending_msg_list.append({'log': log})
+    log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv))
+    ep.pending_msg_list.append({"log": log})
     shutdown_fut = send_recv.tag_recv(
         ep._worker,
         msg,
         len(msg),
         ep._ctrl_tag_recv,
-        pending_msg=ep.pending_msg_list[-1]
+        pending_msg=ep.pending_msg_list[-1],
     )
 
-    shutdown_fut.add_done_callback(
-        partial(handle_ctrl_msg, weakref.ref(ep), log, msg)
-    )
+    shutdown_fut.add_done_callback(partial(handle_ctrl_msg, weakref.ref(ep), log, msg))
 
 
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
@@ -135,27 +133,28 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
             ucp_endpoint=ucp_endpoint,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
         ep = public_api.Endpoint(
             ucp_endpoint=ucp_endpoint,
             worker=worker,
             ctx=ctx,
-            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_send=peer_info["msg_tag"],
             msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_send=peer_info["ctrl_tag"],
             ctrl_tag_recv=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
 
         logging.debug(
             "listener_handler() server: %s, msg-tag-send: %s, "
-            "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+            "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
+            % (
                 hex(ucp_endpoint.handle),
                 hex(ep._msg_tag_send),
                 hex(ep._msg_tag_recv),
                 hex(ep._ctrl_tag_send),
-                hex(ep._ctrl_tag_recv)
+                hex(ep._ctrl_tag_recv),
             )
         )
 
@@ -169,8 +168,10 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         if asyncio.iscoroutinefunction(func):
             await func(ep)
         else:
+
             async def _func(ep):  # coroutine wrapper
                 func(ep)
+
             await _func(ep)
 
     asyncio.ensure_future(run(ucp_endpoint, ctx, worker, func, guarantee_msg_order))
@@ -201,7 +202,7 @@ class ApplicationContext:
         self._worker = None
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
-        elif 'UCXPY_NON_BLOCKING_MODE' in environ:
+        elif "UCXPY_NON_BLOCKING_MODE" in environ:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = True
@@ -227,7 +228,6 @@ class ApplicationContext:
             close_fd(self.epoll_fd)
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
-        from ..public_api import Listener
         self.continuous_ucx_progress()
         if port in (None, 0):
             # Get a random port number and check if it's not used yet. Doing this
@@ -251,7 +251,7 @@ class ApplicationContext:
             worker=self._worker,
             port=port,
             cb_func=listener_handler,
-            cb_args=(self, self._worker, callback_func, guarantee_msg_order)
+            cb_args=(self, self._worker, callback_func, guarantee_msg_order),
         )
         return public_api.Listener(ret)
 
@@ -271,26 +271,28 @@ class ApplicationContext:
             ucp_endpoint=ucp_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
         ep = public_api.Endpoint(
             ucp_endpoint=ucp_ep,
             worker=self._worker,
             ctx=self,
-            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_send=peer_info["msg_tag"],
             msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_send=peer_info["ctrl_tag"],
             ctrl_tag_recv=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
 
-        logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
-                      "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
+        logging.debug(
+            "create_endpoint() client: %s, msg-tag-send: %s, "
+            "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
+            % (
                 hex(ep._ep.handle),  # noqa
                 hex(ep._msg_tag_send),  # noqa
                 hex(ep._msg_tag_recv),  # noqa
-                hex(ep._ctrl_tag_send), # noqa
-                hex(ep._ctrl_tag_recv)  # noqa
+                hex(ep._ctrl_tag_send),  # noqa
+                hex(ep._ctrl_tag_recv),  # noqa
             )
         )
 

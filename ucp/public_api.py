@@ -7,13 +7,7 @@ import asyncio
 import weakref
 import logging
 
-from .exceptions import (
-    UCXError,
-    UCXCloseError,
-    UCXCanceled,
-    UCXWarning,
-)
-from . import send_recv
+from . import exceptions, send_recv
 from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 
@@ -28,6 +22,7 @@ def _get_ctx():
     global _ctx
     if _ctx is None:
         from . import application_context
+
         _ctx = application_context.ApplicationContext()
     return _ctx
 
@@ -82,6 +77,7 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
                 del options[k]
 
     from . import application_context
+
     _ctx = application_context.ApplicationContext(
         options, blocking_progress_mode=blocking_progress_mode
     )
@@ -213,7 +209,7 @@ def reset():
             )
             for o in gc.get_referrers(weakref_ctx()):
                 msg += "\n  %s" % str(o)
-            raise UCXError(msg)
+            raise exceptions.UCXError(msg)
 
 
 class Listener:
@@ -264,7 +260,7 @@ class Endpoint:
         msg_tag_recv,
         ctrl_tag_send,
         ctrl_tag_recv,
-        guarantee_msg_order
+        guarantee_msg_order,
     ):
         self._ep = ucp_endpoint
         self._worker = worker
@@ -280,7 +276,7 @@ class Endpoint:
         self._closed = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        tls = ctx.get_config()['TLS']
+        tls = ctx.get_config()["TLS"]
         self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
@@ -305,9 +301,9 @@ class Endpoint:
         logging.debug("Endpoint.abort(): %s" % hex(self.uid))
 
         for msg in self.pending_msg_list:
-            if 'future' in msg and not msg['future'].done():
-                logging.debug("Future cancelling: %s" % msg['log'])
-                self._worker.request_cancel(msg['ucp_request'])
+            if "future" in msg and not msg["future"].done():
+                logging.debug("Future cancelling: %s" % msg["log"])
+                self._worker.request_cancel(msg["ucp_request"])
 
         self._ep.close(self._worker)
         self._ctx = None
@@ -322,20 +318,24 @@ class Endpoint:
         try:
             # Send a shutdown message to the peer
             from .application_context import CtrlMsg
+
             msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
-                hex(self.uid), hex(self._ctrl_tag_send), self._send_count
+                hex(self.uid),
+                hex(self._ctrl_tag_send),
+                self._send_count,
             )
             logging.debug(log)
-            self.pending_msg_list.append({'log': log})
+            self.pending_msg_list.append({"log": log})
             try:
                 await send_recv.tag_send(
                     self._ep,
-                    msg, len(msg),
+                    msg,
+                    len(msg),
                     self._ctrl_tag_send,
-                    pending_msg=self.pending_msg_list[-1]
+                    pending_msg=self.pending_msg_list[-1],
                 )
-            except UCXError:
+            except exceptions.UCXError:
                 pass  # The peer might already be shutting down
             # Give all current outstanding send() calls a chance to return
             self._ctx.progress()
@@ -359,24 +359,24 @@ class Endpoint:
             Number of bytes to send. Default is the whole buffer.
         """
         if self._closed:
-            raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
+            raise exceptions.UCXCloseError("Endpoint closed")
+        nbytes = get_buffer_nbytes(
+            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+        )
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes
+            self._send_count,
+            hex(self.uid),
+            hex(self._msg_tag_send),
+            nbytes,
         )
         logging.debug(log)
-        self.pending_msg_list.append({'log': log})
+        self.pending_msg_list.append({"log": log})
         self._send_count += 1
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
         return await send_recv.tag_send(
-            self._ep,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
+            self._ep, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
         )
 
     async def recv(self, buffer, nbytes=None):
@@ -391,36 +391,38 @@ class Endpoint:
             Number of bytes to receive. Default is the whole buffer.
         """
         if self._closed:
-            raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
+            raise exceptions.UCXCloseError("Endpoint closed")
+        nbytes = get_buffer_nbytes(
+            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+        )
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes
+            self._recv_count,
+            hex(self.uid),
+            hex(self._msg_tag_recv),
+            nbytes,
         )
         logging.debug(log)
-        self.pending_msg_list.append({'log': log})
+        self.pending_msg_list.append({"log": log})
         self._recv_count += 1
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
 
         ret = await send_recv.tag_recv(
-            self._worker,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
+            self._worker, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
         )
         self._finished_recv_count += 1
-        if self._close_after_n_recv is not None \
-                and self._finished_recv_count >= self._close_after_n_recv:
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
             self.abort()
         return ret
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
         if self._closed:
-            raise UCXCloseError("Endpoint closed")
+            raise exceptions.UCXCloseError("Endpoint closed")
         return self._ep.info()
 
     def cuda_support(self):
@@ -453,7 +455,7 @@ class Endpoint:
         if not count_from_ep_creation:
             n += self._finished_recv_count  # Make `n` absolute
         if self._close_after_n_recv is not None:
-            raise UCXError(
+            raise exceptions.UCXError(
                 "close_after_n_recv has already been set to: %d (abs)"
                 % self._close_after_n_recv
             )
@@ -462,7 +464,7 @@ class Endpoint:
         elif n > self._finished_recv_count:
             self._close_after_n_recv = n
         else:
-            raise UCXError(
+            raise exceptions.UCXError(
                 "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
                 % (n, self._finished_recv_count)
             )
