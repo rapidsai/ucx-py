@@ -305,6 +305,7 @@ class Endpoint:
                 self._worker.request_cancel(msg["ucp_request"])
 
         self._ep.close(self._worker)
+        self._ep = None
         self._ctx = None
 
     async def close(self):
