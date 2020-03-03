@@ -27,6 +27,15 @@ if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
     )
     os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
+if not os.environ.get("UCX_RNDV_THRESHOLD", False):
+    os.environ["UCX_RNDV_THRESHOLD"] = "8192"
+
+if not os.environ.get("UCX_TCP_TX_SEG_SIZE", False):
+    os.environ["UCX_TCP_TX_SEG_SIZE"] = "8M"
+
+if not os.environ.get("UCX_TCP_RX_SEG_SIZE", False):
+    os.environ["UCX_RNDV_THRESHOLD"] = "8M"
+
 # Set the root logger before importing modules that use it
 _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
 logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
