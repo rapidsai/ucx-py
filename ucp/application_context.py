@@ -3,22 +3,19 @@
 
 import os
 import asyncio
-import weakref
+import logging
+import socket
 import struct
 import uuid
-import socket
-import logging
+import weakref
 from functools import partial
-from os import environ, close as close_fd
+from os import close as close_fd, environ
 from random import randint
 import psutil
-from .exceptions import (
-    UCXError,
-    UCXCanceled,
-    UCXWarning,
-)
-from . import send_recv, public_api
+
+from . import public_api, send_recv
 from ._libs import ucx_api
+from .exceptions import UCXCanceled, UCXError, UCXWarning
 
 
 def asyncio_handle_exception(loop, context):

@@ -1,15 +1,14 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import gc
-import os
 import asyncio
-import weakref
+import gc
 import logging
+import os
+import weakref
 
 from . import exceptions, send_recv
-from ._libs import ucx_api, buffer_interface
-
+from ._libs import buffer_interface, ucx_api
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
