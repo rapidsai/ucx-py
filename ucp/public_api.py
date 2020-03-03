@@ -89,7 +89,7 @@ def create_listener(callback_func, port=None, guarantee_msg_order=True):
     argument -- the Endpoint connected to the client.
 
     In order to call ucp.reset() inside callback_func remember to
-    close the Endpoint given as an argument. It is not enough to
+    close the Endpoint given as an argument.
 
     Also notice, the listening is closed when the returned Listener
     goes out of scope thus remember to keep a reference to the object.
