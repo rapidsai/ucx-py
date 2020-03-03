@@ -16,7 +16,7 @@ from ..exceptions import (
     UCXConfigError,
     UCXCanceled,
 )
-from .utils import get_buffer_data
+from .buffer_interface import get_buffer_data
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):

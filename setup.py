@@ -29,8 +29,8 @@ ext_modules = [
         extra_compile_args=extra_compile_args,
     ),
     Extension(
-        "ucp._libs.utils",
-        sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
+        "ucp._libs.buffer_interface",
+        sources=["ucp/_libs/buffer_interface.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
         include_dirs=include_dirs,
         library_dirs=library_dirs,

@@ -8,8 +8,7 @@ import weakref
 import logging
 
 from . import exceptions, send_recv
-from ._libs import ucx_api
-from ._libs.utils import get_buffer_nbytes
+from ._libs import ucx_api, buffer_interface
 
 
 # The module should only instantiate one instance of the application context
@@ -360,7 +359,7 @@ class Endpoint:
         """
         if self._closed:
             raise exceptions.UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
+        nbytes = buffer_interface.get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support
         )
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
@@ -392,7 +391,7 @@ class Endpoint:
         """
         if self._closed:
             raise exceptions.UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
+        nbytes = buffer_interface.get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support
         )
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
