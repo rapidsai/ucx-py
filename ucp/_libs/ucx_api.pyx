@@ -358,7 +358,8 @@ cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
 
     ucp_request_reset(request)
     ucp_request_free(request)
-    req_data["cb_func"](exception, length, *req_data["cb_args"])
+    size = length if exception is None else 0
+    req_data["cb_func"](exception, size, *req_data["cb_args"])
     Py_DECREF(req_data)
 
 
