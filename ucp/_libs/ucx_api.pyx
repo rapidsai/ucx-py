@@ -263,12 +263,10 @@ cdef class UCXWorker:
 
     def request_cancel(self, ucp_request_as_int):
         cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
-        ucp_request_cancel(
-            self._handle,
-            req
-        )
-        # ucp_request_reset(req)
-        # ucp_request_free(req)
+
+        # Notice, `ucp_request_cancel()` calls the send/recv callback function,
+        # which will handle the request cleanup.
+        ucp_request_cancel(self._handle, req)
 
     def tag_recv(self, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
         cdef void *data = <void*><uintptr_t>(get_buffer_data(
