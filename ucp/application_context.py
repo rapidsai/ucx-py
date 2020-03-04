@@ -1,7 +1,6 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
-import os
 import asyncio
 import logging
 import socket
@@ -11,6 +10,7 @@ import weakref
 from functools import partial
 from os import close as close_fd, environ
 from random import randint
+
 import psutil
 
 from . import public_api, send_recv
@@ -109,7 +109,6 @@ def setup_ctrl_recv(ep):
 
 
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
-
     async def run(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         loop = asyncio.get_event_loop()
         # TODO: exceptions in this callback is never showed when no
@@ -189,7 +188,6 @@ async def _non_blocking_mode(weakref_ctx):
 
 
 class ApplicationContext:
-
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.event_loops_binded_for_progress = set()
         self.progress_tasks = []
