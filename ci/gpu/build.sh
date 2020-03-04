@@ -98,6 +98,8 @@ cd $WORKSPACE
 python setup.py build_ext --inplace
 python -m pip install -e .
 
+unset UCX_PATH  # Fixing "UCX WARN unused env variable"
+
 ################################################################################
 # TEST - Run py.tests for ucx-py
 ################################################################################
