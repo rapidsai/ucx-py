@@ -229,6 +229,9 @@ cdef class UCXWorker:
         epoll_fd = epoll_create(1)
         assert(epoll_fd != -1)
         ev.data.fd = ucp_epoll_fd
+        ev.data.ptr = NULL
+        ev.data.u32 = 0
+        ev.data.u64 = 0
         ev.events = EPOLLIN
         err = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
         assert(err == 0)
