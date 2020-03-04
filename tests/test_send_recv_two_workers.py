@@ -9,9 +9,10 @@ from distributed.utils import nbytes
 import cloudpickle
 import numpy as np
 import pytest
-import rmm
 import ucp
 from utils import more_than_two_gpus
+
+rmm = pytest.importorskip("rmm")
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
