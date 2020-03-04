@@ -150,8 +150,3 @@ async def test_send_recv_error(blocking_progress_mode):
         ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
     ):
         await client.recv(msg)
-    await client.close()
-    listener.close()
-    del client
-    assert listener.closed() is True
-    del listener
