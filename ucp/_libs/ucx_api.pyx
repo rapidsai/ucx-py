@@ -71,7 +71,7 @@ cdef ucx_config_to_dict(ucp_config_t *config):
     return ret
 
 
-def get_default_options():
+def get_current_options():
     """
     Returns the current UCX options
     if UCX were to be initialized now.

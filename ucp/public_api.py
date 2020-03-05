@@ -183,7 +183,7 @@ def get_config():
     """
 
     if _ctx is None:
-        return ucx_api.get_default_options()
+        return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
 
