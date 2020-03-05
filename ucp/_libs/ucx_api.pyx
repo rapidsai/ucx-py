@@ -298,6 +298,10 @@ cdef class UCXEndpoint:
         ucp_ep_h _handle
         bint initialized
 
+    def __cinit__(self):
+        self._handle = NULL
+        self.initialized = False
+
     def close(self, UCXWorker worker):
         cdef ucs_status_ptr_t status
         if self.initialized:
