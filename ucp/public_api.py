@@ -432,12 +432,16 @@ class Endpoint:
         """Returns the underlying UCP worker handle (ucp_worker_h)
         as a Python integer.
         """
+        if self._closed:
+            raise exceptions.UCXCloseError("Endpoint closed")
         return self._worker.handle
 
     def get_ucp_endpoint(self):
         """Returns the underlying UCP endpoint handle (ucp_ep_h)
         as a Python integer.
         """
+        if self._closed:
+            raise exceptions.UCXCloseError("Endpoint closed")
         return self._ep.handle
 
     def close_after_n_recv(self, n, count_from_ep_creation=False):
