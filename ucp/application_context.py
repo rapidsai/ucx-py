@@ -118,11 +118,10 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         if loop.get_exception_handler() is None:
             loop.set_exception_handler(asyncio_handle_exception)
 
-        # We create the Endpoint in four steps:
+        # We create the Endpoint in three steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
-        #  3) Use the info to create the private part of an endpoint
-        #  4) Create the public Endpoint based on Endpoint
+        #  3) Use the info to create a new Endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
@@ -255,11 +254,10 @@ class ApplicationContext:
 
         ucp_ep = self._worker.ep_create(ip_address, port)
 
-        # We create the Endpoint in four steps:
+        # We create the Endpoint in three steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
-        #  3) Use the info to create the private part of an endpoint
-        #  4) Create the public Endpoint based on _Endpoint
+        #  3) Use the info to create a new Endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
