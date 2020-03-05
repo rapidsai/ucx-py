@@ -271,24 +271,6 @@ cdef class UCXWorker:
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req)
 
-    def tag_recv(self, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
-        cdef void *data = <void*><uintptr_t>(get_buffer_data(
-            buffer, check_writable=True)
-        )
-        cdef ucp_tag_recv_callback_t _tag_recv_cb = (
-            <ucp_tag_recv_callback_t>_ucx_tag_recv_callback
-        )
-        cdef ucs_status_ptr_t status = ucp_tag_recv_nb(self._handle,
-                                                       data,
-                                                       nbytes,
-                                                       ucp_dt_make_contig(1),
-                                                       tag,
-                                                       -1,
-                                                       _tag_recv_cb)
-        return handle_comm_result(
-            status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
-        )
-
 
 cdef class UCXEndpoint:
     """Python representation of `ucp_ep_h`
@@ -443,6 +425,25 @@ def ucx_tag_send(UCXEndpoint ep, buffer, size_t nbytes,
                                                    tag,
                                                    _send_cb)
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
+
+
+def ucx_tag_recv(UCXWorker worker, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(
+        buffer, check_writable=True)
+    )
+    cdef ucp_tag_recv_callback_t _tag_recv_cb = (
+        <ucp_tag_recv_callback_t>_ucx_tag_recv_callback
+    )
+    cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker._handle,
+                                                    data,
+                                                    nbytes,
+                                                    ucp_dt_make_contig(1),
+                                                    tag,
+                                                    -1,
+                                                    _tag_recv_cb)
+    return handle_comm_result(
+        status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
+    )
 
 
 def ucx_stream_send(UCXEndpoint ep, buffer, size_t nbytes, cb_func, cb_args):

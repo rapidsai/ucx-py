@@ -44,7 +44,7 @@ def _tag_recv_cb(exception, received, future, expected_receive):
 
 def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
     ret = asyncio.get_event_loop().create_future()
-    req = worker.tag_recv(buffer, nbytes, tag, _tag_recv_cb, (ret, nbytes))
+    req = ucx_api.ucx_tag_recv(worker, buffer, nbytes, tag, _tag_recv_cb, (ret, nbytes))
     if pending_msg is not None:
         pending_msg["future"] = ret
         pending_msg["ucp_request"] = req
