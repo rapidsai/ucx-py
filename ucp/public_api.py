@@ -306,6 +306,7 @@ class Endpoint:
         self._ep.close(self._worker)
         self._ep = None
         self._ctx = None
+        self._worker = None
 
     async def close(self):
         """Close the endpoint cleanly.

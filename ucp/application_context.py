@@ -186,6 +186,31 @@ async def _non_blocking_mode(weakref_ctx):
         await asyncio.sleep(0)
 
 
+async def _arm_worker(weakref_ctx, rsock, event_loop):
+    """This help function args the worker.
+    Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
+    possible to call `ucp.reset()` even when this loop is running.
+    """
+
+    # When arming the worker, the following must be true:
+    #  - No more progress in UCX (see doc of ucp_worker_arm())
+    #  - All asyncio tasks that isn't waiting on UCX must be executed
+    #    so that the asyncio's next state is epoll wait.
+    #    See <https://github.com/rapidsai/ucx-py/issues/413>
+    while True:
+        ctx = weakref_ctx()
+        if ctx is None:
+            return
+        ctx.progress()
+        # This IO task returns when all non-IO tasks are finished.
+        await event_loop.sock_recv(rsock, 1)
+        if ctx._worker.arm():
+            # At this point we know that asyncio's next state is
+            # epoll wait.
+            break
+        del ctx
+
+
 class ApplicationContext:
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.event_loops_binded_for_progress = set()
@@ -309,29 +334,13 @@ class ApplicationContext:
         rsock, wsock = socket.socketpair()
         wsock.close()
 
-        async def _arm():
-            # When arming the worker, the following must be true:
-            #  - No more progress in UCX (see doc of ucp_worker_arm())
-            #  - All asyncio tasks that isn't waiting on UCX must be executed
-            #    so that the asyncio's next state is epoll wait.
-            #    See <https://github.com/rapidsai/ucx-py/issues/413>
-
-            self.progress()
-            await event_loop.sock_recv(rsock, 1)
-            while True:
-                if not self._worker.arm():
-                    self.progress()
-                    await event_loop.sock_recv(rsock, 1)
-                else:
-                    # At this point we know that asyncio's next state is
-                    # epoll wait.
-                    break
-
         def _fd_reader_callback():
             # Notice, we can safely overwrite `self.dangling_arm_task`
             # since previous arm task is finished by now.
             assert self.dangling_arm_task is None or self.dangling_arm_task.done()
-            self.dangling_arm_task = event_loop.create_task(_arm())
+            self.dangling_arm_task = event_loop.create_task(
+                _arm_worker(weakref.ref(self), rsock, event_loop)
+            )
 
         event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
 
