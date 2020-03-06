@@ -461,6 +461,7 @@ cdef class ApplicationContext:
         self.continuous_ucx_progress()
 
         cdef ucp_ep_params_t params
+        ip_address = socket.gethostbyname(ip_address)
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
