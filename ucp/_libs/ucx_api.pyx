@@ -89,7 +89,7 @@ def get_ucx_version():
     return (a, b, c)
 
 
-cdef void _listener_callback(ucp_ep_h ep, void *args):
+cdef void _listener_callback(ucp_ep_h ep, void *args) except *:
     cdef dict cb_data = <dict> args
     cb_data['cb_func'](
         ucx_ep_create(ep),
@@ -327,7 +327,7 @@ cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep):
     return ret
 
 
-cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
+cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length) except *:
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
         # This callback function was called before handle_comm_result
@@ -355,7 +355,7 @@ cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
 
 
 cdef void _ucx_tag_recv_callback(void *request, ucs_status_t status,
-                                 ucp_tag_recv_info_t *info):
+                                 ucp_tag_recv_info_t *info) except *:
     _ucx_recv_callback(request, status, info.length)
 
 
@@ -389,7 +389,7 @@ cdef uintptr_t handle_comm_result(
     return 0
 
 
-cdef void _ucx_send_callback(void *request, ucs_status_t status):
+cdef void _ucx_send_callback(void *request, ucs_status_t status) except *:
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
         # This callback function was called before handle_comm_result
