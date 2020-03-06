@@ -420,29 +420,34 @@ def ucx_tag_send(UCXEndpoint ep, buffer, size_t nbytes,
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_ucx_send_callback
-    cdef ucs_status_ptr_t status = ucp_tag_send_nb(ep._handle,
-                                                   data,
-                                                   nbytes,
-                                                   ucp_dt_make_contig(1),
-                                                   tag,
-                                                   _send_cb)
+    cdef ucs_status_ptr_t status = ucp_tag_send_nb(
+        ep._handle,
+        data,
+        nbytes,
+        ucp_dt_make_contig(1),
+        tag,
+        _send_cb
+    )
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
 
 
-def ucx_tag_recv(UCXWorker worker, buffer, size_t nbytes, ucp_tag_t tag, cb_func, cb_args):
+def ucx_tag_recv(UCXWorker worker, buffer, size_t nbytes,
+                 ucp_tag_t tag, cb_func, cb_args):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(
         buffer, check_writable=True)
     )
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_ucx_tag_recv_callback
     )
-    cdef ucs_status_ptr_t status = ucp_tag_recv_nb(worker._handle,
-                                                    data,
-                                                    nbytes,
-                                                    ucp_dt_make_contig(1),
-                                                    tag,
-                                                    -1,
-                                                    _tag_recv_cb)
+    cdef ucs_status_ptr_t status = ucp_tag_recv_nb(
+        worker._handle,
+        data,
+        nbytes,
+        ucp_dt_make_contig(1),
+        tag,
+        -1,
+        _tag_recv_cb
+    )
     return handle_comm_result(
         status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
     )
@@ -452,12 +457,14 @@ def ucx_stream_send(UCXEndpoint ep, buffer, size_t nbytes, cb_func, cb_args):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_ucx_send_callback
-    cdef ucs_status_ptr_t status = ucp_stream_send_nb(ep._handle,
-                                                      data,
-                                                      nbytes,
-                                                      ucp_dt_make_contig(1),
-                                                      _send_cb,
-                                                      0)
+    cdef ucs_status_ptr_t status = ucp_stream_send_nb(
+        ep._handle,
+        data,
+        nbytes,
+        ucp_dt_make_contig(1),
+        _send_cb,
+        0
+    )
     return handle_comm_result(status, {"cb_func": cb_func, "cb_args": cb_args})
 
 
@@ -470,13 +477,15 @@ def ucx_stream_recv(UCXEndpoint ep, buffer, size_t nbytes, cb_func, cb_args):
     cdef ucp_stream_recv_callback_t _recv_cb = (
         <ucp_stream_recv_callback_t>_ucx_recv_callback
     )
-    cdef ucs_status_ptr_t status = ucp_stream_recv_nb(ep._handle,
-                                                      data,
-                                                      nbytes,
-                                                      ucp_dt_make_contig(1),
-                                                      _recv_cb,
-                                                      &length,
-                                                      0)
+    cdef ucs_status_ptr_t status = ucp_stream_recv_nb(
+        ep._handle,
+        data,
+        nbytes,
+        ucp_dt_make_contig(1),
+        _recv_cb,
+        &length,
+        0
+    )
     return handle_comm_result(
         status, {"cb_func": cb_func, "cb_args": cb_args}, expected_receive=nbytes
     )
