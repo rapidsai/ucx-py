@@ -339,13 +339,12 @@ cdef void _ucx_recv_callback(
         return
     cdef object req_data = <object> req.data
 
-    log_str = None
-    msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
     if status == UCS_ERR_CANCELED:
         exception = UCXCanceled()
     elif status != UCS_OK:
-        msg += ucs_status_string(status).decode("utf-8")
-        exception = UCXError(msg)
+        exception = UCXError(
+            "Error receiving: %s" % ucs_status_string(status).decode("utf-8")
+        )
     else:
         exception = None
 
@@ -364,14 +363,13 @@ cdef void _ucx_tag_recv_callback(void *request, ucs_status_t status,
 cdef uintptr_t handle_comm_result(
     ucs_status_ptr_t status, dict req_data, expected_receive=None
 ):
-    log_str = None
-    msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
     exception = None
     if UCS_PTR_STATUS(status) == UCS_OK:
         pass
     elif UCS_PTR_IS_ERR(status):
-        msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
-        exception = UCXError(msg)
+        exception = UCXError(
+            "Comm error: %s" % ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        )
     else:
         req = <ucp_request*> status
         if req.finished:  # The callback function has already handle the request
@@ -404,10 +402,9 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status) except *:
     if status == UCS_ERR_CANCELED:
         exception = UCXCanceled()
     elif status != UCS_OK:
-        log_str = None
-        msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
-        msg += ucs_status_string(status).decode("utf-8")
-        exception = UCXError(msg)
+        exception = UCXError(
+            "Error sending: %s" % ucs_status_string(status).decode("utf-8")
+        )
     else:
         exception = None
 
