@@ -18,3 +18,12 @@ def more_than_two_gpus():
     pynvml.nvmlInit()
     ngpus = pynvml.nvmlDeviceGetCount()
     return ngpus >= 2
+
+
+def get_cuda_visible_devices():
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        return os.environ["CUDA_VISIBLE_DEVICES"]
+    else:
+        import pynvml
+
+        return "".join(["%d," % d for d in range(pynvml.nvmlDeviceGetCount())])[:-1]

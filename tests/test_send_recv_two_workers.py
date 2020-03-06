@@ -1,6 +1,7 @@
 import asyncio
 import multiprocessing
 import os
+import random
 
 from distributed.comm.utils import from_frames, to_frames
 from distributed.protocol import to_serialize
@@ -11,7 +12,7 @@ import numpy as np
 import pytest
 import rmm
 import ucp
-from utils import more_than_two_gpus
+from utils import get_cuda_visible_devices, more_than_two_gpus
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -224,14 +225,13 @@ def cupy():
     "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy]
 )
 def test_send_recv_cu(cuda_obj_generator):
-    import os
-
     base_env = os.environ
     env1 = base_env.copy()
     env2 = base_env.copy()
+    cvd = get_cuda_visible_devices()
     # reverse CVD for other worker
-    env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
-    import random
+    env1["CUDA_VISIBLE_DEVICES"] = cvd
+    env2["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
 
     port = random.randint(13000, 15500)
     # serialize function and send to the client and server
@@ -261,12 +261,7 @@ def total_nvlink_transfer():
     pynvml.nvmlShutdown()
 
     pynvml.nvmlInit()
-
-    try:
-        cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
-    except Exception as e:
-        print(e)
-        cuda_dev_id = 0
+    cuda_dev_id = get_cuda_visible_devices().split(",")[0]
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
