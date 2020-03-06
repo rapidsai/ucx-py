@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+import socket
 from libc.stdio cimport FILE, fflush, fclose
 from libc.stdlib cimport free
 from libc.string cimport memset
@@ -247,6 +248,7 @@ cdef class UCXWorker:
 
     def ep_create(self, str ip_address, port):
         cdef ucp_ep_params_t params
+        ip_address = socket.gethostbyname(ip_address)
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
