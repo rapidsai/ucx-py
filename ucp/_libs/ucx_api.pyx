@@ -327,7 +327,9 @@ cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep):
     return ret
 
 
-cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length) except *:
+cdef void _ucx_recv_callback(
+    void *request, ucs_status_t status, size_t length
+) except *:
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
         # This callback function was called before handle_comm_result
