@@ -126,7 +126,7 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    py.test --cache-clear tests/
+    py.test --cache-clear -vs tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
