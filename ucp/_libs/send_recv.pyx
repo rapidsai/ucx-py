@@ -53,7 +53,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     return ret
 
 
-cdef void _send_callback(void *request, ucs_status_t status) except *:
+cdef _send_callback(void *request, ucs_status_t status):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         # This callback function was called before ucp_tag_send_nb() returned
@@ -92,8 +92,8 @@ def tag_send(uintptr_t ucp_ep, buffer, size_t nbytes,
     return create_future_from_comm_status(status, nbytes, pending_msg)
 
 
-cdef void _tag_recv_callback(void *request, ucs_status_t status,
-                             ucp_tag_recv_info_t *info) except *:
+cdef _tag_recv_callback(void *request, ucs_status_t status,
+                        ucp_tag_recv_info_t *info):
     cdef ucp_request *req = <ucp_request*> request
     if req.future == NULL:
         # This callback function was called before ucp_tag_recv_nb() returned

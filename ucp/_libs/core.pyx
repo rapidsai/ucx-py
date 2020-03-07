@@ -255,7 +255,7 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_or
         await _func(pub_ep)
 
 
-cdef void _listener_callback(ucp_ep_h ep, void *args) except *:
+cdef _listener_callback(ucp_ep_h ep, void *args):
     cdef _listener_callback_args *a = <_listener_callback_args *> args
     cdef object ctx = <object> a.py_ctx
     cdef object func = <object> a.py_func
