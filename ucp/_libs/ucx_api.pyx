@@ -150,7 +150,7 @@ cdef class UCXContext:
     cdef:
         ucp_context_h _context
         bint _initialized
-        object _config
+        dict _config
 
     def __cinit__(self, config_dict):
         cdef ucp_params_t ucp_params
