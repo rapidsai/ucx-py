@@ -58,7 +58,8 @@ cdef ucx_config_to_dict(ucp_config_t *config):
     cdef char *text
     cdef size_t text_len
     cdef FILE *text_fd = open_memstream(&text, &text_len)
-    assert(text_fd != NULL)
+    if(text_fd == NULL):
+        raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
@@ -228,14 +229,16 @@ cdef class UCXWorker:
         assert_ucs_status(status)
         self.arm()
         epoll_fd = epoll_create(1)
-        assert(epoll_fd != -1)
+        if epoll_fd == -1:
+            raise IOError("epoll_create(1) returned -1")
         ev.data.fd = ucp_epoll_fd
         ev.data.ptr = NULL
         ev.data.u32 = 0
         ev.data.u64 = 0
         ev.events = EPOLLIN
         err = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
-        assert(err == 0)
+        if err != 0:
+            raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
 
     def arm(self):
@@ -306,7 +309,8 @@ cdef class UCXEndpoint:
         cdef char *text
         cdef size_t text_len
         cdef FILE *text_fd = open_memstream(&text, &text_len)
-        assert(text_fd != NULL)
+        if(text_fd == NULL):
+            raise IOError("open_memstream() returned NULL")
         ucp_ep_print_info(self._handle, text_fd)
         fflush(text_fd)
         cdef unicode py_text = text.decode()
