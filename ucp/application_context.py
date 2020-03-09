@@ -187,10 +187,11 @@ async def _non_blocking_mode(weakref_ctx):
 
 
 async def _arm_worker(weakref_ctx, rsock, event_loop):
-    """This help function arms the worker.
-    Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
-    possible to call `ucp.reset()` even when this loop is running.
-    """
+    """This helper function arms the worker."""
+
+    ctx = weakref_ctx()
+    if ctx is None:
+        return
 
     # When arming the worker, the following must be true:
     #  - No more progress in UCX (see doc of ucp_worker_arm())
@@ -198,9 +199,6 @@ async def _arm_worker(weakref_ctx, rsock, event_loop):
     #    so that the asyncio's next state is epoll wait.
     #    See <https://github.com/rapidsai/ucx-py/issues/413>
     while True:
-        ctx = weakref_ctx()
-        if ctx is None:
-            return
         ctx.progress()
         # This IO task returns when all non-IO tasks are finished.
         await event_loop.sock_recv(rsock, 1)
@@ -208,7 +206,6 @@ async def _arm_worker(weakref_ctx, rsock, event_loop):
             # At this point we know that asyncio's next state is
             # epoll wait.
             break
-        del ctx
 
 
 class ApplicationContext:
