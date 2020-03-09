@@ -53,23 +53,26 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     return config
 
 
-cdef ucx_config_to_dict(ucp_config_t *config):
+cdef dict ucx_config_to_dict(ucp_config_t *config):
     """Returns a dict of a UCX config"""
     cdef char *text
     cdef size_t text_len
+    cdef unicode py_text
     cdef FILE *text_fd = open_memstream(&text, &text_len)
     if(text_fd == NULL):
         raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
-    cdef unicode py_text = text.decode()
-    for line in py_text.splitlines():
-        k, v = line.split("=")
-        k = k[len("UCX_"):]
-        ret[k] = v
-    fclose(text_fd)
-    free(text)
+    try:
+        py_text = text.decode()
+        for line in py_text.splitlines():
+            k, v = line.split("=")
+            k = k[len("UCX_"):]
+            ret[k] = v
+    finally:
+        fclose(text_fd)
+        free(text)
     return ret
 
 
@@ -308,14 +311,17 @@ cdef class UCXEndpoint:
         # convert it to a Python string, clean up, and return string.
         cdef char *text
         cdef size_t text_len
+        cdef unicode py_text
         cdef FILE *text_fd = open_memstream(&text, &text_len)
         if(text_fd == NULL):
             raise IOError("open_memstream() returned NULL")
         ucp_ep_print_info(self._handle, text_fd)
         fflush(text_fd)
-        cdef unicode py_text = text.decode()
-        fclose(text_fd)
-        free(text)
+        try:
+            py_text = text.decode()
+        finally:
+            fclose(text_fd)
+            free(text)
         return py_text
 
     @property
