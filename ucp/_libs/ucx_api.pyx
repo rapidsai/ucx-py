@@ -59,7 +59,7 @@ cdef ucx_config_to_dict(ucp_config_t *config):
     cdef size_t text_len
     cdef FILE *text_fd = open_memstream(&text, &text_len)
     assert(text_fd != NULL)
-    ret = {}
+    cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
     cdef unicode py_text = text.decode()
@@ -150,7 +150,7 @@ cdef class UCXContext:
     cdef:
         ucp_context_h _context
         bint _initialized
-        object _config
+        dict _config
 
     def __cinit__(self, config_dict):
         cdef ucp_params_t ucp_params
