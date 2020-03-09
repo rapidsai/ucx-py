@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+import contextlib
 import socket
 from libc.stdio cimport FILE, fflush, fclose
 from libc.stdlib cimport free
@@ -18,6 +19,14 @@ from ..exceptions import (
     UCXCanceled,
 )
 from .buffer_interface import get_buffer_data
+
+
+@contextlib.contextmanager
+def log_errors():
+    try:
+        yield
+    except BaseException as e:
+        logging.exception(e)
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -93,12 +102,13 @@ def get_ucx_version():
     return (a, b, c)
 
 
-cdef void _listener_callback(ucp_ep_h ep, void *args) except *:
+cdef void _listener_callback(ucp_ep_h ep, void *args):
     cdef dict cb_data = <dict> args
-    cb_data['cb_func'](
-        ucx_ep_create(ep),
-        *cb_data['cb_args']
-    )
+    with log_errors():
+        cb_data['cb_func'](
+            ucx_ep_create(ep),
+            *cb_data['cb_args']
+        )
 
 
 cdef class UCXListener:
@@ -337,9 +347,7 @@ cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep):
     return ret
 
 
-cdef void _ucx_recv_callback(
-    void *request, ucs_status_t status, size_t length
-) except *:
+cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
         # This callback function was called before handle_comm_result
@@ -349,57 +357,60 @@ cdef void _ucx_recv_callback(
         return
     cdef object req_data = <object> req.data
 
-    if status == UCS_ERR_CANCELED:
-        exception = UCXCanceled()
-    elif status != UCS_OK:
-        exception = UCXError(
-            "Error receiving: %s" % ucs_status_string(status).decode("utf-8")
-        )
-    else:
-        exception = None
+    with log_errors():
+        if status == UCS_ERR_CANCELED:
+            exception = UCXCanceled()
+        elif status != UCS_OK:
+            exception = UCXError(
+                "Error receiving: %s" % ucs_status_string(status).decode("utf-8")
+            )
+        else:
+            exception = None
 
-    ucp_request_reset(request)
-    ucp_request_free(request)
-    size = length if exception is None else 0
-    req_data["cb_func"](exception, size, *req_data["cb_args"])
-    Py_DECREF(req_data)
+        ucp_request_reset(request)
+        ucp_request_free(request)
+        size = length if exception is None else 0
+        req_data["cb_func"](exception, size, *req_data["cb_args"])
+        Py_DECREF(req_data)
 
 
 cdef void _ucx_tag_recv_callback(void *request, ucs_status_t status,
-                                 ucp_tag_recv_info_t *info) except *:
+                                 ucp_tag_recv_info_t *info):
     _ucx_recv_callback(request, status, info.length)
 
 
-cdef uintptr_t handle_comm_result(
+cdef handle_comm_result(
     ucs_status_ptr_t status, dict req_data, expected_receive=None
 ):
-    exception = None
-    if UCS_PTR_STATUS(status) == UCS_OK:
-        pass
-    elif UCS_PTR_IS_ERR(status):
-        exception = UCXError(
-            "Comm error: %s" % ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
-        )
-    else:
-        req = <ucp_request*> status
-        if req.finished:  # The callback function has already handle the request
-            ucp_request_reset(req)
-            ucp_request_free(req)
+    with log_errors():
+        exception = None
+        if UCS_PTR_STATUS(status) == UCS_OK:
+            pass
+        elif UCS_PTR_IS_ERR(status):
+            exception = UCXError(
+                "Comm error: %s" %
+                ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+            )
         else:
-            # The callback function has not been called yet.
-            # We fill `ucp_request` for the callback function to use
-            Py_INCREF(req_data)
-            req.data = <PyObject*> req_data
-            return <uintptr_t><void*>req
+            req = <ucp_request*> status
+            if req.finished:  # The callback function has already handle the request
+                ucp_request_reset(req)
+                ucp_request_free(req)
+            else:
+                # The callback function has not been called yet.
+                # We fill `ucp_request` for the callback function to use
+                Py_INCREF(req_data)
+                req.data = <PyObject*> req_data
+                return <uintptr_t><void*>req
 
-    if expected_receive:
-        req_data["cb_func"](exception, expected_receive, *req_data["cb_args"])
-    else:
-        req_data["cb_func"](exception, *req_data["cb_args"])
-    return 0
+        if expected_receive:
+            req_data["cb_func"](exception, expected_receive, *req_data["cb_args"])
+        else:
+            req_data["cb_func"](exception, *req_data["cb_args"])
+        return 0
 
 
-cdef void _ucx_send_callback(void *request, ucs_status_t status) except *:
+cdef void _ucx_send_callback(void *request, ucs_status_t status):
     cdef ucp_request *req = <ucp_request*> request
     if req.data == NULL:
         # This callback function was called before handle_comm_result
@@ -409,19 +420,20 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status) except *:
 
     cdef object req_data = <object> req.data
 
-    if status == UCS_ERR_CANCELED:
-        exception = UCXCanceled()
-    elif status != UCS_OK:
-        exception = UCXError(
-            "Error sending: %s" % ucs_status_string(status).decode("utf-8")
-        )
-    else:
-        exception = None
+    with log_errors():
+        if status == UCS_ERR_CANCELED:
+            exception = UCXCanceled()
+        elif status != UCS_OK:
+            exception = UCXError(
+                "Error sending: %s" % ucs_status_string(status).decode("utf-8")
+            )
+        else:
+            exception = None
 
-    ucp_request_reset(request)
-    ucp_request_free(request)
-    req_data["cb_func"](exception, *req_data["cb_args"])
-    Py_DECREF(req_data)
+        ucp_request_reset(request)
+        ucp_request_free(request)
+        req_data["cb_func"](exception, *req_data["cb_args"])
+        Py_DECREF(req_data)
 
 
 def ucx_tag_send(UCXEndpoint ep, buffer, size_t nbytes,
