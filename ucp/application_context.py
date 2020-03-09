@@ -173,7 +173,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
 
 
 async def _non_blocking_mode(weakref_ctx):
-    """This help function maintains a UCX progress loop.
+    """This helper function maintains a UCX progress loop.
     Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
     possible to call `ucp.reset()` even when this loop is running.
     """
