@@ -59,7 +59,7 @@ cdef ucx_config_to_dict(ucp_config_t *config):
     cdef size_t text_len
     cdef FILE *text_fd = open_memstream(&text, &text_len)
     assert(text_fd != NULL)
-    ret = {}
+    cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     fflush(text_fd)
     cdef unicode py_text = text.decode()
