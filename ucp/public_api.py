@@ -337,8 +337,10 @@ class Endpoint:
                 )
             except exceptions.UCXError:
                 pass  # The peer might already be shutting down
-            # Give all current outstanding send() calls a chance to return
+            # Give all current outstanding send() calls a chance to finish
             self._ctx.progress()
+            # Give other co-routines a chance to run before calling self.abort(),
+            # which cancel pending messages.
             await asyncio.sleep(0)
         finally:
             self.abort()
