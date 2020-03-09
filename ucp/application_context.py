@@ -187,7 +187,7 @@ async def _non_blocking_mode(weakref_ctx):
 
 
 async def _arm_worker(weakref_ctx, rsock, event_loop):
-    """This help function args the worker.
+    """This help function arms the worker.
     Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
     possible to call `ucp.reset()` even when this loop is running.
     """
