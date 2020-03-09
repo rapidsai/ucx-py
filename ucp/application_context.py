@@ -111,7 +111,7 @@ def setup_ctrl_recv(ep):
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
     async def run(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         loop = asyncio.get_event_loop()
-        # TODO: exceptions in this callback is never showed when no
+        # TODO: exceptions in this callback is never shown when no
         #       get_exception_handler() is set.
         #       Is this the correct way to handle exceptions in asyncio?
         #       Do we need to set this in other places?
@@ -173,7 +173,7 @@ def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
 
 
 async def _non_blocking_mode(weakref_ctx):
-    """This help function maintains a UCX progress loop.
+    """This helper function maintains a UCX progress loop.
     Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
     possible to call `ucp.reset()` even when this loop is running.
     """
@@ -187,7 +187,7 @@ async def _non_blocking_mode(weakref_ctx):
 
 
 async def _arm_worker(weakref_ctx, rsock, event_loop):
-    """This help function args the worker.
+    """This help function arms the worker.
     Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
     possible to call `ucp.reset()` even when this loop is running.
     """
