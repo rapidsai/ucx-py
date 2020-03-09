@@ -22,11 +22,13 @@ from .buffer_interface import get_buffer_data
 
 
 @contextlib.contextmanager
-def log_errors():
+def log_errors(reraise_exception=False):
     try:
         yield
     except BaseException as e:
         logging.exception(e)
+        if reraise_exception:
+            raise
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -382,7 +384,7 @@ cdef void _ucx_tag_recv_callback(void *request, ucs_status_t status,
 cdef handle_comm_result(
     ucs_status_ptr_t status, dict req_data, expected_receive=None
 ):
-    with log_errors():
+    with log_errors(reraise_exception=True):
         exception = None
         if UCS_PTR_STATUS(status) == UCS_OK:
             pass
