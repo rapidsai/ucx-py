@@ -223,7 +223,7 @@ class ApplicationContext:
         else:
             self.blocking_progress_mode = True
 
-        # Create context and worker, whic might fail
+        # Create context and worker, which might fail
         self._ctx = ucx_api.UCXContext(config_dict)
         self._worker = ucx_api.UCXWorker(self._ctx)
 
