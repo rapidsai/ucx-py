@@ -111,7 +111,7 @@ def setup_ctrl_recv(ep):
 def listener_handler(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
     async def run(ucp_endpoint, ctx, worker, func, guarantee_msg_order):
         loop = asyncio.get_event_loop()
-        # TODO: exceptions in this callback is never showed when no
+        # TODO: exceptions in this callback is never shown when no
         #       get_exception_handler() is set.
         #       Is this the correct way to handle exceptions in asyncio?
         #       Do we need to set this in other places?
