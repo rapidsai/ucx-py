@@ -9,6 +9,24 @@ msg_sizes = [2 ** i for i in range(0, 25, 4)]
 dtypes = ["|u1", "<i8", "f8"]
 
 
+def handle_exception(loop, context):
+    msg = context.get("exception", context["message"])
+    print(msg)
+
+
+# Let's make sure that UCX gets time to cancel
+# progress tasks before closing the event loop.
+@pytest.yield_fixture()
+def event_loop(scope="function"):
+    loop = asyncio.new_event_loop()
+    loop.set_exception_handler(handle_exception)
+    ucp.reset()
+    yield loop
+    ucp.reset()
+    loop.run_until_complete(asyncio.sleep(0))
+    loop.close()
+
+
 def make_echo_server(create_empty_data):
     """
     Returns an echo server that calls the function `create_empty_data(nbytes)`
@@ -33,17 +51,10 @@ def make_echo_server(create_empty_data):
     return echo_server
 
 
-def handle_exception(loop, context):
-    msg = context.get("exception", context["message"])
-    print(msg)
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_bytes(size, blocking_progress_mode):
-    asyncio.get_event_loop().set_exception_handler(handle_exception)
-    ucp.reset()
     ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     msg = bytearray(b"m" * size)
@@ -63,8 +74,6 @@ async def test_send_recv_bytes(size, blocking_progress_mode):
 @pytest.mark.parametrize("dtype", dtypes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_numpy(size, dtype, blocking_progress_mode):
-    asyncio.get_event_loop().set_exception_handler(handle_exception)
-    ucp.reset()
     ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     msg = np.arange(size, dtype=dtype)
@@ -86,8 +95,6 @@ async def test_send_recv_numpy(size, dtype, blocking_progress_mode):
 @pytest.mark.parametrize("dtype", dtypes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_cupy(size, dtype, blocking_progress_mode):
-    asyncio.get_event_loop().set_exception_handler(handle_exception)
-    ucp.reset()
     ucp.init(blocking_progress_mode=blocking_progress_mode)
     cupy = pytest.importorskip("cupy")
 
@@ -110,8 +117,6 @@ async def test_send_recv_cupy(size, dtype, blocking_progress_mode):
 @pytest.mark.parametrize("dtype", dtypes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_numba(size, dtype, blocking_progress_mode):
-    asyncio.get_event_loop().set_exception_handler(handle_exception)
-    ucp.reset()
     ucp.init(blocking_progress_mode=blocking_progress_mode)
     cuda = pytest.importorskip("numba.cuda")
 
@@ -132,8 +137,6 @@ async def test_send_recv_numba(size, dtype, blocking_progress_mode):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_error(blocking_progress_mode):
-    asyncio.get_event_loop().set_exception_handler(handle_exception)
-    ucp.reset()
     ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     async def say_hey_server(ep):
@@ -147,8 +150,3 @@ async def test_send_recv_error(blocking_progress_mode):
         ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
     ):
         await client.recv(msg)
-    await client.close()
-    listener.close()
-    del client
-    assert listener.closed() is True
-    del listener
