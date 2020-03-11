@@ -30,7 +30,8 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
     else:
         log_str = None
 
-    ret = asyncio.get_event_loop().create_future()
+    event_loop = asyncio.get_event_loop()
+    ret = event_loop.create_future()
     msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
@@ -54,6 +55,8 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             # We fill `ucp_request` for the callback function to use
             Py_INCREF(ret)
             req.future = <PyObject*> ret
+            Py_INCREF(event_loop)
+            req.event_loop = <PyObject*> event_loop
             req.expected_receive = expected_receive
             if pending_msg is not None:
                 pending_msg['future'] = ret
@@ -71,14 +74,16 @@ cdef void _send_callback(void *request, ucs_status_t status):
         req.finished = True
         return
     cdef object future = <object> req.future
+    cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
     Py_DECREF(future)
+    Py_DECREF(event_loop)
     Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
-        if asyncio.get_event_loop().is_closed() or future.done():
+        if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
@@ -114,17 +119,19 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         req.received = info.length
         return
     cdef object future = <object> req.future
+    cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
     cdef size_t expected_receive = req.expected_receive
     cdef size_t length = info.length
     Py_DECREF(future)
+    Py_DECREF(event_loop)
     Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
         msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
-        if asyncio.get_event_loop().is_closed() or future.done():
+        if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
@@ -181,16 +188,18 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         req.received = length
         return
     cdef object future = <object> req.future
+    cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
     cdef size_t expected_receive = req.expected_receive
     Py_DECREF(future)
+    Py_DECREF(event_loop)
     Py_DECREF(log_str)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
         msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
-        if asyncio.get_event_loop().is_closed() or future.done():
+        if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
