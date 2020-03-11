@@ -59,12 +59,9 @@ async def test_send_recv_cudf(event_loop, g):
             )
             await self.ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
             # Send frames
-            # breakpoint()
             for frame in frames:
                 if nbytes(frame) > 0:
                     await self.ep.send(frame)
-                else:
-                    await self.ep.send(np.empty(0, dtype=np.uint8))
 
         async def read(self):
             try:

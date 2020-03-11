@@ -41,7 +41,10 @@ async def test_lt_still_in_scope_error():
     lt = ucp.create_listener(server)
     ep = await ucp.create_endpoint(ucp.get_address(), lt.port)
     del ep
-    with pytest.raises(ucp.exceptions.UCXError, match="ucp._libs.core._Listener"):
+    with pytest.raises(
+        ucp.exceptions.UCXError,
+        match="Trying to reset UCX but not all Endpoints and/or Listeners are closed()",
+    ):
         ucp.reset()
 
     lt.close()
@@ -59,7 +62,10 @@ async def test_ep_still_in_scope_error():
     lt = ucp.create_listener(server)
     ep = await ucp.create_endpoint(ucp.get_address(), lt.port)
     del lt
-    with pytest.raises(ucp.exceptions.UCXError, match="_ucp_endpoint"):
+    with pytest.raises(
+        ucp.exceptions.UCXError,
+        match="Trying to reset UCX but not all Endpoints and/or Listeners are closed()",
+    ):
         ucp.reset()
     ep.abort()
     ucp.reset()
