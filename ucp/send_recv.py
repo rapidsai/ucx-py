@@ -8,7 +8,7 @@ from ._libs import ucx_api
 
 
 def _tag_send_cb(exception, future):
-    if asyncio.get_event_loop().is_closed():
+    if asyncio.get_event_loop().is_closed() or future.done():
         return
     if exception is not None:
         future.set_exception(exception)
@@ -26,7 +26,7 @@ def tag_send(ucp_endpoint, buffer, nbytes, tag, pending_msg=None):
 
 
 def _tag_recv_cb(exception, received, future, expected_receive):
-    if asyncio.get_event_loop().is_closed():
+    if asyncio.get_event_loop().is_closed() or future.done():
         return
     if exception is not None:
         future.set_exception(exception)
@@ -52,7 +52,7 @@ def tag_recv(worker, buffer, nbytes, tag, pending_msg=None):
 
 
 def _stream_send_cb(exception, future):
-    if asyncio.get_event_loop().is_closed():
+    if asyncio.get_event_loop().is_closed() or future.done():
         return
     if exception is not None:
         future.set_exception(exception)
@@ -70,7 +70,7 @@ def stream_send(ucp_endpoint, buffer, nbytes, pending_msg=None):
 
 
 def _stream_recv_cb(exception, received, future, expected_receive):
-    if asyncio.get_event_loop().is_closed():
+    if asyncio.get_event_loop().is_closed() or future.done():
         return
     if exception is not None:
         future.set_exception(exception)

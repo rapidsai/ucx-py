@@ -358,6 +358,9 @@ cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
         req.received = length
         return
     cdef object req_data = <object> req.data
+    ucp_request_reset(request)
+    ucp_request_free(request)
+    Py_DECREF(req_data)
 
     with log_errors():
         if status == UCS_ERR_CANCELED:
@@ -369,11 +372,8 @@ cdef void _ucx_recv_callback(void *request, ucs_status_t status, size_t length):
         else:
             exception = None
 
-        ucp_request_reset(request)
-        ucp_request_free(request)
         size = length if exception is None else 0
         req_data["cb_func"](exception, size, *req_data["cb_args"])
-        Py_DECREF(req_data)
 
 
 cdef void _ucx_tag_recv_callback(void *request, ucs_status_t status,
@@ -421,6 +421,9 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status):
         return
 
     cdef object req_data = <object> req.data
+    ucp_request_reset(request)
+    ucp_request_free(request)
+    Py_DECREF(req_data)
 
     with log_errors():
         if status == UCS_ERR_CANCELED:
@@ -432,10 +435,7 @@ cdef void _ucx_send_callback(void *request, ucs_status_t status):
         else:
             exception = None
 
-        ucp_request_reset(request)
-        ucp_request_free(request)
         req_data["cb_func"](exception, *req_data["cb_args"])
-        Py_DECREF(req_data)
 
 
 def ucx_tag_send(UCXEndpoint ep, buffer, size_t nbytes,
