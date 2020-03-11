@@ -240,6 +240,7 @@ cdef extern from "sys/epoll.h":
 cdef struct ucp_request:
     bint finished
     PyObject *future
+    PyObject *event_loop
     PyObject *log_str
     size_t expected_receive
     int64_t received
@@ -249,6 +250,7 @@ cdef inline void ucp_request_reset(void* request):
     cdef ucp_request *req = <ucp_request*> request
     req.finished = False
     req.future = NULL
+    req.event_loop = NULL
     req.log_str = NULL
     req.expected_receive = 0
     req.received = -1
