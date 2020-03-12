@@ -8,7 +8,7 @@ import cloudpickle
 import numpy as np
 import pytest
 import ucp
-from utils import ITERATIONS, recv, send
+from utils import ITERATIONS, recv, send, set_rmm
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -34,12 +34,14 @@ def server(env, port, func):
         # to connect
         async def write(ep):
 
+            set_rmm()
             print("CREATING CUDA OBJECT IN SERVER...")
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
             msg = {"data": to_serialize(cuda_obj)}
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
+                print('ITER: ', i)
                 # Send meta data
                 await send(ep, frames)
 
@@ -64,9 +66,11 @@ def server(env, port, func):
                 await asyncio.sleep(0.1)
         except ucp.UCXCloseError:
             pass
+        import ipdb; ipdb.set_trace()
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(f(port))
+    for i in range(ITERATIONS):
+        loop.run_until_complete(f(port))
 
 
 def dataframe():
@@ -74,13 +78,13 @@ def dataframe():
     import numpy as np
 
     size = 2 ** 26
-    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)})
+    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size), 'c': ['a']*size})
 
 
-def cupy():
+def cupy_obj():
     import cupy
 
-    size = 10 ** 9
+    size = 9 ** 9
     return cupy.arange(size)
 
 
@@ -89,9 +93,6 @@ def test_send_recv_cu(cuda_obj_generator):
 
     base_env = os.environ
     env1 = base_env.copy()
-    env2 = base_env.copy()
-    # reverse CVD for other worker
-    env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
 
     port = 15338
     # serialize function and send to the client and server
@@ -130,4 +131,4 @@ def total_nvlink_transfer():
 if __name__ == "__main__":
     # args = parse_args(args)
 
-    test_send_recv_cu(cupy)
+    test_send_recv_cu(dataframe)
