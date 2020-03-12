@@ -224,6 +224,7 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_or
         ctrl_tag_recv=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order
     )
+    ctx.children.append(weakref.ref(ep))
 
     logging.debug(
         "listener_handler() server: %s, msg-tag-send: %s, "
@@ -291,21 +292,26 @@ cdef class _Listener:
     See <..public_api.Listener> for documentation
     """
     cdef:
-        cdef ucp_listener_h _ucp_listener
-        cdef _listener_callback_args _cb_args
-        cdef uint16_t _port
-        cdef object _ctx
+        object __weakref__
+        ucp_listener_h _ucp_listener
+        _listener_callback_args _cb_args
+        uint16_t _port
+        object _ctx
 
     def port(self):
         return self._port
 
-    def destroy(self):
-        Py_DECREF(<object>self._cb_args.py_ctx)
-        self._cb_args.py_ctx = NULL
-        Py_DECREF(<object>self._cb_args.py_func)
-        self._cb_args.py_func = NULL
-        ucp_listener_destroy(self._ucp_listener)
-        self._ctx = None
+    def abort(self):
+        if self._ctx is not None:
+            if not self._ctx.initiated:
+                raise UCXCloseError("ApplicationContext is already closed!")
+
+            ucp_listener_destroy(self._ucp_listener)
+            self._ctx = None
+            Py_DECREF(<object>self._cb_args.py_ctx)
+            self._cb_args.py_ctx = NULL
+            Py_DECREF(<object>self._cb_args.py_func)
+            self._cb_args.py_func = NULL
 
 
 cdef class ApplicationContext:
@@ -317,12 +323,13 @@ cdef class ApplicationContext:
         int epoll_fd
         object event_loops_binded_for_progress
         object progress_tasks
-        bint initiated
         bint blocking_progress_mode
         object dangling_arm_task
 
     cdef public:
         object config
+        list children
+        bint initiated
 
     def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         cdef ucp_params_t ucp_params
@@ -333,6 +340,7 @@ cdef class ApplicationContext:
         self.config = {}
         self.initiated = False
         self.dangling_arm_task = None
+        self.children = []
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -398,10 +406,16 @@ cdef class ApplicationContext:
 
     def __dealloc__(self):
         if self.initiated:
-            for task in self.progress_tasks:
+            # Aborting all objects working in this context
+            for child in (self.children if self.children else []):
+                child = child()
+                if child is not None:
+                    child.abort()
+            for task in (self.progress_tasks if self.progress_tasks else []):
                 task.cancel()
             if self.dangling_arm_task is not None:
                 self.dangling_arm_task.cancel()
+            self.initiated = False
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
             if self.blocking_progress_mode:
@@ -431,13 +445,13 @@ cdef class ApplicationContext:
         ret = _Listener()
         ret._port = port
         ret._ctx = self
-
         ret._cb_args.ucp_worker = self.worker
         ret._cb_args.py_func = <PyObject*> callback_func
         ret._cb_args.py_ctx = <PyObject*> self
         ret._cb_args.guarantee_msg_order = guarantee_msg_order
         Py_INCREF(self)
         Py_INCREF(callback_func)
+        self.children.append(weakref.ref(ret))
 
         cdef ucp_listener_params_t params
         cdef ucp_listener_accept_callback_t _listener_cb = (
@@ -494,6 +508,7 @@ cdef class ApplicationContext:
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
+        self.children.append(weakref.ref(ep))
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
@@ -631,6 +646,9 @@ class _Endpoint:
             return
         self._closed = True
         logging.debug("Endpoint.abort(): %s" % hex(self.uid))
+
+        if not self._ctx.initiated:
+            raise UCXCloseError("ApplicationContext is already closed!")
 
         cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>self._ucp_worker
 
