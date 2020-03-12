@@ -56,7 +56,7 @@ conda install "cudatoolkit=$CUDA_REL" \
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
                               "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml" "libhwloc"
+                              "pynvml" "libhwloc" "psutil"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
