@@ -322,7 +322,7 @@ cdef class ApplicationContext:
         ucp_worker_h worker
         int epoll_fd
         object event_loops_binded_for_progress
-        object progress_tasks
+        list progress_tasks
         bint blocking_progress_mode
         object dangling_arm_task
 
