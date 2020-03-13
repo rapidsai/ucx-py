@@ -34,7 +34,6 @@ def client(env, port, func):
 
     os.environ.update(env)
     before_rx, before_tx = total_nvlink_transfer()
-    set_rmm()
 
     async def read():
         await asyncio.sleep(1)
@@ -51,15 +50,10 @@ def client(env, port, func):
             # Send meta data
             await send(ep, frames)
 
-        close_msg = b"shutdown listener"
-        close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
-
-        await ep.send(close_msg_size)
-        await ep.send(close_msg)
-
         print("Shutting Down Client...")
-        return msg["data"]
+        await ep.close()
 
+    set_rmm()
     for i in range(ITERATIONS):
         rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
 
@@ -107,7 +101,7 @@ def test_send_recv_cu(cuda_obj_generator):
 
     env2 = base_env.copy()
 
-    port = 15338
+    port = 15339
     # serialize function and send to the client and server
     # server will use the return value of the contents,
     # serialize the values, then send serialized values to client.

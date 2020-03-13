@@ -32,9 +32,9 @@ def server(env, port, func):
     async def f(listener_port):
         # coroutine shows up when the client asks
         # to connect
+        set_rmm()
         async def write(ep):
 
-            set_rmm()
             print("CREATING CUDA OBJECT IN SERVER...")
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
@@ -48,17 +48,10 @@ def server(env, port, func):
                 frames, msg = await recv(ep)
 
             print("CONFIRM RECEIPT")
-            close_msg = b"shutdown listener"
-            msg_size = np.empty(1, dtype=np.uint64)
-            await ep.recv(msg_size)
-
-            msg = np.empty(msg_size[0], dtype=np.uint8)
-            await ep.recv(msg)
-            recv_msg = msg.tobytes()
-            assert recv_msg == close_msg
-            print("Shutting Down Server...")
             await ep.close()
             lf.close()
+            del msg
+            del frames
 
         lf = ucp.create_listener(write, port=listener_port)
         try:
@@ -66,7 +59,6 @@ def server(env, port, func):
                 await asyncio.sleep(0.1)
         except ucp.UCXCloseError:
             pass
-        import ipdb; ipdb.set_trace()
 
     loop = asyncio.get_event_loop()
     for i in range(ITERATIONS):
@@ -94,7 +86,7 @@ def test_send_recv_cu(cuda_obj_generator):
     base_env = os.environ
     env1 = base_env.copy()
 
-    port = 15338
+    port = 15339
     # serialize function and send to the client and server
     # server will use the return value of the contents,
     # serialize the values, then send serialized values to client.
