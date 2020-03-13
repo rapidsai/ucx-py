@@ -20,6 +20,7 @@ from ..exceptions import (
     UCXWarning,
     UCXConfigError,
 )
+from .. import continuous_ucx_progress
 
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv, log_errors
 from .utils import get_buffer_nbytes
@@ -272,20 +273,6 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
         )
 
 
-async def _non_blocking_mode(weakref_ctx):
-    """This help function maintains a UCX progress loop.
-    Notice, it only keeps a weak reference to `ApplicationContext`, which makes it
-    possible to call `ucp.reset()` even when this loop is running.
-    """
-    while True:
-        ctx = weakref_ctx()
-        if ctx is None:
-            return
-        ctx.progress()
-        del ctx
-        await asyncio.sleep(0)
-
-
 cdef class _Listener:
     """This represents the private part of Listener
 
@@ -320,16 +307,15 @@ cdef class ApplicationContext:
         ucp_context_h context
         # For now, a application context only has one worker
         ucp_worker_h worker
-        int epoll_fd
         object event_loops_binded_for_progress
         list progress_tasks
         bint blocking_progress_mode
-        object dangling_arm_task
 
     cdef public:
         object config
         list children
         bint initiated
+        int epoll_fd
 
     def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         cdef ucp_params_t ucp_params
@@ -339,7 +325,6 @@ cdef class ApplicationContext:
         self.progress_tasks = []
         self.config = {}
         self.initiated = False
-        self.dangling_arm_task = None
         self.children = []
 
         if blocking_progress_mode is not None:
@@ -411,10 +396,7 @@ cdef class ApplicationContext:
                 child = child()
                 if child is not None:
                     child.abort()
-            for task in (self.progress_tasks if self.progress_tasks else []):
-                task.cancel()
-            if self.dangling_arm_task is not None:
-                self.dangling_arm_task.cancel()
+            self.progress_tasks = None
             self.initiated = False
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
@@ -533,51 +515,13 @@ cdef class ApplicationContext:
         while ucp_worker_progress(self.worker) != 0:
             pass
 
-    def _blocking_progress_mode(self, event_loop):
-        """Bind an asyncio reader to a UCX epoll file descripter"""
-        assert self.blocking_progress_mode is True
-
-        # Creating a job that is ready straightaway but with low priority.
-        # Calling `await event_loop.sock_recv(rsock, 1)` will return when
-        # all non-IO tasks are finished.
-        # See <https://stackoverflow.com/a/48491563>.
-        rsock, wsock = socket.socketpair()
-        wsock.close()
-
-        async def _arm():
-            # When arming the worker, the following must be true:
-            #  - No more progress in UCX (see doc of ucp_worker_arm())
-            #  - All asyncio tasks that isn't waiting on UCX must be executed
-            #    so that the asyncio's next state is epoll wait.
-            #    See <https://github.com/rapidsai/ucx-py/issues/413>
-
-            self.progress()
-            await event_loop.sock_recv(rsock, 1)
-
-            while True:
-                status = ucp_worker_arm(self.worker)
-                if status == UCS_ERR_BUSY:
-                    self.progress()
-                    await event_loop.sock_recv(rsock, 1)
-                else:
-                    # At this point we know that asyncio's next state is
-                    # epoll wait.
-                    assert_ucs_status(status)
-                    break
-
-        def _fd_reader_callback():
-            # Notice, we can safely overwrite `self.dangling_arm_task`
-            # since previous arm task is finished by now.
-            self.dangling_arm_task = event_loop.create_task(_arm())
-
-        event_loop.add_reader(self.epoll_fd, _fd_reader_callback)
-
-    def _non_blocking_progress_mode(self, event_loop):
-        """Creates a task that keeps calling self.progress()"""
-        assert self.blocking_progress_mode is False
-        self.progress_tasks.append(
-            event_loop.create_task(_non_blocking_mode(weakref.ref(self)))
-        )
+    def arm_worker(self):
+        cdef ucs_status_t status
+        status = ucp_worker_arm(self.worker)
+        if status == UCS_ERR_BUSY:
+            return False
+        assert_ucs_status(status)
+        return True
 
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress"""
@@ -586,11 +530,11 @@ cdef class ApplicationContext:
             return  # Progress has already been guaranteed for the current event loop
 
         self.event_loops_binded_for_progress.add(loop)
-
         if self.blocking_progress_mode:
-            self._blocking_progress_mode(loop)
+            task = continuous_ucx_progress.BlockingMode(self, loop)
         else:
-            self._non_blocking_progress_mode(loop)
+            task = continuous_ucx_progress.NonBlockingMode(self, loop)
+        self.progress_tasks.append(task)
 
     def get_ucp_worker(self):
         return int(<uintptr_t><void*>self.worker)
