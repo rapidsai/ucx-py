@@ -231,7 +231,7 @@ class Listener:
     def close(self):
         """Closing the listener"""
         if not self._closed:
-            self._b.destroy()
+            self._b.abort()
             self._closed = True
             self._b = None
 
