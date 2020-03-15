@@ -28,6 +28,7 @@ def server(env, port, func):
     # confirm message is sent correctly
 
     os.environ.update(env)
+    l = []
 
     async def f(listener_port):
         # coroutine shows up when the client asks
@@ -38,6 +39,10 @@ def server(env, port, func):
             print("CREATING CUDA OBJECT IN SERVER...")
             cuda_obj_generator = cloudpickle.loads(func)
             cuda_obj = cuda_obj_generator()
+
+            # Removing the line below avoids crashes with IB
+            l.append(cuda_obj)
+
             msg = {"data": to_serialize(cuda_obj)}
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
@@ -66,7 +71,6 @@ def server(env, port, func):
                 await asyncio.sleep(0.1)
         except ucp.UCXCloseError:
             pass
-        import ipdb; ipdb.set_trace()
 
     loop = asyncio.get_event_loop()
     for i in range(ITERATIONS):
@@ -86,6 +90,12 @@ def cupy_obj():
 
     size = 9 ** 9
     return cupy.arange(size)
+
+
+def device_buffer():
+    import rmm
+    host = np.arange(4, dtype=np.uint8)
+    return rmm.DeviceBuffer.to_device(memoryview(host))
 
 
 def test_send_recv_cu(cuda_obj_generator):
@@ -131,4 +141,4 @@ def total_nvlink_transfer():
 if __name__ == "__main__":
     # args = parse_args(args)
 
-    test_send_recv_cu(dataframe)
+    test_send_recv_cu(device_buffer)

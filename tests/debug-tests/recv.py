@@ -78,9 +78,14 @@ def client(env, port, func):
 
     from cudf.tests.utils import assert_eq
     import cupy as cp
+    import rmm
 
     if isinstance(rx_cuda_obj, cp.ndarray):
         cp.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
+    elif isinstance(rx_cuda_obj, rmm.DeviceBuffer):
+        rx = rx_cuda_obj.copy_to_host()
+        pure = pure_cuda_obj.copy_to_host()
+        np.testing.assert_allclose(rx, pure)
     else:
         assert_eq(rx_cuda_obj, pure_cuda_obj)
 
@@ -98,6 +103,12 @@ def cupy():
 
     size = 10 ** 9
     return cp.arange(size)
+
+
+def device_buffer():
+    import rmm
+    host = np.arange(4, dtype=np.uint8)
+    return rmm.DeviceBuffer.to_device(memoryview(host))
 
 
 def test_send_recv_cu(cuda_obj_generator):
@@ -142,4 +153,4 @@ def total_nvlink_transfer():
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(cupy)
+    test_send_recv_cu(device_buffer)
