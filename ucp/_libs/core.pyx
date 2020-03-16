@@ -307,7 +307,6 @@ cdef class ApplicationContext:
         ucp_context_h context
         # For now, a application context only has one worker
         ucp_worker_h worker
-        object event_loops_binded_for_progress
         list progress_tasks
         bint blocking_progress_mode
 
@@ -321,7 +320,6 @@ cdef class ApplicationContext:
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.event_loops_binded_for_progress = set()
         self.progress_tasks = []
         self.config = {}
         self.initiated = False
@@ -526,10 +524,9 @@ cdef class ApplicationContext:
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress"""
         loop = event_loop if event_loop is not None else asyncio.get_event_loop()
-        if loop in self.event_loops_binded_for_progress:
+        if loop in self.progress_tasks:
             return  # Progress has already been guaranteed for the current event loop
 
-        self.event_loops_binded_for_progress.add(loop)
         if self.blocking_progress_mode:
             task = continuous_ucx_progress.BlockingMode(self, loop)
         else:
@@ -541,10 +538,6 @@ cdef class ApplicationContext:
 
     def get_config(self):
         return self.config
-
-    def unbind_epoll_fd_to_event_loop(self):
-        for loop in self.event_loops_binded_for_progress:
-            loop.remove_reader(self.epoll_fd)
 
 
 class _Endpoint:

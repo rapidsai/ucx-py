@@ -29,6 +29,13 @@ class ProgressTask(object):
         if self.asyncio_task is not None:
             self.asyncio_task.cancel()
 
+    # Hash and equality is based on the event loop
+    def __hash__(self):
+        return hash(self.event_loop)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
 
 class NonBlockingMode(ProgressTask):
     def __init__(self, ctx, event_loop):
@@ -60,6 +67,9 @@ class BlockingMode(ProgressTask):
 
         # Bind an asyncio reader to a UCX epoll file descripter
         event_loop.add_reader(ctx.epoll_fd, self._fd_reader_callback)
+
+        # Remove the reader on finalization
+        weakref.finalize(self, event_loop.remove_reader, ctx.epoll_fd)
 
     def _fd_reader_callback(self):
         ctx = self.weakref_ctx()

@@ -189,7 +189,6 @@ def reset():
     """
     global _ctx
     if _ctx is not None:
-        _ctx.unbind_epoll_fd_to_event_loop()
         weakref_ctx = weakref.ref(_ctx)
         _ctx = None
         gc.collect()
