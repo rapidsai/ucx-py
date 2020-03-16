@@ -394,7 +394,7 @@ cdef class ApplicationContext:
                 child = child()
                 if child is not None:
                     child.abort()
-            self.progress_tasks = None
+            self.progress_tasks = []
             self.initiated = False
             ucp_worker_destroy(self.worker)
             ucp_cleanup(self.context)
