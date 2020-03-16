@@ -43,7 +43,7 @@ class NonBlockingMode(ProgressTask):
         self.asyncio_task = event_loop.create_task(self._progress_task())
 
     async def _progress_task(self):
-        """This help function maintains a UCX progress loop."""
+        """This helper function maintains a UCX progress loop."""
         while True:
             ctx = self.weakref_ctx()
             if ctx is None or not ctx.initiated:
