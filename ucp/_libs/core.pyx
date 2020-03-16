@@ -539,7 +539,6 @@ cdef class ApplicationContext:
     def get_config(self):
         return self.config
 
-
 class _Endpoint:
     """This represents the private part of Endpoint
 
