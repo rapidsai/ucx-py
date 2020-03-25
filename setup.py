@@ -64,11 +64,14 @@ ext_modules = [
     ),
 ]
 
+cmdclass = dict()
+cmdclass.update(versioneer.get_cmdclass())
+
 setup(
     name="ucx-py",
     packages=["ucp"],
     ext_modules=ext_modules,
-    cmdclass=versioneer.get_cmdclass(),
+    cmdclass=cmdclass,
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description="Python Bindings for the Unified Communication X library (UCX)",
