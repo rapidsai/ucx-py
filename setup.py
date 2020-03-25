@@ -12,6 +12,12 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
+try:
+    from Cython.Distutils.build_ext import new_build_ext as build_ext
+except ImportError:
+    from setuptools.command.build_ext import build_ext
+
+
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
@@ -63,11 +69,15 @@ ext_modules = [
     ),
 ]
 
+cmdclass = dict()
+cmdclass.update(versioneer.get_cmdclass())
+cmdclass["build_ext"] = build_ext
+
 setup(
     name="ucx-py",
     packages=["ucp"],
     ext_modules=ext_modules,
-    cmdclass=versioneer.get_cmdclass(),
+    cmdclass=cmdclass,
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description="Python Bindings for the Unified Communication X library (UCX)",
