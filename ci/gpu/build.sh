@@ -47,7 +47,7 @@ logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
               "cupy>=6.5.0" "numpy>=1.16" \
-              "cudf>=0.11" "dask-cudf>=0.11" \
+              "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "dask>=2.8.1" "distributed>=2.8.1" \
               "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
               -c rapidsai-nightly
@@ -56,7 +56,7 @@ conda install "cudatoolkit=$CUDA_REL" \
 conda install -c conda-forge "async_generator" "automake" "libtool" \
                               "cmake" "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
                               "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml" "libhwloc"
+                              "pynvml" "libhwloc" "psutil"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
@@ -126,7 +126,7 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    py.test --cache-clear tests/
+    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then

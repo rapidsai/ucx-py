@@ -190,7 +190,6 @@ def reset():
     """
     global _ctx
     if _ctx is not None:
-        _ctx.unbind_epoll_fd_to_event_loop()
         weakref_ctx = weakref.ref(_ctx)
         _ctx = None
         gc.collect()
@@ -232,7 +231,7 @@ class Listener:
     def close(self):
         """Closing the listener"""
         if not self._closed:
-            self._b.destroy()
+            self._b.abort()
             self._closed = True
             self._b = None
 

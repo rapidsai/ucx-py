@@ -13,7 +13,7 @@ UCX/UCX-PY either with environment variables or programmatically during initiali
     assert ucp.get_config()['MEMTYPE_CACHE'] is 'n'
 
 .. note::
-    When programmatically configuring UCX-PY, the ``UCX`` prefix is not used.
+    When programmatically configuring UCX-Py, the ``UCX`` prefix is not used.
 
 For novice users we recommend the following settings:
 
@@ -31,8 +31,8 @@ DEBUG
 
 Debug variables for both UCX and UCX-PY can be set
 
-``UCXPY_LOG_LEVEL``
-``UCX_LOG_LEVEL``
+UCXPY_LOG_LEVEL/UCX_LOG_LEVEL
+`````````````````````````````
 
 Values: DEBUG, TRACE
 
@@ -41,24 +41,30 @@ If UCX has been built with debug mode enabled
 MEMORY
 ~~~~~~
 
-``UCX_MEMTYPE_CACHE``
+UCX_MEMTYPE_CACHE
+`````````````````
 
 This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-PY defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
 Values: n/y
 
-``UCX_CUDA_IPC_CACHE``
+UCX_CUDA_IPC_CACHE
+``````````````````
 
 This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-py defaults this value to ``y``
 
 Values: n/y
 
-``UCX_RNDV_THRESH``
+UCX_RNDV_THRESH
+```````````````
 
 This is a configurable parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLink enabled, UCX can deliver messages either through TCP or NVLink.  Sending GPU buffers over TCP is costly as it triggers a device-to-host on the sender side, and then host-to-device transfer on the receiver side --  we want to avoid these kinds of transfers when NVLink is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESH=8192``
 
+Values: Int (UCX-Py default : 8192)
 
-``UCX_RNDV_SCHEME``
+
+UCX_RNDV_SCHEME
+```````````````
 
 Communication scheme in RNDV protocol
 
@@ -68,8 +74,27 @@ Values:
 - ``get_zcopy``
 - ``auto`` (default)
 
+UCX_TCP_RX_SEG_SIZE
+```````````````````
 
-``UCX_TLS``
+Size of send copy-out buffer when receiving.  This environment variable controls the size of the buffer on the host when receiving data over TCP.
+
+UCX_TCP_TX_SEG_SIZE
+```````````````````
+
+Size of send copy-out buffer when transmitting.  This environment variable controls the size of the buffer on the host when sending data over TCP.
+
+UCX-Py uses ``8M`` as the default value for both RX/TX.
+
+.. note::
+    Users should take care to properly tune ``UCX_TCP_{RX/TX}_SEG_SIZE`` parameters when mixing TCP with other transports methods as well as when
+    using TCP over UCX in isolation.  These variables will impact CUDA transfers when no NVLink or InfiniBand is available between UCX-Py processes.
+    These parameters will cause the HostToDevice and DeviceToHost copies of buffers to be broken down in several
+    chunks when the size of a buffer exceeds the size defined by these two variables. If an application is expected to transfer very
+    large buffers, increasing such values may improve overall performance.
+
+UCX_TLS
+```````
 
 Transport Methods (Simplified):
 
@@ -92,7 +117,8 @@ Transport Methods (Simplified):
 - ``cuda`` -> CUDA (NVIDIA GPU) memory support
 - ``rocm`` -> ROCm (AMD GPU) memory support
 
-``SOCKADDR_TLS_PRIORITY``
+SOCKADDR_TLS_PRIORITY
+`````````````````````
 
 Priority of sockaddr transports
 
@@ -102,7 +128,8 @@ InfiniBand Device
 
 Select InfiniBand Device
 
-``UCX_NET_DEVICES``
+UCX_NET_DEVICES
+```````````````
 
 Typically these will be the InfiniBand device corresponding to a particular set of GPUs.  Values:
 
