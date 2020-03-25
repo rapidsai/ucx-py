@@ -12,6 +12,8 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
+from setuptools.command.build_ext import build_ext
+
 
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
@@ -66,6 +68,7 @@ ext_modules = [
 
 cmdclass = dict()
 cmdclass.update(versioneer.get_cmdclass())
+cmdclass["build_ext"] = build_ext
 
 setup(
     name="ucx-py",
