@@ -6,7 +6,7 @@ import os
 import weakref
 
 from . import exceptions
-from ._libs import core
+from ._libs import core, ucx_api
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
@@ -177,7 +177,7 @@ def get_config():
     """
 
     if _ctx is None:
-        return core.get_config()
+        return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
 

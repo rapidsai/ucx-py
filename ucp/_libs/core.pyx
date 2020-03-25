@@ -24,6 +24,7 @@ from .. import continuous_ucx_progress
 
 from .send_recv import tag_send, tag_recv, stream_send, stream_recv, log_errors
 from .utils import get_buffer_nbytes
+from . import ucx_api
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -31,62 +32,6 @@ cdef assert_ucs_status(ucs_status_t status, msg_context=None):
         msg = "[%s] " % msg_context if msg_context is not None else ""
         msg += ucs_status_string(status).decode("utf-8")
         raise UCXError(msg)
-
-
-cdef ucp_config_t * read_ucx_config(dict user_options) except *:
-    """
-    Reads the UCX config and returns a config handle,
-    which should freed using `ucp_config_release()`.
-    """
-    cdef ucp_config_t *config
-    cdef ucs_status_t status
-    status = ucp_config_read(NULL, NULL, &config)
-    if status != UCS_OK:
-        raise UCXConfigError(
-            "Couldn't read the UCX options: %s" %
-            ucs_status_string(status).decode("utf-8")
-        )
-
-    # Modify the UCX configuration options based on `config_dict`
-    for k, v in user_options.items():
-        status = ucp_config_modify(config, k.encode(), v.encode())
-        if status == UCS_ERR_NO_ELEM:
-            raise UCXConfigError("Option %s doesn't exist" % k)
-        elif status != UCS_OK:
-            msg = "Couldn't set option %s to %s: %s" % \
-                  (k, v, ucs_status_string(status).decode("utf-8"))
-            raise UCXConfigError(msg)
-    return config
-
-
-cdef get_ucx_config_options(ucp_config_t *config):
-    """Returns a dict of the UCX config options"""
-    cdef char *text
-    cdef size_t text_len
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    assert(text_fd != NULL)
-    ret = {}
-    ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    fflush(text_fd)
-    cdef unicode py_text = text.decode()
-    for line in py_text.splitlines():
-        k, v = line.split("=")
-        k = k[len("UCX_"):]
-        ret[k] = v
-    fclose(text_fd)
-    free(text)
-    return ret
-
-
-def get_config():
-    """
-    Returns the current UCX options
-    if UCX were to be initialized now.
-    """
-    cdef ucp_config_t *config = read_ucx_config({})
-    ret = get_ucx_config_options(config)
-    ucp_config_release(config)
-    return ret
 
 
 def get_ucx_version():
@@ -304,13 +249,13 @@ cdef class _Listener:
 cdef class ApplicationContext:
     cdef:
         object __weakref__
-        ucp_context_h context
         # For now, a application context only has one worker
         ucp_worker_h worker
         list progress_tasks
         bint blocking_progress_mode
 
     cdef public:
+        object context
         object config
         list children
         bint initiated
@@ -321,9 +266,9 @@ cdef class ApplicationContext:
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
         self.progress_tasks = []
-        self.config = {}
         self.initiated = False
         self.children = []
+        self.context = ucx_api.UCXContext(config_dict)
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -332,31 +277,9 @@ cdef class ApplicationContext:
         else:
             self.blocking_progress_mode = True
 
-        self.config['VERSION'] = get_ucx_version()
-
-        memset(&ucp_params, 0, sizeof(ucp_params))
-        ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT)
-
-        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
-        # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
-
-        ucp_params.request_size = sizeof(ucp_request)
-        ucp_params.request_init = (
-            <ucp_request_init_callback_t>ucp_request_reset
-        )
-
-        cdef ucp_config_t *config = read_ucx_config(config_dict)
-        status = ucp_init(&ucp_params, config, &self.context)
-        assert_ucs_status(status)
-
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
-        status = ucp_worker_create(self.context, &worker_params, &self.worker)
+        status = ucp_worker_create(<ucp_context_h><uintptr_t> self.context.handle, &worker_params, &self.worker)
         assert_ucs_status(status)
 
         # In blocking progress mode, we create an epoll file
@@ -378,13 +301,6 @@ cdef class ApplicationContext:
             err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
             assert(err == 0)
 
-        self.config = get_ucx_config_options(config)
-        ucp_config_release(config)
-
-        logging.info("UCP initiated using config: ")
-        for k, v in self.config.items():
-            logging.info("  %s: %s" % (k, v))
-
         self.initiated = True
 
     def __dealloc__(self):
@@ -397,7 +313,7 @@ cdef class ApplicationContext:
             self.progress_tasks = []
             self.initiated = False
             ucp_worker_destroy(self.worker)
-            ucp_cleanup(self.context)
+            self.context.close()
             if self.blocking_progress_mode:
                 close(self.epoll_fd)
 
@@ -537,7 +453,7 @@ cdef class ApplicationContext:
         return int(<uintptr_t><void*>self.worker)
 
     def get_config(self):
-        return self.config
+        return self.context.get_config()
 
 
 class _Endpoint:
@@ -571,7 +487,8 @@ class _Endpoint:
         self._closed = False
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        self._cuda_support = "cuda" in ctx.config['TLS'] or ctx.config['TLS'] == "all"
+        tls = ctx.get_config()["TLS"]
+        self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
     @property

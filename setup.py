@@ -20,6 +20,15 @@ extra_compile_args = ["-std=c99"]
 
 ext_modules = [
     Extension(
+        "ucp._libs.ucx_api",
+        sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
         "ucp._libs.utils",
         sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
         depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
