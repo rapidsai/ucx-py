@@ -12,7 +12,10 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
-from setuptools.command.build_ext import build_ext
+try:
+    from Cython.Distutils.build_ext import new_build_ext as build_ext
+except ImportError:
+    from setuptools.command.build_ext import build_ext
 
 
 include_dirs = [os.path.dirname(get_python_inc())]
