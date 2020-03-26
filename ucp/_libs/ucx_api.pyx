@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
+import asyncio
 import contextlib
 import socket
 from libc.stdio cimport FILE, fflush, fclose
@@ -18,6 +19,7 @@ from ..exceptions import (
     UCXError,
     UCXConfigError,
     UCXCanceled,
+    UCXCloseError,
 )
 from .utils import get_buffer_data
 
@@ -96,6 +98,7 @@ def get_ucx_version():
 
 
 cdef class UCXContext:
+    """Python representation of `ucp_context_h`"""
     cdef:
         ucp_context_h _handle
         bint _initialized
@@ -149,6 +152,7 @@ cdef class UCXContext:
 
 
 cdef class UCXWorker:
+    """Python representation of `ucp_worker_h`"""
     cdef:
         ucp_worker_h _handle
         bint _initialized
@@ -301,3 +305,61 @@ def ucx_ep_create_by_intp(ep, worker):
     ret.worker = worker
     ret.initialized = True
     return ret
+
+
+cdef void _listener_callback(ucp_ep_h ep, void *args):
+    """Callback function used by UCXListener"""
+    cdef dict cb_data = <dict> args
+    ctx = cb_data['ctx']
+    with log_errors():
+        asyncio.ensure_future(
+            cb_data['cb_coroutine'](
+                ucx_ep_create_by_intp(int(<uintptr_t><void*>ep), ctx.worker),
+                ctx,
+                cb_data['cb_func'],
+                cb_data['guarantee_msg_order']
+            )
+        )
+
+
+cdef class UCXListener:
+    """Python representation of `ucp_listener_h`"""
+    cdef:
+        object __weakref__
+        ucp_listener_h _ucp_listener
+        object _ctx
+
+    cdef public:
+        int port
+        dict cb_data
+
+    def __init__(self, port, ctx, cb_data):
+        cdef ucp_listener_params_t params
+        cdef ucp_listener_accept_callback_t _listener_cb = (
+            <ucp_listener_accept_callback_t>_listener_callback
+        )
+        self.port = port
+        self.cb_data = cb_data
+        if c_util_get_ucp_listener_params(&params,
+                                          port,
+                                          _listener_cb,
+                                          <void*> self.cb_data):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        cdef ucs_status_t status = ucp_listener_create(
+            <ucp_worker_h><uintptr_t>ctx.worker.handle, &params, &self._ucp_listener
+        )
+        c_util_get_ucp_listener_params_free(&params)
+        assert_ucs_status(status)
+        Py_INCREF(self.cb_data)
+        self._ctx = ctx
+
+    def abort(self):
+        if self._ctx is not None:
+            if not self._ctx.initiated:
+                raise UCXCloseError("ApplicationContext is already closed!")
+
+            ucp_listener_destroy(self._ucp_listener)
+            Py_DECREF(self.cb_data)
+            self._ctx = None
+            self.cb_data = None
