@@ -1,5 +1,6 @@
 import asyncio
 import fcntl
+import logging
 import multiprocessing as mp
 import os
 import socket
@@ -78,6 +79,50 @@ def get_closest_net_devices(gpu_dev):
     if len(ifnames) > 0:
         net_dev += ifnames[0]["name"]
     return net_dev
+
+
+def get_ucxpy_logger():
+    """
+    Get UCX-Py logger with custom formatting
+
+    Returns
+    -------
+    logger : logging.Logger
+        Logger object
+
+    Examples
+    --------
+    >>> logger = get_ucxpy_logger()
+    >>> logger.warning("Test")
+    [1585175070.2911468] [dgx12:1054] UCXPY  WARNING Test
+    """
+
+    _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
+    logger = logging.getLogger("ucx")
+
+    # Avoid duplicate logging
+    logger.propagate = False
+
+    class LoggingFilter(logging.Filter):
+
+        def filter(self, record):
+            import socket, time
+            record.hostname = socket.gethostname()
+            record.timestamp = str("%.6f" % time.time())
+            return True
+
+    formatter = logging.Formatter(
+        "[%(timestamp)s] [%(hostname)s:%(process)d] UCXPY  %(levelname)s %(message)s"
+    )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    handler.addFilter(LoggingFilter())
+    logger.addHandler(handler)
+
+    logger.setLevel(_level_enum)
+
+    return logger
 
 
 # Help function used by `run_on_local_network()`
