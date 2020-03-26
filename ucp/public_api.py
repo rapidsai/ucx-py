@@ -134,7 +134,7 @@ def progress():
     bool
         Returns True if progress was made
     """
-    return _get_ctx().progress()
+    return _get_ctx().worker.progress()
 
 
 def continuous_ucx_progress(event_loop=None):

@@ -145,3 +145,67 @@ cdef class UCXContext:
     @property
     def handle(self):
         return int(<uintptr_t><void*>self._handle)
+
+
+cdef class UCXWorker:
+    cdef:
+        ucp_worker_h _handle
+        bint _initialized
+        UCXContext _context
+
+    def __cinit__(self, UCXContext context):
+        cdef ucp_params_t ucp_params
+        cdef ucp_worker_params_t worker_params
+        cdef ucs_status_t status
+        self._initialized = False
+        self._context = context
+        memset(&worker_params, 0, sizeof(worker_params))
+        worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
+        worker_params.thread_mode = UCS_THREAD_MODE_MULTI
+        status = ucp_worker_create(context._handle, &worker_params, &self._handle)
+        assert_ucs_status(status)
+        self._initialized = True
+
+    def init_blocking_progress_mode(self):
+        # In blocking progress mode, we create an epoll file
+        # descriptor that we can wait on later.
+        cdef ucs_status_t status
+        cdef int ucp_epoll_fd
+        cdef epoll_event ev
+        cdef int err
+        status = ucp_worker_get_efd(self._handle, &ucp_epoll_fd)
+        assert_ucs_status(status)
+        self.arm()
+        epoll_fd = epoll_create(1)
+        if epoll_fd == -1:
+            raise IOError("epoll_create(1) returned -1")
+        ev.data.fd = ucp_epoll_fd
+        ev.data.ptr = NULL
+        ev.data.u32 = 0
+        ev.data.u64 = 0
+        ev.events = EPOLLIN
+        err = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
+        if err != 0:
+            raise IOError("epoll_ctl() returned %d" % err)
+        return epoll_fd
+
+    def close(self):
+        if self._initialized:
+            self._initialized = False
+            ucp_worker_destroy(self._handle)
+
+    def arm(self):
+        cdef ucs_status_t status
+        status = ucp_worker_arm(self._handle)
+        if status == UCS_ERR_BUSY:
+            return False
+        assert_ucs_status(status)
+        return True
+
+    def progress(self):
+        while ucp_worker_progress(self._handle) != 0:
+            pass
+
+    @property
+    def handle(self):
+        return int(<uintptr_t><void*>self._handle)

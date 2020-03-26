@@ -250,12 +250,12 @@ cdef class ApplicationContext:
     cdef:
         object __weakref__
         # For now, a application context only has one worker
-        ucp_worker_h worker
         list progress_tasks
         bint blocking_progress_mode
 
     cdef public:
         object context
+        object worker
         object config
         list children
         bint initiated
@@ -269,6 +269,7 @@ cdef class ApplicationContext:
         self.initiated = False
         self.children = []
         self.context = ucx_api.UCXContext(config_dict)
+        self.worker = ucx_api.UCXWorker(self.context)
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
@@ -277,29 +278,8 @@ cdef class ApplicationContext:
         else:
             self.blocking_progress_mode = True
 
-        worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
-        worker_params.thread_mode = UCS_THREAD_MODE_MULTI
-        status = ucp_worker_create(<ucp_context_h><uintptr_t> self.context.handle, &worker_params, &self.worker)
-        assert_ucs_status(status)
-
-        # In blocking progress mode, we create an epoll file
-        # descriptor that we can wait on later.
-        cdef int ucp_epoll_fd
-        cdef epoll_event ev
-        cdef int err
         if self.blocking_progress_mode:
-            status = ucp_worker_get_efd(self.worker, &ucp_epoll_fd)
-            assert_ucs_status(status)
-            self.progress()
-            status = ucp_worker_arm(self.worker)
-            assert_ucs_status(status)
-
-            self.epoll_fd = epoll_create(1)
-            assert(self.epoll_fd != -1)
-            ev.data.fd = ucp_epoll_fd
-            ev.events = EPOLLIN
-            err = epoll_ctl(self.epoll_fd, EPOLL_CTL_ADD, ucp_epoll_fd, &ev)
-            assert(err == 0)
+            self.epoll_fd = self.worker.init_blocking_progress_mode()
 
         self.initiated = True
 
@@ -312,7 +292,7 @@ cdef class ApplicationContext:
                     child.abort()
             self.progress_tasks = []
             self.initiated = False
-            ucp_worker_destroy(self.worker)
+            self.worker.close()
             self.context.close()
             if self.blocking_progress_mode:
                 close(self.epoll_fd)
@@ -341,7 +321,7 @@ cdef class ApplicationContext:
         ret = _Listener()
         ret._port = port
         ret._ctx = self
-        ret._cb_args.ucp_worker = self.worker
+        ret._cb_args.ucp_worker = <ucp_worker_h><uintptr_t>self.worker.handle
         ret._cb_args.py_func = <PyObject*> callback_func
         ret._cb_args.py_ctx = <PyObject*> self
         ret._cb_args.guarantee_msg_order = guarantee_msg_order
@@ -361,7 +341,7 @@ cdef class ApplicationContext:
 
         logging.info("create_listener() - Start listening on port %d" % port)
         cdef ucs_status_t status = ucp_listener_create(
-            self.worker, &params, &ret._ucp_listener
+            <ucp_worker_h><uintptr_t>self.worker.handle, &params, &ret._ucp_listener
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
@@ -377,7 +357,9 @@ cdef class ApplicationContext:
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(self.worker, &params, &ucp_ep)
+        cdef ucs_status_t status = ucp_ep_create(
+            <ucp_worker_h><uintptr_t>self.worker.handle, &params, &ucp_ep
+        )
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
 
@@ -396,7 +378,7 @@ cdef class ApplicationContext:
         )
         ep = _Endpoint(
             ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
-            ucp_worker=int(<uintptr_t><void*>self.worker),
+            ucp_worker=self.worker.handle,
             ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
@@ -425,18 +407,6 @@ cdef class ApplicationContext:
         # Return the public Endpoint
         return pub_ep
 
-    def progress(self):
-        while ucp_worker_progress(self.worker) != 0:
-            pass
-
-    def arm_worker(self):
-        cdef ucs_status_t status
-        status = ucp_worker_arm(self.worker)
-        if status == UCS_ERR_BUSY:
-            return False
-        assert_ucs_status(status)
-        return True
-
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress"""
         loop = event_loop if event_loop is not None else asyncio.get_event_loop()
@@ -450,7 +420,7 @@ cdef class ApplicationContext:
         self.progress_tasks.append(task)
 
     def get_ucp_worker(self):
-        return int(<uintptr_t><void*>self.worker)
+        return self.worker.handle
 
     def get_config(self):
         return self.context.get_config()
@@ -554,7 +524,7 @@ class _Endpoint:
             except UCXError:
                 pass  # The peer might already be shutting down
             # Give all current outstanding send() calls a chance to return
-            self._ctx.progress()
+            self._ctx.worker.progress()
             await asyncio.sleep(0)
         finally:
             self.abort()
