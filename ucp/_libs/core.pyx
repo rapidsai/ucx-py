@@ -6,13 +6,14 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport uint64_t, uintptr_t
+from libc.stdint cimport int64_t, uint64_t, uintptr_t
 from random import randint
 import psutil
 import uuid
 import socket
 import logging
-from core_dep cimport *
+from os import close as close_fd
+
 from ..exceptions import (
     log_errors,
     UCXError,
@@ -228,7 +229,7 @@ cdef class ApplicationContext:
             self.worker.close()
             self.context.close()
             if self.blocking_progress_mode:
-                close(self.epoll_fd)
+                close_fd(self.epoll_fd)
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
