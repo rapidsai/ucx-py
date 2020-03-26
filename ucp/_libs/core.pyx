@@ -63,7 +63,7 @@ cdef struct PeerInfoMsg:
     bint guarantee_msg_order
 
 
-async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
+async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     """Help function that exchange endpoint information"""
 
     cdef PeerInfoMsg my_info = {
@@ -76,8 +76,8 @@ async def exchange_peer_info(ucp_endpoint, msg_tag, ctrl_tag, guarantee_msg_orde
     cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
 
     await asyncio.gather(
-        stream_recv(ucp_endpoint, peer_info_mv, peer_info_mv.nbytes),
-        stream_send(ucp_endpoint, my_info_mv, my_info_mv.nbytes),
+        stream_recv(endpoint.handle, peer_info_mv, peer_info_mv.nbytes),
+        stream_send(endpoint.handle, my_info_mv, my_info_mv.nbytes),
     )
 
     if peer_info.guarantee_msg_order != guarantee_msg_order:
@@ -136,7 +136,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
     )
 
 
-async def listener_handler(ucp_endpoint, ctx, func, guarantee_msg_order):
+async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -154,13 +154,13 @@ async def listener_handler(ucp_endpoint, ctx, func, guarantee_msg_order):
     msg_tag = hash(uuid.uuid4())
     ctrl_tag = hash(uuid.uuid4())
     peer_info = await exchange_peer_info(
-        ucp_endpoint=ucp_endpoint,
+        endpoint=endpoint,
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order
     )
     ep = _Endpoint(
-        ucp_endpoint=ucp_endpoint,
+        endpoint=endpoint,
         ctx=ctx,
         msg_tag_send=peer_info['msg_tag'],
         msg_tag_recv=msg_tag,
@@ -173,7 +173,7 @@ async def listener_handler(ucp_endpoint, ctx, func, guarantee_msg_order):
     logging.debug(
         "listener_handler() server: %s, msg-tag-send: %s, "
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
-            hex(<size_t>ucp_endpoint),
+            hex(endpoint.handle),
             hex(ep._msg_tag_send),
             hex(ep._msg_tag_recv),
             hex(ep._ctrl_tag_send),
@@ -207,7 +207,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     with log_errors():
         asyncio.ensure_future(
             listener_handler(
-                int(<uintptr_t><void*>ep),
+                ucx_api.ucx_ep_create_by_intp(int(<uintptr_t><void*>ep), ctx.worker),
                 ctx,
                 func,
                 a.guarantee_msg_order
@@ -347,17 +347,7 @@ cdef class ApplicationContext:
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
 
-        cdef ucp_ep_params_t params
-        ip_address = socket.gethostbyname(ip_address)
-        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
-
-        cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(
-            <ucp_worker_h><uintptr_t>self.worker.handle, &params, &ucp_ep
-        )
-        c_util_get_ucp_ep_params_free(&params)
-        assert_ucs_status(status)
+        ucx_ep = self.worker.ep_create(ip_address, port)
 
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
@@ -367,13 +357,13 @@ cdef class ApplicationContext:
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
-            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
+            endpoint=ucx_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order
         )
         ep = _Endpoint(
-            ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
+            endpoint=ucx_ep,
             ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
@@ -385,7 +375,7 @@ cdef class ApplicationContext:
 
         logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
-                hex(ep._ucp_endpoint),  # noqa
+                hex(ep._ep.handle),  # noqa
                 hex(ep._msg_tag_send),  # noqa
                 hex(ep._msg_tag_recv),  # noqa
                 hex(ep._ctrl_tag_send), # noqa
@@ -429,7 +419,7 @@ class _Endpoint:
 
     def __init__(
         self,
-        ucp_endpoint,
+        endpoint,
         ctx,
         msg_tag_send,
         msg_tag_recv,
@@ -437,7 +427,7 @@ class _Endpoint:
         ctrl_tag_recv,
         guarantee_msg_order
     ):
-        self._ucp_endpoint = ucp_endpoint
+        self._ep = endpoint
         self._ctx = ctx
         self._msg_tag_send = msg_tag_send
         self._msg_tag_recv = msg_tag_recv
@@ -456,7 +446,7 @@ class _Endpoint:
 
     @property
     def uid(self):
-        return self._ucp_endpoint
+        return self._ep.handle
 
     def abort(self):
         if self._closed:
@@ -464,23 +454,13 @@ class _Endpoint:
         self._closed = True
         logging.debug("Endpoint.abort(): %s" % hex(self.uid))
 
-        if not self._ctx.initiated:
-            raise UCXCloseError("ApplicationContext is already closed!")
-
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
                 logging.debug("Future cancelling: %s" % msg['log'])
                 self._ctx.worker.request_cancel(msg['ucp_request'])
 
-        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
-        cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
-        if UCS_PTR_STATUS(status) != UCS_OK:
-            assert not UCS_PTR_IS_ERR(status)
-            # We spinlock here until `status` has finished
-            while ucp_request_check_status(status) != UCS_INPROGRESS:
-                self._ctx.worker.progress()
-            assert not UCS_PTR_IS_ERR(status)
-            ucp_request_free(status)
+                self._ep.close()
+        self._ep = None
         self._ctx = None
 
     async def close(self):
@@ -503,7 +483,7 @@ class _Endpoint:
             self.pending_msg_list.append({'log': log})
             try:
                 await tag_send(
-                    self._ucp_endpoint,
+                    self._ep.handle,
                     ctrl_msg_mv, ctrl_msg_mv.nbytes,
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
@@ -537,7 +517,7 @@ class _Endpoint:
         if self._guarantee_msg_order:
             tag += self._send_count
         return await tag_send(
-            self._ucp_endpoint,
+            self._ep.handle,
             buffer,
             nbytes,
             tag,
@@ -571,24 +551,6 @@ class _Endpoint:
             self.abort()
         return ret
 
-    def ucx_info(self):
-        if self._closed:
-            raise UCXCloseError("Endpoint closed")
-
-        # Making `ucp_ep_print_info()` write into a memstream,
-        # convert it to a Python string, clean up, and return string.
-        cdef char *text
-        cdef size_t text_len
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        assert(text_fd != NULL)
-        cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
-        ucp_ep_print_info(ep, text_fd)
-        fflush(text_fd)
-        cdef unicode py_text = text.decode()
-        fclose(text_fd)
-        free(text)
-        return py_text
-
     def cuda_support(self):
         return self._cuda_support
 
@@ -596,4 +558,4 @@ class _Endpoint:
         return self._ctx.worker.handle
 
     def get_ucp_endpoint(self):
-        return self._ucp_endpoint
+        return self._ep.handle

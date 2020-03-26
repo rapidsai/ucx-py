@@ -301,7 +301,7 @@ class Endpoint:
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
-        return self._ep.ucx_info()
+        return self._ep._ep.info()
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""

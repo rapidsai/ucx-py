@@ -216,3 +216,87 @@ cdef class UCXWorker:
         # Notice, `ucp_request_cancel()` calls the send/recv callback function,
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req)
+
+    def ep_create(self, str ip_address, port):
+        cdef ucp_ep_params_t params
+        ip_address = socket.gethostbyname(ip_address)
+        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
+        c_util_get_ucp_ep_params_free(&params)
+        assert_ucs_status(status)
+        return ucx_ep_create(ucp_ep, self)
+
+
+cdef class UCXEndpoint:
+    """Python representation of `ucp_ep_h`
+    Please use `ucx_ep_create()` to contruct an instance of this class
+    """
+    cdef:
+        ucp_ep_h _handle
+        bint initialized
+
+    cdef public:
+        UCXWorker worker
+
+    def __cinit__(self):
+        self._handle = NULL
+        self.worker = None
+        self.initialized = False
+
+    def close(self):
+        cdef ucs_status_ptr_t status
+        if self.initialized:
+            status = ucp_ep_close_nb(self._handle, UCP_EP_CLOSE_MODE_FLUSH)
+            self.initialized = False
+            worker = self.worker
+            self.worker = None
+            if UCS_PTR_STATUS(status) != UCS_OK:
+                assert not UCS_PTR_IS_ERR(status)
+                # We spinlock here until `status` has finished
+                while ucp_request_check_status(status) != UCS_INPROGRESS:
+                    worker.progress()
+                assert not UCS_PTR_IS_ERR(status)
+                ucp_request_free(status)
+
+    def info(self):
+        assert self.initialized
+        # Making `ucp_ep_print_info()` write into a memstream,
+        # convert it to a Python string, clean up, and return string.
+        cdef char *text
+        cdef size_t text_len
+        cdef unicode py_text
+        cdef FILE *text_fd = open_memstream(&text, &text_len)
+        if(text_fd == NULL):
+            raise IOError("open_memstream() returned NULL")
+        ucp_ep_print_info(self._handle, text_fd)
+        fflush(text_fd)
+        try:
+            py_text = text.decode()
+        finally:
+            fclose(text_fd)
+            free(text)
+        return py_text
+
+    @property
+    def handle(self):
+        assert self.initialized
+        return int(<uintptr_t><void*>self._handle)
+
+
+cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
+    ret = UCXEndpoint()
+    ret._handle = ep
+    ret.worker = worker
+    ret.initialized = True
+    return ret
+
+
+def ucx_ep_create_by_intp(ep, worker):
+    ret = UCXEndpoint()
+    ret._handle = <ucp_ep_h><uintptr_t>ep
+    ret.worker = worker
+    ret.initialized = True
+    return ret
