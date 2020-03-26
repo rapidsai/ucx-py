@@ -3,23 +3,11 @@
 # cython: language_level=3
 
 import asyncio
-import contextlib
-import logging
 import uuid
 from libc.stdint cimport uintptr_t
 from core_dep cimport *
 from .utils import get_buffer_data
-from ..exceptions import UCXError, UCXCanceled
-
-
-@contextlib.contextmanager
-def log_errors(reraise_exception=False):
-    try:
-        yield
-    except BaseException as e:
-        logging.exception(e)
-        if reraise_exception:
-            raise
+from ..exceptions import log_errors, UCXError, UCXCanceled
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,

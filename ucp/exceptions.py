@@ -1,5 +1,18 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
+
+import contextlib
+import logging
+
+
+@contextlib.contextmanager
+def log_errors(reraise_exception=False):
+    try:
+        yield
+    except BaseException as e:
+        logging.exception(e)
+        if reraise_exception:
+            raise
 
 
 class UCXBaseException(Exception):

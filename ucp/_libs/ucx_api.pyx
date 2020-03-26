@@ -14,6 +14,7 @@ from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 import logging
 from core_dep cimport *
 from ..exceptions import (
+    log_errors,
     UCXError,
     UCXConfigError,
     UCXCanceled,

@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 # cython: language_level=3
 
@@ -14,6 +14,7 @@ import socket
 import logging
 from core_dep cimport *
 from ..exceptions import (
+    log_errors,
     UCXError,
     UCXCloseError,
     UCXCanceled,
@@ -22,7 +23,7 @@ from ..exceptions import (
 )
 from .. import continuous_ucx_progress
 
-from .send_recv import tag_send, tag_recv, stream_send, stream_recv, log_errors
+from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 from . import ucx_api
 
@@ -259,9 +260,6 @@ cdef class ApplicationContext:
         int epoll_fd
 
     def __cinit__(self, config_dict={}, blocking_progress_mode=None):
-        cdef ucp_params_t ucp_params
-        cdef ucp_worker_params_t worker_params
-        cdef ucs_status_t status
         self.progress_tasks = []
         self.initiated = False
         self.children = []
