@@ -41,7 +41,6 @@ def get_ucx_version():
 
 
 cdef struct _listener_callback_args:
-    ucp_worker_h ucp_worker
     PyObject *py_ctx
     PyObject *py_func
     bint guarantee_msg_order
@@ -137,7 +136,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
     )
 
 
-async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_order):
+async def listener_handler(ucp_endpoint, ctx, func, guarantee_msg_order):
     from ..public_api import Endpoint
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -162,7 +161,6 @@ async def listener_handler(ucp_endpoint, ctx, ucp_worker, func, guarantee_msg_or
     )
     ep = _Endpoint(
         ucp_endpoint=ucp_endpoint,
-        ucp_worker=ucp_worker,
         ctx=ctx,
         msg_tag_send=peer_info['msg_tag'],
         msg_tag_recv=msg_tag,
@@ -211,7 +209,6 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
             listener_handler(
                 int(<uintptr_t><void*>ep),
                 ctx,
-                int(<uintptr_t><void*>a.ucp_worker),
                 func,
                 a.guarantee_msg_order
             )
@@ -321,7 +318,6 @@ cdef class ApplicationContext:
         ret = _Listener()
         ret._port = port
         ret._ctx = self
-        ret._cb_args.ucp_worker = <ucp_worker_h><uintptr_t>self.worker.handle
         ret._cb_args.py_func = <PyObject*> callback_func
         ret._cb_args.py_ctx = <PyObject*> self
         ret._cb_args.guarantee_msg_order = guarantee_msg_order
@@ -378,7 +374,6 @@ cdef class ApplicationContext:
         )
         ep = _Endpoint(
             ucp_endpoint=int(<uintptr_t><void*>ucp_ep),
-            ucp_worker=self.worker.handle,
             ctx=self,
             msg_tag_send=peer_info['msg_tag'],
             msg_tag_recv=msg_tag,
@@ -435,7 +430,6 @@ class _Endpoint:
     def __init__(
         self,
         ucp_endpoint,
-        ucp_worker,
         ctx,
         msg_tag_send,
         msg_tag_recv,
