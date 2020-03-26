@@ -209,3 +209,10 @@ cdef class UCXWorker:
     @property
     def handle(self):
         return int(<uintptr_t><void*>self._handle)
+
+    def request_cancel(self, ucp_request_as_int):
+        cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
+
+        # Notice, `ucp_request_cancel()` calls the send/recv callback function,
+        # which will handle the request cleanup.
+        ucp_request_cancel(self._handle, req)

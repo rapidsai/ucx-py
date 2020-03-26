@@ -126,7 +126,7 @@ def setup_ctrl_recv(priv_ep, pub_ep):
         hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
     )
     priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(priv_ep._ucp_worker,
+    shutdown_fut = tag_recv(priv_ep._ctx.worker.handle,
                             msg_mv,
                             msg_mv.nbytes,
                             priv_ep._ctrl_tag_recv,
@@ -444,7 +444,6 @@ class _Endpoint:
         guarantee_msg_order
     ):
         self._ucp_endpoint = ucp_endpoint
-        self._ucp_worker = ucp_worker
         self._ctx = ctx
         self._msg_tag_send = msg_tag_send
         self._msg_tag_recv = msg_tag_recv
@@ -474,15 +473,10 @@ class _Endpoint:
         if not self._ctx.initiated:
             raise UCXCloseError("ApplicationContext is already closed!")
 
-        cdef ucp_worker_h worker = <ucp_worker_h><uintptr_t>self._ucp_worker
-
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
                 logging.debug("Future cancelling: %s" % msg['log'])
-                ucp_request_cancel(
-                    worker,
-                    <void*><uintptr_t>msg['ucp_request']
-                )
+                self._ctx.worker.request_cancel(msg['ucp_request'])
 
         cdef ucp_ep_h ep = <ucp_ep_h><uintptr_t>self._ucp_endpoint
         cdef ucs_status_ptr_t status = ucp_ep_close_nb(ep, UCP_EP_CLOSE_MODE_FLUSH)
@@ -490,8 +484,7 @@ class _Endpoint:
             assert not UCS_PTR_IS_ERR(status)
             # We spinlock here until `status` has finished
             while ucp_request_check_status(status) != UCS_INPROGRESS:
-                while ucp_worker_progress(worker) != 0:
-                    pass
+                self._ctx.worker.progress()
             assert not UCS_PTR_IS_ERR(status)
             ucp_request_free(status)
         self._ctx = None
@@ -572,7 +565,7 @@ class _Endpoint:
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await tag_recv(
-            self._ucp_worker,
+            self._ctx.worker.handle,
             buffer,
             nbytes,
             tag,
@@ -606,7 +599,7 @@ class _Endpoint:
         return self._cuda_support
 
     def get_ucp_worker(self):
-        return self._ucp_worker
+        return self._ctx.worker.handle
 
     def get_ucp_endpoint(self):
         return self._ucp_endpoint
