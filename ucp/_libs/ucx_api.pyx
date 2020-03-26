@@ -365,7 +365,6 @@ cdef class UCXListener:
             self.cb_data = None
 
 
-
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     int64_t expected_receive,
                                     pending_msg):
