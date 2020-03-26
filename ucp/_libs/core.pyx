@@ -41,12 +41,6 @@ def get_ucx_version():
     return (a, b, c)
 
 
-cdef struct _listener_callback_args:
-    PyObject *py_ctx
-    PyObject *py_func
-    bint guarantee_msg_order
-
-
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     if isinstance(msg, UCXCanceled):
@@ -202,16 +196,15 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
-    cdef _listener_callback_args *a = <_listener_callback_args *> args
-    cdef object ctx = <object> a.py_ctx
-    cdef object func = <object> a.py_func
+    cdef dict cb_data = <dict> args
+    ctx = cb_data['ctx']
     with log_errors():
         asyncio.ensure_future(
             listener_handler(
                 ucx_api.ucx_ep_create_by_intp(int(<uintptr_t><void*>ep), ctx.worker),
                 ctx,
-                func,
-                a.guarantee_msg_order
+                cb_data['cb_func'],
+                cb_data['guarantee_msg_order']
             )
         )
 
@@ -224,12 +217,33 @@ cdef class _Listener:
     cdef:
         object __weakref__
         ucp_listener_h _ucp_listener
-        _listener_callback_args _cb_args
-        uint16_t _port
         object _ctx
 
-    def port(self):
-        return self._port
+    cdef public:
+        int port
+        dict cb_data
+
+    def __init__(self, port, ctx, cb_data):
+        cdef ucp_listener_params_t params
+        cdef ucp_listener_accept_callback_t _listener_cb = (
+            <ucp_listener_accept_callback_t>_listener_callback
+        )
+        self.port = port
+        self.cb_data = cb_data
+        if c_util_get_ucp_listener_params(&params,
+                                          port,
+                                          _listener_cb,
+                                          <void*> self.cb_data):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        logging.info("create_listener() - Start listening on port %d" % port)
+        cdef ucs_status_t status = ucp_listener_create(
+            <ucp_worker_h><uintptr_t>ctx.worker.handle, &params, &self._ucp_listener
+        )
+        c_util_get_ucp_listener_params_free(&params)
+        assert_ucs_status(status)
+        Py_INCREF(self.cb_data)
+        self._ctx = ctx
 
     def abort(self):
         if self._ctx is not None:
@@ -237,11 +251,9 @@ cdef class _Listener:
                 raise UCXCloseError("ApplicationContext is already closed!")
 
             ucp_listener_destroy(self._ucp_listener)
+            Py_DECREF(self.cb_data)
             self._ctx = None
-            Py_DECREF(<object>self._cb_args.py_ctx)
-            self._cb_args.py_ctx = NULL
-            Py_DECREF(<object>self._cb_args.py_func)
-            self._cb_args.py_func = NULL
+            self.cb_data = None
 
 
 cdef class ApplicationContext:
@@ -312,39 +324,21 @@ cdef class ApplicationContext:
 
                 if port not in used_ports:
                     break
-
-        ret = _Listener()
-        ret._port = port
-        ret._ctx = self
-        ret._cb_args.py_func = <PyObject*> callback_func
-        ret._cb_args.py_ctx = <PyObject*> self
-        ret._cb_args.guarantee_msg_order = guarantee_msg_order
-        Py_INCREF(self)
-        Py_INCREF(callback_func)
+        ret = _Listener(
+            port,
+            self,
+            {
+                "cb_func": callback_func,
+                "ctx": self,
+                "guarantee_msg_order": guarantee_msg_order
+            }
+        )
         self.children.append(weakref.ref(ret))
-
-        cdef ucp_listener_params_t params
-        cdef ucp_listener_accept_callback_t _listener_cb = (
-            <ucp_listener_accept_callback_t>_listener_callback
-        )
-        if c_util_get_ucp_listener_params(&params,
-                                          port,
-                                          _listener_cb,
-                                          <void*> &ret._cb_args):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
-
-        logging.info("create_listener() - Start listening on port %d" % port)
-        cdef ucs_status_t status = ucp_listener_create(
-            <ucp_worker_h><uintptr_t>self.worker.handle, &params, &ret._ucp_listener
-        )
-        c_util_get_ucp_listener_params_free(&params)
-        assert_ucs_status(status)
         return Listener(ret)
 
     async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
-
         ucx_ep = self.worker.ep_create(ip_address, port)
 
         # We create the Endpoint in four steps:

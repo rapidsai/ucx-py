@@ -225,7 +225,7 @@ class Listener:
     @property
     def port(self):
         """The network point listening on"""
-        return self._b.port()
+        return self._b.port
 
     def close(self):
         """Closing the listener"""
