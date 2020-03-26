@@ -37,7 +37,7 @@ def get_ucx_version():
     tuple
         The version as a tuple e.g. (1, 7, 0)
     """
-    return core.get_ucx_version()
+    return ucx_api.get_ucx_version()
 
 
 def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):

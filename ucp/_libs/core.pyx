@@ -28,12 +28,6 @@ from .utils import get_buffer_nbytes
 from . import ucx_api
 
 
-def get_ucx_version():
-    cdef unsigned int a, b, c
-    ucp_get_version(&a, &b, &c)
-    return (a, b, c)
-
-
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     if isinstance(msg, UCXCanceled):
