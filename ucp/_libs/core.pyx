@@ -24,7 +24,6 @@ from ..exceptions import (
 )
 from .. import continuous_ucx_progress
 
-from .send_recv import tag_send, tag_recv, stream_send, stream_recv
 from .utils import get_buffer_nbytes
 from . import ucx_api
 
@@ -59,8 +58,8 @@ async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     cdef PeerInfoMsg[::1] peer_info_mv = <PeerInfoMsg[:1:1]>(&peer_info)
 
     await asyncio.gather(
-        stream_recv(endpoint.handle, peer_info_mv, peer_info_mv.nbytes),
-        stream_send(endpoint.handle, my_info_mv, my_info_mv.nbytes),
+        ucx_api.stream_recv(endpoint, peer_info_mv, peer_info_mv.nbytes),
+        ucx_api.stream_send(endpoint, my_info_mv, my_info_mv.nbytes),
     )
 
     if peer_info.guarantee_msg_order != guarantee_msg_order:
@@ -108,11 +107,13 @@ def setup_ctrl_recv(priv_ep, pub_ep):
         hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
     )
     priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = tag_recv(priv_ep._ctx.worker.handle,
-                            msg_mv,
-                            msg_mv.nbytes,
-                            priv_ep._ctrl_tag_recv,
-                            pending_msg=priv_ep.pending_msg_list[-1])
+    shutdown_fut = ucx_api.tag_recv(
+        priv_ep._ctx.worker,
+        msg_mv,
+        msg_mv.nbytes,
+        priv_ep._ctrl_tag_recv,
+        pending_msg=priv_ep.pending_msg_list[-1]
+    )
 
     shutdown_fut.add_done_callback(
         partial(handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
@@ -404,8 +405,8 @@ class _Endpoint:
             logging.debug(log)
             self.pending_msg_list.append({'log': log})
             try:
-                await tag_send(
-                    self._ep.handle,
+                await ucx_api.tag_send(
+                    self._ep,
                     ctrl_msg_mv, ctrl_msg_mv.nbytes,
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
@@ -438,8 +439,8 @@ class _Endpoint:
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await tag_send(
-            self._ep.handle,
+        return await ucx_api.tag_send(
+            self._ep,
             buffer,
             nbytes,
             tag,
@@ -460,8 +461,8 @@ class _Endpoint:
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await tag_recv(
-            self._ctx.worker.handle,
+        ret = await ucx_api.tag_recv(
+            self._ctx.worker,
             buffer,
             nbytes,
             tag,
