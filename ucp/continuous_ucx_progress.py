@@ -8,7 +8,7 @@ import weakref
 
 class ProgressTask(object):
     def __init__(self, ctx, event_loop):
-        """Creates a task that keeps calling ctx.progress()
+        """Creates a task that keeps calling ctx.worker.progress()
 
         Notice, class and created task is carefull not to hold a
         reference to `ctx` so that a danling progress task will
@@ -48,7 +48,7 @@ class NonBlockingMode(ProgressTask):
             ctx = self.weakref_ctx()
             if ctx is None or not ctx.initiated:
                 return
-            ctx.progress()
+            ctx.worker.progress()
             del ctx
             # Give other co-routines a chance to run.
             await asyncio.sleep(0)
@@ -75,7 +75,7 @@ class BlockingMode(ProgressTask):
         ctx = self.weakref_ctx()
         if ctx is None or not ctx.initiated:
             return
-        ctx.progress()
+        ctx.worker.progress()
 
         # Notice, we can safely overwrite `self.dangling_arm_task`
         # since previous arm task is finished by now.
@@ -92,7 +92,7 @@ class BlockingMode(ProgressTask):
             ctx = self.weakref_ctx()
             if ctx is None or not ctx.initiated:
                 return
-            ctx.progress()
+            ctx.worker.progress()
             del ctx
 
             # This IO task returns when all non-IO tasks are finished.
@@ -102,7 +102,7 @@ class BlockingMode(ProgressTask):
             ctx = self.weakref_ctx()
             if ctx is None or not ctx.initiated:
                 return
-            if ctx.arm_worker():
+            if ctx.worker.arm():
                 # At this point we know that asyncio's next state is
                 # epoll wait.
                 break
