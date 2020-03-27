@@ -246,9 +246,9 @@ cdef class UCXEndpoint:
     cdef public:
         UCXWorker worker
 
-    def __cinit__(self):
+    def __cinit__(self, worker):
         self._handle = NULL
-        self.worker = None
+        self.worker = worker
         self.initialized = False
 
     def close(self):
@@ -292,17 +292,15 @@ cdef class UCXEndpoint:
 
 
 cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
-    ret = UCXEndpoint()
+    ret = UCXEndpoint(worker)
     ret._handle = ep
-    ret.worker = worker
     ret.initialized = True
     return ret
 
 
-def ucx_ep_create_by_intp(ep, worker):
-    ret = UCXEndpoint()
+def ucx_ep_create_from_uintptr(ep, worker):
+    ret = UCXEndpoint(worker)
     ret._handle = <ucp_ep_h><uintptr_t>ep
-    ret.worker = worker
     ret.initialized = True
     return ret
 
@@ -314,7 +312,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                ucx_ep_create_by_intp(int(<uintptr_t><void*>ep), ctx.worker),
+                ucx_ep_create_from_uintptr(int(<uintptr_t><void*>ep), ctx.worker),
                 ctx,
                 cb_data['cb_func'],
                 cb_data['guarantee_msg_order']
