@@ -186,7 +186,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
 
 def application_context_finalizer(children, worker, context, epoll_fd):
     """
-    Finalizer function for `ApplicationContext` obejct, which is
+    Finalizer function for `ApplicationContext` object, which is
     more reliable than __dealloc__.
     """
     for child in children:
@@ -330,9 +330,9 @@ cdef class ApplicationContext:
             return  # Progress has already been guaranteed for the current event loop
 
         if self.blocking_progress_mode:
-            task = continuous_ucx_progress.BlockingMode(self, loop)
+            task = continuous_ucx_progress.BlockingMode(self.worker, loop, self.epoll_fd)
         else:
-            task = continuous_ucx_progress.NonBlockingMode(self, loop)
+            task = continuous_ucx_progress.NonBlockingMode(self.worker, loop)
         self.progress_tasks.append(task)
 
     def get_ucp_worker(self):
