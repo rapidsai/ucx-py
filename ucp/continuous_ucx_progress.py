@@ -46,7 +46,7 @@ class NonBlockingMode(ProgressTask):
         """This helper function maintains a UCX progress loop."""
         while True:
             ctx = self.weakref_ctx()
-            if ctx is None or not ctx.initiated:
+            if ctx is None or not ctx.worker.initialized:
                 return
             ctx.worker.progress()
             del ctx
@@ -73,7 +73,7 @@ class BlockingMode(ProgressTask):
 
     def _fd_reader_callback(self):
         ctx = self.weakref_ctx()
-        if ctx is None or not ctx.initiated:
+        if ctx is None or not ctx.worker.initialized:
             return
         ctx.worker.progress()
 
@@ -90,7 +90,7 @@ class BlockingMode(ProgressTask):
         #    See <https://github.com/rapidsai/ucx-py/issues/413>
         while True:
             ctx = self.weakref_ctx()
-            if ctx is None or not ctx.initiated:
+            if ctx is None or not ctx.worker.initialized:
                 return
             ctx.worker.progress()
             del ctx
@@ -100,7 +100,7 @@ class BlockingMode(ProgressTask):
             await self.event_loop.sock_recv(self.rsock, 1)
 
             ctx = self.weakref_ctx()
-            if ctx is None or not ctx.initiated:
+            if ctx is None or not ctx.worker.initialized:
                 return
             if ctx.worker.arm():
                 # At this point we know that asyncio's next state is
