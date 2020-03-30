@@ -175,13 +175,11 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     del ep
     del ctx
 
-    # Finally, we call `func` asynchronously (even if it isn't coroutine)
+    # Finally, we call `func`
     if asyncio.iscoroutinefunction(func):
         await func(pub_ep)
     else:
-        async def _func(ep):  # coroutine wrapper
-            func(ep)
-        await _func(pub_ep)
+        func(pub_ep)
 
 
 def application_context_finalizer(children, worker, context, epoll_fd):
