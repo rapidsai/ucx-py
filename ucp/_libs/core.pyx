@@ -328,7 +328,11 @@ cdef class ApplicationContext:
             return  # Progress has already been guaranteed for the current event loop
 
         if self.blocking_progress_mode:
-            task = continuous_ucx_progress.BlockingMode(self.worker, loop, self.epoll_fd)
+            task = continuous_ucx_progress.BlockingMode(
+                self.worker,
+                loop,
+                self.epoll_fd
+            )
         else:
             task = continuous_ucx_progress.NonBlockingMode(self.worker, loop)
         self.progress_tasks.append(task)
