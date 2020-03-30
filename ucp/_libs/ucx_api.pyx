@@ -100,6 +100,7 @@ def get_ucx_version():
 cdef class UCXContext:
     """Python representation of `ucp_context_h`"""
     cdef:
+        object __weakref__
         ucp_context_h _handle
         dict _config
     cdef public:
@@ -155,6 +156,7 @@ cdef class UCXContext:
 cdef class UCXWorker:
     """Python representation of `ucp_worker_h`"""
     cdef:
+        object __weakref__
         ucp_worker_h _handle
         UCXContext _context
     cdef public:
@@ -242,6 +244,7 @@ cdef class UCXEndpoint:
     Please use `ucx_ep_create()` to contruct an instance of this class
     """
     cdef:
+        object __weakref__
         ucp_ep_h _handle
 
     cdef public:
