@@ -184,6 +184,21 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         await _func(pub_ep)
 
 
+def application_context_finalizer(children, worker, context, epoll_fd):
+    """
+    Finalizer function for `ApplicationContext` obejct, which is
+    more reliable than __dealloc__.
+    """
+    for child in children:
+        child = child()
+        if child is not None:
+            child.abort()
+    worker.close()
+    context.close()
+    if epoll_fd >= 0:
+        close_fd(epoll_fd)
+
+
 cdef class ApplicationContext:
     cdef:
         object __weakref__
@@ -196,12 +211,10 @@ cdef class ApplicationContext:
         object worker
         object config
         list children
-        bint initiated
         int epoll_fd
 
     def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
-        self.initiated = False
         self.children = []
         self.context = ucx_api.UCXContext(config_dict)
         self.worker = ucx_api.UCXWorker(self.context)
@@ -215,22 +228,17 @@ cdef class ApplicationContext:
 
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
+        else:
+            self.epoll_fd = -1
 
-        self.initiated = True
-
-    def __dealloc__(self):
-        if self.initiated:
-            # Aborting all objects working in this context
-            for child in (self.children if self.children else []):
-                child = child()
-                if child is not None:
-                    child.abort()
-            self.progress_tasks = []
-            self.initiated = False
-            self.worker.close()
-            self.context.close()
-            if self.blocking_progress_mode:
-                close_fd(self.epoll_fd)
+        weakref.finalize(
+            self,
+            application_context_finalizer,
+            self.children,
+            self.worker,
+            self.context,
+            self.epoll_fd
+        )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
