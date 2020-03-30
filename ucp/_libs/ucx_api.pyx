@@ -150,6 +150,7 @@ cdef class UCXContext:
 
     @property
     def handle(self):
+        assert self.initialized
         return int(<uintptr_t><void*>self._handle)
 
 
@@ -176,6 +177,7 @@ cdef class UCXWorker:
         self.initialized = True
 
     def init_blocking_progress_mode(self):
+        assert self.initialized
         # In blocking progress mode, we create an epoll file
         # descriptor that we can wait on later.
         cdef ucs_status_t status
@@ -204,6 +206,7 @@ cdef class UCXWorker:
             ucp_worker_destroy(self._handle)
 
     def arm(self):
+        assert self.initialized
         cdef ucs_status_t status
         status = ucp_worker_arm(self._handle)
         if status == UCS_ERR_BUSY:
@@ -212,14 +215,17 @@ cdef class UCXWorker:
         return True
 
     def progress(self):
+        assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
             pass
 
     @property
     def handle(self):
+        assert self.initialized
         return int(<uintptr_t><void*>self._handle)
 
     def request_cancel(self, ucp_request_as_int):
+        assert self.initialized
         cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
 
         # Notice, `ucp_request_cancel()` calls the send/recv callback function,
@@ -227,6 +233,7 @@ cdef class UCXWorker:
         ucp_request_cancel(self._handle, req)
 
     def ep_create(self, str ip_address, port):
+        assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
