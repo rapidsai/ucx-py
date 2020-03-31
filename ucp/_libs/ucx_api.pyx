@@ -100,15 +100,17 @@ def get_ucx_version():
 cdef class UCXContext:
     """Python representation of `ucp_context_h`"""
     cdef:
+        object __weakref__
         ucp_context_h _handle
-        bint _initialized
         dict _config
+    cdef public:
+        bint initialized
 
     def __cinit__(self, config_dict):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self._initialized = False
+        self.initialized = False
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -129,7 +131,7 @@ cdef class UCXContext:
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self._handle)
         assert_ucs_status(status)
-        self._initialized = True
+        self.initialized = True
 
         self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
@@ -139,8 +141,8 @@ cdef class UCXContext:
             logging.info("  %s: %s" % (k, v))
 
     def close(self):
-        if self._initialized:
-            self._initialized = False
+        if self.initialized:
+            self.initialized = False
             ucp_cleanup(self._handle)
 
     def get_config(self):
@@ -148,30 +150,34 @@ cdef class UCXContext:
 
     @property
     def handle(self):
+        assert self.initialized
         return int(<uintptr_t><void*>self._handle)
 
 
 cdef class UCXWorker:
     """Python representation of `ucp_worker_h`"""
     cdef:
+        object __weakref__
         ucp_worker_h _handle
-        bint _initialized
         UCXContext _context
+    cdef public:
+        bint initialized
 
     def __cinit__(self, UCXContext context):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self._initialized = False
+        self.initialized = False
         self._context = context
         memset(&worker_params, 0, sizeof(worker_params))
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
-        self._initialized = True
+        self.initialized = True
 
     def init_blocking_progress_mode(self):
+        assert self.initialized
         # In blocking progress mode, we create an epoll file
         # descriptor that we can wait on later.
         cdef ucs_status_t status
@@ -195,11 +201,12 @@ cdef class UCXWorker:
         return epoll_fd
 
     def close(self):
-        if self._initialized:
-            self._initialized = False
+        if self.initialized:
+            self.initialized = False
             ucp_worker_destroy(self._handle)
 
     def arm(self):
+        assert self.initialized
         cdef ucs_status_t status
         status = ucp_worker_arm(self._handle)
         if status == UCS_ERR_BUSY:
@@ -208,14 +215,17 @@ cdef class UCXWorker:
         return True
 
     def progress(self):
+        assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
             pass
 
     @property
     def handle(self):
+        assert self.initialized
         return int(<uintptr_t><void*>self._handle)
 
     def request_cancel(self, ucp_request_as_int):
+        assert self.initialized
         cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
 
         # Notice, `ucp_request_cancel()` calls the send/recv callback function,
@@ -223,6 +233,7 @@ cdef class UCXWorker:
         ucp_request_cancel(self._handle, req)
 
     def ep_create(self, str ip_address, port):
+        assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
         if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
@@ -240,10 +251,11 @@ cdef class UCXEndpoint:
     Please use `ucx_ep_create()` to contruct an instance of this class
     """
     cdef:
+        object __weakref__
         ucp_ep_h _handle
-        bint initialized
 
     cdef public:
+        bint initialized
         UCXWorker worker
 
     def __cinit__(self, worker):
@@ -354,9 +366,6 @@ cdef class UCXListener:
 
     def abort(self):
         if self._ctx is not None:
-            if not self._ctx.initiated:
-                raise UCXCloseError("ApplicationContext is already closed!")
-
             ucp_listener_destroy(self._ucp_listener)
             Py_DECREF(self.cb_data)
             self._ctx = None
