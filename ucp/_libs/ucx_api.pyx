@@ -104,7 +104,7 @@ cdef class UCXContext:
         ucp_context_h _handle
         dict _config
 
-    cdef public:
+    cdef readonly:
         bint initialized
 
     def __cinit__(self, config_dict):
@@ -162,7 +162,7 @@ cdef class UCXWorker:
         ucp_worker_h _handle
         UCXContext _context
 
-    cdef public:
+    cdef readonly:
         bint initialized
 
     def __cinit__(self, UCXContext context):
@@ -256,8 +256,10 @@ cdef class UCXEndpoint:
         object __weakref__
         ucp_ep_h _handle
 
-    cdef public:
+    cdef readonly:
         bint initialized
+
+    cdef public:
         UCXWorker worker
 
     def __cinit__(self, worker):
