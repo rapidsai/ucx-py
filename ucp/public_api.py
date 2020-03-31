@@ -6,7 +6,7 @@ import os
 import weakref
 
 from . import exceptions
-from ._libs import core
+from ._libs import core, ucx_api
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
@@ -37,7 +37,7 @@ def get_ucx_version():
     tuple
         The version as a tuple e.g. (1, 7, 0)
     """
-    return core.get_ucx_version()
+    return ucx_api.get_ucx_version()
 
 
 def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
@@ -134,7 +134,7 @@ def progress():
     bool
         Returns True if progress was made
     """
-    return _get_ctx().progress()
+    return _get_ctx().worker.progress()
 
 
 def continuous_ucx_progress(event_loop=None):
@@ -177,7 +177,7 @@ def get_config():
     """
 
     if _ctx is None:
-        return core.get_config()
+        return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
 
@@ -189,7 +189,6 @@ def reset():
     """
     global _ctx
     if _ctx is not None:
-        _ctx.unbind_epoll_fd_to_event_loop()
         weakref_ctx = weakref.ref(_ctx)
         _ctx = None
         gc.collect()
@@ -226,12 +225,12 @@ class Listener:
     @property
     def port(self):
         """The network point listening on"""
-        return self._b.port()
+        return self._b.port
 
     def close(self):
         """Closing the listener"""
         if not self._closed:
-            self._b.destroy()
+            self._b.abort()
             self._closed = True
             self._b = None
 
@@ -302,7 +301,7 @@ class Endpoint:
 
     def ucx_info(self):
         """Return low-level UCX info about this endpoint as a string"""
-        return self._ep.ucx_info()
+        return self._ep._ep.info()
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""

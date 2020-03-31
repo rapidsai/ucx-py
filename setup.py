@@ -12,6 +12,12 @@ import versioneer
 from setuptools import setup
 from setuptools.extension import Extension
 
+try:
+    from Cython.Distutils.build_ext import new_build_ext as build_ext
+except ImportError:
+    from setuptools.command.build_ext import build_ext
+
+
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
@@ -20,18 +26,17 @@ extra_compile_args = ["-std=c99"]
 
 ext_modules = [
     Extension(
-        "ucp._libs.utils",
-        sources=["ucp/_libs/utils.pyx", "ucp/_libs/src/c_util.c"],
-        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        "ucp._libs.ucx_api",
+        sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
         libraries=libraries,
         extra_compile_args=extra_compile_args,
     ),
     Extension(
-        "ucp._libs.send_recv",
-        sources=["ucp/_libs/send_recv.pyx", "ucp/_libs/src/c_util.c"],
-        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        "ucp._libs.utils",
+        sources=["ucp/_libs/utils.pyx"],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
         libraries=libraries,
@@ -39,8 +44,7 @@ ext_modules = [
     ),
     Extension(
         "ucp._libs.core",
-        sources=["ucp/_libs/core.pyx", "ucp/_libs/src/c_util.c"],
-        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/core_dep.pxd"],
+        sources=["ucp/_libs/core.pyx"],
         include_dirs=include_dirs,
         library_dirs=library_dirs,
         libraries=libraries,
@@ -63,11 +67,15 @@ ext_modules = [
     ),
 ]
 
+cmdclass = dict()
+cmdclass.update(versioneer.get_cmdclass())
+cmdclass["build_ext"] = build_ext
+
 setup(
-    name="ucxpy",
+    name="ucx-py",
     packages=["ucp"],
     ext_modules=ext_modules,
-    cmdclass=versioneer.get_cmdclass(),
+    cmdclass=cmdclass,
     version=versioneer.get_version(),
     python_requires=">=3.6",
     description="Python Bindings for the Unified Communication X library (UCX)",

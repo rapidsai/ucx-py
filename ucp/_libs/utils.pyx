@@ -8,7 +8,6 @@ from functools import reduce
 import operator
 from libc.stdint cimport uintptr_t
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
-from core_dep cimport *
 from ..exceptions import UCXError, UCXCloseError
 
 
