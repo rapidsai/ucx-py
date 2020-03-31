@@ -103,6 +103,7 @@ cdef class UCXContext:
         object __weakref__
         ucp_context_h _handle
         dict _config
+
     cdef public:
         bint initialized
 
@@ -160,6 +161,7 @@ cdef class UCXWorker:
         object __weakref__
         ucp_worker_h _handle
         UCXContext _context
+
     cdef public:
         bint initialized
 
