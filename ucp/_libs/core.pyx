@@ -187,8 +187,8 @@ def application_context_finalizer(children, worker, context, epoll_fd):
     Finalizer function for `ApplicationContext` object, which is
     more reliable than __dealloc__.
     """
-    for child in children:
-        child = child()
+    for weakref_to_child in children:
+        child = weakref_to_child()
         if child is not None:
             child.abort()
     worker.close()
@@ -213,6 +213,7 @@ cdef class ApplicationContext:
 
     def __cinit__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
+        # List of weak references to the UCX objects that make use of `context`
         self.children = []
         self.context = ucx_api.UCXContext(config_dict)
         self.worker = ucx_api.UCXWorker(self.context)
