@@ -422,10 +422,14 @@ class _Endpoint:
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
                 )
-            except UCXError:
+            except UCXError as e:
+                log = "UCX Closing Error on worker %d\n%s" % (hex(self.uid), str(e))
+                logging.error(log)
                 pass  # The peer might already be shutting down
-            # Give all current outstanding send() calls a chance to return
-            self._ctx.worker.progress()
+            else:
+                # Only if there were no errors closing peer
+                # Give all current outstanding send() calls a chance to return
+                self._ctx.worker.progress()
             await asyncio.sleep(0)
         finally:
             self.abort()
