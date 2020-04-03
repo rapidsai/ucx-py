@@ -372,6 +372,7 @@ class _Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._closed = False
+        self._shutting_down_peer = False  # Told peer to shutdown down
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         tls = ctx.get_config()["TLS"]
@@ -403,10 +404,15 @@ class _Endpoint:
         cdef CtrlMsg msg
         cdef CtrlMsgData[::1] ctrl_msg_mv
         try:
+            # Making sure we only tell peer to shutdown once
+            if self._shutting_down_peer:
+                return
+            self._shutting_down_peer = True
+
             # Send a shutdown message to the peer
             msg = CtrlMsg()
             msg.data = {
-                'op': 1,  # "1" is shutdown, currently the only opcode.
+                'op': 1,  # "1" is shutdown, currently the only opcode
                 'close_after_n_recv': self._send_count,
             }
             ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
@@ -426,12 +432,10 @@ class _Endpoint:
             except UCXError as e:
                 log = "UCX Closing Error on worker %d\n%s" % (hex(self.uid), str(e))
                 logging.error(log)
-            else:
-                # Only if there were no errors closing peer
-                # Give all current outstanding send() calls a chance to return
-                self._ctx.worker.progress()
-            await asyncio.sleep(0)
         finally:
+            # Give all current outstanding send() calls a chance to return
+            self._ctx.worker.progress()
+            await asyncio.sleep(0)
             self.abort()
 
     def closed(self):
