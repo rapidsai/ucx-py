@@ -427,7 +427,7 @@ class _Endpoint:
                 )
             # The peer might already be shutting down
             except UCXError as e:
-                log = "UCX Closing Error on worker %d\n%s" % (hex(self.uid), str(e))
+                log = "UCX Closing Error on worker %s\n%s" % (hex(self.uid), str(e))
                 logger.error(log)
             else:
                 # Only if there were no errors closing peer
