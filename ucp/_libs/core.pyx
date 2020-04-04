@@ -372,7 +372,7 @@ class _Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._closed = False
-        self._shutting_down_peer = False  # Told peer to shutdown down
+        self._shutting_down_peer = False  # Told peer to shutdown
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         tls = ctx.get_config()["TLS"]
