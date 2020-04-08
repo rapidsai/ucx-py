@@ -2,6 +2,7 @@ import os
 
 import pytest
 import ucp
+from utils import captured_logger
 
 
 def test_get_config():
@@ -48,3 +49,28 @@ def test_init_invalid_option():
     options = {"SEG_SIZE": "invalid-size"}
     with pytest.raises(ucp.exceptions.UCXConfigError):
         ucp.init(options)
+
+
+def test_logging():
+    """
+    Test default logging configuration.
+    """
+    import logging
+
+    root = logging.getLogger("ucx")
+
+    # ucp.init will only print INFO LINES
+    with captured_logger(root, level=logging.INFO) as foreign_log:
+        ucp.reset()
+        os.environ["UCX_SEG_SIZE"] = "2M"  # Should be ignored
+        options = {"SEG_SIZE": "3M"}
+        ucp.init(options)
+    assert len(foreign_log.getvalue()) > 0
+
+    with captured_logger(root, level=logging.ERROR) as foreign_log:
+        ucp.reset()
+        os.environ["UCX_SEG_SIZE"] = "2M"  # Should be ignored
+        options = {"SEG_SIZE": "3M"}
+        ucp.init(options)
+
+    assert len(foreign_log.getvalue()) == 0
