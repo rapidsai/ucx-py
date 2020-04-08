@@ -28,14 +28,17 @@ from .utils import get_buffer_nbytes
 from . import ucx_api
 
 
+logger = logging.getLogger("ucx")
+
+
 def asyncio_handle_exception(loop, context):
     msg = context.get("exception", context["message"])
     if isinstance(msg, UCXCanceled):
-        log = logging.debug
+        log = logger.debug
     elif isinstance(msg, UCXWarning):
-        log = logging.warning
+        log = logger.warning
     else:
-        log = logging.error
+        log = logger.error
     log("Ignored except: %s %s" % (type(msg), msg))
 
 
@@ -88,7 +91,7 @@ def handle_ctrl_msg(ep_weakref, log, CtrlMsg msg, future):
         future.result()
     except UCXCanceled:
         return  # The ctrl signal was canceled
-    logging.debug(log)
+    logger.debug(log)
     ep = ep_weakref()
     if ep is None or ep.closed():
         return  # The endpoint is closed
@@ -154,7 +157,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     )
     ctx.children.append(weakref.ref(ep))
 
-    logging.debug(
+    logger.debug(
         "listener_handler() server: %s, msg-tag-send: %s, "
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
             hex(endpoint.handle),
@@ -260,7 +263,7 @@ cdef class ApplicationContext:
                 if port not in used_ports:
                     break
 
-        logging.info("create_listener() - Start listening on port %d" % port)
+        logger.info("create_listener() - Start listening on port %d" % port)
         ret = ucx_api.UCXListener(
             port,
             self,
@@ -303,7 +306,7 @@ cdef class ApplicationContext:
         )
         self.children.append(weakref.ref(ep))
 
-        logging.debug("create_endpoint() client: %s, msg-tag-send: %s, "
+        logger.debug("create_endpoint() client: %s, msg-tag-send: %s, "
                       "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
                 hex(ep._ep.handle),  # noqa
                 hex(ep._msg_tag_send),  # noqa
@@ -387,11 +390,11 @@ class _Endpoint:
         if self._closed:
             return
         self._closed = True
-        logging.debug("Endpoint.abort(): %s" % hex(self.uid))
+        logger.debug("Endpoint.abort(): %s" % hex(self.uid))
 
         for msg in self.pending_msg_list:
             if 'future' in msg and not msg['future'].done():
-                logging.debug("Future cancelling: %s" % msg['log'])
+                logger.debug("Future cancelling: %s" % msg['log'])
                 self._ctx.worker.request_cancel(msg['ucp_request'])
 
                 self._ep.close()
@@ -419,7 +422,7 @@ class _Endpoint:
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid), hex(self._ctrl_tag_send), self._send_count
             )
-            logging.debug(log)
+            logger.debug(log)
             self.pending_msg_list.append({'log': log})
             try:
                 await ucx_api.tag_send(
@@ -449,10 +452,14 @@ class _Endpoint:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes
+        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(self._msg_tag_send),
+            nbytes,
+            type(buffer)
         )
-        logging.debug(log)
+        logger.debug(log)
         self.pending_msg_list.append({'log': log})
         self._send_count += 1
         tag = self._msg_tag_send
@@ -471,10 +478,14 @@ class _Endpoint:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
-        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d" % (
-            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes
+        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._recv_count,
+            hex(self.uid),
+            hex(self._msg_tag_recv),
+            nbytes,
+            type(buffer)
         )
-        logging.debug(log)
+        logger.debug(log)
         self.pending_msg_list.append({'log': log})
         self._recv_count += 1
         tag = self._msg_tag_recv

@@ -24,6 +24,9 @@ from ..exceptions import (
 from .utils import get_buffer_data
 
 
+logger = logging.getLogger("ucx")
+
+
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
     if status != UCS_OK:
         msg = "[%s] " % msg_context if msg_context is not None else ""
@@ -137,9 +140,9 @@ cdef class UCXContext:
         self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
 
-        logging.info("UCP initiated using config: ")
+        logger.info("UCP initiated using config: ")
         for k, v in self._config.items():
-            logging.info("  %s: %s" % (k, v))
+            logger.info("  %s: %s" % (k, v))
 
     def close(self):
         if self.initialized:
