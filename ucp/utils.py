@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import socket
 import struct
+import time
 
 import numpy as np
 
@@ -104,9 +105,7 @@ def get_ucxpy_logger():
     logger.propagate = False
 
     class LoggingFilter(logging.Filter):
-
         def filter(self, record):
-            import socket, time
             record.hostname = socket.gethostname()
             record.timestamp = str("%.6f" % time.time())
             return True

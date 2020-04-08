@@ -453,7 +453,11 @@ class _Endpoint:
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._send_count, hex(self.uid), hex(self._msg_tag_send), nbytes, type(buffer)
+            self._send_count,
+            hex(self.uid),
+            hex(self._msg_tag_send),
+            nbytes,
+            type(buffer)
         )
         logger.debug(log)
         self.pending_msg_list.append({'log': log})
@@ -475,7 +479,11 @@ class _Endpoint:
         nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
                                    cuda_support=self._cuda_support)
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._recv_count, hex(self.uid), hex(self._msg_tag_recv), nbytes, type(buffer)
+            self._recv_count,
+            hex(self.uid),
+            hex(self._msg_tag_recv),
+            nbytes,
+            type(buffer)
         )
         logger.debug(log)
         self.pending_msg_list.append({'log': log})
