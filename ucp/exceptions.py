@@ -4,7 +4,6 @@
 import contextlib
 import logging
 
-
 logger = logging.getLogger("ucx")
 
 
