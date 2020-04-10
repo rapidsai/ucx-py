@@ -8,7 +8,7 @@ import cloudpickle
 import numpy as np
 import pytest
 import ucp
-from utils import ITERATIONS, recv, send
+from utils import ITERATIONS, recv, send, set_rmm
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -32,6 +32,7 @@ def server(env, port, func):
     async def f(listener_port):
         # coroutine shows up when the client asks
         # to connect
+        set_rmm()
         async def write(ep):
 
             print("CREATING CUDA OBJECT IN SERVER...")
@@ -40,23 +41,17 @@ def server(env, port, func):
             msg = {"data": to_serialize(cuda_obj)}
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
+                print('ITER: ', i)
                 # Send meta data
                 await send(ep, frames)
 
                 frames, msg = await recv(ep)
 
             print("CONFIRM RECEIPT")
-            close_msg = b"shutdown listener"
-            msg_size = np.empty(1, dtype=np.uint64)
-            await ep.recv(msg_size)
-
-            msg = np.empty(msg_size[0], dtype=np.uint8)
-            await ep.recv(msg)
-            recv_msg = msg.tobytes()
-            assert recv_msg == close_msg
-            print("Shutting Down Server...")
             await ep.close()
             lf.close()
+            del msg
+            del frames
 
         lf = ucp.create_listener(write, port=listener_port)
         try:
@@ -66,7 +61,8 @@ def server(env, port, func):
             pass
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(f(port))
+    for i in range(ITERATIONS):
+        loop.run_until_complete(f(port))
 
 
 def dataframe():
@@ -74,13 +70,13 @@ def dataframe():
     import numpy as np
 
     size = 2 ** 26
-    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)})
+    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size), 'c': ['a']*size})
 
 
-def cupy():
+def cupy_obj():
     import cupy
 
-    size = 10 ** 9
+    size = 9 ** 9
     return cupy.arange(size)
 
 
@@ -89,11 +85,8 @@ def test_send_recv_cu(cuda_obj_generator):
 
     base_env = os.environ
     env1 = base_env.copy()
-    env2 = base_env.copy()
-    # reverse CVD for other worker
-    env2["CUDA_VISIBLE_DEVICES"] = base_env["CUDA_VISIBLE_DEVICES"][::-1]
 
-    port = 15338
+    port = 15339
     # serialize function and send to the client and server
     # server will use the return value of the contents,
     # serialize the values, then send serialized values to client.
@@ -130,4 +123,4 @@ def total_nvlink_transfer():
 if __name__ == "__main__":
     # args = parse_args(args)
 
-    test_send_recv_cu(cupy)
+    test_send_recv_cu(dataframe)

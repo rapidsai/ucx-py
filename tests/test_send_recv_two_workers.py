@@ -20,9 +20,10 @@ pynvml = pytest.importorskip("pynvml")
 cupy = pytest.importorskip("cupy")
 cudf = pytest.importorskip("cudf")
 rmm = pytest.importorskip("rmm")
+import cudf.tests.utils
 
 
-ITERATIONS = 1
+ITERATIONS = 30
 
 
 def cuda_array(size):
@@ -105,12 +106,12 @@ def client(env, port, func):
     num_bytes = nbytes(rx_cuda_obj)
     print(f"TOTAL DATA RECEIVED: {num_bytes}")
     # nvlink only measures in KBs
-    if num_bytes > 90000:
-        rx, tx = total_nvlink_transfer()
-        msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
-               -- TOTAL DATA: {num_bytes}"
-        print(msg)
-        assert rx > before_rx
+    # if num_bytes > 90000:
+    #     rx, tx = total_nvlink_transfer()
+    #     msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
+    #            -- TOTAL DATA: {num_bytes}"
+    #     print(msg)
+    #     assert rx > before_rx
 
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
@@ -206,7 +207,7 @@ def empty_dataframe():
     return cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
 
 
-def cupy():
+def cupy_obj():
     import cupy
 
     size = 10 ** 8
@@ -217,12 +218,13 @@ def cupy():
     not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
-    "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy]
+    "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy_obj]
 )
 def test_send_recv_cu(cuda_obj_generator):
     base_env = os.environ
     env1 = base_env.copy()
     env2 = base_env.copy()
+    env2['UCX_NET_DEVICES'] = 'mlx5_3:1'
     cvd = get_cuda_visible_devices()
     # reverse CVD for other worker
     env1["CUDA_VISIBLE_DEVICES"] = cvd
