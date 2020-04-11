@@ -4,7 +4,6 @@ import os
 from distributed.utils import nbytes
 
 import cloudpickle
-import numpy as np
 import pynvml
 import pytest
 import ucp
@@ -21,6 +20,7 @@ pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
 
 async def get_ep(name, port):
     addr = ucp.get_address()
+    addr = "10.33.227.164"
     ep = await ucp.create_endpoint(addr, port)
     return ep
 
@@ -38,12 +38,13 @@ def client(env, port, func):
     async def read():
         await asyncio.sleep(1)
         ep = await get_ep("client", port)
-        
+
         for i in range(ITERATIONS):
             bytes_used = pynvml.nvmlDeviceGetMemoryInfo(
                 pynvml.nvmlDeviceGetHandleByIndex(0)
             ).used
-            print("Bytes Used:", bytes_used, i)
+            bytes_used
+            # print("Bytes Used:", bytes_used, i)
 
             frames, msg = await recv(ep)
 
@@ -55,6 +56,7 @@ def client(env, port, func):
 
     set_rmm()
     for i in range(ITERATIONS):
+        print("ITER: ", i)
         rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
 
     num_bytes = nbytes(rx_cuda_obj)
