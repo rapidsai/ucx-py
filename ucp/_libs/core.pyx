@@ -22,6 +22,7 @@ from ..exceptions import (
     UCXWarning,
     UCXConfigError,
 )
+from ..utils import nvtx_annotate
 from .. import continuous_ucx_progress
 
 from .utils import get_buffer_nbytes
@@ -447,6 +448,7 @@ class _Endpoint:
     def __del__(self):
         self.abort()
 
+    @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
@@ -473,6 +475,7 @@ class _Endpoint:
             pending_msg=self.pending_msg_list[-1]
         )
 
+    @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
