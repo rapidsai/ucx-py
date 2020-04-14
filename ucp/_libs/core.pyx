@@ -11,6 +11,7 @@ from random import randint
 import psutil
 import uuid
 import socket
+import struct
 import logging
 from os import close as close_fd
 
@@ -75,52 +76,62 @@ async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     }
 
 
-# "1" is shutdown, currently the only opcode.
-cdef struct CtrlMsgData:
-    int64_t op  # The control opcode, currently the only opcode is "1" (shutdown).
-    int64_t close_after_n_recv  # Number of recv before closing
+class CtrlMsg:
+    """Implementation of control messages
 
+    For now we have one opcode `1` which means shutdown.
+    The opcode takes `close_after_n_recv`, which is the number of
+    messages to receive before the worker should close.
+    """
 
-cdef class CtrlMsg:
-    cdef CtrlMsgData data
+    fmt = "QQ"
+    nbytes = struct.calcsize(fmt)
 
+    @staticmethod
+    def serialize(opcode, close_after_n_recv):
+        return struct.pack(CtrlMsg.fmt, int(opcode), int(close_after_n_recv))
 
-def handle_ctrl_msg(ep_weakref, log, CtrlMsg msg, future):
-    """Function that is called when receiving the control message"""
-    try:
-        future.result()
-    except UCXCanceled:
-        return  # The ctrl signal was canceled
-    logger.debug(log)
-    ep = ep_weakref()
-    if ep is None or ep.closed():
-        return  # The endpoint is closed
+    @staticmethod
+    def deserialize(serialized_bytes):
+        return struct.unpack(CtrlMsg.fmt, serialized_bytes)
 
-    if msg.data.op == 1:
-        ep.close_after_n_recv(msg.data.close_after_n_recv, count_from_ep_creation=True)
-    else:
-        raise UCXError("Received unknown control opcode: %s" % msg.data.op)
+    @staticmethod
+    def handle_ctrl_msg(ep_weakref, log, msg, future):
+        """Function that is called when receiving the control message"""
+        try:
+            future.result()
+        except UCXCanceled:
+            return  # The ctrl signal was canceled
+        logger.debug(log)
+        ep = ep_weakref()
+        if ep is None or ep.closed():
+            return  # The endpoint is closed
 
+        opcode, close_after_n_recv = CtrlMsg.deserialize(msg)
+        if opcode == 1:
+            ep.close_after_n_recv(close_after_n_recv, count_from_ep_creation=True)
+        else:
+            raise UCXError("Received unknown control opcode: %s" % opcode)
 
-def setup_ctrl_recv(priv_ep, pub_ep):
-    """Help function to setup the receive of the control message"""
-    cdef CtrlMsg msg = CtrlMsg()
-    cdef CtrlMsgData[::1] msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
-    log = "[Recv shutdown] ep: %s, tag: %s" % (
-        hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
-    )
-    priv_ep.pending_msg_list.append({'log': log})
-    shutdown_fut = ucx_api.tag_recv(
-        priv_ep._ctx.worker,
-        msg_mv,
-        msg_mv.nbytes,
-        priv_ep._ctrl_tag_recv,
-        pending_msg=priv_ep.pending_msg_list[-1]
-    )
+    @staticmethod
+    def setup_ctrl_recv(priv_ep, pub_ep):
+        """Help function to setup the receive of the control message"""
+        log = "[Recv shutdown] ep: %s, tag: %s" % (
+            hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+        )
+        priv_ep.pending_msg_list.append({'log': log})
+        msg = bytearray(CtrlMsg.nbytes)
+        shutdown_fut = ucx_api.tag_recv(
+            priv_ep._ctx.worker,
+            msg,
+            len(msg),
+            priv_ep._ctrl_tag_recv,
+            pending_msg=priv_ep.pending_msg_list[-1]
+        )
 
-    shutdown_fut.add_done_callback(
-        partial(handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
-    )
+        shutdown_fut.add_done_callback(
+            partial(CtrlMsg.handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
+        )
 
 
 async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
@@ -172,7 +183,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     pub_ep = Endpoint(ep)
 
     # Setup the control receive
-    setup_ctrl_recv(ep, pub_ep)
+    CtrlMsg.setup_ctrl_recv(ep, pub_ep)
 
     # Removing references here to avoid delayed clean up
     del ep
@@ -320,7 +331,7 @@ cdef class ApplicationContext:
         pub_ep = Endpoint(ep)
 
         # Setup the control receive
-        setup_ctrl_recv(ep, pub_ep)
+        CtrlMsg.setup_ctrl_recv(ep, pub_ep)
 
         # Return the public Endpoint
         return pub_ep
@@ -404,8 +415,6 @@ class _Endpoint:
     async def close(self):
         if self._closed:
             return
-        cdef CtrlMsg msg
-        cdef CtrlMsgData[::1] ctrl_msg_mv
         try:
             # Making sure we only tell peer to shutdown once
             if self._shutting_down_peer:
@@ -413,12 +422,7 @@ class _Endpoint:
             self._shutting_down_peer = True
 
             # Send a shutdown message to the peer
-            msg = CtrlMsg()
-            msg.data = {
-                'op': 1,  # "1" is shutdown, currently the only opcode
-                'close_after_n_recv': self._send_count,
-            }
-            ctrl_msg_mv = <CtrlMsgData[:1:1]>(&msg.data)
+            msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid), hex(self._ctrl_tag_send), self._send_count
             )
@@ -427,7 +431,8 @@ class _Endpoint:
             try:
                 await ucx_api.tag_send(
                     self._ep,
-                    ctrl_msg_mv, ctrl_msg_mv.nbytes,
+                    msg,
+                    len(msg),
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1]
                 )
