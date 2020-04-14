@@ -232,6 +232,7 @@ except ImportError:
     # NVTX annotations functionality currently exists in cuDF, if cuDF isn't
     # installed, `annotate` yields only.
     from contextlib import contextmanager
+
     @contextmanager
     def nvtx_annotate(message=None, color=None, domain=None):
         yield
