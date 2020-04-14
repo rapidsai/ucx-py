@@ -224,3 +224,14 @@ def run_on_local_network(
         assert not proc.exitcode
     assert len(results) == n_workers
     return results
+
+
+try:
+    from cudf._lib.nvtx import annotate as nvtx_annotate
+except ImportError:
+    # NVTX annotations functionality currently exists in cuDF, if cuDF isn't
+    # installed, `annotate` yields only.
+    from contextlib import contextmanager
+    @contextmanager
+    def nvtx_annotate(message=None, color=None, domain=None):
+        yield
