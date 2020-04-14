@@ -8,7 +8,7 @@ import numpy as np
 import rmm
 import ucp
 
-ITERATIONS = 100
+ITERATIONS = 3
 
 
 def cuda_array(size):
@@ -65,7 +65,7 @@ async def recv(ep):
 
 def set_rmm():
     rmm.reinitialize(
-        pool_allocator=True, managed_memory=False, initial_pool_size=parse_bytes("12GB")
+        pool_allocator=True, managed_memory=False, initial_pool_size=parse_bytes("6GB")
     )
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
 

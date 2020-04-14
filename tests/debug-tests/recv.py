@@ -20,7 +20,8 @@ pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
 
 async def get_ep(name, port):
     addr = ucp.get_address()
-    addr = "10.33.227.164"
+    addr = "10.33.12.15"
+    addr = "192.168.40.22"
     ep = await ucp.create_endpoint(addr, port)
     return ep
 

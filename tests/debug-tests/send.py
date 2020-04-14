@@ -78,11 +78,14 @@ def dataframe():
 
 def cupy_obj():
     import cupy
+    import numpy as np
     import cudf
 
     size = 9 ** 5
     obj = cupy.arange(size)
-    data = [obj for i in range(20)]
+    data = [obj for i in range(10)]
+    data.extend([np.arange(10) for i in range(10)]
+    data = [obj for i in range(10)]
     data.append(cudf.Series([1, 2, 3, 4]))
     data.append({"key": "value"})
     data.append({"key": cudf.Series([0.45, 0.134])})
