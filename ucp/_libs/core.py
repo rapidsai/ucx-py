@@ -1,12 +1,16 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
-# cython: language_level=3
 
-import os
 import asyncio
+import logging
+import os
+import struct
+import uuid
 import weakref
 from functools import partial
+from os import close as close_fd
 from random import randint
+
 import psutil
 import uuid
 import socket
@@ -24,7 +28,8 @@ from ..exceptions import (
 )
 from ..utils import nvtx_annotate
 from .. import continuous_ucx_progress
-
+from ..exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
+from . import ucx_api
 from .utils import get_buffer_nbytes
 from . import ucx_api
 
@@ -111,16 +116,17 @@ class CtrlMsg:
     def setup_ctrl_recv(priv_ep, pub_ep):
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (
-            hex(priv_ep.uid), hex(priv_ep._ctrl_tag_recv)
+            hex(priv_ep.uid),
+            hex(priv_ep._ctrl_tag_recv),
         )
-        priv_ep.pending_msg_list.append({'log': log})
+        priv_ep.pending_msg_list.append({"log": log})
         msg = bytearray(CtrlMsg.nbytes)
         shutdown_fut = ucx_api.tag_recv(
             priv_ep._ctx.worker,
             msg,
             len(msg),
             priv_ep._ctrl_tag_recv,
-            pending_msg=priv_ep.pending_msg_list[-1]
+            pending_msg=priv_ep.pending_msg_list[-1],
         )
 
         shutdown_fut.add_done_callback(
@@ -130,6 +136,7 @@ class CtrlMsg:
 
 async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     from ..public_api import Endpoint
+
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
     #       get_exception_handler() is set.
@@ -149,27 +156,28 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         endpoint=endpoint,
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order
+        guarantee_msg_order=guarantee_msg_order,
     )
     ep = _Endpoint(
         endpoint=endpoint,
         ctx=ctx,
-        msg_tag_send=peer_info['msg_tag'],
+        msg_tag_send=peer_info["msg_tag"],
         msg_tag_recv=msg_tag,
-        ctrl_tag_send=peer_info['ctrl_tag'],
+        ctrl_tag_send=peer_info["ctrl_tag"],
         ctrl_tag_recv=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order
+        guarantee_msg_order=guarantee_msg_order,
     )
     ctx.children.append(weakref.ref(ep))
 
     logger.debug(
         "listener_handler() server: %s, msg-tag-send: %s, "
-        "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" %(
+        "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
+        % (
             hex(endpoint.handle),
             hex(ep._msg_tag_send),
             hex(ep._msg_tag_recv),
             hex(ep._ctrl_tag_send),
-            hex(ep._ctrl_tag_recv)
+            hex(ep._ctrl_tag_recv),
         )
     )
 
@@ -209,6 +217,7 @@ class ApplicationContext:
     """
     The context of the Asyncio interface of UCX.
     """
+
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
         # List of weak references to the UCX objects that make use of `context`
@@ -220,7 +229,7 @@ class ApplicationContext:
 
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
-        elif 'UCXPY_NON_BLOCKING_MODE' in os.environ:
+        elif "UCXPY_NON_BLOCKING_MODE" in os.environ:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = True
@@ -236,11 +245,12 @@ class ApplicationContext:
             self.children,
             self.worker,
             self.context,
-            self.epoll_fd
+            self.epoll_fd,
         )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         from ..public_api import Listener
+
         self.continuous_ucx_progress()
         if port in (None, 0):
             # Get a random port number and check if it's not used yet. Doing this
@@ -268,14 +278,15 @@ class ApplicationContext:
                 "cb_func": callback_func,
                 "cb_coroutine": listener_handler,
                 "ctx": self,
-                "guarantee_msg_order": guarantee_msg_order
-            }
+                "guarantee_msg_order": guarantee_msg_order,
+            },
         )
         self.children.append(weakref.ref(ret))
         return Listener(ret)
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
+
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
 
@@ -290,26 +301,28 @@ class ApplicationContext:
             endpoint=ucx_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
         ep = _Endpoint(
             endpoint=ucx_ep,
             ctx=self,
-            msg_tag_send=peer_info['msg_tag'],
+            msg_tag_send=peer_info["msg_tag"],
             msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info['ctrl_tag'],
+            ctrl_tag_send=peer_info["ctrl_tag"],
             ctrl_tag_recv=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order
+            guarantee_msg_order=guarantee_msg_order,
         )
         self.children.append(weakref.ref(ep))
 
-        logger.debug("create_endpoint() client: %s, msg-tag-send: %s, "
-                      "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s" % (
-                hex(ep._ep.handle),  # noqa
-                hex(ep._msg_tag_send),  # noqa
-                hex(ep._msg_tag_recv),  # noqa
-                hex(ep._ctrl_tag_send), # noqa
-                hex(ep._ctrl_tag_recv)  # noqa
+        logger.debug(
+            "create_endpoint() client: %s, msg-tag-send: %s, "
+            "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
+            % (
+                hex(ep._ep.handle),
+                hex(ep._msg_tag_send),
+                hex(ep._msg_tag_recv),
+                hex(ep._ctrl_tag_send),
+                hex(ep._ctrl_tag_recv),
             )
         )
 
@@ -330,9 +343,7 @@ class ApplicationContext:
 
         if self.blocking_progress_mode:
             task = continuous_ucx_progress.BlockingMode(
-                self.worker,
-                loop,
-                self.epoll_fd
+                self.worker, loop, self.epoll_fd
             )
         else:
             task = continuous_ucx_progress.NonBlockingMode(self.worker, loop)
@@ -359,7 +370,7 @@ class _Endpoint:
         msg_tag_recv,
         ctrl_tag_send,
         ctrl_tag_recv,
-        guarantee_msg_order
+        guarantee_msg_order,
     ):
         self._ep = endpoint
         self._ctx = ctx
@@ -390,9 +401,9 @@ class _Endpoint:
         logger.debug("Endpoint.abort(): %s" % hex(self.uid))
 
         for msg in self.pending_msg_list:
-            if 'future' in msg and not msg['future'].done():
-                logger.debug("Future cancelling: %s" % msg['log'])
-                self._ctx.worker.request_cancel(msg['ucp_request'])
+            if "future" in msg and not msg["future"].done():
+                logger.debug("Future cancelling: %s" % msg["log"])
+                self._ctx.worker.request_cancel(msg["ucp_request"])
 
                 self._ep.close()
         self._ep = None
