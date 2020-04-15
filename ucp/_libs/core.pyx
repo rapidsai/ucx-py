@@ -6,7 +6,6 @@ import os
 import asyncio
 import weakref
 from functools import partial
-from libc.stdint cimport int64_t, uint64_t, uintptr_t
 from random import randint
 import psutil
 import uuid
@@ -206,24 +205,16 @@ def application_context_finalizer(children, worker, context, epoll_fd):
         close_fd(epoll_fd)
 
 
-cdef class ApplicationContext:
-    cdef:
-        object __weakref__
-        # For now, a application context only has one worker
-        list progress_tasks
-        bint blocking_progress_mode
-
-    cdef public:
-        object context
-        object worker
-        object config
-        list children
-        int epoll_fd
-
-    def __cinit__(self, config_dict={}, blocking_progress_mode=None):
+class ApplicationContext:
+    """
+    The context of the Asyncio interface of UCX.
+    """
+    def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
         # List of weak references to the UCX objects that make use of `context`
         self.children = []
+
+        # For now, a application context only has one worker
         self.context = ucx_api.UCXContext(config_dict)
         self.worker = ucx_api.UCXWorker(self.context)
 
