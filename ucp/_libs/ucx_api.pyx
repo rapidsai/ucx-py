@@ -21,6 +21,7 @@ from ..exceptions import (
     UCXCanceled,
     UCXCloseError,
 )
+from ..utils import nvtx_annotate
 from .utils import get_buffer_data
 
 
@@ -219,6 +220,7 @@ cdef class UCXWorker:
         assert_ucs_status(status)
         return True
 
+    @nvtx_annotate("UCXPY_PROGRESS", color="blue", domain="ucxpy")
     def progress(self):
         assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
