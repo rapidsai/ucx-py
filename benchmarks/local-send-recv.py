@@ -1,16 +1,24 @@
 """
 Benchmark send receive on one machine
-UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 2 --client-dev 1 --object_type rmm --reuse-alloc --n-bytes 1GB
+UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm python \
+        local-send-recv.py --server-dev 2 --client-dev 1 --object_type rmm \
+        --reuse-alloc --n-bytes 1GB
 
 Benchmark send receive on two machines (IB testing):
 
 # server process
-UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=tcp,sockcm,cuda_copy,rc UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --server-only --n-iter 100
+UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
+UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
+--client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB \
+--server-only --n-iter 100
 
 # client process
-UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --client-only --server-address 192.168.40.44 --port 53496 --n-iter 100
-
+UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
+UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
+--client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --client-only \
+--server-address 192.168.40.44 --port 53496 --n-iter 100
 """
+
 import argparse
 import asyncio
 import multiprocessing as mp
@@ -18,7 +26,6 @@ from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
 
-import numpy
 import ucp
 
 mp = mp.get_context("spawn")
@@ -48,7 +55,6 @@ def server(queue, args):
 
     async def run():
         async def server_handler(ep):
-            times = []
 
             msg_recv_list = []
             if not args.reuse_alloc:
