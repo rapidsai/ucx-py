@@ -87,35 +87,30 @@ class CtrlMsg:
             raise UCXError("Received unknown control opcode: %s" % opcode)
 
     @staticmethod
-    def setup_ctrl_recv(priv_ep, pub_ep):
+    def setup_ctrl_recv(ep):
         """Help function to setup the receive of the control message"""
-        log = "[Recv shutdown] ep: %s, tag: %s" % (
-            hex(priv_ep.uid),
-            hex(priv_ep._ctrl_tag_recv),
-        )
-        priv_ep.pending_msg_list.append({"log": log})
+        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
+        ep.pending_msg_list.append({"log": log})
         msg = bytearray(CtrlMsg.nbytes)
         shutdown_fut = ucx_api.tag_recv(
-            priv_ep._ctx.worker,
+            ep._ctx.worker,
             msg,
             len(msg),
-            priv_ep._ctrl_tag_recv,
-            pending_msg=priv_ep.pending_msg_list[-1],
+            ep._ctrl_tag_recv,
+            pending_msg=ep.pending_msg_list[-1],
         )
 
         shutdown_fut.add_done_callback(
-            partial(CtrlMsg.handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
+            partial(CtrlMsg.handle_ctrl_msg, weakref.ref(ep), log, msg)
         )
 
 
 async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
-    from .public_api import Endpoint
 
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the private part of an endpoint
-    #  4) Create the public Endpoint based on _Endpoint
+    #  3) Use the info to create the an endpoint
     msg_tag = hash(uuid.uuid4())
     ctrl_tag = hash(uuid.uuid4())
     peer_info = await exchange_peer_info(
@@ -124,7 +119,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
     )
-    ep = _Endpoint(
+    ep = Endpoint(
         endpoint=endpoint,
         ctx=ctx,
         msg_tag_send=peer_info["msg_tag"],
@@ -147,21 +142,17 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         )
     )
 
-    # Create the public Endpoint
-    pub_ep = Endpoint(ep)
-
     # Setup the control receive
-    CtrlMsg.setup_ctrl_recv(ep, pub_ep)
+    CtrlMsg.setup_ctrl_recv(ep)
 
     # Removing references here to avoid delayed clean up
-    del ep
     del ctx
 
     # Finally, we call `func`
     if asyncio.iscoroutinefunction(func):
-        await func(pub_ep)
+        await func(ep)
     else:
-        func(pub_ep)
+        func(ep)
 
 
 def application_context_finalizer(children, worker, context, epoll_fd):
@@ -251,16 +242,13 @@ class ApplicationContext:
         return Listener(ret)
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
-        from .public_api import Endpoint
-
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
 
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
-        #  3) Use the info to create the private part of an endpoint
-        #  4) Create the public Endpoint based on _Endpoint
+        #  3) Use the info to create an endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
@@ -269,7 +257,7 @@ class ApplicationContext:
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-        ep = _Endpoint(
+        ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
             msg_tag_send=peer_info["msg_tag"],
@@ -292,14 +280,9 @@ class ApplicationContext:
             )
         )
 
-        # Create the public Endpoint
-        pub_ep = Endpoint(ep)
-
         # Setup the control receive
-        CtrlMsg.setup_ctrl_recv(ep, pub_ep)
-
-        # Return the public Endpoint
-        return pub_ep
+        CtrlMsg.setup_ctrl_recv(ep)
+        return ep
 
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress"""
@@ -320,10 +303,11 @@ class ApplicationContext:
         return self.context.get_config()
 
 
-class _Endpoint:
-    """This represents the private part of Endpoint
+class Endpoint:
+    """An endpoint represents a connection to a peer
 
-    See <.public_api.Endpoint> for documentation
+    Please use `create_listener()` and `create_endpoint()`
+    to create an Endpoint.
     """
 
     def __init__(
@@ -354,11 +338,21 @@ class _Endpoint:
         self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
+    def __del__(self):
+        self.abort()
+
     @property
     def uid(self):
+        """The unique ID of the underlying UCX endpoint"""
         return self._ep.handle
 
     def abort(self):
+        """Close the communication immediately and abruptly.
+        Useful in destructors or generators' ``finally`` blocks.
+
+        Notice, this functions doesn't signal the connected peer to close.
+        To do that, use `Endpoint.close()`
+        """
         if self._closed:
             return
         self._closed = True
@@ -374,6 +368,10 @@ class _Endpoint:
         self._ctx = None
 
     async def close(self):
+        """Close the endpoint cleanly.
+        This will attempt to flush outgoing buffers before actually
+        closing the underlying UCX endpoint.
+        """
         if self._closed:
             return
         try:
@@ -410,13 +408,21 @@ class _Endpoint:
             self.abort()
 
     def closed(self):
+        """Is this endpoint closed?"""
         return self._closed
-
-    def __del__(self):
-        self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        nbytes: int, optional
+            Number of bytes to send. Default is the whole buffer.
+        """
         if self._closed:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
@@ -441,6 +447,16 @@ class _Endpoint:
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None):
+        """Receive from connected peer into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer
+            is smaller than nbytes or read-only.
+        nbytes: int, optional
+            Number of bytes to receive. Default is the whole buffer.
+        """
         if self._closed:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
@@ -471,10 +487,49 @@ class _Endpoint:
         return ret
 
     def cuda_support(self):
+        """Return whether UCX is configured with CUDA support or not"""
         return self._cuda_support
 
     def get_ucp_worker(self):
+        """Returns the underlying UCP worker handle (ucp_worker_h)
+        as a Python integer.
+        """
         return self._ctx.worker.handle
 
     def get_ucp_endpoint(self):
+        """Returns the underlying UCP endpoint handle (ucp_ep_h)
+        as a Python integer.
+        """
         return self._ep.handle
+
+    def ucx_info(self):
+        """Return low-level UCX info about this endpoint as a string"""
+        return self._ep.info()
+
+    def close_after_n_recv(self, n, count_from_ep_creation=False):
+        """Close the endpoint after `n` received messages.
+
+        Parameters
+        ----------
+        n: int
+            Number of messages to received before closing the endpoint.
+        count_from_ep_creation: bool, optional
+            Whether to count `n` from this function call (default) or
+            from the creation of the endpoint.
+        """
+        if not count_from_ep_creation:
+            n += self._finished_recv_count  # Make `n` absolute
+        if self._close_after_n_recv is not None:
+            raise UCXError(
+                "close_after_n_recv has already been set to: %d (abs)"
+                % self._close_after_n_recv
+            )
+        if n == self._finished_recv_count:
+            self.abort()
+        elif n > self._finished_recv_count:
+            self._close_after_n_recv = n
+        else:
+            raise UCXError(
+                "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
+                % (n, self._finished_recv_count)
+            )
