@@ -206,8 +206,6 @@ class ApplicationContext:
         )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
-        from .public_api import Listener
-
         self.continuous_ucx_progress()
         if port in (None, 0):
             # Get a random port number and check if it's not used yet. Doing this
@@ -301,6 +299,38 @@ class ApplicationContext:
 
     def get_config(self):
         return self.context.get_config()
+
+
+class Listener:
+    """A handle to the listening service started by `create_listener()`
+
+    The listening continues as long as this object exist or `.close()` is called.
+    Please use `create_listener()` to create an Listener.
+    """
+
+    def __init__(self, backend):
+        self._b = backend
+        self._closed = False
+
+    def __del__(self):
+        if not self.closed():
+            self.close()
+
+    def closed(self):
+        """Is the listener closed?"""
+        return self._closed
+
+    @property
+    def port(self):
+        """The network point listening on"""
+        return self._b.port
+
+    def close(self):
+        """Closing the listener"""
+        if not self._closed:
+            self._b.abort()
+            self._closed = True
+            self._b = None
 
 
 class Endpoint:
