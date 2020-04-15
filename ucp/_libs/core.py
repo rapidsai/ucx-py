@@ -274,7 +274,7 @@ class ApplicationContext:
         self.children.append(weakref.ref(ret))
         return Listener(ret)
 
-    async def create_endpoint(self, str ip_address, port, guarantee_msg_order):
+    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
         from ..public_api import Endpoint
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
