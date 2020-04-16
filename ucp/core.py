@@ -16,21 +16,10 @@ import psutil
 from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
-from .exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
+from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import nvtx_annotate
 
 logger = logging.getLogger("ucx")
-
-
-def asyncio_handle_exception(loop, context):
-    msg = context.get("exception", context["message"])
-    if isinstance(msg, UCXCanceled):
-        log = logger.debug
-    elif isinstance(msg, UCXWarning):
-        log = logger.warning
-    else:
-        log = logger.error
-    log("Ignored except: %s %s" % (type(msg), msg))
 
 
 async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
@@ -121,14 +110,6 @@ class CtrlMsg:
 
 async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     from .public_api import Endpoint
-
-    loop = asyncio.get_event_loop()
-    # TODO: exceptions in this callback is never showed when no
-    #       get_exception_handler() is set.
-    #       Is this the correct way to handle exceptions in asyncio?
-    #       Do we need to set this in other places?
-    if loop.get_exception_handler() is None:
-        loop.set_exception_handler(asyncio_handle_exception)
 
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
