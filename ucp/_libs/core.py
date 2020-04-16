@@ -12,27 +12,12 @@ from os import close as close_fd
 from random import randint
 
 import psutil
-import uuid
-import socket
-import struct
-import logging
-from os import close as close_fd
 
-from ..exceptions import (
-    log_errors,
-    UCXError,
-    UCXCloseError,
-    UCXCanceled,
-    UCXWarning,
-    UCXConfigError,
-)
-from ..utils import nvtx_annotate
 from .. import continuous_ucx_progress
 from ..exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
+from ..utils import nvtx_annotate
 from . import ucx_api
 from .utils import get_buffer_nbytes
-from . import ucx_api
-
 
 logger = logging.getLogger("ucx")
 
@@ -421,17 +406,19 @@ class _Endpoint:
             # Send a shutdown message to the peer
             msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
-                hex(self.uid), hex(self._ctrl_tag_send), self._send_count
+                hex(self.uid),
+                hex(self._ctrl_tag_send),
+                self._send_count,
             )
             logger.debug(log)
-            self.pending_msg_list.append({'log': log})
+            self.pending_msg_list.append({"log": log})
             try:
                 await ucx_api.tag_send(
                     self._ep,
                     msg,
                     len(msg),
                     self._ctrl_tag_send,
-                    pending_msg=self.pending_msg_list[-1]
+                    pending_msg=self.pending_msg_list[-1],
                 )
             # The peer might already be shutting down
             except UCXError as e:
@@ -453,58 +440,54 @@ class _Endpoint:
     async def send(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
+        nbytes = get_buffer_nbytes(
+            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+        )
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
             hex(self._msg_tag_send),
             nbytes,
-            type(buffer)
+            type(buffer),
         )
         logger.debug(log)
-        self.pending_msg_list.append({'log': log})
+        self.pending_msg_list.append({"log": log})
         self._send_count += 1
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
         return await ucx_api.tag_send(
-            self._ep,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
+            self._ep, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
         )
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None):
         if self._closed:
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(buffer, check_min_size=nbytes,
-                                   cuda_support=self._cuda_support)
+        nbytes = get_buffer_nbytes(
+            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+        )
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
             hex(self._msg_tag_recv),
             nbytes,
-            type(buffer)
+            type(buffer),
         )
         logger.debug(log)
-        self.pending_msg_list.append({'log': log})
+        self.pending_msg_list.append({"log": log})
         self._recv_count += 1
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await ucx_api.tag_recv(
-            self._ctx.worker,
-            buffer,
-            nbytes,
-            tag,
-            pending_msg=self.pending_msg_list[-1]
+            self._ctx.worker, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
         )
         self._finished_recv_count += 1
-        if self._close_after_n_recv is not None \
-                and self._finished_recv_count >= self._close_after_n_recv:
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
             self.abort()
         return ret
 
