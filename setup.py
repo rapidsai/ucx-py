@@ -70,6 +70,7 @@ setup(
     cmdclass=cmdclass,
     version=versioneer.get_version(),
     python_requires=">=3.6",
+    install_requires=["numpy", "psutil"],
     description="Python Bindings for the Unified Communication X library (UCX)",
     long_description=open("README.md").read(),
     author="NVIDIA Corporation",
