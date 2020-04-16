@@ -13,11 +13,11 @@ from random import randint
 
 import psutil
 
-from .. import continuous_ucx_progress
-from ..exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
-from ..utils import nvtx_annotate
-from . import ucx_api
-from .utils import get_buffer_nbytes
+from .continuous_ucx_progress import BlockingMode, NonBlockingMode
+from .exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
+from .utils import nvtx_annotate
+from ._libs import ucx_api
+from ._libs.utils import get_buffer_nbytes
 
 logger = logging.getLogger("ucx")
 
@@ -120,7 +120,7 @@ class CtrlMsg:
 
 
 async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
-    from ..public_api import Endpoint
+    from .public_api import Endpoint
 
     loop = asyncio.get_event_loop()
     # TODO: exceptions in this callback is never showed when no
@@ -234,7 +234,7 @@ class ApplicationContext:
         )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
-        from ..public_api import Listener
+        from .public_api import Listener
 
         self.continuous_ucx_progress()
         if port in (None, 0):
@@ -270,7 +270,7 @@ class ApplicationContext:
         return Listener(ret)
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
-        from ..public_api import Endpoint
+        from .public_api import Endpoint
 
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
@@ -327,11 +327,11 @@ class ApplicationContext:
             return  # Progress has already been guaranteed for the current event loop
 
         if self.blocking_progress_mode:
-            task = continuous_ucx_progress.BlockingMode(
+            task = BlockingMode(
                 self.worker, loop, self.epoll_fd
             )
         else:
-            task = continuous_ucx_progress.NonBlockingMode(self.worker, loop)
+            task = NonBlockingMode(self.worker, loop)
         self.progress_tasks.append(task)
 
     def get_ucp_worker(self):
@@ -344,7 +344,7 @@ class ApplicationContext:
 class _Endpoint:
     """This represents the private part of Endpoint
 
-    See <..public_api.Endpoint> for documentation
+    See <.public_api.Endpoint> for documentation
     """
 
     def __init__(
