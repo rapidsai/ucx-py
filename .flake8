@@ -5,6 +5,5 @@ exclude =
     *.egg,
     build,
     versioneer.py,
-    benchmarks/*
 
 max-line-length = 88
