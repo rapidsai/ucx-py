@@ -5,8 +5,8 @@ import gc
 import os
 import weakref
 
-from . import exceptions
-from ._libs import core, ucx_api
+from . import core, exceptions
+from ._libs import ucx_api
 
 # The module should only instantiate one instance of the application context
 # However, the init of CUDA must happen after all process forks thus we delay
