@@ -401,7 +401,7 @@ class _Endpoint:
                 )
             # The peer might already be shutting down
             except UCXError as e:
-                log = "UCX Closing Error on worker %d\n%s" % (hex(self.uid), str(e))
+                log = "UCX Closing Error on worker %s: %s" % (hex(self.uid), repr(e))
                 logging.error(log)
         finally:
             # Give all current outstanding send() calls a chance to return
