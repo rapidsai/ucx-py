@@ -13,11 +13,11 @@ from random import randint
 
 import psutil
 
+from ._libs import ucx_api
+from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError, UCXWarning
 from .utils import nvtx_annotate
-from ._libs import ucx_api
-from ._libs.utils import get_buffer_nbytes
 
 logger = logging.getLogger("ucx")
 
@@ -327,9 +327,7 @@ class ApplicationContext:
             return  # Progress has already been guaranteed for the current event loop
 
         if self.blocking_progress_mode:
-            task = BlockingMode(
-                self.worker, loop, self.epoll_fd
-            )
+            task = BlockingMode(self.worker, loop, self.epoll_fd)
         else:
             task = NonBlockingMode(self.worker, loop)
         self.progress_tasks.append(task)

@@ -5,7 +5,7 @@ import gc
 import os
 import weakref
 
-from . import exceptions, core
+from . import core, exceptions
 from ._libs import ucx_api
 
 # The module should only instantiate one instance of the application context
