@@ -20,6 +20,7 @@ from ..exceptions import (
     UCXConfigError,
     UCXCanceled,
     UCXCloseError,
+    UCXMsgTruncated,
 )
 from ..utils import nvtx_annotate
 from .utils import get_buffer_data
@@ -406,7 +407,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
                 msg += "length mismatch: %d (got) != %d (expected)" % (
                     req.received, expected_receive
                 )
-                ret.set_exception(UCXError(msg))
+                ret.set_exception(UCXMsgTruncated(msg))
             else:
                 ret.set_result(True)
             ucp_request_reset(req)
@@ -505,7 +506,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
             msg += "length mismatch: %d (got) != %d (expected)" % (
                 length, expected_receive
             )
-            future.set_exception(UCXError(msg))
+            future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
 
@@ -576,7 +577,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         elif length != expected_receive:
             msg += "length mismatch: %d (got) != %d (expected)" % (
                 length, expected_receive)
-            future.set_exception(UCXError(msg))
+            future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
 
