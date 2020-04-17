@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 
 import asyncio
+import gc
 import logging
 import os
 import struct
@@ -20,6 +21,18 @@ from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import nvtx_annotate
 
 logger = logging.getLogger("ucx")
+
+# The module should only instantiate one instance of the application context
+# However, the init of CUDA must happen after all process forks thus we delay
+# the instantiation of the application context to the first use of the API.
+_ctx = None
+
+
+def _get_ctx():
+    global _ctx
+    if _ctx is None:
+        _ctx = ApplicationContext()
+    return _ctx
 
 
 async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
@@ -87,35 +100,29 @@ class CtrlMsg:
             raise UCXError("Received unknown control opcode: %s" % opcode)
 
     @staticmethod
-    def setup_ctrl_recv(priv_ep, pub_ep):
+    def setup_ctrl_recv(ep):
         """Help function to setup the receive of the control message"""
-        log = "[Recv shutdown] ep: %s, tag: %s" % (
-            hex(priv_ep.uid),
-            hex(priv_ep._ctrl_tag_recv),
-        )
-        priv_ep.pending_msg_list.append({"log": log})
+        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
+        ep.pending_msg_list.append({"log": log})
         msg = bytearray(CtrlMsg.nbytes)
         shutdown_fut = ucx_api.tag_recv(
-            priv_ep._ctx.worker,
+            ep._ctx.worker,
             msg,
             len(msg),
-            priv_ep._ctrl_tag_recv,
-            pending_msg=priv_ep.pending_msg_list[-1],
+            ep._ctrl_tag_recv,
+            pending_msg=ep.pending_msg_list[-1],
         )
 
         shutdown_fut.add_done_callback(
-            partial(CtrlMsg.handle_ctrl_msg, weakref.ref(pub_ep), log, msg)
+            partial(CtrlMsg.handle_ctrl_msg, weakref.ref(ep), log, msg)
         )
 
 
-async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
-    from .public_api import Endpoint
-
+async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the private part of an endpoint
-    #  4) Create the public Endpoint based on _Endpoint
+    #  3) Use the info to create the an endpoint
     msg_tag = hash(uuid.uuid4())
     ctrl_tag = hash(uuid.uuid4())
     peer_info = await exchange_peer_info(
@@ -124,7 +131,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
     )
-    ep = _Endpoint(
+    ep = Endpoint(
         endpoint=endpoint,
         ctx=ctx,
         msg_tag_send=peer_info["msg_tag"],
@@ -136,7 +143,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     ctx.children.append(weakref.ref(ep))
 
     logger.debug(
-        "listener_handler() server: %s, msg-tag-send: %s, "
+        "_listener_handler() server: %s, msg-tag-send: %s, "
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
         % (
             hex(endpoint.handle),
@@ -147,24 +154,20 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         )
     )
 
-    # Create the public Endpoint
-    pub_ep = Endpoint(ep)
-
     # Setup the control receive
-    CtrlMsg.setup_ctrl_recv(ep, pub_ep)
+    CtrlMsg.setup_ctrl_recv(ep)
 
     # Removing references here to avoid delayed clean up
-    del ep
     del ctx
 
     # Finally, we call `func`
     if asyncio.iscoroutinefunction(func):
-        await func(pub_ep)
+        await func(ep)
     else:
-        func(pub_ep)
+        func(ep)
 
 
-def application_context_finalizer(children, worker, context, epoll_fd):
+def _application_context_finalizer(children, worker, context, epoll_fd):
     """
     Finalizer function for `ApplicationContext` object, which is
     more reliable than __dealloc__.
@@ -207,7 +210,7 @@ class ApplicationContext:
 
         weakref.finalize(
             self,
-            application_context_finalizer,
+            _application_context_finalizer,
             self.children,
             self.worker,
             self.context,
@@ -215,8 +218,33 @@ class ApplicationContext:
         )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
-        from .public_api import Listener
+        """Create and start a listener to accept incoming connections
 
+        callback_func is the function or coroutine that takes one
+        argument -- the Endpoint connected to the client.
+
+        In order to call ucp.reset() inside callback_func remember to
+        close the Endpoint given as an argument. It is not enough to
+
+        Also notice, the listening is closed when the returned Listener
+        goes out of scope thus remember to keep a reference to the object.
+
+        Parameters
+        ----------
+        callback_func: function or coroutine
+            A callback function that gets invoked when an incoming
+            connection is accepted
+        port: int, optional
+            An unused port number for listening
+        guarantee_msg_order: boolean, optional
+            Whether to guarantee message order or not. Remember, both peers
+            of the endpoint must set guarantee_msg_order to the same value.
+
+        Returns
+        -------
+        Listener
+            The new listener. When this object is deleted, the listening stops
+        """
         self.continuous_ucx_progress()
         if port in (None, 0):
             # Get a random port number and check if it's not used yet. Doing this
@@ -242,7 +270,7 @@ class ApplicationContext:
             self,
             {
                 "cb_func": callback_func,
-                "cb_coroutine": listener_handler,
+                "cb_coroutine": _listener_handler,
                 "ctx": self,
                 "guarantee_msg_order": guarantee_msg_order,
             },
@@ -251,16 +279,29 @@ class ApplicationContext:
         return Listener(ret)
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
-        from .public_api import Endpoint
+        """Create a new endpoint to a server
 
+        Parameters
+        ----------
+        ip_address: str
+            IP address of the server the endpoint should connect to
+        port: int
+            IP address of the server the endpoint should connect to
+        guarantee_msg_order: boolean, optional
+            Whether to guarantee message order or not. Remember, both peers
+            of the endpoint must set guarantee_msg_order to the same value.
+        Returns
+        -------
+        Endpoint
+            The new endpoint
+        """
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
 
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
-        #  3) Use the info to create the private part of an endpoint
-        #  4) Create the public Endpoint based on _Endpoint
+        #  3) Use the info to create an endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
         peer_info = await exchange_peer_info(
@@ -269,7 +310,7 @@ class ApplicationContext:
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-        ep = _Endpoint(
+        ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
             msg_tag_send=peer_info["msg_tag"],
@@ -292,17 +333,25 @@ class ApplicationContext:
             )
         )
 
-        # Create the public Endpoint
-        pub_ep = Endpoint(ep)
-
         # Setup the control receive
-        CtrlMsg.setup_ctrl_recv(ep, pub_ep)
-
-        # Return the public Endpoint
-        return pub_ep
+        CtrlMsg.setup_ctrl_recv(ep)
+        return ep
 
     def continuous_ucx_progress(self, event_loop=None):
-        """Guarantees continuous UCX progress"""
+        """Guarantees continuous UCX progress
+
+        Use this function to associate UCX progress with an event loop.
+        Notice, multiple event loops can be associate with UCX progress.
+
+        This function is automatically called when calling
+        `create_listener()` or `create_endpoint()`.
+
+        Parameters
+        ----------
+        event_loop: asyncio.event_loop, optional
+            The event loop to evoke UCX progress. If None,
+            `asyncio.get_event_loop()` is used.
+        """
         loop = event_loop if event_loop is not None else asyncio.get_event_loop()
         if loop in self.progress_tasks:
             return  # Progress has already been guaranteed for the current event loop
@@ -314,16 +363,59 @@ class ApplicationContext:
         self.progress_tasks.append(task)
 
     def get_ucp_worker(self):
+        """Returns the underlying UCP worker handle (ucp_worker_h)
+        as a Python integer.
+        """
         return self.worker.handle
 
     def get_config(self):
+        """Returns all UCX configuration options as a dict.
+
+        Returns
+        -------
+        dict
+            The current UCX configuration options
+        """
         return self.context.get_config()
 
 
-class _Endpoint:
-    """This represents the private part of Endpoint
+class Listener:
+    """A handle to the listening service started by `create_listener()`
 
-    See <.public_api.Endpoint> for documentation
+    The listening continues as long as this object exist or `.close()` is called.
+    Please use `create_listener()` to create an Listener.
+    """
+
+    def __init__(self, backend):
+        self._b = backend
+        self._closed = False
+
+    def __del__(self):
+        if not self.closed():
+            self.close()
+
+    def closed(self):
+        """Is the listener closed?"""
+        return self._closed
+
+    @property
+    def port(self):
+        """The network point listening on"""
+        return self._b.port
+
+    def close(self):
+        """Closing the listener"""
+        if not self._closed:
+            self._b.abort()
+            self._closed = True
+            self._b = None
+
+
+class Endpoint:
+    """An endpoint represents a connection to a peer
+
+    Please use `create_listener()` and `create_endpoint()`
+    to create an Endpoint.
     """
 
     def __init__(
@@ -354,11 +446,21 @@ class _Endpoint:
         self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
+    def __del__(self):
+        self.abort()
+
     @property
     def uid(self):
+        """The unique ID of the underlying UCX endpoint"""
         return self._ep.handle
 
     def abort(self):
+        """Close the communication immediately and abruptly.
+        Useful in destructors or generators' ``finally`` blocks.
+
+        Notice, this functions doesn't signal the connected peer to close.
+        To do that, use `Endpoint.close()`
+        """
         if self._closed:
             return
         self._closed = True
@@ -374,6 +476,10 @@ class _Endpoint:
         self._ctx = None
 
     async def close(self):
+        """Close the endpoint cleanly.
+        This will attempt to flush outgoing buffers before actually
+        closing the underlying UCX endpoint.
+        """
         if self._closed:
             return
         try:
@@ -412,13 +518,21 @@ class _Endpoint:
             self.abort()
 
     def closed(self):
+        """Is this endpoint closed?"""
         return self._closed
-
-    def __del__(self):
-        self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        nbytes: int, optional
+            Number of bytes to send. Default is the whole buffer.
+        """
         if self._closed:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
@@ -443,6 +557,16 @@ class _Endpoint:
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None):
+        """Receive from connected peer into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer
+            is smaller than nbytes or read-only.
+        nbytes: int, optional
+            Number of bytes to receive. Default is the whole buffer.
+        """
         if self._closed:
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
@@ -473,10 +597,172 @@ class _Endpoint:
         return ret
 
     def cuda_support(self):
+        """Return whether UCX is configured with CUDA support or not"""
         return self._cuda_support
 
     def get_ucp_worker(self):
+        """Returns the underlying UCP worker handle (ucp_worker_h)
+        as a Python integer.
+        """
         return self._ctx.worker.handle
 
     def get_ucp_endpoint(self):
+        """Returns the underlying UCP endpoint handle (ucp_ep_h)
+        as a Python integer.
+        """
         return self._ep.handle
+
+    def ucx_info(self):
+        """Return low-level UCX info about this endpoint as a string"""
+        return self._ep.info()
+
+    def close_after_n_recv(self, n, count_from_ep_creation=False):
+        """Close the endpoint after `n` received messages.
+
+        Parameters
+        ----------
+        n: int
+            Number of messages to received before closing the endpoint.
+        count_from_ep_creation: bool, optional
+            Whether to count `n` from this function call (default) or
+            from the creation of the endpoint.
+        """
+        if not count_from_ep_creation:
+            n += self._finished_recv_count  # Make `n` absolute
+        if self._close_after_n_recv is not None:
+            raise UCXError(
+                "close_after_n_recv has already been set to: %d (abs)"
+                % self._close_after_n_recv
+            )
+        if n == self._finished_recv_count:
+            self.abort()
+        elif n > self._finished_recv_count:
+            self._close_after_n_recv = n
+        else:
+            raise UCXError(
+                "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
+                % (n, self._finished_recv_count)
+            )
+
+
+# The following functions initialize and use a single ApplicationContext instance
+
+
+def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
+    """Initiate UCX.
+
+    Usually this is done automatically at the first API call
+    but this function makes it possible to set UCX options programmable.
+    Alternatively, UCX options can be specified through environment variables.
+
+    Parameters
+    ----------
+    options: dict, optional
+        UCX options send to the underlying UCX library
+    env_takes_precedence: bool, optional
+        Whether environment variables takes precedence over the `options`
+        specified here.
+    blocking_progress_mode: bool, optional
+        If None, blocking UCX progress mode is used unless the environment variable
+        `UCXPY_NON_BLOCKING_MODE` is defined.
+        Otherwise, if True blocking mode is used and if False non-blocking mode is used.
+    """
+    global _ctx
+    if _ctx is not None:
+        raise RuntimeError(
+            "UCX is already initiated. Call reset() and init() "
+            "in order to re-initate UCX with new options."
+        )
+    if env_takes_precedence:
+        for k in os.environ.keys():
+            if k in options:
+                del options[k]
+
+    _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
+
+
+def reset():
+    """Resets the UCX library by shutting down all of UCX.
+
+    The library is initiated at next API call.
+    """
+    global _ctx
+    if _ctx is not None:
+        weakref_ctx = weakref.ref(_ctx)
+        _ctx = None
+        gc.collect()
+        if weakref_ctx() is not None:
+            msg = (
+                "Trying to reset UCX but not all Endpoints and/or Listeners "
+                "are closed(). The following objects are still referencing "
+                "ApplicationContext: "
+            )
+            for o in gc.get_referrers(weakref_ctx()):
+                msg += "\n  %s" % o
+            raise UCXError(msg)
+
+
+def get_ucx_version():
+    """Return the version of the underlying UCX installation
+
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    tuple
+        The version as a tuple e.g. (1, 7, 0)
+    """
+    return ucx_api.get_ucx_version()
+
+
+def progress():
+    """Try to progress the communication layer
+
+    Returns
+    -------
+    bool
+        Returns True if progress was made
+    """
+    return _get_ctx().worker.progress()
+
+
+def get_config():
+    """Returns all UCX configuration options as a dict.
+
+    If UCX is uninitialized, the options returned are the
+    options used if UCX were to be initialized now.
+    Notice, this function doesn't initialize UCX.
+
+    Returns
+    -------
+    dict
+        The current UCX configuration options
+    """
+
+    if _ctx is None:
+        return ucx_api.get_current_options()
+    else:
+        return _get_ctx().get_config()
+
+
+def create_listener(callback_func, port=None, guarantee_msg_order=True):
+    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
+
+
+async def create_endpoint(ip_address, port, guarantee_msg_order=True):
+    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
+
+
+def continuous_ucx_progress(event_loop=None):
+    _get_ctx().continuous_ucx_progress(event_loop=event_loop)
+
+
+def get_ucp_worker():
+    return _get_ctx().get_ucp_worker()
+
+
+# Setting the __doc__
+create_listener.__doc__ = ApplicationContext.create_listener.__doc__
+create_endpoint.__doc__ = ApplicationContext.create_endpoint.__doc__
+continuous_ucx_progress.__doc__ = ApplicationContext.continuous_ucx_progress.__doc__
+get_ucp_worker.__doc__ = ApplicationContext.get_ucp_worker.__doc__
