@@ -399,10 +399,12 @@ class _Endpoint:
                     self._ctrl_tag_send,
                     pending_msg=self.pending_msg_list[-1],
                 )
-            # The peer might already be shutting down
+            # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
-                log = "UCX Closing Error on worker %d\n%s" % (hex(self.uid), str(e))
-                logging.error(log)
+                logging.warning(
+                    "UCX failed closing worker %s (probably already closed): %s"
+                    % (hex(self.uid), repr(e))
+                )
         finally:
             # Give all current outstanding send() calls a chance to return
             self._ctx.worker.progress()
