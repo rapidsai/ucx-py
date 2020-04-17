@@ -2,6 +2,7 @@
 # See file LICENSE for terms.
 
 import asyncio
+import gc
 import logging
 import os
 import struct
@@ -10,7 +11,6 @@ import weakref
 from functools import partial
 from os import close as close_fd
 from random import randint
-import gc
 
 import psutil
 
@@ -676,9 +676,7 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
             if k in options:
                 del options[k]
 
-    _ctx = ApplicationContext(
-        options, blocking_progress_mode=blocking_progress_mode
-    )
+    _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
 
 
 def reset():
