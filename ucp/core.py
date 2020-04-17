@@ -105,7 +105,7 @@ class CtrlMsg:
         )
 
 
-async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
+async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
 
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
@@ -131,7 +131,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
     ctx.children.append(weakref.ref(ep))
 
     logger.debug(
-        "listener_handler() server: %s, msg-tag-send: %s, "
+        "_listener_handler() server: %s, msg-tag-send: %s, "
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
         % (
             hex(endpoint.handle),
@@ -155,7 +155,7 @@ async def listener_handler(endpoint, ctx, func, guarantee_msg_order):
         func(ep)
 
 
-def application_context_finalizer(children, worker, context, epoll_fd):
+def _application_context_finalizer(children, worker, context, epoll_fd):
     """
     Finalizer function for `ApplicationContext` object, which is
     more reliable than __dealloc__.
@@ -198,7 +198,7 @@ class ApplicationContext:
 
         weakref.finalize(
             self,
-            application_context_finalizer,
+            _application_context_finalizer,
             self.children,
             self.worker,
             self.context,
@@ -231,7 +231,7 @@ class ApplicationContext:
             self,
             {
                 "cb_func": callback_func,
-                "cb_coroutine": listener_handler,
+                "cb_coroutine": _listener_handler,
                 "ctx": self,
                 "guarantee_msg_order": guarantee_msg_order,
             },
