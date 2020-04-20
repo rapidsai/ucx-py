@@ -381,18 +381,21 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
         )
 
 
-cdef class UCXListener:
+def _ucx_listener_handle_finalizer(handle_as_int):
+    cdef ucp_listener_h handle = <ucp_listener_h><uintptr_t> handle_as_int
+    ucp_listener_destroy(handle)
+
+
+cdef class UCXListener(UCXObject):
     """Python representation of `ucp_listener_h`"""
     cdef:
-        object __weakref__
-        ucp_listener_h _ucp_listener
-        object _ctx
+        ucp_listener_h _handle
+        dict cb_data
 
     cdef public:
         int port
-        dict cb_data
 
-    def __init__(self, port, ctx, cb_data):
+    def __init__(self, UCXWorker worker, port, cb_data):
         cdef ucp_listener_params_t params
         cdef ucp_listener_accept_callback_t _listener_cb = (
             <ucp_listener_accept_callback_t>_listener_callback
@@ -406,19 +409,21 @@ cdef class UCXListener:
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucs_status_t status = ucp_listener_create(
-            <ucp_worker_h><uintptr_t>ctx.worker.handle, &params, &self._ucp_listener
+            worker._handle, &params, &self._handle
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
-        Py_INCREF(self.cb_data)
-        self._ctx = ctx
 
-    def abort(self):
-        if self._ctx is not None:
-            ucp_listener_destroy(self._ucp_listener)
-            Py_DECREF(self.cb_data)
-            self._ctx = None
-            self.cb_data = None
+        self.add_handle_finalizer(
+            _ucx_listener_handle_finalizer,
+            int(<uintptr_t><void*>self._handle)
+        )
+        worker.add_child(self)
+
+    @property
+    def handle(self):
+        assert self.initialized
+        return int(<uintptr_t><void*>self._handle)
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,

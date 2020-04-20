@@ -266,8 +266,8 @@ class ApplicationContext:
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = ucx_api.UCXListener(
+            self.worker,
             port,
-            self,
             {
                 "cb_func": callback_func,
                 "cb_coroutine": _listener_handler,
@@ -407,7 +407,7 @@ class Listener:
     def close(self):
         """Closing the listener"""
         if not self._closed:
-            self._b.abort()
+            self._b.close()
             self._closed = True
             self._b = None
 
