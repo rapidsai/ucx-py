@@ -112,29 +112,43 @@ def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int):
 
 
 cdef class UCXObject:
+    """Base class for UCX classes
+
+    This bass class streamline the cleanup of UCX objects and reduce duplicate code.
+    """
     cdef:
         object __weakref__
         object _finalizer
         list _children
 
     def __cinit__(self):
+        # The finalizer that can be called multiple times but only
+        # evoke the finalizer funciont once.
+        # Is None when the underlying UCX handle hasen't been initialized.
         self._finalizer = None
-        self._children = []  # List of weak references to objects using this context
+        # List of weak references of UCX objects that make use of this object
+        self._children = []
 
     def close(self):
+        """Close the object and free the underlying UCX handle.
+        Does nothing if the object is already closed
+        """
         if self.initialized:
             self._finalizer()
 
     @property
     def initialized(self):
+        """Is the underlying UCX handle initialized"""
         return self._finalizer and self._finalizer.alive
 
-
     def add_child(self, child):
+        """Add a UCX object to this object's children. The underlying UCX
+        handle will be freed when this obejct is freed.
+        """
         self._children.append(weakref.ref(child))
 
-
     def add_handle_finalizer(self, handle_finalizer, handle_as_int):
+        """Add a finalizer of `handle_as_int`"""
         self._finalizer = weakref.finalize(
             self,
             _handle_finalizer_wrapper,
@@ -229,7 +243,6 @@ cdef class UCXWorker(UCXObject):
         )
         context.add_child(self)
 
-
     def init_blocking_progress_mode(self):
         assert self.initialized
         # In blocking progress mode, we create an epoll file
@@ -253,7 +266,6 @@ cdef class UCXWorker(UCXObject):
         if err != 0:
             raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
-
 
     def arm(self):
         assert self.initialized
