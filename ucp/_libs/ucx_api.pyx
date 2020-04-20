@@ -201,28 +201,34 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t><void*>self._handle)
 
 
-cdef class UCXWorker:
+def _ucx_worker_handle_finalizer(handle_as_int):
+    cdef ucp_worker_h handle = <ucp_worker_h><uintptr_t> handle_as_int
+    ucp_worker_destroy(handle)
+
+
+cdef class UCXWorker(UCXObject):
     """Python representation of `ucp_worker_h`"""
     cdef:
-        object __weakref__
         ucp_worker_h _handle
         UCXContext _context
 
-    cdef readonly:
-        bint initialized
-
-    def __cinit__(self, UCXContext context):
+    def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.initialized = False
         self._context = context
         memset(&worker_params, 0, sizeof(worker_params))
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
-        self.initialized = True
+
+        self.add_handle_finalizer(
+            _ucx_worker_handle_finalizer,
+            int(<uintptr_t><void*>self._handle)
+        )
+        context.add_child(self)
+
 
     def init_blocking_progress_mode(self):
         assert self.initialized
@@ -248,10 +254,6 @@ cdef class UCXWorker:
             raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
 
-    def close(self):
-        if self.initialized:
-            self.initialized = False
-            ucp_worker_destroy(self._handle)
 
     def arm(self):
         assert self.initialized
