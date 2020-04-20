@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import socket
 import logging
+import weakref
 from libc.stdio cimport FILE, fflush, fclose
 from libc.stdlib cimport free
 from libc.string cimport memset
@@ -102,21 +103,62 @@ def get_ucx_version():
     return (a, b, c)
 
 
-cdef class UCXContext:
-    """Python representation of `ucp_context_h`"""
+def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int):
+    for weakref_to_child in children:
+        child = weakref_to_child()
+        if child is not None:
+            child.close()
+    handle_finalizer(handle_as_int)
+
+
+cdef class UCXObject:
     cdef:
         object __weakref__
+        object _finalizer
+        list _children
+
+    def __cinit__(self):
+        self._finalizer = None
+        self._children = []  # List of weak references to objects using this context
+
+    def close(self):
+        if self.initialized:
+            self._finalizer()
+
+    @property
+    def initialized(self):
+        return self._finalizer and self._finalizer.alive
+
+
+    def add_child(self, child):
+        self._children.append(weakref.ref(child))
+
+
+    def add_handle_finalizer(self, handle_finalizer, handle_as_int):
+        self._finalizer = weakref.finalize(
+            self,
+            _handle_finalizer_wrapper,
+            self._children,
+            handle_finalizer,
+            handle_as_int
+        )
+
+
+def _ucx_context_handle_finalizer(handle_as_int):
+    cdef ucp_context_h handle = <ucp_context_h><uintptr_t> handle_as_int
+    ucp_cleanup(handle)
+
+
+cdef class UCXContext(UCXObject):
+    """Python representation of `ucp_context_h`"""
+    cdef:
         ucp_context_h _handle
         dict _config
 
-    cdef readonly:
-        bint initialized
-
-    def __cinit__(self, config_dict):
+    def __init__(self, config_dict):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.initialized = False
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -137,7 +179,11 @@ cdef class UCXContext:
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self._handle)
         assert_ucs_status(status)
-        self.initialized = True
+
+        self.add_handle_finalizer(
+            _ucx_context_handle_finalizer,
+            int(<uintptr_t><void*>self._handle)
+        )
 
         self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
@@ -145,11 +191,6 @@ cdef class UCXContext:
         logger.info("UCP initiated using config: ")
         for k, v in self._config.items():
             logger.info("  %s: %s" % (k, v))
-
-    def close(self):
-        if self.initialized:
-            self.initialized = False
-            ucp_cleanup(self._handle)
 
     def get_config(self):
         return self._config
