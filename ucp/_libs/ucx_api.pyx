@@ -230,6 +230,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+        assert context.initialized
         self._context = context
         memset(&worker_params, 0, sizeof(worker_params))
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
@@ -333,6 +334,8 @@ cdef class UCXEndpoint(UCXObject):
 
     cdef _init(self, UCXWorker worker, ucp_ep_h handle):
         """The Constructor"""
+
+        assert worker.initialized
         self.worker = worker
         self._handle = handle
         self.add_handle_finalizer(
