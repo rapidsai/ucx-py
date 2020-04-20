@@ -297,39 +297,37 @@ cdef class UCXWorker(UCXObject):
         return ucx_ep_create(ucp_ep, self)
 
 
-cdef class UCXEndpoint:
+def _ucx_endpoint_handle_finalizer(handle_as_int):
+    cdef ucp_ep_h handle = <ucp_ep_h><uintptr_t> handle_as_int
+    cdef ucs_status_ptr_t status
+    # TODO: Support UCP_EP_CLOSE_MODE_FORCE
+    status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
+    if UCS_PTR_IS_PTR(status):
+        ucp_request_free(status)
+    elif UCS_PTR_STATUS(status) != UCS_OK:
+        msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        raise UCXError("Error while closing endpoint: %s" % msg)
+
+
+cdef class UCXEndpoint(UCXObject):
     """Python representation of `ucp_ep_h`
     Please use `ucx_ep_create()` to contruct an instance of this class
     """
     cdef:
-        object __weakref__
         ucp_ep_h _handle
 
     cdef readonly:
-        bint initialized
-
-    cdef public:
         UCXWorker worker
 
-    def __cinit__(self, worker):
-        self._handle = NULL
+    cdef _init(self, UCXWorker worker, ucp_ep_h handle):
+        """The Constructor"""
         self.worker = worker
-        self.initialized = False
-
-    def close(self):
-        cdef ucs_status_ptr_t status
-        if self.initialized:
-            status = ucp_ep_close_nb(self._handle, UCP_EP_CLOSE_MODE_FLUSH)
-            self.initialized = False
-            worker = self.worker
-            self.worker = None
-            if UCS_PTR_STATUS(status) != UCS_OK:
-                assert not UCS_PTR_IS_ERR(status)
-                # We spinlock here until `status` has finished
-                while ucp_request_check_status(status) != UCS_INPROGRESS:
-                    worker.progress()
-                assert not UCS_PTR_IS_ERR(status)
-                ucp_request_free(status)
+        self._handle = handle
+        self.add_handle_finalizer(
+            _ucx_endpoint_handle_finalizer,
+            int(<uintptr_t><void*>handle)
+        )
+        worker.add_child(self)
 
     def info(self):
         assert self.initialized
@@ -357,16 +355,14 @@ cdef class UCXEndpoint:
 
 
 cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
-    ret = UCXEndpoint(worker)
-    ret._handle = ep
-    ret.initialized = True
+    ret = UCXEndpoint()
+    ret._init(worker, ep)
     return ret
 
 
 def ucx_ep_create_from_uintptr(ep, worker):
-    ret = UCXEndpoint(worker)
-    ret._handle = <ucp_ep_h><uintptr_t>ep
-    ret.initialized = True
+    ret = UCXEndpoint()
+    ret._init(worker, <ucp_ep_h><uintptr_t>ep)
     return ret
 
 

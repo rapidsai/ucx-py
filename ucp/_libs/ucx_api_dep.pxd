@@ -131,6 +131,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef uint64_t ucp_datatype_t
 
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
+    bint UCS_PTR_IS_PTR(ucs_status_ptr_t)
     ucs_status_t UCS_PTR_STATUS(ucs_status_ptr_t)
 
     ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)  # noqa
