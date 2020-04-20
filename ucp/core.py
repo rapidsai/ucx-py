@@ -471,7 +471,7 @@ class Endpoint:
                 logger.debug("Future cancelling: %s" % msg["log"])
                 self._ctx.worker.request_cancel(msg["ucp_request"])
 
-                self._ep.close()
+        self._ep.close()
         self._ep = None
         self._ctx = None
 
