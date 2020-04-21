@@ -438,7 +438,6 @@ class Endpoint:
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
-        self._closed = False
         self._shutting_down_peer = False  # Told peer to shutdown
         self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
@@ -446,13 +445,14 @@ class Endpoint:
         self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
-    def __del__(self):
-        self.abort()
-
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
         return self._ep.handle
+
+    def closed(self):
+        """Is this endpoint closed?"""
+        return self._ep is None or not self._ep.initialized
 
     def abort(self):
         """Close the communication immediately and abruptly.
@@ -461,16 +461,9 @@ class Endpoint:
         Notice, this functions doesn't signal the connected peer to close.
         To do that, use `Endpoint.close()`
         """
-        if self._closed:
+        if self.closed():
             return
-        self._closed = True
         logger.debug("Endpoint.abort(): %s" % hex(self.uid))
-
-        for msg in self.pending_msg_list:
-            if "future" in msg and not msg["future"].done():
-                logger.debug("Future cancelling: %s" % msg["log"])
-                self._ctx.worker.request_cancel(msg["ucp_request"])
-
         self._ep.close()
         self._ep = None
         self._ctx = None
@@ -480,7 +473,7 @@ class Endpoint:
         This will attempt to flush outgoing buffers before actually
         closing the underlying UCX endpoint.
         """
-        if self._closed:
+        if self.closed():
             return
         try:
             # Making sure we only tell peer to shutdown once
@@ -517,10 +510,6 @@ class Endpoint:
             await asyncio.sleep(0)
             self.abort()
 
-    def closed(self):
-        """Is this endpoint closed?"""
-        return self._closed
-
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
         """Send `buffer` to connected peer.
@@ -533,7 +522,7 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
         """
-        if self._closed:
+        if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support
@@ -567,7 +556,7 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
         """
-        if self._closed:
+        if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support

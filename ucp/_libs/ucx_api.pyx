@@ -311,9 +311,17 @@ cdef class UCXWorker(UCXObject):
         return ucx_ep_create(ucp_ep, self)
 
 
-def _ucx_endpoint_handle_finalizer(handle_as_int):
+def _ucx_endpoint_finalizer(handle_as_int, worker, inflight_msgs):
     cdef ucp_ep_h handle = <ucp_ep_h><uintptr_t> handle_as_int
     cdef ucs_status_ptr_t status
+
+    # Cancel all inflight messages
+    for msg in list(inflight_msgs.values()):
+        logger.debug("Future cancelling: %s" % msg["log"])
+        # Notice, `request_cancel()` evoke the send/recv callback functions
+        worker.request_cancel(msg["ucp_request"])
+
+    # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
@@ -329,6 +337,7 @@ cdef class UCXEndpoint(UCXObject):
     """
     cdef:
         ucp_ep_h _handle
+        dict _inflight_msgs
 
     cdef readonly:
         UCXWorker worker
@@ -339,9 +348,12 @@ cdef class UCXEndpoint(UCXObject):
         assert worker.initialized
         self.worker = worker
         self._handle = handle
+        self._inflight_msgs = dict()
         self.add_handle_finalizer(
-            _ucx_endpoint_handle_finalizer,
-            int(<uintptr_t><void*>handle)
+            _ucx_endpoint_finalizer,
+            int(<uintptr_t><void*>handle),
+            worker,
+            self._inflight_msgs
         )
         worker.add_child(self)
 
@@ -444,7 +456,7 @@ cdef class UCXListener(UCXObject):
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     int64_t expected_receive,
-                                    pending_msg):
+                                    pending_msg, inflight_msgs):
     """Help function to handle the output of ucx send/recv"""
 
     if pending_msg is not None:
@@ -473,6 +485,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             ucp_request_reset(req)
             ucp_request_free(req)
         else:
+            req_as_int = int(<uintptr_t><void*>req)
             # The callback function has not been called yet.
             # We fill `ucp_request` for the callback function to use
             Py_INCREF(ret)
@@ -482,10 +495,19 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.expected_receive = expected_receive
             if pending_msg is not None:
                 pending_msg['future'] = ret
-                pending_msg['ucp_request'] = int(<uintptr_t><void*>req)
+                pending_msg['ucp_request'] = req_as_int
                 pending_msg['expected_receive'] = expected_receive
             Py_INCREF(log_str)
             req.log_str = <PyObject*> log_str
+
+            assert req_as_int not in inflight_msgs
+            inflight_msgs[req_as_int] = {
+                'ucp_request': req_as_int,
+                'log': log_str,
+            }
+            Py_INCREF(inflight_msgs)
+            req.inflight_msgs = <PyObject*> inflight_msgs
+
     return ret
 
 
@@ -498,13 +520,16 @@ cdef void _send_callback(void *request, ucs_status_t status):
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
+    cdef object inflight_msgs = <object> req.inflight_msgs
     Py_DECREF(future)
     Py_DECREF(event_loop)
     Py_DECREF(log_str)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
+        del inflight_msgs[int(<uintptr_t><void*>req)]
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -531,7 +556,7 @@ def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
         tag,
         _send_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
 
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
@@ -545,15 +570,18 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
+    cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     cdef size_t length = info.length
     Py_DECREF(future)
     Py_DECREF(event_loop)
     Py_DECREF(log_str)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
+        del inflight_msgs[int(<uintptr_t><void*>req)]
         msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
         if event_loop.is_closed() or future.done():
             pass
@@ -588,7 +616,7 @@ def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
         -1,
         _tag_recv_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
 
 
 def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
@@ -604,7 +632,7 @@ def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         _send_cb,
         0
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
 
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
@@ -618,14 +646,17 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
     cdef object log_str = <object> req.log_str
+    cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     Py_DECREF(future)
     Py_DECREF(event_loop)
     Py_DECREF(log_str)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
+        del inflight_msgs[int(<uintptr_t><void*>req)]
         msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
         if event_loop.is_closed() or future.done():
             pass
@@ -660,4 +691,4 @@ def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         &length,
         0
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
