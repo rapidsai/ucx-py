@@ -317,7 +317,7 @@ def _ucx_endpoint_finalizer(handle_as_int, worker, inflight_msgs):
 
     # Cancel all inflight messages
     for msg in list(inflight_msgs.values()):
-        logger.debug("Future cancelling: %s" % msg["log"])
+        logger.debug("Future cancelling: %s" % msg["log_msg"])
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(msg["ucp_request"])
 
@@ -456,17 +456,12 @@ cdef class UCXListener(UCXObject):
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     int64_t expected_receive,
-                                    pending_msg, inflight_msgs):
+                                    log_msg, inflight_msgs):
     """Help function to handle the output of ucx send/recv"""
-
-    if pending_msg is not None:
-        log_str = pending_msg.get('log', None)
-    else:
-        log_str = None
 
     event_loop = asyncio.get_event_loop()
     ret = event_loop.create_future()
-    msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+    msg = "Comm Error%s " %(" \"%s\":" % log_msg if log_msg else ":")
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
     elif UCS_PTR_IS_ERR(status):
@@ -493,17 +488,13 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             Py_INCREF(event_loop)
             req.event_loop = <PyObject*> event_loop
             req.expected_receive = expected_receive
-            if pending_msg is not None:
-                pending_msg['future'] = ret
-                pending_msg['ucp_request'] = req_as_int
-                pending_msg['expected_receive'] = expected_receive
-            Py_INCREF(log_str)
-            req.log_str = <PyObject*> log_str
+            Py_INCREF(log_msg)
+            req.log_msg = <PyObject*> log_msg
 
             assert req_as_int not in inflight_msgs
             inflight_msgs[req_as_int] = {
                 'ucp_request': req_as_int,
-                'log': log_str,
+                'log_msg': log_msg,
             }
             Py_INCREF(inflight_msgs)
             req.inflight_msgs = <PyObject*> inflight_msgs
@@ -519,11 +510,11 @@ cdef void _send_callback(void *request, ucs_status_t status):
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
     cdef object inflight_msgs = <object> req.inflight_msgs
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
     Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
@@ -535,7 +526,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
         elif status != UCS_OK:
-            msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
+            msg = "Error sending%s " %(" \"%s\":" % log_msg if log_msg else ":")
             msg += ucs_status_string(status).decode("utf-8")
             future.set_exception(UCXError(msg))
         else:
@@ -543,7 +534,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 
 def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
-             ucp_tag_t tag, pending_msg=None):
+             ucp_tag_t tag, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -556,7 +547,7 @@ def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
         tag,
         _send_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
@@ -569,20 +560,20 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
     cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     cdef size_t length = info.length
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
     Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
         del inflight_msgs[int(<uintptr_t><void*>req)]
-        msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
+        msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -600,7 +591,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
 
 
 def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
-             ucp_tag_t tag, pending_msg=None):
+             ucp_tag_t tag, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -616,10 +607,10 @@ def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
         -1,
         _tag_recv_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
-def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
+def stream_send(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -632,7 +623,7 @@ def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         _send_cb,
         0
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
@@ -645,19 +636,19 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
     cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
     Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
         del inflight_msgs[int(<uintptr_t><void*>req)]
-        msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
+        msg = "Error receiving %s" %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -673,7 +664,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
             future.set_result(True)
 
 
-def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
+def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -691,4 +682,4 @@ def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         &length,
         0
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg, ep._inflight_msgs)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
