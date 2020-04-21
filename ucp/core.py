@@ -265,18 +265,20 @@ class ApplicationContext:
                     break
 
         logger.info("create_listener() - Start listening on port %d" % port)
-        ret = ucx_api.UCXListener(
-            self.worker,
-            port,
-            {
-                "cb_func": callback_func,
-                "cb_coroutine": _listener_handler,
-                "ctx": self,
-                "guarantee_msg_order": guarantee_msg_order,
-            },
+        ret = Listener(
+            ucx_api.UCXListener(
+                self.worker,
+                port,
+                {
+                    "cb_func": callback_func,
+                    "cb_coroutine": _listener_handler,
+                    "ctx": self,
+                    "guarantee_msg_order": guarantee_msg_order,
+                },
+            )
         )
         self.children.append(weakref.ref(ret))
-        return Listener(ret)
+        return ret
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
         """Create a new endpoint to a server
@@ -388,16 +390,12 @@ class Listener:
     """
 
     def __init__(self, backend):
+        assert backend.initialized
         self._b = backend
-        self._closed = False
-
-    def __del__(self):
-        if not self.closed():
-            self.close()
 
     def closed(self):
         """Is the listener closed?"""
-        return self._closed
+        return not self._b.initialized
 
     @property
     def port(self):
@@ -406,10 +404,11 @@ class Listener:
 
     def close(self):
         """Closing the listener"""
-        if not self._closed:
-            self._b.close()
-            self._closed = True
-            self._b = None
+        self._b.close()
+
+    def abort(self):
+        """Closing the listener"""
+        self._b.close()
 
 
 class Endpoint:
