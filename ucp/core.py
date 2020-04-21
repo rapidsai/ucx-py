@@ -745,11 +745,11 @@ def get_config():
         return _get_ctx().get_config()
 
 
-def create_listener(callback_func, port=None, guarantee_msg_order=True):
+def create_listener(callback_func, port=None, guarantee_msg_order=False):
     return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
 
 
-async def create_endpoint(ip_address, port, guarantee_msg_order=True):
+async def create_endpoint(ip_address, port, guarantee_msg_order=False):
     return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
 
 
