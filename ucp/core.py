@@ -106,7 +106,7 @@ class CtrlMsg:
         ep.pending_msg_list.append({"log": log})
         msg = bytearray(CtrlMsg.nbytes)
         shutdown_fut = ucx_api.tag_recv(
-            ep._ctx.worker,
+            ep._ep,
             msg,
             len(msg),
             ep._ctrl_tag_recv,
@@ -586,7 +586,7 @@ class Endpoint:
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await ucx_api.tag_recv(
-            self._ctx.worker, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
+            self._ep, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
         )
         self._finished_recv_count += 1
         if (

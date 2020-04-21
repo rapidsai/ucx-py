@@ -570,7 +570,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
             future.set_result(True)
 
 
-def tag_recv(UCXWorker worker, buffer, size_t nbytes,
+def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
              ucp_tag_t tag, pending_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
@@ -579,7 +579,7 @@ def tag_recv(UCXWorker worker, buffer, size_t nbytes,
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(
-        worker._handle,
+        ep.worker._handle,
         data,
         nbytes,
         ucp_dt_make_contig(1),
