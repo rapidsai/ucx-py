@@ -103,12 +103,12 @@ def get_ucx_version():
     return (a, b, c)
 
 
-def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int):
+def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int, *extra_args):
     for weakref_to_child in children:
         child = weakref_to_child()
         if child is not None:
             child.close()
-    handle_finalizer(handle_as_int)
+    handle_finalizer(handle_as_int, *extra_args)
 
 
 cdef class UCXObject:
@@ -147,14 +147,15 @@ cdef class UCXObject:
         """
         self._children.append(weakref.ref(child))
 
-    def add_handle_finalizer(self, handle_finalizer, handle_as_int):
+    def add_handle_finalizer(self, handle_finalizer, handle_as_int, *extra_args):
         """Add a finalizer of `handle_as_int`"""
         self._finalizer = weakref.finalize(
             self,
             _handle_finalizer_wrapper,
             self._children,
             handle_finalizer,
-            handle_as_int
+            handle_as_int,
+            *extra_args
         )
 
 
