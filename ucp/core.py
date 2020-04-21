@@ -135,7 +135,6 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         ctrl_tag_recv=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
     )
-    ctx.children.append(weakref.ref(ep))
 
     logger.debug(
         "_listener_handler() server: %s, msg-tag-send: %s, "
@@ -162,15 +161,7 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         func(ep)
 
 
-def _application_context_finalizer(children, worker, context, epoll_fd):
-    """
-    Finalizer function for `ApplicationContext` object, which is
-    more reliable than __dealloc__.
-    """
-    for weakref_to_child in children:
-        child = weakref_to_child()
-        if child is not None:
-            child.abort()
+def _application_context_finalizer(worker, context, epoll_fd):
     worker.close()
     context.close()
     if epoll_fd >= 0:
@@ -184,8 +175,6 @@ class ApplicationContext:
 
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
-        # List of weak references to the UCX objects that make use of `context`
-        self.children = []
 
         # For now, a application context only has one worker
         self.context = ucx_api.UCXContext(config_dict)
@@ -206,7 +195,6 @@ class ApplicationContext:
         weakref.finalize(
             self,
             _application_context_finalizer,
-            self.children,
             self.worker,
             self.context,
             self.epoll_fd,
@@ -272,7 +260,6 @@ class ApplicationContext:
                 },
             )
         )
-        self.children.append(weakref.ref(ret))
         return ret
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
@@ -317,7 +304,6 @@ class ApplicationContext:
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-        self.children.append(weakref.ref(ep))
 
         logger.debug(
             "create_endpoint() client: %s, msg-tag-send: %s, "
