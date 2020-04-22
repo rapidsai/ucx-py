@@ -6,7 +6,6 @@ import gc
 import logging
 import os
 import struct
-import uuid
 import weakref
 from functools import partial
 from os import close as close_fd
@@ -308,11 +307,12 @@ class ApplicationContext:
         ucx_ep = self.worker.ep_create(ip_address, port)
         self.worker.progress()
 
-        msg_tag = hash(uuid.uuid4())
-        ctrl_tag = hash(uuid.uuid4())
-
-        msg_tag_peer = hash(uuid.uuid4())
-        ctrl_tag_peer = hash(uuid.uuid4())
+        # Create the tags based on ip_address and port, which is unique
+        # for each endpoint pair.
+        msg_tag = abs(hash("msg_tag%s%d" % (ip_address, port)))
+        ctrl_tag = abs(hash("ctrl_tag%s%d" % (ip_address, port)))
+        msg_tag_peer = abs(hash("msg_tag_peer%s%d" % (ip_address, port)))
+        ctrl_tag_peer = abs(hash("ctrl_tag_peer%s%d" % (ip_address, port)))
 
         await ConnInfoMsg.send(
             ucx_ep,
