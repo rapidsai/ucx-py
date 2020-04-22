@@ -47,3 +47,14 @@ async def test_one_server_many_clients():
     for _ in range(100):
         clients.append(client_node(lf.port))
     await asyncio.gather(*clients, loop=asyncio.get_event_loop())
+
+
+@pytest.mark.asyncio
+async def test_two_servers_many_clients():
+    lf1 = ucp.create_listener(server_node)
+    lf2 = ucp.create_listener(server_node)
+    clients = []
+    for _ in range(100):
+        clients.append(client_node(lf1.port))
+        clients.append(client_node(lf2.port))
+    await asyncio.gather(*clients, loop=asyncio.get_event_loop())
