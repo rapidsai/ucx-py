@@ -103,18 +103,18 @@ def get_ucx_version():
     return (a, b, c)
 
 
-def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int, *extra_args):
+def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs):
     for weakref_to_child in children:
         child = weakref_to_child()
         if child is not None:
             child.close()
-    handle_finalizer(handle_as_int, *extra_args)
+    handle_finalizer(handle_as_int, *extra_args, **extra_kargs)
 
 
 cdef class UCXObject:
     """Base class for UCX classes
 
-    This bass class streamline the cleanup of UCX objects and reduce duplicate code.
+    This base class streamlines the cleanup of UCX objects and reduces duplicate code.
     """
     cdef:
         object __weakref__
@@ -216,8 +216,8 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t><void*>self._handle)
 
 
-def _ucx_worker_handle_finalizer(handle_as_int):
-    cdef ucp_worker_h handle = <ucp_worker_h><uintptr_t> handle_as_int
+def _ucx_worker_handle_finalizer(uintptr_t handle_as_int):
+    cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
     ucp_worker_destroy(handle)
 
 
@@ -311,8 +311,8 @@ cdef class UCXWorker(UCXObject):
         return ucx_ep_create(ucp_ep, self)
 
 
-def _ucx_endpoint_finalizer(handle_as_int, worker, inflight_msgs):
-    cdef ucp_ep_h handle = <ucp_ep_h><uintptr_t> handle_as_int
+def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
+    cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
 
     # Cancel all inflight messages
@@ -390,7 +390,7 @@ cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
 
 def ucx_ep_create_from_uintptr(ep, worker):
     ret = UCXEndpoint()
-    ret._init(worker, <ucp_ep_h><uintptr_t>ep)
+    ret._init(worker, <ucp_ep_h>ep)
     return ret
 
 
@@ -409,8 +409,8 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
         )
 
 
-def _ucx_listener_handle_finalizer(handle_as_int):
-    cdef ucp_listener_h handle = <ucp_listener_h><uintptr_t> handle_as_int
+def _ucx_listener_handle_finalizer(uintptr_t handle_as_int):
+    cdef ucp_listener_h handle = <ucp_listener_h>handle_as_int
     ucp_listener_destroy(handle)
 
 
