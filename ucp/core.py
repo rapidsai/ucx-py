@@ -38,7 +38,6 @@ def _get_ctx():
 class ConnInfoMsg:
     """Implementation of the initial connection information message"""
 
-    tag = 42
     fmt = "QQQQ?"
     nbytes = struct.calcsize(fmt)
 
@@ -55,7 +54,13 @@ class ConnInfoMsg:
 
     @staticmethod
     async def send(
-        ucx_ep, msg_tag, ctrl_tag, msg_tag_peer, ctrl_tag_peer, guarantee_msg_order
+        ucx_ep,
+        port,
+        msg_tag,
+        ctrl_tag,
+        msg_tag_peer,
+        ctrl_tag_peer,
+        guarantee_msg_order,
     ):
         msg = struct.pack(
             ConnInfoMsg.fmt,
@@ -69,18 +74,18 @@ class ConnInfoMsg:
             ucx_ep,
             msg,
             len(msg),
-            ConnInfoMsg.tag,
+            port,
             log_msg="Sending initial connection information to server",
         )
 
     @staticmethod
-    async def recv(ucx_ep):
+    async def recv(ucx_ep, port):
         serialized_msg = bytearray(ConnInfoMsg.nbytes)
         d = await ucx_api.tag_recv(
             ucx_ep,
             serialized_msg,
             ConnInfoMsg.nbytes,
-            ConnInfoMsg.tag,
+            port,
             log_msg="Receiving initial connection information from client",
         )
         d = struct.unpack(ConnInfoMsg.fmt, serialized_msg)
@@ -144,9 +149,9 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
+async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
 
-    m = await ConnInfoMsg.recv(endpoint)
+    m = await ConnInfoMsg.recv(endpoint, port)
 
     if m["guarantee_msg_order"] != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
@@ -274,6 +279,7 @@ class ApplicationContext:
                 {
                     "cb_func": callback_func,
                     "cb_coroutine": _listener_handler,
+                    "port": port,
                     "ctx": self,
                     "guarantee_msg_order": guarantee_msg_order,
                 },
@@ -309,7 +315,13 @@ class ApplicationContext:
         ctrl_tag_peer = hash(uuid.uuid4())
 
         await ConnInfoMsg.send(
-            ucx_ep, msg_tag, ctrl_tag, msg_tag_peer, ctrl_tag_peer, guarantee_msg_order
+            ucx_ep,
+            port,
+            msg_tag,
+            ctrl_tag,
+            msg_tag_peer,
+            ctrl_tag_peer,
+            guarantee_msg_order,
         )
         ep = Endpoint(
             endpoint=ucx_ep,

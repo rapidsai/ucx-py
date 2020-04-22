@@ -393,6 +393,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
                 UCXEndpoint(ctx.worker, <uintptr_t>ep),
                 ctx,
                 cb_data['cb_func'],
+                cb_data['port'],
                 cb_data['guarantee_msg_order']
             )
         )
