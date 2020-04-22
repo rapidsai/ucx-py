@@ -1,8 +1,6 @@
 import asyncio
 import os
 
-from distributed.utils import nbytes
-
 import cloudpickle
 import pynvml
 import pytest
@@ -20,8 +18,6 @@ pynvml = pytest.importorskip("pynvml", reason="PYNVML not installed")
 
 async def get_ep(name, port):
     addr = ucp.get_address()
-    addr = "10.33.12.15"
-    addr = "192.168.40.33"
     ep = await ucp.create_endpoint(addr, port)
     return ep
 
@@ -58,11 +54,11 @@ def client(env, port, func):
     set_rmm()
     for i in range(ITERATIONS):
         print("ITER: ", i)
-        rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
+        asyncio.get_event_loop().run_until_complete(read())
 
     print("FINISHED")
-    #num_bytes = nbytes(rx_cuda_obj)
-    #print(f"TOTAL DATA RECEIVED: {num_bytes}")
+    # num_bytes = nbytes(rx_cuda_obj)
+    # print(f"TOTAL DATA RECEIVED: {num_bytes}")
     # nvlink only measures in KBs
     # if num_bytes > 90000:
     #     rx, tx = total_nvlink_transfer()
