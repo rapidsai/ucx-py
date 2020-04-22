@@ -388,7 +388,7 @@ cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
     return ret
 
 
-def ucx_ep_create_from_uintptr(ep, worker):
+def ucx_ep_create_from_uintptr(uintptr_t ep, worker):
     ret = UCXEndpoint()
     ret._init(worker, <ucp_ep_h>ep)
     return ret
