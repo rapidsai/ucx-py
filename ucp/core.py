@@ -387,10 +387,6 @@ class Listener:
         """Closing the listener"""
         self._b.close()
 
-    def abort(self):
-        """Closing the listener"""
-        self._b.close()
-
 
 class Endpoint:
     """An endpoint represents a connection to a peer
