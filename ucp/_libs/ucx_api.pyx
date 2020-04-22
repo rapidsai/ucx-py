@@ -218,7 +218,8 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t><void*>self._handle)
 
 
-def _ucx_worker_handle_finalizer(uintptr_t handle_as_int):
+def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+    assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
     ucp_worker_destroy(handle)
 
@@ -243,7 +244,8 @@ cdef class UCXWorker(UCXObject):
 
         self.add_handle_finalizer(
             _ucx_worker_handle_finalizer,
-            int(<uintptr_t><void*>self._handle)
+            int(<uintptr_t><void*>self._handle),
+            self._context
         )
         context.add_child(self)
 
@@ -314,6 +316,7 @@ cdef class UCXWorker(UCXObject):
 
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
+    assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
 

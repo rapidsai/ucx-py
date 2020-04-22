@@ -161,11 +161,12 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         func(ep)
 
 
-def _application_context_finalizer(worker, context, epoll_fd):
-    worker.close()
-    context.close()
-    if epoll_fd >= 0:
-        close_fd(epoll_fd)
+def _epoll_fd_finalizer(epoll_fd, progress_tasks):
+    assert epoll_fd >= 0
+    # Notice, progress_tasks must be cleared before we close
+    # epoll_fd
+    progress_tasks.clear()
+    close_fd(epoll_fd)
 
 
 class ApplicationContext:
@@ -189,16 +190,9 @@ class ApplicationContext:
 
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
-        else:
-            self.epoll_fd = -1
-
-        weakref.finalize(
-            self,
-            _application_context_finalizer,
-            self.worker,
-            self.context,
-            self.epoll_fd,
-        )
+            weakref.finalize(
+                self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
+            )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         """Create and start a listener to accept incoming connections
