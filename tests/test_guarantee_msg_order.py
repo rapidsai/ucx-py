@@ -17,17 +17,17 @@ def test_mismatch(server_guarantee_msg_order):
     loop.test_failed = False
     loop.error_msg_expected = "Both peers must set guarantee_msg_order identically"
 
-    with pytest.raises(ValueError, match=loop.error_msg_expected):
-        lt = ucp.create_listener(
-            lambda x: x, guarantee_msg_order=server_guarantee_msg_order
+    # with pytest.raises(ValueError, match=loop.error_msg_expected):
+    lt = ucp.create_listener(
+        lambda x: x, guarantee_msg_order=server_guarantee_msg_order
+    )
+    loop.run_until_complete(
+        ucp.create_endpoint(
+            ucp.get_address(),
+            lt.port,
+            guarantee_msg_order=(not server_guarantee_msg_order),
         )
-        loop.run_until_complete(
-            ucp.create_endpoint(
-                ucp.get_address(),
-                lt.port,
-                guarantee_msg_order=(not server_guarantee_msg_order),
-            )
-        )
+    )
     loop.run_until_complete(asyncio.sleep(0.1))  # Give the server time to finish
 
     assert not loop.test_failed, "expected error message not raised by the server"
