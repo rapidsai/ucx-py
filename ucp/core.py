@@ -35,31 +35,62 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
-    """Help function that exchange endpoint information"""
+class ConnInfoMsg:
+    """Implementation of the initial connection information message"""
 
-    msg_tag = int(msg_tag)
-    ctrl_tag = int(ctrl_tag)
-    guarantee_msg_order = bool(guarantee_msg_order)
-    my_info = struct.pack("QQ?", msg_tag, ctrl_tag, guarantee_msg_order)
-    peer_info = bytearray(len(my_info))
+    tag = 42
+    fmt = "QQQQ?"
+    nbytes = struct.calcsize(fmt)
 
-    await asyncio.gather(
-        ucx_api.stream_recv(endpoint, peer_info, len(peer_info)),
-        ucx_api.stream_send(endpoint, my_info, len(my_info)),
-    )
-    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack(
-        "QQ?", peer_info
-    )
+    @staticmethod
+    def deserialize(serialized_bytes):
+        d = struct.unpack(ConnInfoMsg.fmt, serialized_bytes)
+        return {
+            "msg_tag": d[1],
+            "msg_tag_peer": d[0],
+            "ctrl_tag": d[3],
+            "ctrl_tag_peer": d[2],
+            "guarantee_msg_order": d[4],
+        }
 
-    if peer_guarantee_msg_order != guarantee_msg_order:
-        raise ValueError("Both peers must set guarantee_msg_order identically")
+    @staticmethod
+    async def send(
+        ucx_ep, msg_tag, ctrl_tag, msg_tag_peer, ctrl_tag_peer, guarantee_msg_order
+    ):
+        msg = struct.pack(
+            ConnInfoMsg.fmt,
+            int(msg_tag),
+            int(ctrl_tag),
+            int(msg_tag_peer),
+            int(ctrl_tag_peer),
+            bool(guarantee_msg_order),
+        )
+        await ucx_api.tag_send(
+            ucx_ep,
+            msg,
+            len(msg),
+            ConnInfoMsg.tag,
+            log_msg="Sending initial connection information to server",
+        )
 
-    return {
-        "msg_tag": peer_msg_tag,
-        "ctrl_tag": peer_ctrl_tag,
-        "guarantee_msg_order": peer_guarantee_msg_order,
-    }
+    @staticmethod
+    async def recv(ucx_ep):
+        serialized_msg = bytearray(ConnInfoMsg.nbytes)
+        d = await ucx_api.tag_recv(
+            ucx_ep,
+            serialized_msg,
+            ConnInfoMsg.nbytes,
+            ConnInfoMsg.tag,
+            log_msg="Receiving initial connection information from client",
+        )
+        d = struct.unpack(ConnInfoMsg.fmt, serialized_msg)
+        return {
+            "msg_tag_peer": d[0],
+            "ctrl_tag_peer": d[1],
+            "msg_tag": d[2],
+            "ctrl_tag": d[3],
+            "guarantee_msg_order": d[4],
+        }
 
 
 class CtrlMsg:
@@ -114,25 +145,19 @@ class CtrlMsg:
 
 
 async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
-    # We create the Endpoint in four steps:
-    #  1) Generate unique IDs to use as tags
-    #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the an endpoint
-    msg_tag = hash(uuid.uuid4())
-    ctrl_tag = hash(uuid.uuid4())
-    peer_info = await exchange_peer_info(
-        endpoint=endpoint,
-        msg_tag=msg_tag,
-        ctrl_tag=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order,
-    )
+
+    m = await ConnInfoMsg.recv(endpoint)
+
+    if m["guarantee_msg_order"] != guarantee_msg_order:
+        raise ValueError("Both peers must set guarantee_msg_order identically")
+
     ep = Endpoint(
         endpoint=endpoint,
         ctx=ctx,
-        msg_tag_send=peer_info["msg_tag"],
-        msg_tag_recv=msg_tag,
-        ctrl_tag_send=peer_info["ctrl_tag"],
-        ctrl_tag_recv=ctrl_tag,
+        msg_tag_send=m["msg_tag_peer"],
+        msg_tag_recv=m["msg_tag"],
+        ctrl_tag_send=m["ctrl_tag_peer"],
+        ctrl_tag_recv=m["ctrl_tag"],
         guarantee_msg_order=guarantee_msg_order,
     )
 
@@ -277,24 +302,21 @@ class ApplicationContext:
         ucx_ep = self.worker.ep_create(ip_address, port)
         self.worker.progress()
 
-        # We create the Endpoint in four steps:
-        #  1) Generate unique IDs to use as tags
-        #  2) Exchange endpoint info such as tags
-        #  3) Use the info to create an endpoint
         msg_tag = hash(uuid.uuid4())
         ctrl_tag = hash(uuid.uuid4())
-        peer_info = await exchange_peer_info(
-            endpoint=ucx_ep,
-            msg_tag=msg_tag,
-            ctrl_tag=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order,
+
+        msg_tag_peer = hash(uuid.uuid4())
+        ctrl_tag_peer = hash(uuid.uuid4())
+
+        await ConnInfoMsg.send(
+            ucx_ep, msg_tag, ctrl_tag, msg_tag_peer, ctrl_tag_peer, guarantee_msg_order
         )
         ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
-            msg_tag_send=peer_info["msg_tag"],
+            msg_tag_send=msg_tag_peer,
             msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info["ctrl_tag"],
+            ctrl_tag_send=ctrl_tag_peer,
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
