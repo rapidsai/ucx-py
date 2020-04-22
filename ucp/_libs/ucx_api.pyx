@@ -184,9 +184,7 @@ cdef class UCXContext(UCXObject):
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+        ucp_params.features = (UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP)
 
         ucp_params.request_size = sizeof(ucp_request)
         ucp_params.request_init = (
@@ -597,80 +595,5 @@ def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
         tag,
         -1,
         _tag_recv_cb
-    )
-    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
-
-
-def stream_send(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
-
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=False))
-    cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
-    cdef ucs_status_ptr_t status = ucp_stream_send_nb(
-        ep._handle,
-        data,
-        nbytes,
-        ucp_dt_make_contig(1),
-        _send_cb,
-        0
-    )
-    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
-
-
-cdef void _stream_recv_callback(void *request, ucs_status_t status,
-                                size_t length):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_stream_recv_nb() returned
-        req.finished = True
-        req.received = length
-        return
-    cdef object future = <object> req.future
-    cdef object event_loop = <object> req.event_loop
-    cdef object log_msg = <object> req.log_msg
-    cdef object inflight_msgs = <object> req.inflight_msgs
-    cdef size_t expected_receive = req.expected_receive
-    Py_DECREF(future)
-    Py_DECREF(event_loop)
-    Py_DECREF(log_msg)
-    Py_DECREF(inflight_msgs)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
-    with log_errors():
-        del inflight_msgs[int(<uintptr_t>req)]
-        msg = "Error receiving %s" %(" \"%s\":" % log_msg if log_msg else ":")
-        if event_loop.is_closed() or future.done():
-            pass
-        elif status == UCS_ERR_CANCELED:
-            future.set_exception(UCXCanceled())
-        elif status != UCS_OK:
-            msg += ucs_status_string(status).decode("utf-8")
-            future.set_exception(UCXError(msg))
-        elif length != expected_receive:
-            msg += "length mismatch: %d (got) != %d (expected)" % (
-                length, expected_receive)
-            future.set_exception(UCXMsgTruncated(msg))
-        else:
-            future.set_result(True)
-
-
-def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
-
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=True))
-    cdef size_t length
-    cdef ucp_request *req
-    cdef ucp_stream_recv_callback_t _stream_recv_cb = (
-        <ucp_stream_recv_callback_t>_stream_recv_callback
-    )
-    cdef ucs_status_ptr_t status = ucp_stream_recv_nb(
-        ep._handle,
-        data,
-        nbytes,
-        ucp_dt_make_contig(1),
-        _stream_recv_cb,
-        &length,
-        UCP_STREAM_RECV_FLAG_WAITALL,
     )
     return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
