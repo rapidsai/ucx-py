@@ -103,7 +103,9 @@ def get_ucx_version():
     return (a, b, c)
 
 
-def _handle_finalizer_wrapper(children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs):
+def _handle_finalizer_wrapper(
+    children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs
+):
     for weakref_to_child in children:
         child = weakref_to_child()
         if child is not None:
