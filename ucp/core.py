@@ -297,6 +297,7 @@ class ApplicationContext:
         """
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port)
+        self.worker.progress()
 
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
