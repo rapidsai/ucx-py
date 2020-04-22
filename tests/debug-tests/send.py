@@ -50,6 +50,7 @@ def server(env, port, func):
 
                 print("CONFIRM RECEIPT")
                 await ep.close()
+                break
             # lf.close()
             del msg
             del frames
