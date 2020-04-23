@@ -13,17 +13,16 @@ def set_env():
 
 
 def more_than_two_gpus():
-    import pynvml
+    import numba.cuda
 
-    pynvml.nvmlInit()
-    ngpus = pynvml.nvmlDeviceGetCount()
+    ngpus = len(numba.cuda.gpus)
     return ngpus >= 2
 
 
-def get_cuda_visible_devices():
+def get_cuda_devices():
     if "CUDA_VISIBLE_DEVICES" in os.environ:
-        return os.environ["CUDA_VISIBLE_DEVICES"]
+        return os.environ["CUDA_VISIBLE_DEVICES"].split(",")
     else:
-        import pynvml
+        import numba.cuda
 
-        return "".join(["%d," % d for d in range(pynvml.nvmlDeviceGetCount())])[:-1]
+        return list(range(len(numba.cuda.gpus)))

@@ -12,7 +12,7 @@ import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import get_cuda_visible_devices, more_than_two_gpus
+from utils import get_cuda_devices, more_than_two_gpus
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -218,7 +218,9 @@ def cupy_obj():
 def test_send_recv_cu(cuda_obj_generator):
     base_env = os.environ
     env_client = base_env.copy()
-    cvd = get_cuda_visible_devices()[:3]
+    # grab first two devices
+    cvd = get_cuda_devices()[:2]
+    cvd = ",".join(map(str, cvd))
     # reverse CVD for other worker
     env_client["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
 
@@ -249,9 +251,8 @@ def test_send_recv_cu(cuda_obj_generator):
 
 
 def total_nvlink_transfer():
-    pynvml.nvmlShutdown()
     pynvml.nvmlInit()
-    cuda_dev_id = int(get_cuda_visible_devices().split(",")[0])
+    cuda_dev_id = int(get_cuda_devices()[0])
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
