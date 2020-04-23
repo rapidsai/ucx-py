@@ -312,7 +312,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
-        return ucx_ep_create(ucp_ep, self)
+        return UCXEndpoint(self, <uintptr_t><void*> ucp_ep)
 
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
@@ -337,9 +337,7 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
 
 
 cdef class UCXEndpoint(UCXObject):
-    """Python representation of `ucp_ep_h`
-    Please use `ucx_ep_create()` to contruct an instance of this class
-    """
+    """Python representation of `ucp_ep_h`"""
     cdef:
         ucp_ep_h _handle
         dict _inflight_msgs
@@ -347,16 +345,16 @@ cdef class UCXEndpoint(UCXObject):
     cdef readonly:
         UCXWorker worker
 
-    cdef _init(self, UCXWorker worker, ucp_ep_h handle):
+    def __init__(self, UCXWorker worker, uintptr_t handle):
         """The Constructor"""
 
         assert worker.initialized
         self.worker = worker
-        self._handle = handle
+        self._handle = <ucp_ep_h>handle
         self._inflight_msgs = dict()
         self.add_handle_finalizer(
             _ucx_endpoint_finalizer,
-            int(<uintptr_t><void*>handle),
+            int(handle),
             worker,
             self._inflight_msgs
         )
@@ -387,18 +385,6 @@ cdef class UCXEndpoint(UCXObject):
         return int(<uintptr_t><void*>self._handle)
 
 
-cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
-    ret = UCXEndpoint()
-    ret._init(worker, ep)
-    return ret
-
-
-def ucx_ep_create_from_uintptr(uintptr_t ep, worker):
-    ret = UCXEndpoint()
-    ret._init(worker, <ucp_ep_h>ep)
-    return ret
-
-
 cdef void _listener_callback(ucp_ep_h ep, void *args):
     """Callback function used by UCXListener"""
     cdef dict cb_data = <dict> args
@@ -406,7 +392,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                ucx_ep_create_from_uintptr(int(<uintptr_t><void*>ep), ctx.worker),
+                UCXEndpoint(ctx.worker, <uintptr_t><void*>ep),
                 ctx,
                 cb_data['cb_func'],
                 cb_data['guarantee_msg_order']
