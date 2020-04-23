@@ -1,4 +1,7 @@
+import io
+import logging
 import os
+from contextlib import contextmanager
 
 normal_env = {
     "UCX_RNDV_SCHEME": "put_zcopy",
@@ -26,3 +29,26 @@ def get_cuda_devices():
         import numba.cuda
 
         return list(range(len(numba.cuda.gpus)))
+
+
+@contextmanager
+def captured_logger(logger, level=logging.INFO, propagate=None):
+    """Capture output from the given Logger.
+    """
+    if isinstance(logger, str):
+        logger = logging.getLogger(logger)
+    orig_level = logger.level
+    orig_handlers = logger.handlers[:]
+    if propagate is not None:
+        orig_propagate = logger.propagate
+        logger.propagate = propagate
+    sio = io.StringIO()
+    logger.handlers[:] = [logging.StreamHandler(sio)]
+    logger.setLevel(level)
+    try:
+        yield sio
+    finally:
+        logger.handlers[:] = orig_handlers
+        logger.setLevel(orig_level)
+        if propagate is not None:
+            logger.propagate = orig_propagate

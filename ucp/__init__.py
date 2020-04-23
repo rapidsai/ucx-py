@@ -7,9 +7,9 @@ import logging
 import os
 
 from ._version import get_versions as _get_versions
-from .public_api import *  # noqa
-from .public_api import get_ucx_version
-from .utils import get_address  # noqa
+from .core import *  # noqa
+from .core import get_ucx_version
+from .utils import get_address, get_ucxpy_logger  # noqa
 
 logger = logging.getLogger("ucx")
 
@@ -36,9 +36,9 @@ if not os.environ.get("UCX_TCP_TX_SEG_SIZE", False):
 if not os.environ.get("UCX_TCP_RX_SEG_SIZE", False):
     os.environ["UCX_TCP_RX_SEG_SIZE"] = "8M"
 
-# Set the root logger before importing modules that use it
-_level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
-logging.basicConfig(level=_level_enum, format="%(levelname)s %(message)s")
+
+# After handling of environment variable logging, add formatting to the logger
+logger = get_ucxpy_logger()
 
 
 __version__ = _get_versions()["version"]

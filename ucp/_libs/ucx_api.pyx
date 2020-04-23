@@ -20,8 +20,13 @@ from ..exceptions import (
     UCXConfigError,
     UCXCanceled,
     UCXCloseError,
+    UCXMsgTruncated,
 )
+from ..utils import nvtx_annotate
 from .utils import get_buffer_data
+
+
+logger = logging.getLogger("ucx")
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
@@ -137,9 +142,9 @@ cdef class UCXContext:
         self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
 
-        logging.info("UCP initiated using config: ")
+        logger.info("UCP initiated using config: ")
         for k, v in self._config.items():
-            logging.info("  %s: %s" % (k, v))
+            logger.info("  %s: %s" % (k, v))
 
     def close(self):
         if self.initialized:
@@ -216,6 +221,7 @@ cdef class UCXWorker:
         assert_ucs_status(status)
         return True
 
+    @nvtx_annotate("UCXPY_PROGRESS", color="blue", domain="ucxpy")
     def progress(self):
         assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
@@ -401,7 +407,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
                 msg += "length mismatch: %d (got) != %d (expected)" % (
                     req.received, expected_receive
                 )
-                ret.set_exception(UCXError(msg))
+                ret.set_exception(UCXMsgTruncated(msg))
             else:
                 ret.set_result(True)
             ucp_request_reset(req)
@@ -500,7 +506,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
             msg += "length mismatch: %d (got) != %d (expected)" % (
                 length, expected_receive
             )
-            future.set_exception(UCXError(msg))
+            future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
 
@@ -571,7 +577,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         elif length != expected_receive:
             msg += "length mismatch: %d (got) != %d (expected)" % (
                 length, expected_receive)
-            future.set_exception(UCXError(msg))
+            future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
 
