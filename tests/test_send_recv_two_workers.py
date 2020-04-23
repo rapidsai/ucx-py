@@ -12,7 +12,7 @@ import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import get_cuda_devices, more_than_two_gpus
+from utils import get_cuda_devices, get_num_gpus
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -210,7 +210,7 @@ def cupy_obj():
 
 
 @pytest.mark.skipif(
-    not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
+    get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
     "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy_obj]
