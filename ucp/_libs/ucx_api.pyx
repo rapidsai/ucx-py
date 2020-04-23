@@ -199,7 +199,7 @@ cdef class UCXContext(UCXObject):
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
-            int(<uintptr_t><void*>self._handle)
+            int(<uintptr_t>self._handle)
         )
 
         self._config = ucx_config_to_dict(config)
@@ -215,7 +215,7 @@ cdef class UCXContext(UCXObject):
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
 
 def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
@@ -244,7 +244,7 @@ cdef class UCXWorker(UCXObject):
 
         self.add_handle_finalizer(
             _ucx_worker_handle_finalizer,
-            int(<uintptr_t><void*>self._handle),
+            int(<uintptr_t>self._handle),
             self._context
         )
         context.add_child(self)
@@ -291,7 +291,7 @@ cdef class UCXWorker(UCXObject):
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
     def request_cancel(self, ucp_request_as_int):
         assert self.initialized
@@ -312,7 +312,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t><void*> ucp_ep)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
@@ -382,7 +382,7 @@ cdef class UCXEndpoint(UCXObject):
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
@@ -392,7 +392,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                UCXEndpoint(ctx.worker, <uintptr_t><void*>ep),
+                UCXEndpoint(ctx.worker, <uintptr_t>ep),
                 ctx,
                 cb_data['cb_func'],
                 cb_data['guarantee_msg_order']
@@ -435,14 +435,14 @@ cdef class UCXListener(UCXObject):
 
         self.add_handle_finalizer(
             _ucx_listener_handle_finalizer,
-            int(<uintptr_t><void*>self._handle)
+            int(<uintptr_t>self._handle)
         )
         worker.add_child(self)
 
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
@@ -471,7 +471,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             ucp_request_reset(req)
             ucp_request_free(req)
         else:
-            req_as_int = int(<uintptr_t><void*>req)
+            req_as_int = int(<uintptr_t>req)
             # The callback function has not been called yet.
             # We fill `ucp_request` for the callback function to use
             Py_INCREF(ret)
@@ -511,7 +511,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
     ucp_request_free(request)
 
     with log_errors():
-        del inflight_msgs[int(<uintptr_t><void*>req)]
+        del inflight_msgs[int(<uintptr_t>req)]
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -563,7 +563,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
     with log_errors():
-        del inflight_msgs[int(<uintptr_t><void*>req)]
+        del inflight_msgs[int(<uintptr_t>req)]
         msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
@@ -638,7 +638,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
     ucp_request_free(request)
 
     with log_errors():
-        del inflight_msgs[int(<uintptr_t><void*>req)]
+        del inflight_msgs[int(<uintptr_t>req)]
         msg = "Error receiving %s" %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
