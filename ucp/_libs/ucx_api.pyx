@@ -671,6 +671,6 @@ def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
         ucp_dt_make_contig(1),
         _stream_recv_cb,
         &length,
-        0
+        UCP_STREAM_RECV_FLAG_WAITALL,
     )
     return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)

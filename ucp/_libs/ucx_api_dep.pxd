@@ -165,6 +165,7 @@ cdef extern from "ucp/api/ucp.h":
                                         size_t count, ucp_datatype_t datatype,
                                         ucp_send_callback_t cb, unsigned flags)
 
+    unsigned UCP_STREAM_RECV_FLAG_WAITALL
     ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer,
                                         size_t count, ucp_datatype_t datatype,
                                         ucp_stream_recv_callback_t cb,
