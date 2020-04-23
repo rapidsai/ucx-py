@@ -131,6 +131,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef uint64_t ucp_datatype_t
 
     bint UCS_PTR_IS_ERR(ucs_status_ptr_t)
+    bint UCS_PTR_IS_PTR(ucs_status_ptr_t)
     ucs_status_t UCS_PTR_STATUS(ucs_status_ptr_t)
 
     ctypedef void (*ucp_send_callback_t)(void *request, ucs_status_t status)  # noqa
@@ -164,6 +165,7 @@ cdef extern from "ucp/api/ucp.h":
                                         size_t count, ucp_datatype_t datatype,
                                         ucp_send_callback_t cb, unsigned flags)
 
+    unsigned UCP_STREAM_RECV_FLAG_WAITALL
     ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer,
                                         size_t count, ucp_datatype_t datatype,
                                         ucp_stream_recv_callback_t cb,
@@ -241,7 +243,8 @@ cdef struct ucp_request:
     bint finished
     PyObject *future
     PyObject *event_loop
-    PyObject *log_str
+    PyObject *log_msg
+    PyObject *inflight_msgs
     size_t expected_receive
     int64_t received
 
@@ -251,6 +254,7 @@ cdef inline void ucp_request_reset(void* request):
     req.finished = False
     req.future = NULL
     req.event_loop = NULL
-    req.log_str = NULL
+    req.log_msg = NULL
+    req.inflight_msgs = NULL
     req.expected_receive = 0
     req.received = -1

@@ -7,8 +7,8 @@ import logging
 import os
 
 from ._version import get_versions as _get_versions
-from .public_api import *  # noqa
-from .public_api import get_ucx_version
+from .core import *  # noqa
+from .core import get_ucx_version
 from .utils import get_address, get_ucxpy_logger  # noqa
 
 logger = logging.getLogger("ucx")

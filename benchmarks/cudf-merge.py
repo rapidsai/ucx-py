@@ -4,15 +4,13 @@ Benchmark send receive on one machine
 import argparse
 import asyncio
 import cProfile
-import functools
 import io
-import multiprocessing as mp
 import pickle
 import pstats
 import sys
 from time import perf_counter as clock
 
-from dask.utils import format_bytes, format_time, parse_bytes
+from dask.utils import format_bytes, format_time
 
 import cudf
 import cupy
@@ -52,9 +50,6 @@ async def recv_df(ep):
 
 
 async def barrier(rank, eps):
-    futures = []
-    dummy_send = np.zeros(1, dtype="u1")
-
     if rank == 0:
         await asyncio.gather(*[ep.recv(np.empty(1, dtype="u1")) for ep in eps.values()])
     else:
@@ -112,7 +107,6 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
         start = local_size * i_chunk
         stop = start + local_size
 
-        parts_array = cupy.arange(num_chunks, dtype="int64")
         df = cudf.DataFrame(
             {
                 "key": cupy.arange(start, stop=stop, dtype="int64"),
@@ -186,7 +180,7 @@ async def worker(rank, eps, args):
 
     timings = []
     t1 = clock()
-    df3 = await distributed_join(args, rank, eps, df1, df2, timings)
+    await distributed_join(args, rank, eps, df1, df2, timings)
     await barrier(rank, eps)
     took = clock() - t1
 
@@ -261,7 +255,8 @@ def parse_args():
         "--cuda-profile",
         default=False,
         action="store_true",
-        help="Enable CUDA profiling, use with `nvprof --profile-child-processes --profile-from-start off`",
+        help="Enable CUDA profiling, use with `nvprof --profile-child-processes \
+                --profile-from-start off`",
     )
     parser.add_argument(
         "--rmm-init-pool-size",
@@ -275,7 +270,8 @@ def parse_args():
     args.n_chunks = len(args.devs) * args.chunks_per_dev
     if args.n_chunks < 2:
         raise RuntimeError(
-            f"Number of chunks must be greater than 1 (chunks-per-dev: {args.chunks_per_dev}, devs: {args.devs})"
+            f"Number of chunks must be greater than 1 (chunks-per-dev: \
+                    {args.chunks_per_dev}, devs: {args.devs})"
         )
     if args.net_devices == "auto":
         args.net_devices = [ucp.utils.get_closest_net_devices(d) for d in args.devs]

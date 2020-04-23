@@ -63,6 +63,8 @@ class BlockingMode(ProgressTask):
         # all non-IO tasks are finished.
         # See <https://stackoverflow.com/a/48491563>.
         self.rsock, wsock = socket.socketpair()
+        self.rsock.setblocking(0)
+        wsock.setblocking(0)
         wsock.close()
 
         # Bind an asyncio reader to a UCX epoll file descripter

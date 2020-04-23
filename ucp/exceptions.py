@@ -39,3 +39,7 @@ class UCXCloseError(UCXBaseException):
 
 class UCXCanceled(UCXBaseException):
     pass
+
+
+class UCXMsgTruncated(UCXBaseException):
+    pass
