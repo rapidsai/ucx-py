@@ -118,7 +118,7 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
+async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
@@ -255,6 +255,7 @@ class ApplicationContext:
                 {
                     "cb_func": callback_func,
                     "cb_coroutine": _listener_handler,
+                    "port": port,
                     "ctx": self,
                     "guarantee_msg_order": guarantee_msg_order,
                 },
