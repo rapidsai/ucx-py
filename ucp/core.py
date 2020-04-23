@@ -103,14 +103,9 @@ class CtrlMsg:
     def setup_ctrl_recv(ep):
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
-        ep.pending_msg_list.append({"log": log})
         msg = bytearray(CtrlMsg.nbytes)
         shutdown_fut = ucx_api.tag_recv(
-            ep._ctx.worker,
-            msg,
-            len(msg),
-            ep._ctrl_tag_recv,
-            pending_msg=ep.pending_msg_list[-1],
+            ep._ep, msg, len(msg), ep._ctrl_tag_recv, log_msg=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -140,7 +135,6 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         ctrl_tag_recv=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
     )
-    ctx.children.append(weakref.ref(ep))
 
     logger.debug(
         "_listener_handler() server: %s, msg-tag-send: %s, "
@@ -167,19 +161,12 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         func(ep)
 
 
-def _application_context_finalizer(children, worker, context, epoll_fd):
-    """
-    Finalizer function for `ApplicationContext` object, which is
-    more reliable than __dealloc__.
-    """
-    for weakref_to_child in children:
-        child = weakref_to_child()
-        if child is not None:
-            child.abort()
-    worker.close()
-    context.close()
-    if epoll_fd >= 0:
-        close_fd(epoll_fd)
+def _epoll_fd_finalizer(epoll_fd, progress_tasks):
+    assert epoll_fd >= 0
+    # Notice, progress_tasks must be cleared before we close
+    # epoll_fd
+    progress_tasks.clear()
+    close_fd(epoll_fd)
 
 
 class ApplicationContext:
@@ -189,8 +176,6 @@ class ApplicationContext:
 
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
-        # List of weak references to the UCX objects that make use of `context`
-        self.children = []
 
         # For now, a application context only has one worker
         self.context = ucx_api.UCXContext(config_dict)
@@ -205,17 +190,9 @@ class ApplicationContext:
 
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
-        else:
-            self.epoll_fd = -1
-
-        weakref.finalize(
-            self,
-            _application_context_finalizer,
-            self.children,
-            self.worker,
-            self.context,
-            self.epoll_fd,
-        )
+            weakref.finalize(
+                self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
+            )
 
     def create_listener(self, callback_func, port, guarantee_msg_order):
         """Create and start a listener to accept incoming connections
@@ -265,18 +242,19 @@ class ApplicationContext:
                     break
 
         logger.info("create_listener() - Start listening on port %d" % port)
-        ret = ucx_api.UCXListener(
-            port,
-            self,
-            {
-                "cb_func": callback_func,
-                "cb_coroutine": _listener_handler,
-                "ctx": self,
-                "guarantee_msg_order": guarantee_msg_order,
-            },
+        ret = Listener(
+            ucx_api.UCXListener(
+                self.worker,
+                port,
+                {
+                    "cb_func": callback_func,
+                    "cb_coroutine": _listener_handler,
+                    "ctx": self,
+                    "guarantee_msg_order": guarantee_msg_order,
+                },
+            )
         )
-        self.children.append(weakref.ref(ret))
-        return Listener(ret)
+        return ret
 
     async def create_endpoint(self, ip_address, port, guarantee_msg_order):
         """Create a new endpoint to a server
@@ -320,7 +298,6 @@ class ApplicationContext:
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-        self.children.append(weakref.ref(ep))
 
         logger.debug(
             "create_endpoint() client: %s, msg-tag-send: %s, "
@@ -388,16 +365,12 @@ class Listener:
     """
 
     def __init__(self, backend):
+        assert backend.initialized
         self._b = backend
-        self._closed = False
-
-    def __del__(self):
-        if not self.closed():
-            self.close()
 
     def closed(self):
         """Is the listener closed?"""
-        return self._closed
+        return not self._b.initialized
 
     @property
     def port(self):
@@ -406,10 +379,7 @@ class Listener:
 
     def close(self):
         """Closing the listener"""
-        if not self._closed:
-            self._b.abort()
-            self._closed = True
-            self._b = None
+        self._b.close()
 
 
 class Endpoint:
@@ -439,21 +409,20 @@ class Endpoint:
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
-        self._closed = False
         self._shutting_down_peer = False  # Told peer to shutdown
-        self.pending_msg_list = []
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         tls = ctx.get_config()["TLS"]
         self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
-    def __del__(self):
-        self.abort()
-
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
         return self._ep.handle
+
+    def closed(self):
+        """Is this endpoint closed?"""
+        return self._ep is None or not self._ep.initialized
 
     def abort(self):
         """Close the communication immediately and abruptly.
@@ -462,16 +431,9 @@ class Endpoint:
         Notice, this functions doesn't signal the connected peer to close.
         To do that, use `Endpoint.close()`
         """
-        if self._closed:
+        if self.closed():
             return
-        self._closed = True
         logger.debug("Endpoint.abort(): %s" % hex(self.uid))
-
-        for msg in self.pending_msg_list:
-            if "future" in msg and not msg["future"].done():
-                logger.debug("Future cancelling: %s" % msg["log"])
-                self._ctx.worker.request_cancel(msg["ucp_request"])
-
         self._ep.close()
         self._ep = None
         self._ctx = None
@@ -481,7 +443,7 @@ class Endpoint:
         This will attempt to flush outgoing buffers before actually
         closing the underlying UCX endpoint.
         """
-        if self._closed:
+        if self.closed():
             return
         try:
             # Making sure we only tell peer to shutdown once
@@ -497,14 +459,9 @@ class Endpoint:
                 self._send_count,
             )
             logger.debug(log)
-            self.pending_msg_list.append({"log": log})
             try:
                 await ucx_api.tag_send(
-                    self._ep,
-                    msg,
-                    len(msg),
-                    self._ctrl_tag_send,
-                    pending_msg=self.pending_msg_list[-1],
+                    self._ep, msg, len(msg), self._ctrl_tag_send, log_msg=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -518,10 +475,6 @@ class Endpoint:
             await asyncio.sleep(0)
             self.abort()
 
-    def closed(self):
-        """Is this endpoint closed?"""
-        return self._closed
-
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
         """Send `buffer` to connected peer.
@@ -534,7 +487,7 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
         """
-        if self._closed:
+        if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support
@@ -547,14 +500,11 @@ class Endpoint:
             type(buffer),
         )
         logger.debug(log)
-        self.pending_msg_list.append({"log": log})
         self._send_count += 1
         tag = self._msg_tag_send
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await ucx_api.tag_send(
-            self._ep, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
-        )
+        return await ucx_api.tag_send(self._ep, buffer, nbytes, tag, log_msg=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None):
@@ -568,7 +518,7 @@ class Endpoint:
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
         """
-        if self._closed:
+        if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
             buffer, check_min_size=nbytes, cuda_support=self._cuda_support
@@ -581,14 +531,11 @@ class Endpoint:
             type(buffer),
         )
         logger.debug(log)
-        self.pending_msg_list.append({"log": log})
         self._recv_count += 1
         tag = self._msg_tag_recv
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await ucx_api.tag_recv(
-            self._ctx.worker, buffer, nbytes, tag, pending_msg=self.pending_msg_list[-1]
-        )
+        ret = await ucx_api.tag_recv(self._ep, buffer, nbytes, tag, log_msg=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None

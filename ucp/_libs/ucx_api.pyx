@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import socket
 import logging
+import weakref
 from libc.stdio cimport FILE, fflush, fclose
 from libc.stdlib cimport free
 from libc.string cimport memset
@@ -102,21 +103,79 @@ def get_ucx_version():
     return (a, b, c)
 
 
-cdef class UCXContext:
-    """Python representation of `ucp_context_h`"""
+def _handle_finalizer_wrapper(
+    children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs
+):
+    for weakref_to_child in children:
+        child = weakref_to_child()
+        if child is not None:
+            child.close()
+    handle_finalizer(handle_as_int, *extra_args, **extra_kargs)
+
+
+cdef class UCXObject:
+    """Base class for UCX classes
+
+    This base class streamlines the cleanup of UCX objects and reduces duplicate code.
+    """
     cdef:
         object __weakref__
+        object _finalizer
+        list _children
+
+    def __cinit__(self):
+        # The finalizer that can be called multiple times but only
+        # evoke the finalizer funciont once.
+        # Is None when the underlying UCX handle hasen't been initialized.
+        self._finalizer = None
+        # List of weak references of UCX objects that make use of this object
+        self._children = []
+
+    def close(self):
+        """Close the object and free the underlying UCX handle.
+        Does nothing if the object is already closed
+        """
+        if self.initialized:
+            self._finalizer()
+
+    @property
+    def initialized(self):
+        """Is the underlying UCX handle initialized"""
+        return self._finalizer and self._finalizer.alive
+
+    def add_child(self, child):
+        """Add a UCX object to this object's children. The underlying UCX
+        handle will be freed when this obejct is freed.
+        """
+        self._children.append(weakref.ref(child))
+
+    def add_handle_finalizer(self, handle_finalizer, handle_as_int, *extra_args):
+        """Add a finalizer of `handle_as_int`"""
+        self._finalizer = weakref.finalize(
+            self,
+            _handle_finalizer_wrapper,
+            self._children,
+            handle_finalizer,
+            handle_as_int,
+            *extra_args
+        )
+
+
+def _ucx_context_handle_finalizer(handle_as_int):
+    cdef ucp_context_h handle = <ucp_context_h><uintptr_t> handle_as_int
+    ucp_cleanup(handle)
+
+
+cdef class UCXContext(UCXObject):
+    """Python representation of `ucp_context_h`"""
+    cdef:
         ucp_context_h _handle
         dict _config
 
-    cdef readonly:
-        bint initialized
-
-    def __cinit__(self, config_dict):
+    def __init__(self, config_dict):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.initialized = False
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -137,7 +196,11 @@ cdef class UCXContext:
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self._handle)
         assert_ucs_status(status)
-        self.initialized = True
+
+        self.add_handle_finalizer(
+            _ucx_context_handle_finalizer,
+            int(<uintptr_t>self._handle)
+        )
 
         self._config = ucx_config_to_dict(config)
         ucp_config_release(config)
@@ -146,42 +209,45 @@ cdef class UCXContext:
         for k, v in self._config.items():
             logger.info("  %s: %s" % (k, v))
 
-    def close(self):
-        if self.initialized:
-            self.initialized = False
-            ucp_cleanup(self._handle)
-
     def get_config(self):
         return self._config
 
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
 
-cdef class UCXWorker:
+def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+    assert ctx.initialized
+    cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
+    ucp_worker_destroy(handle)
+
+
+cdef class UCXWorker(UCXObject):
     """Python representation of `ucp_worker_h`"""
     cdef:
-        object __weakref__
         ucp_worker_h _handle
         UCXContext _context
 
-    cdef readonly:
-        bint initialized
-
-    def __cinit__(self, UCXContext context):
+    def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
-        self.initialized = False
+        assert context.initialized
         self._context = context
         memset(&worker_params, 0, sizeof(worker_params))
         worker_params.field_mask = UCP_WORKER_PARAM_FIELD_THREAD_MODE
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
-        self.initialized = True
+
+        self.add_handle_finalizer(
+            _ucx_worker_handle_finalizer,
+            int(<uintptr_t>self._handle),
+            self._context
+        )
+        context.add_child(self)
 
     def init_blocking_progress_mode(self):
         assert self.initialized
@@ -207,11 +273,6 @@ cdef class UCXWorker:
             raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
 
-    def close(self):
-        if self.initialized:
-            self.initialized = False
-            ucp_worker_destroy(self._handle)
-
     def arm(self):
         assert self.initialized
         cdef ucs_status_t status
@@ -230,7 +291,7 @@ cdef class UCXWorker:
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
+        return int(<uintptr_t>self._handle)
 
     def request_cancel(self, ucp_request_as_int):
         assert self.initialized
@@ -251,42 +312,53 @@ cdef class UCXWorker:
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
         assert_ucs_status(status)
-        return ucx_ep_create(ucp_ep, self)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
 
-cdef class UCXEndpoint:
-    """Python representation of `ucp_ep_h`
-    Please use `ucx_ep_create()` to contruct an instance of this class
-    """
+def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
+    assert worker.initialized
+    cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
+    cdef ucs_status_ptr_t status
+
+    # Cancel all inflight messages
+    for msg in list(inflight_msgs.values()):
+        logger.debug("Future cancelling: %s" % msg["log_msg"])
+        # Notice, `request_cancel()` evoke the send/recv callback functions
+        worker.request_cancel(msg["ucp_request"])
+
+    # Close the endpoint
+    # TODO: Support UCP_EP_CLOSE_MODE_FORCE
+    status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
+    if UCS_PTR_IS_PTR(status):
+        ucp_request_free(status)
+    elif UCS_PTR_STATUS(status) != UCS_OK:
+        msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        raise UCXError("Error while closing endpoint: %s" % msg)
+
+
+cdef class UCXEndpoint(UCXObject):
+    """Python representation of `ucp_ep_h`"""
     cdef:
-        object __weakref__
         ucp_ep_h _handle
+        dict _inflight_msgs
 
     cdef readonly:
-        bint initialized
-
-    cdef public:
         UCXWorker worker
 
-    def __cinit__(self, worker):
-        self._handle = NULL
-        self.worker = worker
-        self.initialized = False
+    def __init__(self, UCXWorker worker, uintptr_t handle):
+        """The Constructor"""
 
-    def close(self):
-        cdef ucs_status_ptr_t status
-        if self.initialized:
-            status = ucp_ep_close_nb(self._handle, UCP_EP_CLOSE_MODE_FLUSH)
-            self.initialized = False
-            worker = self.worker
-            self.worker = None
-            if UCS_PTR_STATUS(status) != UCS_OK:
-                assert not UCS_PTR_IS_ERR(status)
-                # We spinlock here until `status` has finished
-                while ucp_request_check_status(status) != UCS_INPROGRESS:
-                    worker.progress()
-                assert not UCS_PTR_IS_ERR(status)
-                ucp_request_free(status)
+        assert worker.initialized
+        self.worker = worker
+        self._handle = <ucp_ep_h>handle
+        self._inflight_msgs = dict()
+        self.add_handle_finalizer(
+            _ucx_endpoint_finalizer,
+            int(handle),
+            worker,
+            self._inflight_msgs
+        )
+        worker.add_child(self)
 
     def info(self):
         assert self.initialized
@@ -310,21 +382,7 @@ cdef class UCXEndpoint:
     @property
     def handle(self):
         assert self.initialized
-        return int(<uintptr_t><void*>self._handle)
-
-
-cdef UCXEndpoint ucx_ep_create(ucp_ep_h ep, UCXWorker worker):
-    ret = UCXEndpoint(worker)
-    ret._handle = ep
-    ret.initialized = True
-    return ret
-
-
-def ucx_ep_create_from_uintptr(ep, worker):
-    ret = UCXEndpoint(worker)
-    ret._handle = <ucp_ep_h><uintptr_t>ep
-    ret.initialized = True
-    return ret
+        return int(<uintptr_t>self._handle)
 
 
 cdef void _listener_callback(ucp_ep_h ep, void *args):
@@ -334,7 +392,7 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                ucx_ep_create_from_uintptr(int(<uintptr_t><void*>ep), ctx.worker),
+                UCXEndpoint(ctx.worker, <uintptr_t>ep),
                 ctx,
                 cb_data['cb_func'],
                 cb_data['guarantee_msg_order']
@@ -342,18 +400,21 @@ cdef void _listener_callback(ucp_ep_h ep, void *args):
         )
 
 
-cdef class UCXListener:
+def _ucx_listener_handle_finalizer(uintptr_t handle_as_int):
+    cdef ucp_listener_h handle = <ucp_listener_h>handle_as_int
+    ucp_listener_destroy(handle)
+
+
+cdef class UCXListener(UCXObject):
     """Python representation of `ucp_listener_h`"""
     cdef:
-        object __weakref__
-        ucp_listener_h _ucp_listener
-        object _ctx
+        ucp_listener_h _handle
+        dict cb_data
 
     cdef public:
         int port
-        dict cb_data
 
-    def __init__(self, port, ctx, cb_data):
+    def __init__(self, UCXWorker worker, port, cb_data):
         cdef ucp_listener_params_t params
         cdef ucp_listener_accept_callback_t _listener_cb = (
             <ucp_listener_accept_callback_t>_listener_callback
@@ -367,34 +428,31 @@ cdef class UCXListener:
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucs_status_t status = ucp_listener_create(
-            <ucp_worker_h><uintptr_t>ctx.worker.handle, &params, &self._ucp_listener
+            worker._handle, &params, &self._handle
         )
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
-        Py_INCREF(self.cb_data)
-        self._ctx = ctx
 
-    def abort(self):
-        if self._ctx is not None:
-            ucp_listener_destroy(self._ucp_listener)
-            Py_DECREF(self.cb_data)
-            self._ctx = None
-            self.cb_data = None
+        self.add_handle_finalizer(
+            _ucx_listener_handle_finalizer,
+            int(<uintptr_t>self._handle)
+        )
+        worker.add_child(self)
+
+    @property
+    def handle(self):
+        assert self.initialized
+        return int(<uintptr_t>self._handle)
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     int64_t expected_receive,
-                                    pending_msg):
+                                    log_msg, inflight_msgs):
     """Help function to handle the output of ucx send/recv"""
-
-    if pending_msg is not None:
-        log_str = pending_msg.get('log', None)
-    else:
-        log_str = None
 
     event_loop = asyncio.get_event_loop()
     ret = event_loop.create_future()
-    msg = "Comm Error%s " %(" \"%s\":" % log_str if log_str else ":")
+    msg = "Comm Error%s " %(" \"%s\":" % log_msg if log_msg else ":")
     if UCS_PTR_STATUS(status) == UCS_OK:
         ret.set_result(True)
     elif UCS_PTR_IS_ERR(status):
@@ -413,6 +471,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             ucp_request_reset(req)
             ucp_request_free(req)
         else:
+            req_as_int = int(<uintptr_t>req)
             # The callback function has not been called yet.
             # We fill `ucp_request` for the callback function to use
             Py_INCREF(ret)
@@ -420,12 +479,17 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             Py_INCREF(event_loop)
             req.event_loop = <PyObject*> event_loop
             req.expected_receive = expected_receive
-            if pending_msg is not None:
-                pending_msg['future'] = ret
-                pending_msg['ucp_request'] = int(<uintptr_t><void*>req)
-                pending_msg['expected_receive'] = expected_receive
-            Py_INCREF(log_str)
-            req.log_str = <PyObject*> log_str
+            Py_INCREF(log_msg)
+            req.log_msg = <PyObject*> log_msg
+
+            assert req_as_int not in inflight_msgs
+            inflight_msgs[req_as_int] = {
+                'ucp_request': req_as_int,
+                'log_msg': log_msg,
+            }
+            Py_INCREF(inflight_msgs)
+            req.inflight_msgs = <PyObject*> inflight_msgs
+
     return ret
 
 
@@ -437,20 +501,23 @@ cdef void _send_callback(void *request, ucs_status_t status):
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
+    cdef object inflight_msgs = <object> req.inflight_msgs
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
+        del inflight_msgs[int(<uintptr_t>req)]
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
         elif status != UCS_OK:
-            msg = "Error sending%s " %(" \"%s\":" % log_str if log_str else ":")
+            msg = "Error sending%s " %(" \"%s\":" % log_msg if log_msg else ":")
             msg += ucs_status_string(status).decode("utf-8")
             future.set_exception(UCXError(msg))
         else:
@@ -458,7 +525,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 
 def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
-             ucp_tag_t tag, pending_msg=None):
+             ucp_tag_t tag, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -471,7 +538,7 @@ def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
         tag,
         _send_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
@@ -484,17 +551,20 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
+    cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     cdef size_t length = info.length
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
-        msg = "Error receiving%s " %(" \"%s\":" % log_str if log_str else ":")
+        del inflight_msgs[int(<uintptr_t>req)]
+        msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -511,8 +581,8 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
             future.set_result(True)
 
 
-def tag_recv(UCXWorker worker, buffer, size_t nbytes,
-             ucp_tag_t tag, pending_msg=None):
+def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
+             ucp_tag_t tag, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -520,7 +590,7 @@ def tag_recv(UCXWorker worker, buffer, size_t nbytes,
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(
-        worker._handle,
+        ep.worker._handle,
         data,
         nbytes,
         ucp_dt_make_contig(1),
@@ -528,10 +598,10 @@ def tag_recv(UCXWorker worker, buffer, size_t nbytes,
         -1,
         _tag_recv_cb
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
-def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
+def stream_send(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -544,7 +614,7 @@ def stream_send(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         _send_cb,
         0
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
 
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
@@ -557,16 +627,19 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         return
     cdef object future = <object> req.future
     cdef object event_loop = <object> req.event_loop
-    cdef object log_str = <object> req.log_str
+    cdef object log_msg = <object> req.log_msg
+    cdef object inflight_msgs = <object> req.inflight_msgs
     cdef size_t expected_receive = req.expected_receive
     Py_DECREF(future)
     Py_DECREF(event_loop)
-    Py_DECREF(log_str)
+    Py_DECREF(log_msg)
+    Py_DECREF(inflight_msgs)
     ucp_request_reset(request)
     ucp_request_free(request)
 
     with log_errors():
-        msg = "Error receiving %s" %(" \"%s\":" % log_str if log_str else ":")
+        del inflight_msgs[int(<uintptr_t>req)]
+        msg = "Error receiving %s" %(" \"%s\":" % log_msg if log_msg else ":")
         if event_loop.is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -582,7 +655,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
             future.set_result(True)
 
 
-def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
+def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
 
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -598,6 +671,6 @@ def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, pending_msg=None):
         ucp_dt_make_contig(1),
         _stream_recv_cb,
         &length,
-        0
+        UCP_STREAM_RECV_FLAG_WAITALL,
     )
-    return create_future_from_comm_status(status, nbytes, pending_msg)
+    return create_future_from_comm_status(status, nbytes, log_msg, ep._inflight_msgs)
