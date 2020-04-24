@@ -9,7 +9,7 @@ import os
 from distutils.sysconfig import get_config_var, get_python_inc
 
 import versioneer
-from setuptools import setup
+from setuptools import find_packages, setup
 from setuptools.extension import Extension
 
 try:
@@ -73,7 +73,7 @@ install_requires = [
 
 setup(
     name="ucx-py",
-    packages=["ucp"],
+    packages=find_packages(exclude=["tests*"]),
     ext_modules=ext_modules,
     cmdclass=cmdclass,
     version=versioneer.get_version(),
