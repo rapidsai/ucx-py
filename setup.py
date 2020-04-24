@@ -18,6 +18,9 @@ except ImportError:
     from setuptools.command.build_ext import build_ext
 
 
+with open("README.md", "r") as fh:
+    readme = fh.read()
+
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
@@ -72,7 +75,7 @@ setup(
     python_requires=">=3.6",
     install_requires=["numpy", "psutil"],
     description="Python Bindings for the Unified Communication X library (UCX)",
-    long_description=open("README.md").read(),
+    long_description=readme,
     author="NVIDIA Corporation",
     license="BSD-3-Clause",
     classifiers=[
