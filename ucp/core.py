@@ -35,7 +35,9 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener):
+async def exchange_peer_info(
+    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
+):
     """Help function that exchange endpoint information"""
 
     msg_tag = int(msg_tag)
@@ -128,7 +130,7 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
-	listener=True,
+        listener=True,
     )
     ep = Endpoint(
         endpoint=endpoint,
@@ -292,7 +294,7 @@ class ApplicationContext:
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
-	    listener=False,
+            listener=False,
         )
         ep = Endpoint(
             endpoint=ucx_ep,
