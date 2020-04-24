@@ -83,6 +83,7 @@ setup(
     long_description=readme,
     author="NVIDIA Corporation",
     license="BSD-3-Clause",
+    zip_safe=False,
     classifiers=[
         "Intended Audience :: Developers",
         "Intended Audience :: System Administrators",
