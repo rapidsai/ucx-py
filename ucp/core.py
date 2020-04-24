@@ -35,7 +35,7 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
+async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener):
     """Help function that exchange endpoint information"""
 
     msg_tag = int(msg_tag)
@@ -44,10 +44,13 @@ async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
     my_info = struct.pack("QQ?", msg_tag, ctrl_tag, guarantee_msg_order)
     peer_info = bytearray(len(my_info))
 
-    await asyncio.gather(
-        ucx_api.stream_recv(endpoint, peer_info, len(peer_info)),
-        ucx_api.stream_send(endpoint, my_info, len(my_info)),
-    )
+    if listener is True:
+        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+    else:
+        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+
     peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack(
         "QQ?", peer_info
     )
@@ -125,6 +128,7 @@ async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
+	listener=True,
     )
     ep = Endpoint(
         endpoint=endpoint,
@@ -288,6 +292,7 @@ class ApplicationContext:
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
+	    listener=False,
         )
         ep = Endpoint(
             endpoint=ucx_ep,
