@@ -30,6 +30,9 @@ if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
 if not os.environ.get("UCX_RNDV_THRESH", False):
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
+if not os.environ.get("UCX_RNDV_SCHEME", False):
+    os.environ["UCX_RNDV_SCHEME"] = "put_zcopy"
+
 if not os.environ.get("UCX_TCP_TX_SEG_SIZE", False):
     os.environ["UCX_TCP_TX_SEG_SIZE"] = "8M"
 
