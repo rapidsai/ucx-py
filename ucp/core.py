@@ -10,6 +10,8 @@ import weakref
 from functools import partial
 from os import close as close_fd
 from random import randint
+import uuid
+import hashlib
 
 import psutil
 
@@ -32,6 +34,11 @@ def _get_ctx():
     if _ctx is None:
         _ctx = ApplicationContext()
     return _ctx
+
+
+def hash64bits(*args):
+    h = hashlib.sha1(bytes(repr(args), "utf-8"))
+    return abs(int(h.hexdigest(), 16) % (2 ** 63))
 
 
 class ConnInfoMsg:
@@ -309,10 +316,10 @@ class ApplicationContext:
 
         # Create the tags based on ip_address and port, which is unique
         # for each endpoint pair.
-        msg_tag = abs(hash("msg_tag%s%d" % (ip_address, port)))
-        ctrl_tag = abs(hash("ctrl_tag%s%d" % (ip_address, port)))
-        msg_tag_peer = abs(hash("msg_tag_peer%s%d" % (ip_address, port)))
-        ctrl_tag_peer = abs(hash("ctrl_tag_peer%s%d" % (ip_address, port)))
+        msg_tag = hash64bits("msg_tag", ip_address, port, uuid.uuid4())
+        ctrl_tag = hash64bits("ctrl_tag", ip_address, port, uuid.uuid4())
+        msg_tag_peer = hash64bits("msg_tag_peer", ip_address, port, uuid.uuid4())
+        ctrl_tag_peer = hash64bits("ctrl_tag_peer", ip_address, port, uuid.uuid4())
 
         await ConnInfoMsg.send(
             ucx_ep,
