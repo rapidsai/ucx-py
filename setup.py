@@ -66,6 +66,11 @@ cmdclass = dict()
 cmdclass.update(versioneer.get_cmdclass())
 cmdclass["build_ext"] = build_ext
 
+install_requires = [
+    "numpy",
+    "psutil",
+]
+
 setup(
     name="ucx-py",
     packages=["ucp"],
@@ -73,7 +78,7 @@ setup(
     cmdclass=cmdclass,
     version=versioneer.get_version(),
     python_requires=">=3.6",
-    install_requires=["numpy", "psutil"],
+    install_requires=install_requires,
     description="Python Bindings for the Unified Communication X library (UCX)",
     long_description=readme,
     author="NVIDIA Corporation",
