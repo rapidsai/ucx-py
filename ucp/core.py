@@ -478,7 +478,11 @@ class Endpoint:
                 )
         finally:
             # Give all current outstanding send() calls a chance to return
-            self._ctx.worker.progress()
+            worker = getattr(self._ctx, 'worker', None)
+            if worker is None or not worker.initialized:
+                logger.info("UCX Worker is None -- mostly it has already been remove: " + str(self))
+            else:
+                self._ctx.worker.progress()
             await asyncio.sleep(0)
             self.abort()
 
