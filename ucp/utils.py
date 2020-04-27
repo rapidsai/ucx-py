@@ -1,5 +1,6 @@
 import asyncio
 import fcntl
+import hashlib
 import logging
 import multiprocessing as mp
 import os
@@ -236,3 +237,11 @@ except ImportError:
     @contextmanager
     def nvtx_annotate(message=None, color=None, domain=None):
         yield
+
+
+def hash64bits(*args):
+    """64 bit unsigned hash of `args`"""
+    # 64 bits hexdigest
+    h = hashlib.sha1(bytes(repr(args), "utf-8")).hexdigest()[:16]
+    # Convert to an integer and return
+    return int(h, 16)
