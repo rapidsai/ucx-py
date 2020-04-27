@@ -35,16 +35,24 @@ def _get_ctx():
 
 
 async def exchange_peer_info(
-    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
+    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, port, listener
 ):
     """Help function that exchange endpoint information"""
 
-    msg_tag = int(msg_tag)
-    ctrl_tag = int(ctrl_tag)
-    guarantee_msg_order = bool(guarantee_msg_order)
-    my_info = struct.pack("QQ?", msg_tag, ctrl_tag, guarantee_msg_order)
+    # Pack peer information incl. a checksum
+    fmt = "QQ?QQ"
+    my_info = struct.pack(
+        fmt,
+        msg_tag,
+        ctrl_tag,
+        guarantee_msg_order,
+        port,
+        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
+    )
     peer_info = bytearray(len(my_info))
 
+    # Send/recv peer information. Notice, we force an `await` between the two
+    # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
     if listener is True:
         await ucx_api.stream_send(endpoint, my_info, len(my_info))
         await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
@@ -52,18 +60,32 @@ async def exchange_peer_info(
         await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
         await ucx_api.stream_send(endpoint, my_info, len(my_info))
 
-    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack(
-        "QQ?", peer_info
+    # Unpacking and sanity check of the peer information
+    ret = {}
+    (
+        ret["msg_tag"],
+        ret["ctrl_tag"],
+        ret["guarantee_msg_order"],
+        ret["port"],
+        ret["checksum"],
+    ) = struct.unpack(fmt, peer_info)
+
+    expected_checksum = hash64bits(
+        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"], ret["port"]
     )
 
-    if peer_guarantee_msg_order != guarantee_msg_order:
+    if expected_checksum != ret["checksum"]:
+        raise RuntimeError(
+            f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
+        )
+
+    if port != ret["port"]:
+        raise RuntimeError(f'Port mismatch! {port} != {ret["port"]}')
+
+    if ret["guarantee_msg_order"] != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
 
-    return {
-        "msg_tag": peer_msg_tag,
-        "ctrl_tag": peer_ctrl_tag,
-        "guarantee_msg_order": peer_guarantee_msg_order,
-    }
+    return ret
 
 
 class CtrlMsg:
@@ -131,6 +153,7 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
         listener=True,
+        port=port,
     )
     ep = Endpoint(
         endpoint=endpoint,
@@ -297,6 +320,7 @@ class ApplicationContext:
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
             listener=False,
+            port=port,
         )
         ep = Endpoint(
             endpoint=ucx_ep,

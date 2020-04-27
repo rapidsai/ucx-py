@@ -9,6 +9,7 @@ from libc.stdint cimport uintptr_t
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from ..exceptions import UCXError, UCXCloseError
 
+
 def get_buffer_data(buffer, check_writable=False):
     """
     Returns data pointer of the buffer. Raising ValueError if the buffer
