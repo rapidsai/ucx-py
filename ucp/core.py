@@ -6,7 +6,6 @@ import gc
 import logging
 import os
 import struct
-import uuid
 import weakref
 from functools import partial
 from os import close as close_fd
@@ -18,7 +17,7 @@ from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
-from .utils import nvtx_annotate
+from .utils import hash64bits, nvtx_annotate
 
 logger = logging.getLogger("ucx")
 
@@ -123,8 +122,9 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
     #  3) Use the info to create the an endpoint
-    msg_tag = hash(uuid.uuid4())
-    ctrl_tag = hash(uuid.uuid4())
+    seed = os.urandom(16)
+    msg_tag = hash64bits("msg_tag", seed, port)
+    ctrl_tag = hash64bits("ctrl_tag", seed, port)
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
@@ -288,8 +288,9 @@ class ApplicationContext:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create an endpoint
-        msg_tag = hash(uuid.uuid4())
-        ctrl_tag = hash(uuid.uuid4())
+        seed = os.urandom(16)
+        msg_tag = hash64bits("msg_tag", seed, port)
+        ctrl_tag = hash64bits("ctrl_tag", seed, port)
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
