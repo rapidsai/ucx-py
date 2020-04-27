@@ -477,17 +477,11 @@ class Endpoint:
                     % (hex(self.uid), repr(e))
                 )
         finally:
-            # Give all current outstanding send() calls a chance to return
-            worker = getattr(self._ctx, "worker", None)
-            if worker is None or not worker.initialized:
-                logger.info(
-                    "UCX Worker is None -- mostly it has already been removed: "
-                    + str(self)
-                )
-            else:
+            if not self.closed():
+                # Give all current outstanding send() calls a chance to return
                 self._ctx.worker.progress()
-            await asyncio.sleep(0)
-            self.abort()
+                await asyncio.sleep(0)
+                self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, nbytes=None):
