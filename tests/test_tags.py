@@ -18,7 +18,12 @@ async def test_tag_match():
     lf = ucp.create_listener(server_node)
     ep = await ucp.create_endpoint(ucp.get_address(), lf.port)
     m1, m2 = (bytearray(len(msg1)), bytearray(len(msg2)))
-    f2 = asyncio.create_task(ep.recv(m2, tag="msg2"))
+    # May be dropped in favor of `asyncio.create_task` only
+    # once Python 3.6 is dropped.
+    if hasattr(asyncio, "create_future"):
+        f2 = asyncio.create_task(ep.recv(m2, tag="msg2"))
+    else:
+        f2 = asyncio.ensure_future(ep.recv(m2, tag="msg2"))
 
     # At this point f2 shouldn't be able to finish because its
     # tag "msg2" doesn't match the servers send tag "msg1"
