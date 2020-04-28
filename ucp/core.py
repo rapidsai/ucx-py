@@ -510,7 +510,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, nbytes=None):
+    async def send(self, buffer, nbytes=None, tag=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -520,6 +520,8 @@ class Endpoint:
             than nbytes.
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
+        tag: hashable, optional
+            Set a tag that the receiver must match.
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
@@ -535,13 +537,16 @@ class Endpoint:
         )
         logger.debug(log)
         self._send_count += 1
-        tag = self._msg_tag_send
+        if tag is None:
+            tag = self._msg_tag_send
+        else:
+            tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
         return await ucx_api.tag_send(self._ep, buffer, nbytes, tag, log_msg=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, nbytes=None):
+    async def recv(self, buffer, nbytes=None, tag=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -551,6 +556,10 @@ class Endpoint:
             is smaller than nbytes or read-only.
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
+        tag: hashable, optional
+            Set a tag that must match the received message. Notice, currently
+            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
+            send that also sets `tag=None`.
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
@@ -566,7 +575,10 @@ class Endpoint:
         )
         logger.debug(log)
         self._recv_count += 1
-        tag = self._msg_tag_recv
+        if tag is None:
+            tag = self._msg_tag_recv
+        else:
+            tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await ucx_api.tag_recv(self._ep, buffer, nbytes, tag, log_msg=log)
