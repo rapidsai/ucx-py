@@ -8,7 +8,7 @@ import numpy as np
 import rmm
 import ucp
 
-ITERATIONS = 3
+ITERATIONS = 100
 
 
 def cuda_array(size):
