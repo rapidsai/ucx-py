@@ -77,7 +77,7 @@ conda list
 logger "Build ucx"
 git clone https://github.com/openucx/ucx
 cd ucx
-git checkout v1.7.x
+git checkout v1.8.x
 ls
 ./autogen.sh
 mkdir build
@@ -136,6 +136,7 @@ else
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
         py.test --cache-clear -m "slow" -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
     fi
 

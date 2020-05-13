@@ -6,7 +6,6 @@ import gc
 import logging
 import os
 import struct
-import uuid
 import weakref
 from functools import partial
 from os import close as close_fd
@@ -18,7 +17,7 @@ from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
-from .utils import nvtx_annotate
+from .utils import hash64bits, nvtx_annotate
 
 logger = logging.getLogger("ucx")
 
@@ -35,31 +34,58 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, guarantee_msg_order):
+async def exchange_peer_info(
+    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, port, listener
+):
     """Help function that exchange endpoint information"""
 
-    msg_tag = int(msg_tag)
-    ctrl_tag = int(ctrl_tag)
-    guarantee_msg_order = bool(guarantee_msg_order)
-    my_info = struct.pack("QQ?", msg_tag, ctrl_tag, guarantee_msg_order)
+    # Pack peer information incl. a checksum
+    fmt = "QQ?QQ"
+    my_info = struct.pack(
+        fmt,
+        msg_tag,
+        ctrl_tag,
+        guarantee_msg_order,
+        port,
+        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
+    )
     peer_info = bytearray(len(my_info))
 
-    await asyncio.gather(
-        ucx_api.stream_recv(endpoint, peer_info, len(peer_info)),
-        ucx_api.stream_send(endpoint, my_info, len(my_info)),
-    )
-    peer_msg_tag, peer_ctrl_tag, peer_guarantee_msg_order = struct.unpack(
-        "QQ?", peer_info
+    # Send/recv peer information. Notice, we force an `await` between the two
+    # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
+    if listener is True:
+        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+    else:
+        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+
+    # Unpacking and sanity check of the peer information
+    ret = {}
+    (
+        ret["msg_tag"],
+        ret["ctrl_tag"],
+        ret["guarantee_msg_order"],
+        ret["port"],
+        ret["checksum"],
+    ) = struct.unpack(fmt, peer_info)
+
+    expected_checksum = hash64bits(
+        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"], ret["port"]
     )
 
-    if peer_guarantee_msg_order != guarantee_msg_order:
+    if expected_checksum != ret["checksum"]:
+        raise RuntimeError(
+            f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
+        )
+
+    if port != ret["port"]:
+        raise RuntimeError(f'Port mismatch! {port} != {ret["port"]}')
+
+    if ret["guarantee_msg_order"] != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
 
-    return {
-        "msg_tag": peer_msg_tag,
-        "ctrl_tag": peer_ctrl_tag,
-        "guarantee_msg_order": peer_guarantee_msg_order,
-    }
+    return ret
 
 
 class CtrlMsg:
@@ -113,18 +139,21 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, guarantee_msg_order):
+async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
     #  3) Use the info to create the an endpoint
-    msg_tag = hash(uuid.uuid4())
-    ctrl_tag = hash(uuid.uuid4())
+    seed = os.urandom(16)
+    msg_tag = hash64bits("msg_tag", seed, port)
+    ctrl_tag = hash64bits("ctrl_tag", seed, port)
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
+        listener=True,
+        port=port,
     )
     ep = Endpoint(
         endpoint=endpoint,
@@ -249,6 +278,7 @@ class ApplicationContext:
                 {
                     "cb_func": callback_func,
                     "cb_coroutine": _listener_handler,
+                    "port": port,
                     "ctx": self,
                     "guarantee_msg_order": guarantee_msg_order,
                 },
@@ -281,13 +311,16 @@ class ApplicationContext:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create an endpoint
-        msg_tag = hash(uuid.uuid4())
-        ctrl_tag = hash(uuid.uuid4())
+        seed = os.urandom(16)
+        msg_tag = hash64bits("msg_tag", seed, port)
+        ctrl_tag = hash64bits("ctrl_tag", seed, port)
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
+            listener=False,
+            port=port,
         )
         ep = Endpoint(
             endpoint=ucx_ep,
@@ -470,13 +503,14 @@ class Endpoint:
                     % (hex(self.uid), repr(e))
                 )
         finally:
-            # Give all current outstanding send() calls a chance to return
-            self._ctx.worker.progress()
-            await asyncio.sleep(0)
-            self.abort()
+            if not self.closed():
+                # Give all current outstanding send() calls a chance to return
+                self._ctx.worker.progress()
+                await asyncio.sleep(0)
+                self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, nbytes=None):
+    async def send(self, buffer, nbytes=None, tag=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -486,6 +520,8 @@ class Endpoint:
             than nbytes.
         nbytes: int, optional
             Number of bytes to send. Default is the whole buffer.
+        tag: hashable, optional
+            Set a tag that the receiver must match.
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
@@ -501,13 +537,16 @@ class Endpoint:
         )
         logger.debug(log)
         self._send_count += 1
-        tag = self._msg_tag_send
+        if tag is None:
+            tag = self._msg_tag_send
+        else:
+            tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
         return await ucx_api.tag_send(self._ep, buffer, nbytes, tag, log_msg=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, nbytes=None):
+    async def recv(self, buffer, nbytes=None, tag=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -517,6 +556,10 @@ class Endpoint:
             is smaller than nbytes or read-only.
         nbytes: int, optional
             Number of bytes to receive. Default is the whole buffer.
+        tag: hashable, optional
+            Set a tag that must match the received message. Notice, currently
+            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
+            send that also sets `tag=None`.
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
@@ -532,7 +575,10 @@ class Endpoint:
         )
         logger.debug(log)
         self._recv_count += 1
-        tag = self._msg_tag_recv
+        if tag is None:
+            tag = self._msg_tag_recv
+        else:
+            tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await ucx_api.tag_recv(self._ep, buffer, nbytes, tag, log_msg=log)

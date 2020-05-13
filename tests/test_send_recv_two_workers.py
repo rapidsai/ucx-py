@@ -8,19 +8,18 @@ from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
 import cloudpickle
+import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import get_cuda_visible_devices, more_than_two_gpus
+from utils import get_cuda_devices, get_num_gpus
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
 pynvml = pytest.importorskip("pynvml")
 cupy = pytest.importorskip("cupy")
-cudf = pytest.importorskip("cudf")
 rmm = pytest.importorskip("rmm")
-import cudf.tests.utils
 
 
 ITERATIONS = 30
@@ -36,15 +35,13 @@ async def get_ep(name, port):
     return ep
 
 
-def client(env, port, func):
+def client(port, func):
     # wait for server to come up
     # receive cudf object
     # deserialize
     # assert deserialized msg is cdf
     # send receipt
 
-    ucp.reset()
-    os.environ.update(env)
     ucp.init()
 
     # must create context before importing
@@ -122,12 +119,10 @@ def client(env, port, func):
         cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def server(env, port, func):
+def server(port, func):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
-    ucp.reset()
-    os.environ.update(env)
     ucp.init()
 
     async def f(listener_port):
@@ -215,20 +210,19 @@ def cupy_obj():
 
 
 @pytest.mark.skipif(
-    not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
+    get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
     "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy_obj]
 )
 def test_send_recv_cu(cuda_obj_generator):
     base_env = os.environ
-    env1 = base_env.copy()
-    env2 = base_env.copy()
-    env2['UCX_NET_DEVICES'] = 'mlx5_3:1'
-    cvd = get_cuda_visible_devices()
+    env_client = base_env.copy()
+    # grab first two devices
+    cvd = get_cuda_devices()[:2]
+    cvd = ",".join(map(str, cvd))
     # reverse CVD for other worker
-    env1["CUDA_VISIBLE_DEVICES"] = cvd
-    env2["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
+    env_client["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
 
     port = random.randint(13000, 15500)
     # serialize function and send to the client and server
@@ -239,10 +233,14 @@ def test_send_recv_cu(cuda_obj_generator):
 
     func = cloudpickle.dumps(cuda_obj_generator)
     ctx = multiprocessing.get_context("spawn")
-    server_process = ctx.Process(name="server", target=server, args=[env1, port, func])
-    client_process = ctx.Process(name="client", target=client, args=[env2, port, func])
+    server_process = ctx.Process(name="server", target=server, args=[port, func])
+    client_process = ctx.Process(name="client", target=client, args=[port, func])
 
     server_process.start()
+    # cudf will ping the driver for validity of device
+    # this will influence device on which a cuda context is created.
+    # work around is to update env with new CVD before spawning
+    os.environ.update(env_client)
     client_process.start()
 
     server_process.join()
@@ -253,9 +251,8 @@ def test_send_recv_cu(cuda_obj_generator):
 
 
 def total_nvlink_transfer():
-    pynvml.nvmlShutdown()
     pynvml.nvmlInit()
-    cuda_dev_id = int(get_cuda_visible_devices().split(",")[0])
+    cuda_dev_id = int(get_cuda_devices()[0])
     nlinks = pynvml.NVML_NVLINK_MAX_LINKS
     handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
     rx = 0
