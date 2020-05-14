@@ -17,7 +17,6 @@ from utils import get_cuda_devices, get_num_gpus
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
-pynvml = pytest.importorskip("pynvml")
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
 
