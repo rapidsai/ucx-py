@@ -17,12 +17,11 @@ from utils import get_cuda_devices, get_num_gpus
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
-pynvml = pytest.importorskip("pynvml")
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
 
 
-ITERATIONS = 1
+ITERATIONS = 30
 
 
 def cuda_array(size):
@@ -46,7 +45,6 @@ def client(port, func):
 
     # must create context before importing
     # cudf/cupy/etc
-    before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
         await asyncio.sleep(1)
@@ -102,13 +100,6 @@ def client(port, func):
     rx_cuda_obj + rx_cuda_obj
     num_bytes = nbytes(rx_cuda_obj)
     print(f"TOTAL DATA RECEIVED: {num_bytes}")
-    # nvlink only measures in KBs
-    if num_bytes > 90000:
-        rx, tx = total_nvlink_transfer()
-        msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
-               -- TOTAL DATA: {num_bytes}"
-        print(msg)
-        assert rx > before_rx
 
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
@@ -248,17 +239,3 @@ def test_send_recv_cu(cuda_obj_generator):
 
     assert server_process.exitcode == 0
     assert client_process.exitcode == 0
-
-
-def total_nvlink_transfer():
-    pynvml.nvmlInit()
-    cuda_dev_id = int(get_cuda_devices()[0])
-    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
-    rx = 0
-    tx = 0
-    for i in range(nlinks):
-        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
-        rx += transfer["rx"]
-        tx += transfer["tx"]
-    return rx, tx

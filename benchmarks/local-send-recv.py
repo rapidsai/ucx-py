@@ -150,7 +150,7 @@ def client(queue, port, server_address, args):
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
     if args.object_type == "numpy":
-        print(f"Device(s)    | Single CPU")
+        print("Device(s)    | Single CPU")
     else:
         print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     print(

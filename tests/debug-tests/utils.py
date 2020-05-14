@@ -3,19 +3,16 @@ import argparse
 from distributed.comm.utils import from_frames
 from distributed.utils import nbytes, parse_bytes
 
+import cupy
 import numpy as np
+import rmm
 import ucp
 
-ITERATIONS = 50
+ITERATIONS = 100
 
 
 def cuda_array(size):
-    # import cupy
-    # return cupy.empty(size, dtype=cupy.uint8)
-    # return rmm.device_array(size, dtype=np.uint8)
-    import numba.cuda
-
-    return numba.cuda.device_array((size,), dtype=np.uint8)
+    return rmm.DeviceBuffer(size=size)
 
 
 async def send(ep, frames):
@@ -46,7 +43,6 @@ async def recv(ep):
         raise e(msg)
 
     # Recv frames
-    # breakpoint()
     frames = []
     for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
         if size > 0:
@@ -63,7 +59,15 @@ async def recv(ep):
                 frames.append(b"")
 
     msg = await from_frames(frames)
+    print("size of the message: ", len(msg["data"]))
     return frames, msg
+
+
+def set_rmm():
+    rmm.reinitialize(
+        pool_allocator=True, managed_memory=False, initial_pool_size=parse_bytes("6GB")
+    )
+    cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
 
 def parse_args(args=None):
