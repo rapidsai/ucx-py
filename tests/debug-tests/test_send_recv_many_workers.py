@@ -11,9 +11,9 @@ import cloudpickle
 import numpy as np
 import pytest
 import ucp
-from test_utils import recv, send
+from debug_utils import get_cuda_devices, set_rmm
 from ucp._libs.topological_distance import TopologicalDistance
-from utils import get_cuda_devices, set_rmm
+from utils import recv, send
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
