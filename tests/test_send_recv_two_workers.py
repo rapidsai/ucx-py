@@ -12,7 +12,7 @@ import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import get_cuda_devices, get_num_gpus
+from utils import cuda_array, get_cuda_devices, get_num_gpus
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -22,10 +22,6 @@ rmm = pytest.importorskip("rmm")
 
 
 ITERATIONS = 30
-
-
-def cuda_array(size):
-    return rmm.DeviceBuffer(size=size)
 
 
 async def get_ep(name, port):
