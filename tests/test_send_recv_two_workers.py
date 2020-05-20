@@ -3,7 +3,7 @@ import multiprocessing
 import os
 import random
 
-from distributed.comm.utils import from_frames, to_frames
+from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
@@ -12,7 +12,7 @@ import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import cuda_array, get_cuda_devices, get_num_gpus, recv, send
+from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
