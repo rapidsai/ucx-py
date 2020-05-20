@@ -4,19 +4,16 @@ import os
 import random
 import threading
 
+from distributed.comm.utils import to_frames
+from distributed.protocol import to_serialize
+
 import cloudpickle
-import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-
-from distributed.comm.utils import from_frames, to_frames
-from distributed.protocol import to_serialize
-from distributed.utils import nbytes
-from ucp._libs.topological_distance import TopologicalDistance
-
 from test_utils import recv, send
-from utils import get_cuda_devices, get_num_gpus, set_rmm
+from ucp._libs.topological_distance import TopologicalDistance
+from utils import get_cuda_devices, set_rmm
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
@@ -85,7 +82,7 @@ def client(env, port, func, enable_rmm):
     print("FINISHED")
 
 
-def server(env, port, func, num_workers, proc_conn):
+def server(env, port, func, enable_rmm, num_workers, proc_conn):
     # create frames to send
     # create listener
     # notify parent process of listener status

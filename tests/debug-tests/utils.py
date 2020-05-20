@@ -1,14 +1,10 @@
 import argparse
 import os
 
-from distributed.comm.utils import from_frames
-from distributed.utils import nbytes, parse_bytes
+from distributed.utils import parse_bytes
 
 import cupy
-import numpy as np
-import pynvml
 import rmm
-import ucp
 
 ITERATIONS = 100
 

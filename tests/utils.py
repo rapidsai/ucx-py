@@ -3,12 +3,10 @@ import logging
 import os
 from contextlib import contextmanager
 
-
 from distributed.comm.utils import from_frames
 from distributed.utils import nbytes
 
 import numpy as np
-import pynvml
 import rmm
 import ucp
 
