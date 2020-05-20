@@ -12,7 +12,7 @@ import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import cuda_array, get_cuda_devices, get_num_gpus
+from utils import cuda_array, get_cuda_devices, get_num_gpus, recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -50,38 +50,7 @@ def client(port, func):
 
         cupy.cuda.set_allocator(None)
         for i in range(ITERATIONS):
-            # storing cu objects in msg
-            # we delete to minimize GPU memory usage
-            # del msg
-            try:
-                # Recv meta data
-                nframes = np.empty(1, dtype=np.uint64)
-                await ep.recv(nframes)
-                is_cudas = np.empty(nframes[0], dtype=np.bool)
-                await ep.recv(is_cudas)
-                sizes = np.empty(nframes[0], dtype=np.uint64)
-                await ep.recv(sizes)
-            except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
-                msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
-                raise e(msg)
-            else:
-                # Recv frames
-                frames = []
-                for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
-                    if size > 0:
-                        if is_cuda:
-                            frame = cuda_array(size)
-                        else:
-                            frame = np.empty(size, dtype=np.uint8)
-                        await ep.recv(frame)
-                        frames.append(frame)
-                    else:
-                        if is_cuda:
-                            frames.append(cuda_array(size))
-                        else:
-                            frames.append(b"")
-
-            msg = await from_frames(frames)
+            frames, msg = await recv(ep)
 
         close_msg = b"shutdown listener"
         close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
@@ -127,18 +96,7 @@ def server(port, func):
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
                 # Send meta data
-                await ep.send(np.array([len(frames)], dtype=np.uint64))
-                await ep.send(
-                    np.array(
-                        [hasattr(f, "__cuda_array_interface__") for f in frames],
-                        dtype=np.bool,
-                    )
-                )
-                await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-                # Send frames
-                for frame in frames:
-                    if nbytes(frame) > 0:
-                        await ep.send(frame)
+                await send(ep, frames)
 
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"

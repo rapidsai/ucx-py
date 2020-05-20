@@ -110,5 +110,4 @@ async def recv(ep):
                 frames.append(b"")
 
     msg = await from_frames(frames)
-    print("size of the message: ", len(msg["data"]))
     return frames, msg

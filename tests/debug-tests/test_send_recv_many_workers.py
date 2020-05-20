@@ -62,12 +62,12 @@ def client(env, port, func, enable_rmm):
     # repeat for EP_ITERATIONS
 
     async def read():
-        print(ucp.get_config())
         await asyncio.sleep(1)
         ep = await get_ep("client", port)
 
         for i in range(TRANSFER_ITERATIONS):
             frames, msg = await recv(ep)
+            print("size of the message: ", len(msg["data"]))
 
         print("Shutting Down Client...")
         await ep.close()
