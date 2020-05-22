@@ -73,6 +73,9 @@ class BlockingMode(ProgressTask):
         # Remove the reader on finalization
         weakref.finalize(self, event_loop.remove_reader, epoll_fd)
 
+    def __del__(self):
+        self.rsock.close()
+
     def _fd_reader_callback(self):
         worker = self.weakref_worker()
         if worker is None or not worker.initialized:
