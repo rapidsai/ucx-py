@@ -43,11 +43,13 @@ def get_address(ifname=None):
 
     ifname = ifname.encode()
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return socket.inet_ntoa(
+    ret = socket.inet_ntoa(
         fcntl.ioctl(
             s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
         )[20:24]
     )
+    s.close()
+    return ret
 
 
 def get_closest_net_devices(gpu_dev):
