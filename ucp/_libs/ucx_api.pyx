@@ -518,7 +518,10 @@ cdef class UCXRequest:
         if self.closed():
             return f"<UCXRequest closed>"
         else:
-            return f"<UCXRequest handle={hex(self.handle)} uid={self._uid} info={self.info}>"
+            return (
+                f"<UCXRequest handle={hex(self.handle)} "
+                "uid={self._uid} info={self.info}>"
+            )
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
