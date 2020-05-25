@@ -293,13 +293,13 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
-    def request_cancel(self, ucp_request_as_int):
+    def request_cancel(self, UCXRequest req):
         assert self.initialized
-        cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
+        assert not req.closed()
 
         # Notice, `ucp_request_cancel()` calls the send/recv callback function,
         # which will handle the request cleanup.
-        ucp_request_cancel(self._handle, req)
+        ucp_request_cancel(self._handle, req._handle)
 
     def ep_create(self, str ip_address, port):
         assert self.initialized
@@ -321,10 +321,10 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     cdef ucs_status_ptr_t status
 
     # Cancel all inflight messages
-    for msg in list(inflight_msgs.values()):
-        logger.debug("Future cancelling: %s" % msg["log_msg"])
+    for req in list(inflight_msgs):
+        logger.debug("Future cancelling: %s" % req.info["log_msg"])
         # Notice, `request_cancel()` evoke the send/recv callback functions
-        worker.request_cancel(msg["ucp_request"])
+        worker.request_cancel(req)
 
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
@@ -340,7 +340,7 @@ cdef class UCXEndpoint(UCXObject):
     """Python representation of `ucp_ep_h`"""
     cdef:
         ucp_ep_h _handle
-        dict _inflight_msgs
+        set _inflight_msgs
 
     cdef readonly:
         UCXWorker worker
@@ -351,7 +351,7 @@ cdef class UCXEndpoint(UCXObject):
         assert worker.initialized
         self.worker = worker
         self._handle = <ucp_ep_h>handle
-        self._inflight_msgs = dict()
+        self._inflight_msgs = set()
         self.add_handle_finalizer(
             _ucx_endpoint_finalizer,
             int(handle),
@@ -504,11 +504,21 @@ cdef class UCXRequest:
         assert not self.closed()
         return int(<uintptr_t>self._handle)
 
-    def __str__(self):
+    def __hash__(self):
+        if self.closed():
+            assert False
+            return id(self)
+        else:
+            return self._uid
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __repr__(self):
         if self.closed():
             return f"<UCXRequest closed>"
         else:
-            return f"<UCXRequest handle={hex(self.handle)} info={self.info}>"
+            return f"<UCXRequest handle={hex(self.handle)} uid={self._uid} info={self.info}>"
 
 
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
@@ -545,11 +555,8 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.info["expected_receive"] = expected_receive
             req.info["log_msg"] = log_msg
 
-            assert req.handle not in inflight_msgs
-            inflight_msgs[req.handle] = {
-                'ucp_request': req.handle,
-                'log_msg': log_msg,
-            }
+            assert req not in inflight_msgs
+            inflight_msgs.add(req)
             req.info["inflight_msgs"] = inflight_msgs
     return ret
 
@@ -565,7 +572,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
         future = req.info["future"]
         log_msg = req.info["log_msg"]
-        del req.info["inflight_msgs"][req.handle]
+        req.info["inflight_msgs"].remove(req)
         if req.info["event_loop"].is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
@@ -610,7 +617,7 @@ cdef void _tag_recv_callback(void *request, ucs_status_t status,
         future = req.info["future"]
         log_msg = req.info["log_msg"]
         expected_receive = req.info["expected_receive"]
-        del req.info["inflight_msgs"][req.handle]
+        req.info["inflight_msgs"].remove(req)
         msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
         if req.info["event_loop"].is_closed() or future.done():
             pass
@@ -679,7 +686,7 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
         future = req.info["future"]
         log_msg = req.info["log_msg"]
         expected_receive = req.info["expected_receive"]
-        del req.info["inflight_msgs"][req.handle]
+        req.info["inflight_msgs"].remove(req)
         msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
         if req.info["event_loop"].is_closed() or future.done():
             pass
