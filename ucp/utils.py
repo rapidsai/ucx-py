@@ -42,14 +42,12 @@ def get_address(ifname=None):
         ifname = os.environ.get("UCXPY_IFNAME", "ib0")
 
     ifname = ifname.encode()
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    ret = socket.inet_ntoa(
-        fcntl.ioctl(
-            s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
-        )[20:24]
-    )
-    s.close()
-    return ret
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        return socket.inet_ntoa(
+            fcntl.ioctl(
+                s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
+            )[20:24]
+        )
 
 
 def get_closest_net_devices(gpu_dev):
