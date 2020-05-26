@@ -10,7 +10,7 @@
 
 int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
                                    uint16_t port,
-                                   ucp_listener_accept_callback_t callback_func,
+                                   ucp_listener_conn_callback_t callback_func,
                                    void *callback_args);
 
 void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param);

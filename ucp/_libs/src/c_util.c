@@ -14,7 +14,7 @@
 
 int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
                                    uint16_t port,
-                                   ucp_listener_accept_callback_t callback_func,
+                                   ucp_listener_conn_callback_t callback_func,
                                    void *callback_args) {
 
     /* The listener will listen on INADDR_ANY */
@@ -28,11 +28,11 @@ int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
     listen_addr->sin_port        = htons(port);
 
 	param->field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
-                                UCP_LISTENER_PARAM_FIELD_ACCEPT_HANDLER;
+                                UCP_LISTENER_PARAM_FIELD_CONN_HANDLER;
 	param->sockaddr.addr      = (const struct sockaddr *) listen_addr;
 	param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
-	param->accept_handler.cb  = callback_func;
-	param->accept_handler.arg = callback_args;
+	param->conn_handler.cb  = callback_func;
+	param->conn_handler.arg = callback_args;
     return 0;
 }
 
