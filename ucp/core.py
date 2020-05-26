@@ -139,7 +139,7 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
+async def _listener_handler(conn_request, ctx, func, port, guarantee_msg_order):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
@@ -147,6 +147,8 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     seed = os.urandom(16)
     msg_tag = hash64bits("msg_tag", seed, port)
     ctrl_tag = hash64bits("ctrl_tag", seed, port)
+
+    endpoint = ctx.worker.ep_create_from_conn_request(conn_request)
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,

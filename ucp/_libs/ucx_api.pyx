@@ -314,6 +314,19 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def ep_create_from_conn_request(self, uintptr_t conn_request):
+        assert self.initialized
+
+        cdef ucp_ep_params_t params
+        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+        if c_util_get_ucp_ep_conn_params(&params, <ucp_conn_request_h>conn_request, err_cb):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
@@ -385,15 +398,15 @@ cdef class UCXEndpoint(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
-cdef void _listener_callback(ucp_ep_h ep, void *args):
+cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
     """Callback function used by UCXListener"""
     cdef dict cb_data = <dict> args
-    ctx = cb_data['ctx']
+
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                UCXEndpoint(ctx.worker, <uintptr_t>ep),
-                ctx,
+                int(<uintptr_t>conn_request),
+                cb_data['ctx'],
                 cb_data['cb_func'],
                 cb_data['port'],
                 cb_data['guarantee_msg_order']
@@ -417,8 +430,8 @@ cdef class UCXListener(UCXObject):
 
     def __init__(self, UCXWorker worker, port, cb_data):
         cdef ucp_listener_params_t params
-        cdef ucp_listener_accept_callback_t _listener_cb = (
-            <ucp_listener_accept_callback_t>_listener_callback
+        cdef ucp_listener_conn_callback_t _listener_cb = (
+            <ucp_listener_conn_callback_t>_listener_callback
         )
         self.port = port
         self.cb_data = cb_data
