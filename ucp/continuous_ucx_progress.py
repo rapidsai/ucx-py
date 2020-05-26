@@ -70,8 +70,9 @@ class BlockingMode(ProgressTask):
         # Bind an asyncio reader to a UCX epoll file descripter
         event_loop.add_reader(epoll_fd, self._fd_reader_callback)
 
-        # Remove the reader on finalization
+        # Remove the reader and close socket on finalization
         weakref.finalize(self, event_loop.remove_reader, epoll_fd)
+        weakref.finalize(self, self.rsock.close)
 
     def _fd_reader_callback(self):
         worker = self.weakref_worker()
