@@ -23,17 +23,28 @@ cdef extern from "src/c_util.h":
     ctypedef struct ucp_ep_params_t:
         pass
 
-    ctypedef void(*ucp_listener_accept_callback_t)(ucp_ep_h ep, void *arg)
+    ctypedef struct ucp_conn_request:
+        pass
+
+    ctypedef ucp_conn_request* ucp_conn_request_h
+
+    ctypedef struct ucp_err_handler_cb_t:
+        pass
+
+    ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
 
     int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
                                        uint16_t port,
-                                       ucp_listener_accept_callback_t callback_func,  # noqa
+                                       ucp_listener_conn_callback_t callback_func,  # noqa
                                        void *callback_args)
     void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param)
 
     int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
                                  const char *ip_address,
                                  uint16_t port)
+    int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
+                                      ucp_conn_request_h conn_request,
+                                      ucp_err_handler_cb_t err_cb)
     void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
 
 
