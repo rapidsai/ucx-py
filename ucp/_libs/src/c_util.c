@@ -27,12 +27,12 @@ int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
     listen_addr->sin_addr.s_addr = INADDR_ANY;
     listen_addr->sin_port        = htons(port);
 
-	param->field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
+    param->field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
                                 UCP_LISTENER_PARAM_FIELD_CONN_HANDLER;
-	param->sockaddr.addr      = (const struct sockaddr *) listen_addr;
-	param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
-	param->conn_handler.cb  = callback_func;
-	param->conn_handler.arg = callback_args;
+    param->sockaddr.addr      = (const struct sockaddr *) listen_addr;
+    param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
+    param->conn_handler.cb  = callback_func;
+    param->conn_handler.arg = callback_args;
     return 0;
 }
 
@@ -54,16 +54,16 @@ int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
     connect_addr->sin_addr.s_addr = inet_addr(ip_address);
     connect_addr->sin_port        = htons(port);
 
-	param->field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
+    param->field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
                                 UCP_EP_PARAM_FIELD_SOCK_ADDR |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLER;
-	param->err_mode           = UCP_ERR_HANDLING_MODE_NONE;
+    param->err_mode           = UCP_ERR_HANDLING_MODE_NONE;
     param->flags              = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
     param->err_handler.cb     = NULL;
     param->err_handler.arg    = NULL;
     param->sockaddr.addr      = (const struct sockaddr *) connect_addr;
-	param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
+    param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
     return 0;
 }
 
