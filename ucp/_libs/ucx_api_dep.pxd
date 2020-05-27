@@ -238,16 +238,3 @@ cdef extern from "sys/epoll.h":
     int epoll_create(int size)
     int epoll_ctl(int epfd, int op, int fd, epoll_event *event)
     int epoll_wait(int epfd, epoll_event *events, int maxevents, int timeout)
-
-
-cdef struct ucp_request:
-    bint finished  # Used by downstream projects such as cuML
-    int uid
-    PyObject *info
-
-
-cdef inline void ucp_request_reset(void* request):
-    cdef ucp_request *req = <ucp_request*> request
-    req.finished = False
-    req.uid = 0
-    req.info = NULL

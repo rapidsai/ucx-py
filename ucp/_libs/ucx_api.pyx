@@ -27,6 +27,25 @@ from ..utils import nvtx_annotate
 from .utils import get_buffer_data
 
 
+# Struct used as requests by UCX
+cdef struct ucx_py_request:
+    bint finished  # Used by downstream projects such as cuML
+    int uid
+    PyObject *info
+
+
+# This function will be called by UCX only on the very first time
+# a request memory is initialized
+cdef void ucx_py_request_reset(void* request):
+    cdef ucx_py_request *req = <ucx_py_request*> request
+    req.finished = False
+    req.uid = 0
+    req.info = NULL
+
+# Counter used as UCXRequest UIDs
+cdef int _ucx_py_request_counter = 0
+
+
 logger = logging.getLogger("ucx")
 
 
@@ -188,9 +207,9 @@ cdef class UCXContext(UCXObject):
                                UCP_FEATURE_WAKEUP |  # noqa
                                UCP_FEATURE_STREAM)
 
-        ucp_params.request_size = sizeof(ucp_request)
+        ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
-            <ucp_request_init_callback_t>ucp_request_reset
+            <ucp_request_init_callback_t>ucx_py_request_reset
         )
 
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
@@ -446,9 +465,6 @@ cdef class UCXListener(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
-# Counter used as UCXRequest UIDs
-cdef int _ucx_request_counter = 0
-
 cdef class UCXRequest:
     """Python wrapper of UCX request handle.
 
@@ -458,12 +474,12 @@ cdef class UCXRequest:
     thus we use `_uid` to make sure the handle hasn't been modified.
     """
     cdef:
-        ucp_request *_handle
+        ucx_py_request *_handle
         int _uid
 
     def __init__(self, uintptr_t req_as_int):
-        global _ucx_request_counter
-        cdef ucp_request *req = <ucp_request*>req_as_int
+        global _ucx_py_request_counter
+        cdef ucx_py_request *req = <ucx_py_request*>req_as_int
         assert req != NULL
         self._handle = req
 
@@ -471,10 +487,10 @@ cdef class UCXRequest:
         if self._handle.info == NULL:  # First time we are wrapping this UCX request
             Py_INCREF(info)
             self._handle.info = <PyObject*> info
-            _ucx_request_counter += 1
-            self._uid = _ucx_request_counter
+            _ucx_py_request_counter += 1
+            self._uid = _ucx_py_request_counter
             assert self._handle.uid == 0
-            self._handle.uid = _ucx_request_counter
+            self._handle.uid = _ucx_py_request_counter
         else:
             self._uid = self._handle.uid
 
@@ -551,7 +567,7 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
             req.close()
         else:
             # The callback function has not been called yet.
-            # We fill `ucp_request` for the callback function to use
+            # We fill `ucx_py_request` for the callback function to use
             req.info["future"] = ret
             req.info["event_loop"] = event_loop
             req.info["expected_receive"] = expected_receive
