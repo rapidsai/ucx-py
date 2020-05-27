@@ -305,7 +305,8 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
-        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
+        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port, err_cb):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep

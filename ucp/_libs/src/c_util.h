@@ -17,7 +17,8 @@ void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param);
 
 int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
                              const char *ip_address,
-                             uint16_t port);
+                             uint16_t port,
+                             ucp_err_handler_cb_t err_cb);
 
 int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
                                   ucp_conn_request_h conn_request,

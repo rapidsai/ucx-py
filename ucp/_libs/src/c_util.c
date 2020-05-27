@@ -43,7 +43,8 @@ void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param) {
 
 int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
                              const char *ip_address,
-                             uint16_t port) {
+                             uint16_t port,
+                             ucp_err_handler_cb_t err_cb) {
 
     struct sockaddr_in *connect_addr = malloc(sizeof(struct sockaddr_in));
     if(connect_addr == NULL) {
@@ -58,9 +59,9 @@ int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
                                 UCP_EP_PARAM_FIELD_SOCK_ADDR |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLER;
-    param->err_mode           = UCP_ERR_HANDLING_MODE_NONE;
+    param->err_mode           = err_cb == NULL ? UCP_ERR_HANDLING_MODE_NONE : UCP_ERR_HANDLING_MODE_PEER;
     param->flags              = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
-    param->err_handler.cb     = NULL;
+    param->err_handler.cb     = err_cb;
     param->err_handler.arg    = NULL;
     param->sockaddr.addr      = (const struct sockaddr *) connect_addr;
     param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
@@ -75,7 +76,7 @@ int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
                                 UCP_EP_PARAM_FIELD_CONN_REQUEST |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
                                 UCP_EP_PARAM_FIELD_ERR_HANDLER;
-    param->err_mode           = UCP_ERR_HANDLING_MODE_NONE;
+    param->err_mode           = err_cb == NULL ? UCP_ERR_HANDLING_MODE_NONE : UCP_ERR_HANDLING_MODE_PEER;
     param->err_handler.cb     = err_cb;
     param->err_handler.arg    = NULL;
     param->conn_request       = conn_request;
