@@ -506,7 +506,6 @@ cdef class UCXRequest:
 
     def __hash__(self):
         if self.closed():
-            assert False
             return id(self)
         else:
             return self._uid
