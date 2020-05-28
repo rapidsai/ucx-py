@@ -468,6 +468,9 @@ cdef class UCXListener(UCXObject):
 cdef class UCXRequest:
     """Python wrapper of UCX request handle.
 
+    Don't create this class directly, the send/recv functions and their
+    callback functions will return UCXRequest objects.
+
     Notice, this class doesn't own the handle and multiple instances of
     UCXRequest can point to the same underlying UCX handle.
     Furthermore, UCX can modify/free the UCX handle without notice
