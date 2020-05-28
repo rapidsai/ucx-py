@@ -218,6 +218,16 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
+cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+    status_str = ucs_status_string(status).decode("utf-8")
+    msg = (
+        "Endpoint %s failed with status %d: %s" % (
+            hex(int(<uintptr_t>ep)), status, status_str
+        )
+    )
+    logger.info(msg)
+
+
 def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
@@ -301,12 +311,14 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req)
 
-    def ep_create(self, str ip_address, port):
+    def ep_create(self, str ip_address, port, endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
-        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
-        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port, err_cb):
+        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>_err_cb
+        if c_util_get_ucp_ep_params(
+            &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
+        ):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep
@@ -315,12 +327,14 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
-    def ep_create_from_conn_request(self, uintptr_t conn_request):
+    def ep_create_from_conn_request(self, uintptr_t conn_request, endpoint_error_handling):
         assert self.initialized
 
         cdef ucp_ep_params_t params
-        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
-        if c_util_get_ucp_ep_conn_params(&params, <ucp_conn_request_h>conn_request, err_cb):
+        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>_err_cb
+        if c_util_get_ucp_ep_conn_params(
+            &params, <ucp_conn_request_h>conn_request, <ucp_err_handler_cb_t>err_cb
+        ):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep
@@ -410,7 +424,8 @@ cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
                 cb_data['ctx'],
                 cb_data['cb_func'],
                 cb_data['port'],
-                cb_data['guarantee_msg_order']
+                cb_data['guarantee_msg_order'],
+                cb_data['endpoint_error_handling']
             )
         )
 
