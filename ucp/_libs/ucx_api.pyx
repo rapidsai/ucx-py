@@ -27,6 +27,25 @@ from ..utils import nvtx_annotate
 from .utils import get_buffer_data
 
 
+# Struct used as requests by UCX
+cdef struct ucx_py_request:
+    bint finished  # Used by downstream projects such as cuML
+    int uid
+    PyObject *info
+
+
+# This function will be called by UCX only on the very first time
+# a request memory is initialized
+cdef void ucx_py_request_reset(void* request):
+    cdef ucx_py_request *req = <ucx_py_request*> request
+    req.finished = False
+    req.uid = 0
+    req.info = NULL
+
+# Counter used as UCXRequest UIDs
+cdef int _ucx_py_request_counter = 0
+
+
 logger = logging.getLogger("ucx")
 
 
@@ -188,9 +207,9 @@ cdef class UCXContext(UCXObject):
                                UCP_FEATURE_WAKEUP |  # noqa
                                UCP_FEATURE_STREAM)
 
-        ucp_params.request_size = sizeof(ucp_request)
+        ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
-            <ucp_request_init_callback_t>ucp_request_reset
+            <ucp_request_init_callback_t>ucx_py_request_reset
         )
 
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
@@ -293,13 +312,13 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
-    def request_cancel(self, ucp_request_as_int):
+    def request_cancel(self, UCXRequest req):
         assert self.initialized
-        cdef ucp_request *req = <ucp_request*><uintptr_t>ucp_request_as_int
+        assert not req.closed()
 
         # Notice, `ucp_request_cancel()` calls the send/recv callback function,
         # which will handle the request cleanup.
-        ucp_request_cancel(self._handle, req)
+        ucp_request_cancel(self._handle, req._handle)
 
     def ep_create(self, str ip_address, port):
         assert self.initialized
@@ -321,10 +340,10 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     cdef ucs_status_ptr_t status
 
     # Cancel all inflight messages
-    for msg in list(inflight_msgs.values()):
-        logger.debug("Future cancelling: %s" % msg["log_msg"])
+    for req in list(inflight_msgs):
+        logger.debug("Future cancelling: %s" % req.info["log_msg"])
         # Notice, `request_cancel()` evoke the send/recv callback functions
-        worker.request_cancel(msg["ucp_request"])
+        worker.request_cancel(req)
 
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
@@ -340,7 +359,7 @@ cdef class UCXEndpoint(UCXObject):
     """Python representation of `ucp_ep_h`"""
     cdef:
         ucp_ep_h _handle
-        dict _inflight_msgs
+        set _inflight_msgs
 
     cdef readonly:
         UCXWorker worker
@@ -351,7 +370,7 @@ cdef class UCXEndpoint(UCXObject):
         assert worker.initialized
         self.worker = worker
         self._handle = <ucp_ep_h>handle
-        self._inflight_msgs = dict()
+        self._inflight_msgs = set()
         self.add_handle_finalizer(
             _ucx_endpoint_finalizer,
             int(handle),
@@ -446,11 +465,87 @@ cdef class UCXListener(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
+cdef class UCXRequest:
+    """Python wrapper of UCX request handle.
+
+    Don't create this class directly, the send/recv functions and their
+    callback functions will return UCXRequest objects.
+
+    Notice, this class doesn't own the handle and multiple instances of
+    UCXRequest can point to the same underlying UCX handle.
+    Furthermore, UCX can modify/free the UCX handle without notice
+    thus we use `_uid` to make sure the handle hasn't been modified.
+    """
+    cdef:
+        ucx_py_request *_handle
+        int _uid
+
+    def __init__(self, uintptr_t req_as_int):
+        global _ucx_py_request_counter
+        cdef ucx_py_request *req = <ucx_py_request*>req_as_int
+        assert req != NULL
+        self._handle = req
+
+        cdef dict info = {"status": "pending"}
+        if self._handle.info == NULL:  # First time we are wrapping this UCX request
+            Py_INCREF(info)
+            self._handle.info = <PyObject*> info
+            _ucx_py_request_counter += 1
+            self._uid = _ucx_py_request_counter
+            assert self._handle.uid == 0
+            self._handle.uid = _ucx_py_request_counter
+        else:
+            self._uid = self._handle.uid
+
+    def closed(self):
+        return self._handle == NULL or self._uid != self._handle.uid
+
+    def close(self):
+        """This routine releases the non-blocking request back to UCX,
+        regardless of its current state. Communications operations associated with
+        this request will make progress internally, however no further notifications or
+        callbacks will be invoked for this request. """
+
+        if not self.closed():
+            Py_DECREF(<object>self._handle.info)
+            self._handle.info = NULL
+            self._handle.uid = 0
+            ucp_request_free(self._handle)
+            self._handle = NULL
+
+    @property
+    def info(self):
+        assert not self.closed()
+        return <dict> self._handle.info
+
+    @property
+    def handle(self):
+        assert not self.closed()
+        return int(<uintptr_t>self._handle)
+
+    def __hash__(self):
+        if self.closed():
+            return id(self)
+        else:
+            return self._uid
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __repr__(self):
+        if self.closed():
+            return f"<UCXRequest closed>"
+        else:
+            return (
+                f"<UCXRequest handle={hex(self.handle)} "
+                "uid={self._uid} info={self.info}>"
+            )
+
+
 cdef create_future_from_comm_status(ucs_status_ptr_t status,
                                     int64_t expected_receive,
                                     log_msg, inflight_msgs):
     """Help function to handle the output of ucx send/recv"""
-
     event_loop = asyncio.get_event_loop()
     ret = event_loop.create_future()
     msg = "Comm Error%s " %(" \"%s\":" % log_msg if log_msg else ":")
@@ -460,60 +555,46 @@ cdef create_future_from_comm_status(ucs_status_ptr_t status,
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         ret.set_exception(UCXError(msg))
     else:
-        req = <ucp_request*> status
-        if req.finished:  # The callback function has already handle the request
-            if req.received != -1 and req.received != expected_receive:
+        req = UCXRequest(<uintptr_t><void*> status)
+        if req.info["status"] == "finished":
+            # The callback function has already handle the request thus we can
+            # return a finished future.
+            received = req.info.get("received", None)
+            if received is not None and received != expected_receive:
                 msg += "length mismatch: %d (got) != %d (expected)" % (
-                    req.received, expected_receive
+                    received, expected_receive
                 )
                 ret.set_exception(UCXMsgTruncated(msg))
             else:
                 ret.set_result(True)
-            ucp_request_reset(req)
-            ucp_request_free(req)
+            req.close()
         else:
-            req_as_int = int(<uintptr_t>req)
             # The callback function has not been called yet.
-            # We fill `ucp_request` for the callback function to use
-            Py_INCREF(ret)
-            req.future = <PyObject*> ret
-            Py_INCREF(event_loop)
-            req.event_loop = <PyObject*> event_loop
-            req.expected_receive = expected_receive
-            Py_INCREF(log_msg)
-            req.log_msg = <PyObject*> log_msg
+            # We fill `ucx_py_request` for the callback function to use
+            req.info["future"] = ret
+            req.info["event_loop"] = event_loop
+            req.info["expected_receive"] = expected_receive
+            req.info["log_msg"] = log_msg
 
-            assert req_as_int not in inflight_msgs
-            inflight_msgs[req_as_int] = {
-                'ucp_request': req_as_int,
-                'log_msg': log_msg,
-            }
-            Py_INCREF(inflight_msgs)
-            req.inflight_msgs = <PyObject*> inflight_msgs
-
+            assert req not in inflight_msgs
+            inflight_msgs.add(req)
+            req.info["inflight_msgs"] = inflight_msgs
     return ret
 
 
 cdef void _send_callback(void *request, ucs_status_t status):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_tag_send_nb() returned
-        req.finished = True
-        return
-    cdef object future = <object> req.future
-    cdef object event_loop = <object> req.event_loop
-    cdef object log_msg = <object> req.log_msg
-    cdef object inflight_msgs = <object> req.inflight_msgs
-    Py_DECREF(future)
-    Py_DECREF(event_loop)
-    Py_DECREF(log_msg)
-    Py_DECREF(inflight_msgs)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
     with log_errors():
-        del inflight_msgs[int(<uintptr_t>req)]
-        if event_loop.is_closed() or future.done():
+        req = UCXRequest(<uintptr_t><void*> request)
+        req.info["status"] = "finished"
+
+        if "future" not in req.info:
+            # This callback function was called before ucp_tag_send_nb() returned
+            return
+
+        future = req.info["future"]
+        log_msg = req.info["log_msg"]
+        req.info["inflight_msgs"].remove(req)
+        if req.info["event_loop"].is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
@@ -523,6 +604,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
             future.set_exception(UCXError(msg))
         else:
             future.set_result(True)
+        req.close()
 
 
 def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
@@ -544,42 +626,35 @@ def tag_send(UCXEndpoint ep, buffer, size_t nbytes,
 
 cdef void _tag_recv_callback(void *request, ucs_status_t status,
                              ucp_tag_recv_info_t *info):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_tag_recv_nb() returned
-        req.finished = True
-        req.received = info.length
-        return
-    cdef object future = <object> req.future
-    cdef object event_loop = <object> req.event_loop
-    cdef object log_msg = <object> req.log_msg
-    cdef object inflight_msgs = <object> req.inflight_msgs
-    cdef size_t expected_receive = req.expected_receive
-    cdef size_t length = info.length
-    Py_DECREF(future)
-    Py_DECREF(event_loop)
-    Py_DECREF(log_msg)
-    Py_DECREF(inflight_msgs)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
     with log_errors():
-        del inflight_msgs[int(<uintptr_t>req)]
+        req = UCXRequest(<uintptr_t><void*> request)
+        req.info["status"] = "finished"
+
+        if "future" not in req.info:
+            # This callback function was called before ucp_tag_recv_nb() returned
+            req.info["received"] = info.length
+            return
+
+        future = req.info["future"]
+        log_msg = req.info["log_msg"]
+        expected_receive = req.info["expected_receive"]
+        req.info["inflight_msgs"].remove(req)
         msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
-        if event_loop.is_closed() or future.done():
+        if req.info["event_loop"].is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
         elif status != UCS_OK:
             msg += ucs_status_string(status).decode("utf-8")
             future.set_exception(UCXError(msg))
-        elif length != expected_receive:
+        elif info.length != expected_receive:
             msg += "length mismatch: %d (got) != %d (expected)" % (
-                length, expected_receive
+                info.length, expected_receive
             )
             future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
+        req.close()
 
 
 def tag_recv(UCXEndpoint ep, buffer, size_t nbytes,
@@ -620,28 +695,21 @@ def stream_send(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
 
 cdef void _stream_recv_callback(void *request, ucs_status_t status,
                                 size_t length):
-    cdef ucp_request *req = <ucp_request*> request
-    if req.future == NULL:
-        # This callback function was called before ucp_stream_recv_nb() returned
-        req.finished = True
-        req.received = length
-        return
-    cdef object future = <object> req.future
-    cdef object event_loop = <object> req.event_loop
-    cdef object log_msg = <object> req.log_msg
-    cdef object inflight_msgs = <object> req.inflight_msgs
-    cdef size_t expected_receive = req.expected_receive
-    Py_DECREF(future)
-    Py_DECREF(event_loop)
-    Py_DECREF(log_msg)
-    Py_DECREF(inflight_msgs)
-    ucp_request_reset(request)
-    ucp_request_free(request)
-
     with log_errors():
-        del inflight_msgs[int(<uintptr_t>req)]
-        msg = "Error receiving %s" %(" \"%s\":" % log_msg if log_msg else ":")
-        if event_loop.is_closed() or future.done():
+        req = UCXRequest(<uintptr_t><void*> request)
+        req.info["status"] = "finished"
+
+        if "future" not in req.info:
+            # This callback function was called before ucp_stream_recv_nb() returned
+            req.info["received"] = length
+            return
+
+        future = req.info["future"]
+        log_msg = req.info["log_msg"]
+        expected_receive = req.info["expected_receive"]
+        req.info["inflight_msgs"].remove(req)
+        msg = "Error receiving%s " %(" \"%s\":" % log_msg if log_msg else ":")
+        if req.info["event_loop"].is_closed() or future.done():
             pass
         elif status == UCS_ERR_CANCELED:
             future.set_exception(UCXCanceled())
@@ -650,10 +718,12 @@ cdef void _stream_recv_callback(void *request, ucs_status_t status,
             future.set_exception(UCXError(msg))
         elif length != expected_receive:
             msg += "length mismatch: %d (got) != %d (expected)" % (
-                length, expected_receive)
+                length, expected_receive
+            )
             future.set_exception(UCXMsgTruncated(msg))
         else:
             future.set_result(True)
+        req.close()
 
 
 def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
@@ -661,7 +731,6 @@ def stream_recv(UCXEndpoint ep, buffer, size_t nbytes, log_msg=None):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
     cdef size_t length
-    cdef ucp_request *req
     cdef ucp_stream_recv_callback_t _stream_recv_cb = (
         <ucp_stream_recv_callback_t>_stream_recv_callback
     )

@@ -204,6 +204,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
                                    const char *value)
 
+
 cdef extern from "sys/epoll.h":
 
     cdef enum:
@@ -237,24 +238,3 @@ cdef extern from "sys/epoll.h":
     int epoll_create(int size)
     int epoll_ctl(int epfd, int op, int fd, epoll_event *event)
     int epoll_wait(int epfd, epoll_event *events, int maxevents, int timeout)
-
-
-cdef struct ucp_request:
-    bint finished
-    PyObject *future
-    PyObject *event_loop
-    PyObject *log_msg
-    PyObject *inflight_msgs
-    size_t expected_receive
-    int64_t received
-
-
-cdef inline void ucp_request_reset(void* request):
-    cdef ucp_request *req = <ucp_request*> request
-    req.finished = False
-    req.future = NULL
-    req.event_loop = NULL
-    req.log_msg = NULL
-    req.inflight_msgs = NULL
-    req.expected_receive = 0
-    req.received = -1
