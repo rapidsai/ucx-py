@@ -23,10 +23,10 @@ project = "ucx-py"
 copyright = "2019, NVIDIA"
 author = "NVIDIA"
 
-# The short X.Y version.
-version = "0.15"
 # The full version, including alpha/beta/rc tags.
 release = "0.15.0"
+# The short X.Y version.
+version = "0.15"
 
 
 # -- General configuration ---------------------------------------------------
