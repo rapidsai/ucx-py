@@ -19,15 +19,15 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "ucx-py"
-copyright = "2019, NVIDIA"
-author = "NVIDIA"
-
 # The full version, including alpha/beta/rc tags.
 from ucp import __version__ as release
 
 # The short X.Y version.
 version = ".".join(release.split(".")[:2])
+
+project = "ucx-py"
+copyright = "2019, NVIDIA"
+author = "NVIDIA"
 
 
 # -- General configuration ---------------------------------------------------
