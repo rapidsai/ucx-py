@@ -218,7 +218,7 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
-cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     status_str = ucs_status_string(status).decode("utf-8")
     msg = (
         "Endpoint %s failed with status %d: %s" % (
@@ -226,6 +226,13 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
         )
     )
     logger.info(msg)
+
+
+cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
+    cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+    if endpoint_error_handling and any(t in tls for t in ["dc", "ib", "rc"]):
+        err_cb = <ucp_err_handler_cb_t>_ib_err_cb
+    return err_cb
 
 
 def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
@@ -315,7 +322,9 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
-        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>_err_cb
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
         if c_util_get_ucp_ep_params(
             &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
         ):
@@ -331,7 +340,9 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
 
         cdef ucp_ep_params_t params
-        cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>_err_cb
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
         if c_util_get_ucp_ep_conn_params(
             &params, <ucp_conn_request_h>conn_request, <ucp_err_handler_cb_t>err_cb
         ):
