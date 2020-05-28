@@ -24,9 +24,10 @@ copyright = "2019, NVIDIA"
 author = "NVIDIA"
 
 # The full version, including alpha/beta/rc tags.
-release = "0.15.0"
+from ucp import __version__ as release
+
 # The short X.Y version.
-version = "0.15"
+version = ".".join(release.split(".")[:2])
 
 
 # -- General configuration ---------------------------------------------------
