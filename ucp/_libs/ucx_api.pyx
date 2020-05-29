@@ -225,7 +225,7 @@ cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
             hex(int(<uintptr_t>ep)), status, status_str
         )
     )
-    logger.info(msg)
+    logger.error(msg)
 
 
 cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
