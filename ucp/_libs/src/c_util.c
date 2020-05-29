@@ -85,5 +85,19 @@ int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
 }
 
 void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param) {
-    free((void*) param->sockaddr.addr);
+    if( param->field_mask & UCP_EP_PARAM_FIELD_SOCK_ADDR) {
+        free((void*) param->sockaddr.addr);
+    }
+}
+
+int c_util_get_ucp_ep_params_address(ucp_ep_params_t *param, ucp_address_t *addr) {
+    param->field_mask           = UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
+                                  UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+                                  UCP_EP_PARAM_FIELD_ERR_HANDLER;
+    param->err_mode = UCP_ERR_HANDLING_MODE_NONE;
+    param->err_handler.cb     = NULL;
+    param->err_handler.arg    = NULL;    
+          
+    param->address         = addr;
+    return 0;
 }

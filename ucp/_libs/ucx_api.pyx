@@ -21,7 +21,7 @@ from ..exceptions import (
     UCXMsgTruncated,
 )
 from ..utils import nvtx_annotate
-from .utils import get_buffer_data
+from .utils import get_buffer_data, get_buffer_nbytes
 
 
 # Struct used as requests by UCX
@@ -233,6 +233,70 @@ cdef class UCXContext(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
+    def mem_map(self, mem, alloc=False, fixed=False):
+        return UCXMemoryHandle(self.handle, mem, alloc, fixed)
+
+
+cdef class PackedRemoteKey:
+    cdef void *_key
+    cdef size_t _length
+
+    def __cinit__(self, key, size):
+        self._key = <void*><uintptr_t>key
+        self._length = <size_t>size
+
+    def __dealloc__(self):
+        ucp_rkey_buffer_release(self._key)
+
+    @property
+    def key(self):
+        return int(<uintptr_t><void*>self._key)
+
+    #TODO: Buffer interface. Presently relies on upper level exposing an array_interface
+    
+cdef class UCXMemoryHandle:
+    cdef ucp_mem_h _memh
+    cdef ucp_context_h _ctx
+
+    def __cinit__(self, handle, mem, alloc, fixed):
+        cdef ucp_mem_map_params_t params
+        cdef ucp_mem_h memh
+        cdef ucs_status_t status
+
+        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        if not alloc:
+            params.field_mask |= UCP_MEM_MAP_PARAM_FIELD_ADDRESS
+            params.address = <void*><uintptr_t>get_buffer_data(mem, check_writable=False)
+            params.length = <size_t>get_buffer_nbytes(mem, 0, False)
+        else:
+            params.field_mask |= UCP_MEM_MAP_PARAM_FIELD_FLAGS
+            params.length = <size_t>mem
+            params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
+
+        self._ctx = <ucp_context_h><uintptr_t>handle
+        status = ucp_mem_map(self._ctx, &params, &self._memh)
+        assert_ucs_status(status)
+        
+        printf("ctx: %p memh: %p\n", self._ctx, self._memh)
+
+    def pack_rkey(self):
+        cdef ucs_status_t status
+        cdef size_t size
+        cdef void *key
+        status = ucp_rkey_pack(self._ctx, self._memh, &key, &size)
+        assert_ucs_status(status)
+        return PackedRemoteKey(<uintptr_t>key, size)
+
+    @property
+    def memh(self):
+        return <uintptr_t>self._memh
+
+    def __dealloc__(self):
+        cdef ucs_status_t status
+        printf("dealloc: ctx: %p memh: %p\n", self._ctx, self._memh) 
+        #status = ucp_mem_unmap(self._ctx, self._memh)
+        #assert_ucs_status(status)
+
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     status_str = ucs_status_string(status).decode("utf-8")
@@ -357,7 +421,18 @@ cdef class UCXWorker(UCXObject):
             &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
         ):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
+        c_util_get_ucp_ep_params_free(&params)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def ucp_ep_create(self, buff):
+        assert self.initialized
+        cdef ucp_ep_params_t params
+        if c_util_get_ucp_ep_params_address(&params,
+                                            <ucp_address_t*><uintptr_t>get_buffer_data(buff, check_writable=False)):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
@@ -1014,6 +1089,35 @@ def stream_recv_nb(
         &length,
         UCP_STREAM_RECV_FLAG_WAITALL,
     )
+
     return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
+
+cdef class UCXAddress:
+    """Python representation of ucp_address_t"""
+    cdef ucp_address_t *_address
+    cdef size_t _length
+    cdef worker
+
+    def __cinit__(self, worker):
+        cdef ucs_status_t status
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker
+
+        status = ucp_worker_get_address(ucp_worker, &self._address, &self._length)
+        assert_ucs_status(status)
+        self.worker = worker
+
+    @property
+    def address(self):
+        return <uintptr_t>self._address
+
+    @property
+    def length(self):
+        return int(self._length)
+
+    def __dealloc__(self):
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>self.worker
+        ucp_worker_release_address(ucp_worker, <ucp_address_t *>self._address)
+
+>>>>>>> RMA work

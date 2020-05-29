@@ -24,4 +24,7 @@ int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
                                   ucp_conn_request_h conn_request,
                                   ucp_err_handler_cb_t err_cb);
 
+int c_util_get_ucp_ep_params_address(ucp_ep_params_t *param,
+			     ucp_address_t *addr);
+
 void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param);

@@ -10,6 +10,7 @@ import weakref
 from functools import partial
 from os import close as close_fd
 from random import randint
+from functools import singledispatch
 
 import psutil
 
@@ -342,7 +343,7 @@ class ApplicationContext:
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
-
+        print("Post progress")
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
@@ -350,6 +351,7 @@ class ApplicationContext:
         seed = os.urandom(16)
         msg_tag = hash64bits("msg_tag", seed, port)
         ctrl_tag = hash64bits("ctrl_tag", seed, port)
+        print("Exchanging peer info")
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
@@ -367,7 +369,7 @@ class ApplicationContext:
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-
+        print("EP class made")
         logger.debug(
             "create_endpoint() client: %s, msg-tag-send: %s, "
             "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
@@ -382,7 +384,58 @@ class ApplicationContext:
 
         # Setup the control receive
         CtrlMsg.setup_ctrl_recv(ep)
+        print("About to return")
         return ep
+
+    async def create_ucp_endpoint(self, buffer, guarantee_msg_order):
+        """Create a new endpoint to a peer
+
+        Parameters
+        ----------
+        buffer: buffer
+            Buffer object that points to a ucp_address_t pointer.
+        guarantee_msg_order: boolean, optional
+            Whether to guarantee message order or not. Remember, both peers
+            of the endpoint must set guarantee_msg_order to the same value.
+        Returns
+        -------
+        Endpoint
+            The new endpoint
+        """
+        self.continuous_ucx_progress()
+        ucx_ep = self.worker.ucp_ep_create(buffer)
+        print("Calling into create code")
+        ep = Endpoint(
+            endpoint=ucx_ep,
+            ctx=self,
+            msg_tag_send=None,
+            msg_tag_recv=None,
+            ctrl_tag_send=None,
+            ctrl_tag_recv=None,
+            guarantee_msg_order=guarantee_msg_order,
+        )
+        return ep
+
+    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
+        """Create a new endpoint to a server
+
+        Parameters
+        ----------
+        ip_address: str
+            IP address of the server the endpoint should connect to
+        port: int
+            IP address of the server the endpoint should connect to
+        guarantee_msg_order: boolean, optional
+            Whether to guarantee message order or not. Remember, both peers
+            of the endpoint must set guarantee_msg_order to the same value.
+        Returns
+        -------
+        Endpoint
+            The new endpoint
+        """
+        self.continuous_ucx_progress()
+        ucx_ep = self.worker.ep_create(ip_address, port)
+        return await self._create_ep(ucx_ep, port, guarantee_msg_order)
 
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress
@@ -425,6 +478,11 @@ class ApplicationContext:
         """
         return self.context.get_config()
 
+    def get_address(self):
+        return WorkerAddress(ucx_api.UCXAddress(self.get_ucp_worker()))
+
+    def mem_map(self, mem, alloc=False, fixed=False):
+        return self.context.mem_map(mem, alloc, fixed)
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -673,6 +731,25 @@ class Endpoint:
                 "`n` cannot be less than current recv_count: %d (abs) < %d (abs)"
                 % (n, self._finished_recv_count)
             )
+    def unpack_rkey(self, rkey):
+        """Unpack an rkey on this Endpoint. Returns a RemoteMem object that can
+           be use for RMA/AMO operations            
+        """
+        _rkey = self._ep.unpack_rkey(rkey)
+        return RemoteMemory(_rkey, self)
+
+    async def _put(memory, start, rkey):
+        await self._ep.put(memory, start, rkey)
+
+    async def _get(memory, start, rkey):
+        await self._ep.get(memory, start, rkey)
+
+class WorkerAddress:
+    """Object that represents an underlying ucp worker address. This will pack all possible addresses into an object exposed in a __array_interface__ dict"""
+    def __init__(self, addr):
+        self._addr = addr
+        print("Adding address", hex(addr.address))
+        self.__array_interface__ = {"version": 3, "shape": (addr.length), "typestr": "V", "data": (addr.address, True)}
 
 
 # The following functions initialize and use a single ApplicationContext instance
@@ -796,6 +873,25 @@ async def create_endpoint(
         endpoint_error_handling=endpoint_error_handling,
     )
 
+@singledispatch
+def mem_map(memory):
+    """Map memory and register memory for use in RMA and AMO operations on this context.
+       This function may either recieve an object with backing memory and register that,
+       or it may allocate memory and return a new handle. After this remote hardware may
+       directly access this memory without intervention of the local CPU.
+       Returns a MemoryHandle object that maybe used in other UCX APIs
+    ----------
+    memory: int or object that implments buffer protocol
+        If memory is an int, then a region of memory will be allocated and registered at a minimum of that size.
+        If memory is a buffer, then the memory region containing that buffer object will be registered
+    """
+    _memh = _get_ctx().mem_map(memory, alloc=False)
+    return MemoryHandle(_memh)
+
+@mem_map.register
+def _(memory: int):
+    _memh = _get_ctx().mem_map(memory, alloc=True)
+    return MemoryHandle(_memh)
 
 def continuous_ucx_progress(event_loop=None):
     _get_ctx().continuous_ucx_progress(event_loop=event_loop)
@@ -804,6 +900,112 @@ def continuous_ucx_progress(event_loop=None):
 def get_ucp_worker():
     return _get_ctx().get_ucp_worker()
 
+
+def get_ucp_worker_address():
+    """Returns a WorkerAddress object that wraps a
+    ucp_worker_address_h handle in a python object. This object
+    can be passed to `create_endpoint()` to create an endpoint
+    to this worker"""
+    return _get_ctx().get_address()
+
+
+async def flush():
+    """Flushes outstanding AMO and RMA operations. This ensures that the
+       operations issued on this worker have completed both locally and remotely.
+       This function does not guarentee ordering. If more operations are issued
+       after flush is called and before the future has completed then those ops may
+       complete before outstanding operations in the flush have finished.
+    """
+    await _get_ctx().flush_worker()
+
+    
+def fence():
+    """Ensures ordering of non-blocking communication operations on the UCP worker.
+       This function returns nothing, but will raise an error if it cannot make
+       this guarantee. This function does not ensure any operations have completed.
+
+       NOTE: Some transports cannot guarentee ordering and will always raise
+       an error if there are outstanding operations. This means that sane
+       useage of fence should not use retry loops. See `flush` instead.
+
+       Example:
+       # Code that does RMA ops that need to complete first
+       # Now to ensure order
+       try:
+           ucp.fence()
+       except UCXError:
+           await ucp.flush()
+       # Continue with more RMA operations
+    """
+    if not _get_ctx().fence_worker():
+        raise exceptions.UCXError("Could not fence.")
+
+class MemoryHandle:
+    """This class represents a memory handle registered to UCX. This memory is registered
+       with a NIC (eg, a Mellanox IB card) for high speed RMA/AMO operations from remote nodes
+       without interrupting the host CPU.
+    """
+    def __init__(self, memh):
+        self._memh = memh
+    def pack_rkey(self):
+        """Pack a remote key (rkey). This rkey will have all the information a remote
+           node will need to do RMA/AMO operations on the memory of the local MemHandle.
+           This key will pack in a buffer for distribution with either an in band mechanism,
+           such as tag_send()/tag_recv() or an out of band machanism such as PMI.
+        """
+        return self._memh.pack_rkey()
+
+class RemoteMemory:
+    """This class represents an unpacked rkey and associated meta data to do RMA/AMO
+       operations with the memory represented by the packed rkey
+    """
+    def __init__(self, rkey, ep):
+        self.ep = ep
+        self._rkey = rkey
+
+    async def put(self, memory, start=None):
+        """RMA put operation. Takes the memory specified in the buffer object and writes it.
+           If the first parameter is a UcpBuffer then it is the only parmeter needed.
+           If the first parameter is is any other buffer object, then a second start
+           parameter is needed to specify where in remote memory the object should be written.
+        """
+        await self.ep._put(memory, start, self._rkey)
+
+    async def get(self, memory, start=None):
+        """RMA get operation. Reads remote memory into a local buffer
+           If the first parameter is a UcpBuffer then it is the only parmeter needed.
+           If the first parameter is is any other buffer object, then a second start
+           parameter is needed to specify where in remote memory the object should be read.
+        """
+        await self.ep._get(memory, start, self._rkey)
+
+#TODO: Rewrite this in the ucx_api as a blocking call
+class UcxIO(RawIOBase):
+    """A class to simulate python streams backed by UCX RMA operations"""
+    def __init__(self, uio_data, ep):
+        self.pos = 0
+        self.rkey = uio_data['rkey']
+        self.start_addr = uio_data['start']
+        self.length = uio_data['length']
+        self.rmem = ep.unpack_rkey(self.rkey)
+        self.ep = ep
+    def readinto(self,buff)
+        self.rmem.get(buff,start)
+        return len(buff)
+    def flush(self):
+        flush()
+    def seek(self, pos, whence=0):
+        if whence == 1:
+            pos += self.pos
+        if whence == 2:
+            pos = self.length - pos
+        self.pos = pos
+    def seekable(self):
+        return True
+    def writable(self):
+        return True
+    def readable(self):
+        return True
 
 # Setting the __doc__
 create_listener.__doc__ = ApplicationContext.create_listener.__doc__
