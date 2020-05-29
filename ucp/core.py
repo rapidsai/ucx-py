@@ -139,7 +139,9 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling):
+async def _listener_handler(
+    conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
+):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
@@ -148,7 +150,9 @@ async def _listener_handler(conn_request, ctx, func, port, guarantee_msg_order, 
     msg_tag = hash64bits("msg_tag", seed, port)
     ctrl_tag = hash64bits("ctrl_tag", seed, port)
 
-    endpoint = ctx.worker.ep_create_from_conn_request(conn_request, endpoint_error_handling)
+    endpoint = ctx.worker.ep_create_from_conn_request(
+        conn_request, endpoint_error_handling
+    )
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
@@ -225,7 +229,9 @@ class ApplicationContext:
                 self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
             )
 
-    def create_listener(self, callback_func, port, guarantee_msg_order, endpoint_error_handling=True):
+    def create_listener(
+        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=True
+    ):
         """Create and start a listener to accept incoming connections
 
         callback_func is the function or coroutine that takes one
@@ -293,7 +299,9 @@ class ApplicationContext:
         )
         return ret
 
-    async def create_endpoint(self, ip_address, port, guarantee_msg_order, endpoint_error_handling=True):
+    async def create_endpoint(
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=True
+    ):
         """Create a new endpoint to a server
 
         Parameters
