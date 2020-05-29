@@ -336,7 +336,9 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
-    def ep_create_from_conn_request(self, uintptr_t conn_request, endpoint_error_handling):
+    def ep_create_from_conn_request(
+        self, uintptr_t conn_request, endpoint_error_handling
+    ):
         assert self.initialized
 
         cdef ucp_ep_params_t params
