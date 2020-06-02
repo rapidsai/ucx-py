@@ -1,5 +1,7 @@
 # This test requires InfiniBand, to run:
-# UCXPY_IFNAME=ib0 UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm py.test --cache-clear tests/debug-tests/test_endpoint_error_callback.py
+# UCXPY_IFNAME=ib0 UCX_NET_DEVICES=mlx5_0:1 \
+# UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm \
+# py.test --cache-clear tests/debug-tests/test_endpoint_error_callback.py
 
 import asyncio
 import logging
