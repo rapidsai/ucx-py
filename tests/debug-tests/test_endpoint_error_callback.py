@@ -23,6 +23,9 @@ from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cupy = pytest.importorskip("cupy")
 
+UCX_TLS = os.environ.get("UCX_TLS")
+rc_enabled = UCX_TLS is not None and "rc" in UCX_TLS
+
 
 def get_log_queue_handler():
     handler = logging.StreamHandler()
@@ -139,6 +142,9 @@ def cupy_obj():
 
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
+)
+@pytest.mark.skipif(
+    not rc_enabled, reason="Transport `rc` is not enabled"
 )
 def test_send_recv_cu():
     base_env = os.environ
