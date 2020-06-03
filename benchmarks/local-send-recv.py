@@ -1,6 +1,24 @@
 """
 Benchmark send receive on one machine
+UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm python \
+        local-send-recv.py --server-dev 2 --client-dev 1 --object_type rmm \
+        --reuse-alloc --n-bytes 1GB
+
+Benchmark send receive on two machines (IB testing):
+
+# server process
+UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
+UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
+--client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB \
+--server-only --n-iter 100
+
+# client process
+UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
+UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
+--client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --client-only \
+--server-address 192.168.40.44 --port 53496 --n-iter 100
 """
+
 import argparse
 import asyncio
 import multiprocessing as mp
@@ -8,7 +26,6 @@ from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
 
-import numpy
 import ucp
 
 mp = mp.get_context("spawn")
@@ -38,7 +55,6 @@ def server(queue, args):
 
     async def run():
         async def server_handler(ep):
-            times = []
 
             msg_recv_list = []
             if not args.reuse_alloc:
@@ -67,7 +83,7 @@ def server(queue, args):
     loop.close()
 
 
-def client(queue, port, args):
+def client(queue, port, server_address, args):
     import ucp
 
     ucp.init()
@@ -92,7 +108,7 @@ def client(queue, port, args):
         np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     async def run():
-        ep = await ucp.create_endpoint(args.server_address, port)
+        ep = await ucp.create_endpoint(server_address, port)
 
         msg_send_list = []
         msg_recv_list = []
@@ -124,6 +140,29 @@ def client(queue, port, args):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run())
     loop.close()
+    times = queue.get()
+    assert len(times) == args.n_iter
+    print("Roundtrip benchmark")
+    print("--------------------------")
+    print(f"n_iter      | {args.n_iter}")
+    print(f"n_bytes     | {format_bytes(args.n_bytes)}")
+    print(f"object      | {args.object_type}")
+    print(f"reuse alloc | {args.reuse_alloc}")
+    print("==========================")
+    if args.object_type == "numpy":
+        print("Device(s)    | Single CPU")
+    else:
+        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
+    print(
+        f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
+    )
+    print("--------------------------")
+    print("Iterations")
+    print("--------------------------")
+    for i, t in enumerate(times):
+        ts = format_bytes(2 * args.n_bytes / t)
+        ts = (" " * (9 - len(ts))) + ts
+        print("%03d         |%s/s" % (i, ts))
 
 
 def parse_args():
@@ -202,6 +241,20 @@ def parse_args():
         type=int,
         help="Initial RMM pool size (default  1/2 total GPU memory)",
     )
+    parser.add_argument(
+        "--server-only",
+        default=False,
+        action="store_true",
+        help="Start up only a server process (to be used with --client).",
+    )
+    parser.add_argument(
+        "--client-only",
+        default=False,
+        action="store_true",
+        help="Connect to soliatry server process (to be user with --server-only)",
+    )
+    parser.add_argument("-p", "--port", default=None, help="server port.", type=int)
+
     args = parser.parse_args()
     if args.cuda_profile and args.object_type == "numpy":
         raise RuntimeError(
@@ -212,41 +265,34 @@ def parse_args():
 
 def main():
     args = parse_args()
-    q1 = mp.Queue()
-    p1 = mp.Process(target=server, args=(q1, args))
-    p1.start()
-    port = q1.get()
-    q2 = mp.Queue()
-    p2 = mp.Process(target=client, args=(q2, port, args))
-    p2.start()
-    times = q2.get()
-    p1.join()
-    p2.join()
-    assert not p1.exitcode
-    assert not p2.exitcode
-    assert len(times) == args.n_iter
+    server_address = args.server_address
 
-    print("Roundtrip benchmark")
-    print("--------------------------")
-    print(f"n_iter      | {args.n_iter}")
-    print(f"n_bytes     | {format_bytes(args.n_bytes)}")
-    print(f"object      | {args.object_type}")
-    print(f"reuse alloc | {args.reuse_alloc}")
-    print("==========================")
-    if args.object_type == "numpy":
-        print(f"Device(s)    | Single CPU")
+    # if you are the server, only start the `server process`
+    # if you are the client, only start the `client process`
+    # otherwise, start everything
+
+    if not args.client_only:
+        # server process
+        q1 = mp.Queue()
+        p1 = mp.Process(target=server, args=(q1, args))
+        p1.start()
+        port = q1.get()
     else:
-        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
-    print(
-        f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
-    )
-    print("--------------------------")
-    print("Iterations")
-    print("--------------------------")
-    for i, t in enumerate(times):
-        ts = format_bytes(2 * args.n_bytes / t)
-        ts = (" " * (9 - len(ts))) + ts
-        print("%03d         |%s/s" % (i, ts))
+        port = args.port
+    print(f"Server Running at {server_address}:{port}")
+
+    if not args.server_only or args.client_only:
+        # client process
+        print(f"Client connecting to server at {server_address}:{port}")
+        q2 = mp.Queue()
+        p2 = mp.Process(target=client, args=(q2, port, server_address, args))
+        p2.start()
+        p2.join()
+        assert not p2.exitcode
+
+    else:
+        p1.join()
+        assert not p1.exitcode
 
 
 if __name__ == "__main__":

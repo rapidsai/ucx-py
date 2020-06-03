@@ -111,7 +111,7 @@ Transport Methods (Simplified):
 - ``rc_x`` -> rc with accelerated verbs (uses ud_mlx5 for bootstrap)
 - ``ud_v`` -> ud verbs
 - ``ud_x`` -> ud with accelerated verbs
-- ``ud  `` -> ud_v and ud_x (preferably if available)
+- ``ud`` -> ud_v and ud_x (preferably if available)
 - ``dc/dc_x`` -> dc with accelerated verbs
 - ``tcp`` -> sockets over TCP/IP
 - ``cuda`` -> CUDA (NVIDIA GPU) memory support
@@ -142,23 +142,30 @@ To find more information on the topology of InfiniBand-GPU pairing run the follo
 Example Configs
 ---------------
 
-IB -- Yes NVLINK
-~~~~~~~~~~~~~~~~
+InfiniBand -- No NVLink
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_RNDV_SCHEME=put_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,cuda_copy,cuda_ipc
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
 
-TLS/Socket -- No NVLINK
+InfiniBand -- With NVLink
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+
+TLS/Socket -- No NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
 
-TLS/Socket -- Yes NVLINK
-~~~~~~~~~~~~~~~~~~~~~~~~
+TLS/Socket -- With NVLink
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>

@@ -3,30 +3,25 @@ import multiprocessing
 import os
 import random
 
-from distributed.comm.utils import from_frames, to_frames
+from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
 import cloudpickle
+import cudf.tests.utils
 import numpy as np
 import pytest
 import ucp
-from utils import get_cuda_visible_devices, more_than_two_gpus
+from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
 
-pynvml = pytest.importorskip("pynvml")
 cupy = pytest.importorskip("cupy")
-cudf = pytest.importorskip("cudf")
 rmm = pytest.importorskip("rmm")
 
 
-ITERATIONS = 1
-
-
-def cuda_array(size):
-    return rmm.DeviceBuffer(size=size)
+ITERATIONS = 30
 
 
 async def get_ep(name, port):
@@ -35,20 +30,17 @@ async def get_ep(name, port):
     return ep
 
 
-def client(env, port, func):
+def client(port, func):
     # wait for server to come up
     # receive cudf object
     # deserialize
     # assert deserialized msg is cdf
     # send receipt
 
-    ucp.reset()
-    os.environ.update(env)
     ucp.init()
 
     # must create context before importing
     # cudf/cupy/etc
-    before_rx, before_tx = total_nvlink_transfer()
 
     async def read():
         await asyncio.sleep(1)
@@ -58,38 +50,7 @@ def client(env, port, func):
 
         cupy.cuda.set_allocator(None)
         for i in range(ITERATIONS):
-            # storing cu objects in msg
-            # we delete to minimize GPU memory usage
-            # del msg
-            try:
-                # Recv meta data
-                nframes = np.empty(1, dtype=np.uint64)
-                await ep.recv(nframes)
-                is_cudas = np.empty(nframes[0], dtype=np.bool)
-                await ep.recv(is_cudas)
-                sizes = np.empty(nframes[0], dtype=np.uint64)
-                await ep.recv(sizes)
-            except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
-                msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
-                raise e(msg)
-            else:
-                # Recv frames
-                frames = []
-                for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
-                    if size > 0:
-                        if is_cuda:
-                            frame = cuda_array(size)
-                        else:
-                            frame = np.empty(size, dtype=np.uint8)
-                        await ep.recv(frame)
-                        frames.append(frame)
-                    else:
-                        if is_cuda:
-                            frames.append(cuda_array(size))
-                        else:
-                            frames.append(b"")
-
-            msg = await from_frames(frames)
+            frames, msg = await recv(ep)
 
         close_msg = b"shutdown listener"
         close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
@@ -104,13 +65,6 @@ def client(env, port, func):
     rx_cuda_obj + rx_cuda_obj
     num_bytes = nbytes(rx_cuda_obj)
     print(f"TOTAL DATA RECEIVED: {num_bytes}")
-    # nvlink only measures in KBs
-    if num_bytes > 90000:
-        rx, tx = total_nvlink_transfer()
-        msg = f"RX BEFORE SEND: {before_rx} -- RX AFTER SEND: {rx} \
-               -- TOTAL DATA: {num_bytes}"
-        print(msg)
-        assert rx > before_rx
 
     cuda_obj_generator = cloudpickle.loads(func)
     pure_cuda_obj = cuda_obj_generator()
@@ -121,12 +75,10 @@ def client(env, port, func):
         cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def server(env, port, func):
+def server(port, func):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
-    ucp.reset()
-    os.environ.update(env)
     ucp.init()
 
     async def f(listener_port):
@@ -144,18 +96,7 @@ def server(env, port, func):
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
                 # Send meta data
-                await ep.send(np.array([len(frames)], dtype=np.uint64))
-                await ep.send(
-                    np.array(
-                        [hasattr(f, "__cuda_array_interface__") for f in frames],
-                        dtype=np.bool,
-                    )
-                )
-                await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
-                # Send frames
-                for frame in frames:
-                    if nbytes(frame) > 0:
-                        await ep.send(frame)
+                await send(ep, frames)
 
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"
@@ -206,7 +147,7 @@ def empty_dataframe():
     return cudf.DataFrame({"a": [1.0], "b": [1.0]}).head(0)
 
 
-def cupy():
+def cupy_obj():
     import cupy
 
     size = 10 ** 8
@@ -214,19 +155,19 @@ def cupy():
 
 
 @pytest.mark.skipif(
-    not more_than_two_gpus(), reason="Machine does not have more than two GPUs"
+    get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.parametrize(
-    "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy]
+    "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy_obj]
 )
 def test_send_recv_cu(cuda_obj_generator):
     base_env = os.environ
-    env1 = base_env.copy()
-    env2 = base_env.copy()
-    cvd = get_cuda_visible_devices()
+    env_client = base_env.copy()
+    # grab first two devices
+    cvd = get_cuda_devices()[:2]
+    cvd = ",".join(map(str, cvd))
     # reverse CVD for other worker
-    env1["CUDA_VISIBLE_DEVICES"] = cvd
-    env2["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
+    env_client["CUDA_VISIBLE_DEVICES"] = cvd[::-1]
 
     port = random.randint(13000, 15500)
     # serialize function and send to the client and server
@@ -237,10 +178,14 @@ def test_send_recv_cu(cuda_obj_generator):
 
     func = cloudpickle.dumps(cuda_obj_generator)
     ctx = multiprocessing.get_context("spawn")
-    server_process = ctx.Process(name="server", target=server, args=[env1, port, func])
-    client_process = ctx.Process(name="client", target=client, args=[env2, port, func])
+    server_process = ctx.Process(name="server", target=server, args=[port, func])
+    client_process = ctx.Process(name="client", target=client, args=[port, func])
 
     server_process.start()
+    # cudf will ping the driver for validity of device
+    # this will influence device on which a cuda context is created.
+    # work around is to update env with new CVD before spawning
+    os.environ.update(env_client)
     client_process.start()
 
     server_process.join()
@@ -248,18 +193,3 @@ def test_send_recv_cu(cuda_obj_generator):
 
     assert server_process.exitcode == 0
     assert client_process.exitcode == 0
-
-
-def total_nvlink_transfer():
-    pynvml.nvmlShutdown()
-    pynvml.nvmlInit()
-    cuda_dev_id = int(get_cuda_visible_devices().split(",")[0])
-    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
-    rx = 0
-    tx = 0
-    for i in range(nlinks):
-        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
-        rx += transfer["rx"]
-        tx += transfer["tx"]
-    return rx, tx

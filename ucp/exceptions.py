@@ -4,13 +4,15 @@
 import contextlib
 import logging
 
+logger = logging.getLogger("ucx")
+
 
 @contextlib.contextmanager
 def log_errors(reraise_exception=False):
     try:
         yield
     except BaseException as e:
-        logging.exception(e)
+        logger.exception(e)
         if reraise_exception:
             raise
 
@@ -36,4 +38,8 @@ class UCXCloseError(UCXBaseException):
 
 
 class UCXCanceled(UCXBaseException):
+    pass
+
+
+class UCXMsgTruncated(UCXBaseException):
     pass

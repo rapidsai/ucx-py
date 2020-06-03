@@ -1,9 +1,12 @@
 import asyncio
 import fcntl
+import hashlib
+import logging
 import multiprocessing as mp
 import os
 import socket
 import struct
+import time
 
 import numpy as np
 
@@ -39,12 +42,12 @@ def get_address(ifname=None):
         ifname = os.environ.get("UCXPY_IFNAME", "ib0")
 
     ifname = ifname.encode()
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return socket.inet_ntoa(
-        fcntl.ioctl(
-            s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
-        )[20:24]
-    )
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        return socket.inet_ntoa(
+            fcntl.ioctl(
+                s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
+            )[20:24]
+        )
 
 
 def get_closest_net_devices(gpu_dev):
@@ -78,6 +81,48 @@ def get_closest_net_devices(gpu_dev):
     if len(ifnames) > 0:
         net_dev += ifnames[0]["name"]
     return net_dev
+
+
+def get_ucxpy_logger():
+    """
+    Get UCX-Py logger with custom formatting
+
+    Returns
+    -------
+    logger : logging.Logger
+        Logger object
+
+    Examples
+    --------
+    >>> logger = get_ucxpy_logger()
+    >>> logger.warning("Test")
+    [1585175070.2911468] [dgx12:1054] UCXPY  WARNING Test
+    """
+
+    _level_enum = logging.getLevelName(os.getenv("UCXPY_LOG_LEVEL", "WARNING"))
+    logger = logging.getLogger("ucx")
+
+    # Avoid duplicate logging
+    logger.propagate = False
+
+    class LoggingFilter(logging.Filter):
+        def filter(self, record):
+            record.hostname = socket.gethostname()
+            record.timestamp = str("%.6f" % time.time())
+            return True
+
+    formatter = logging.Formatter(
+        "[%(timestamp)s] [%(hostname)s:%(process)d] UCXPY  %(levelname)s %(message)s"
+    )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    handler.addFilter(LoggingFilter())
+    logger.addHandler(handler)
+
+    logger.setLevel(_level_enum)
+
+    return logger
 
 
 # Help function used by `run_on_local_network()`
@@ -180,3 +225,23 @@ def run_on_local_network(
         assert not proc.exitcode
     assert len(results) == n_workers
     return results
+
+
+try:
+    from cudf._lib.nvtx import annotate as nvtx_annotate
+except ImportError:
+    # NVTX annotations functionality currently exists in cuDF, if cuDF isn't
+    # installed, `annotate` yields only.
+    from contextlib import contextmanager
+
+    @contextmanager
+    def nvtx_annotate(message=None, color=None, domain=None):
+        yield
+
+
+def hash64bits(*args):
+    """64 bit unsigned hash of `args`"""
+    # 64 bits hexdigest
+    h = hashlib.sha1(bytes(repr(args), "utf-8")).hexdigest()[:16]
+    # Convert to an integer and return
+    return int(h, 16)

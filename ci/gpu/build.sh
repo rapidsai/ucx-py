@@ -77,7 +77,7 @@ conda list
 logger "Build ucx"
 git clone https://github.com/openucx/ucx
 cd ucx
-git checkout v1.7.x
+git checkout v1.8.x
 ls
 ./autogen.sh
 mkdir build
@@ -126,15 +126,18 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
+    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py --ignore-glob tests/debug-tests/test_send_recv_many_workers.py tests/debug-tests/test_send_recv_many_workers.py tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
         logger "TEST OF DASK/UCX..."
-        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
-        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
-        py.test --cache-clear -v `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
-        py.test --cache-clear -v `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
+        py.test --cache-clear -m "slow" -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
     fi
 
     logger "Run local benchmark..."

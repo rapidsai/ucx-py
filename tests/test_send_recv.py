@@ -147,6 +147,7 @@ async def test_send_recv_error(blocking_progress_mode):
 
     msg = bytearray(100)
     with pytest.raises(
-        ucp.exceptions.UCXError, match=r"length mismatch: 3 \(got\) != 100 \(expected\)"
+        ucp.exceptions.UCXMsgTruncated,
+        match=r"length mismatch: 3 \(got\) != 100 \(expected\)",
     ):
         await client.recv(msg)
