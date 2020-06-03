@@ -143,9 +143,7 @@ def cupy_obj():
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
-@pytest.mark.skipif(
-    not rc_enabled, reason="Transport `rc` is not enabled"
-)
+@pytest.mark.skipif(not rc_enabled, reason="Transport `rc` is not enabled")
 def test_send_recv_cu():
     base_env = os.environ
     env_client = base_env.copy()
