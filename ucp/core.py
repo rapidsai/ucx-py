@@ -759,12 +759,26 @@ def get_config():
         return _get_ctx().get_config()
 
 
-def create_listener(callback_func, port=None, guarantee_msg_order=False):
-    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
+def create_listener(
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=True
+):
+    return _get_ctx().create_listener(
+        callback_func,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
-async def create_endpoint(ip_address, port, guarantee_msg_order=False):
-    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
+async def create_endpoint(
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=True
+):
+    return await _get_ctx().create_endpoint(
+        ip_address,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
 def continuous_ucx_progress(event_loop=None):
