@@ -43,13 +43,15 @@ def get_log_queue_handler():
     return log_queue, listener
 
 
-async def get_ep(name, port):
+async def get_ep(name, port, endpoint_error_handling):
     addr = ucp.get_address()
-    ep = await ucp.create_endpoint(addr, port)
+    ep = await ucp.create_endpoint(
+        addr, port, endpoint_error_handling=endpoint_error_handling
+    )
     return ep
 
 
-def client(port, func):
+def client(port, func, endpoint_error_handling):
     # wait for server to come up
     # receive object
     # process suicides
@@ -61,7 +63,7 @@ def client(port, func):
 
     async def read():
         await asyncio.sleep(1)
-        ep = await get_ep("client", port)
+        ep = await get_ep("client", port, endpoint_error_handling)
         msg = None
         import cupy
 
@@ -76,7 +78,7 @@ def client(port, func):
     asyncio.get_event_loop().run_until_complete(read())
 
 
-def server(port, func):
+def server(port, func, endpoint_error_handling):
     # create listener receiver
     # add queue logger
     # write cudf object
@@ -112,7 +114,9 @@ def server(port, func):
             await ep.close()
             lf.close()
 
-        lf = ucp.create_listener(write, port=listener_port)
+        lf = ucp.create_listener(
+            write, port=listener_port, endpoint_error_handling=endpoint_error_handling
+        )
         try:
             while not lf.closed():
                 await asyncio.sleep(0.1)
@@ -127,10 +131,9 @@ def server(port, func):
     # status 0 if encountered, -1 otherwise.
     while not log_queue.empty():
         log = log_queue.get()
-        print(log)
         if "Endpoint timeout" in log.getMessage():
-            sys.exit(0)
-    sys.exit(-1)
+            sys.exit(-80)
+    sys.exit(0)
 
 
 def cupy_obj():
@@ -144,7 +147,8 @@ def cupy_obj():
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
 @pytest.mark.skipif(not rc_enabled, reason="Transport `rc` is not enabled")
-def test_send_recv_cu():
+@pytest.mark.parametrize("endpoint_error_handling", [True, False])
+def test_send_recv_cu(endpoint_error_handling):
     base_env = os.environ
     env_client = base_env.copy()
     # grab first two devices
@@ -162,8 +166,12 @@ def test_send_recv_cu():
 
     func = cloudpickle.dumps(cupy_obj)
     ctx = multiprocessing.get_context("spawn")
-    server_process = ctx.Process(name="server", target=server, args=[port, func])
-    client_process = ctx.Process(name="client", target=client, args=[port, func])
+    server_process = ctx.Process(
+        name="server", target=server, args=[port, func, endpoint_error_handling]
+    )
+    client_process = ctx.Process(
+        name="client", target=client, args=[port, func, endpoint_error_handling]
+    )
 
     server_process.start()
     # cudf will ping the driver for validity of device
@@ -175,5 +183,9 @@ def test_send_recv_cu():
     server_process.join()
     client_process.join()
 
-    assert server_process.exitcode == 0
+    print("server_process.exitcode:", server_process.exitcode)
+    if endpoint_error_handling:
+        assert server_process.exitcode == -80 or server_process.exitcode == 256 - 80
+    else:
+        assert server_process.exitcode == -6
     assert client_process.exitcode == 1
