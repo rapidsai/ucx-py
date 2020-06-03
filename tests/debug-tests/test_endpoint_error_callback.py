@@ -128,7 +128,8 @@ def server(port, func, endpoint_error_handling):
     asyncio.get_event_loop().run_until_complete(f(port))
 
     # Check log for the expected "Endpoint timeout" and exits with
-    # status 0 if encountered, -1 otherwise.
+    # status -80 if encountered, 0 otherwise. The process will exit
+    # with status -6 when endpoint_error_callback=False.
     while not log_queue.empty():
         log = log_queue.get()
         if "Endpoint timeout" in log.getMessage():
