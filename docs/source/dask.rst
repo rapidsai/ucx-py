@@ -1,7 +1,7 @@
 Using with Dask
 ===============
 
-``UCX/UCX-PY`` can be used with `Dask <https://dask.org/>`_ as a drop-in replacement for the communication protocol between workers.  Below we show how to use UCX-PY with both helper utilities such as `dask-cuda <https://github.com/rapidsai/dask-cuda>`_
+``UCX/UCX-Py`` can be used with `Dask <https://dask.org/>`_ as a drop-in replacement for the communication protocol between workers.  Below we show how to use UCX-Py with both helper utilities such as `dask-cuda <https://github.com/rapidsai/dask-cuda>`_
 and manually starting a dask cluster with UCX enabled.  Additionally, we demonstrate using UCX with a `cuDF Example`_ and `CuPy Example`_.
 
 Starting with Dask-cuda
