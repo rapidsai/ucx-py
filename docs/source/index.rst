@@ -1,7 +1,7 @@
-UCX-PY
+UCX-Py
 ======
 
-UCX-PY is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a low-level high-performance networking library.  UCX and UCX-PY supports several transport methods including InfiniBand and NVLink while still using traditional networking protocols like TCP.
+UCX-Py is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a low-level high-performance networking library.  UCX and UCX-Py supports several transport methods including InfiniBand and NVLink while still using traditional networking protocols like TCP.
 
 
 .. image:: _static/Architecture.png
