@@ -195,13 +195,6 @@ def cupy_obj():
 )
 @pytest.mark.parametrize("enable_rmm", [True, False])
 def test_send_recv_cu(cuda_obj_generator, enable_rmm):
-    if not enable_rmm:
-        pytest.xfail(
-            "This test currently does not work without RMM enabled."
-            " Please see issue"
-            " ( https://github.com/rapidsai/ucx-py/issues/531 ) for details."
-        )
-
     cuda_visible_devices_base = os.environ.get("CUDA_VISIBLE_DEVICES")
     ucx_net_devices_base = os.environ.get("UCX_NET_DEVICES")
 
