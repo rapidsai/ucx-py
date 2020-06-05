@@ -139,7 +139,9 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
+async def _listener_handler(
+    conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
+):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
@@ -147,6 +149,10 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     seed = os.urandom(16)
     msg_tag = hash64bits("msg_tag", seed, port)
     ctrl_tag = hash64bits("ctrl_tag", seed, port)
+
+    endpoint = ctx.worker.ep_create_from_conn_request(
+        conn_request, endpoint_error_handling
+    )
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
@@ -223,7 +229,9 @@ class ApplicationContext:
                 self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
             )
 
-    def create_listener(self, callback_func, port, guarantee_msg_order):
+    def create_listener(
+        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=True
+    ):
         """Create and start a listener to accept incoming connections
 
         callback_func is the function or coroutine that takes one
@@ -245,6 +253,10 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
+        endpoint_error_handling: boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
 
         Returns
         -------
@@ -281,12 +293,15 @@ class ApplicationContext:
                     "port": port,
                     "ctx": self,
                     "guarantee_msg_order": guarantee_msg_order,
+                    "endpoint_error_handling": endpoint_error_handling,
                 },
             )
         )
         return ret
 
-    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
+    async def create_endpoint(
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=True
+    ):
         """Create a new endpoint to a server
 
         Parameters
@@ -298,13 +313,18 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
+        endpoint_error_handling: boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
+
         Returns
         -------
         Endpoint
             The new endpoint
         """
         self.continuous_ucx_progress()
-        ucx_ep = self.worker.ep_create(ip_address, port)
+        ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
         # We create the Endpoint in four steps:
@@ -739,12 +759,26 @@ def get_config():
         return _get_ctx().get_config()
 
 
-def create_listener(callback_func, port=None, guarantee_msg_order=False):
-    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
+def create_listener(
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=True
+):
+    return _get_ctx().create_listener(
+        callback_func,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
-async def create_endpoint(ip_address, port, guarantee_msg_order=False):
-    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
+async def create_endpoint(
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=True
+):
+    return await _get_ctx().create_endpoint(
+        ip_address,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
 def continuous_ucx_progress(event_loop=None):

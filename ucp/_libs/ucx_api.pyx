@@ -237,6 +237,23 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
+cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+    status_str = ucs_status_string(status).decode("utf-8")
+    msg = (
+        "Endpoint %s failed with status %d: %s" % (
+            hex(int(<uintptr_t>ep)), status, status_str
+        )
+    )
+    logger.error(msg)
+
+
+cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
+    cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+    if endpoint_error_handling and any(t in tls for t in ["dc", "ib", "rc"]):
+        err_cb = <ucp_err_handler_cb_t>_ib_err_cb
+    return err_cb
+
+
 def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
@@ -320,16 +337,40 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, port):
+    def ep_create(self, str ip_address, port, endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
-        if c_util_get_ucp_ep_params(&params, ip_address.encode(), port):
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+        if c_util_get_ucp_ep_params(
+            &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
+        ):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
+    def ep_create_from_conn_request(
+        self, uintptr_t conn_request, endpoint_error_handling
+    ):
+        assert self.initialized
+
+        cdef ucp_ep_params_t params
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+        if c_util_get_ucp_ep_conn_params(
+            &params, <ucp_conn_request_h>conn_request, <ucp_err_handler_cb_t>err_cb
+        ):
+            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
@@ -404,18 +445,19 @@ cdef class UCXEndpoint(UCXObject):
         return int(<uintptr_t>self._handle)
 
 
-cdef void _listener_callback(ucp_ep_h ep, void *args):
+cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
     """Callback function used by UCXListener"""
     cdef dict cb_data = <dict> args
-    ctx = cb_data['ctx']
+
     with log_errors():
         asyncio.ensure_future(
             cb_data['cb_coroutine'](
-                UCXEndpoint(ctx.worker, <uintptr_t>ep),
-                ctx,
+                int(<uintptr_t>conn_request),
+                cb_data['ctx'],
                 cb_data['cb_func'],
                 cb_data['port'],
-                cb_data['guarantee_msg_order']
+                cb_data['guarantee_msg_order'],
+                cb_data['endpoint_error_handling']
             )
         )
 
@@ -436,8 +478,8 @@ cdef class UCXListener(UCXObject):
 
     def __init__(self, UCXWorker worker, port, cb_data):
         cdef ucp_listener_params_t params
-        cdef ucp_listener_accept_callback_t _listener_cb = (
-            <ucp_listener_accept_callback_t>_listener_callback
+        cdef ucp_listener_conn_callback_t _listener_cb = (
+            <ucp_listener_conn_callback_t>_listener_callback
         )
         self.port = port
         self.cb_data = cb_data
