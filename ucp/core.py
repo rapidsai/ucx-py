@@ -230,7 +230,7 @@ class ApplicationContext:
             )
 
     def create_listener(
-        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=True
+        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=False
     ):
         """Create and start a listener to accept incoming connections
 
@@ -300,7 +300,7 @@ class ApplicationContext:
         return ret
 
     async def create_endpoint(
-        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=True
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=False
     ):
         """Create a new endpoint to a server
 
@@ -760,7 +760,7 @@ def get_config():
 
 
 def create_listener(
-    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=True
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=False
 ):
     return _get_ctx().create_listener(
         callback_func,
@@ -771,7 +771,7 @@ def create_listener(
 
 
 async def create_endpoint(
-    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=True
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=False
 ):
     return await _get_ctx().create_endpoint(
         ip_address,
