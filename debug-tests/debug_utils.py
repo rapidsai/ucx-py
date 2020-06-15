@@ -9,10 +9,6 @@ import rmm
 ITERATIONS = 100
 
 
-def cuda_array(size):
-    return rmm.DeviceBuffer(size=size)
-
-
 def set_rmm():
     rmm.reinitialize(
         pool_allocator=True, managed_memory=False, initial_pool_size=parse_bytes("6GB")
@@ -39,15 +35,6 @@ def parse_args(args=None):
     )
 
     return parser.parse_args()
-
-
-def get_num_gpus():
-    import pynvml
-
-    pynvml.nvmlInit()
-    ngpus = pynvml.nvmlDeviceGetCount()
-    pynvml.nvmlShutdown()
-    return ngpus
 
 
 def get_cuda_devices():
