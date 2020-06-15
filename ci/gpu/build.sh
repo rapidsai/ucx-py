@@ -46,17 +46,13 @@ nvidia-smi
 logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
-              "cupy>=6.5.0" "numpy>=1.16" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
-              "dask>=2.8.1" "distributed>=2.8.1" \
-              "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
-              -c rapidsai-nightly
+              "rapids-build-env=$MINOR_VERSION.*"
 
-# needed for asynccontextmanager in py36
-conda install -c conda-forge "async_generator" "automake" "libtool" \
-                              "cmake" "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
-                              "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml" "libhwloc" "psutil"
+# https://docs.rapids.ai/maintainers/depmgmt/ 
+# conda remove -f rapids-build-env
+# conda install "your-pkg=1.0.0"
+
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
