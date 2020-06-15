@@ -5,7 +5,8 @@ import cloudpickle
 import pynvml
 import pytest
 import ucp
-from utils import ITERATIONS, recv, send, set_rmm
+from debug_utils import ITERATIONS, set_rmm
+from utils import recv, send
 
 pynvml.nvmlInit()
 
