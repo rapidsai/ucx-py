@@ -47,6 +47,7 @@ def test_get_buffer_nbytes_builtins(buffer):
             memoryview(buffer)[::2], check_min_size=None, cuda_support=True
         )
 
+    # Test exceptional cases with `check_min_size`
     get_buffer_nbytes(buffer, check_min_size=nbytes, cuda_support=True)
     with pytest.raises(ValueError):
         get_buffer_nbytes(buffer, check_min_size=(nbytes + 1), cuda_support=True)
