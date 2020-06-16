@@ -6,11 +6,9 @@ from distributed.utils import parse_bytes
 import cupy
 import rmm
 
+from .utils import get_num_gpus
+
 ITERATIONS = 100
-
-
-def cuda_array(size):
-    return rmm.DeviceBuffer(size=size)
 
 
 def set_rmm():
@@ -39,15 +37,6 @@ def parse_args(args=None):
     )
 
     return parser.parse_args()
-
-
-def get_num_gpus():
-    import pynvml
-
-    pynvml.nvmlInit()
-    ngpus = pynvml.nvmlDeviceGetCount()
-    pynvml.nvmlShutdown()
-    return ngpus
 
 
 def get_cuda_devices():

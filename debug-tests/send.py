@@ -7,7 +7,8 @@ from distributed.protocol import to_serialize
 import cloudpickle
 import pytest
 import ucp
-from utils import ITERATIONS, recv, send, set_rmm
+from debug_utils import ITERATIONS, set_rmm
+from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
