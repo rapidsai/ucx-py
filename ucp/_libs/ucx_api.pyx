@@ -320,7 +320,7 @@ cdef class UCXMemoryHandle:
     def length(self):
         return self._length
 
-cdef class UCXRequest:
+cdef class UCXRequestStatus:
     cdef void *_request
     cdef ucs_status_t status
     def __init__(self, int ucp_request):
@@ -344,8 +344,8 @@ cdef class UCXRequest:
 
     def __eq__(self, other):
         cdef ucs_status_t status
-        if isinstance(other, UCXRequest):
-            return self._request == (<UCXRequest>other)._request
+        if isinstance(other, UCXRequestStatus):
+            return self._request == (<UCXRequestStatus>other)._request
         # This branch is needed to catch comparing a request to UCS_OK or UCS_INPROGRESS
         return self.status == other
 
@@ -521,7 +521,7 @@ cdef class UCXWorker(UCXObject):
         req = ucp_worker_flush_nb(self._handle, 0, NULL)
         if req == NULL:
             return UCS_OK
-        return UCXRequest(<uintptr_t>req)
+        return UCXRequestStatus(<uintptr_t>req)
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
@@ -740,6 +740,14 @@ cdef class UCXRequest:
                 "uid={self._uid} info={self.info}>"
             )
 
+    def check_status(self):
+        cdef ucs_status_t status
+
+        if UCS_PTR_STATUS(self._handle) == UCS_OK:
+            return UCS_OK
+        status = ucp_request_check_status(self._handle)
+        assert_ucs_status(status)
+        return status
 
 cdef _handle_status(
     ucs_status_ptr_t status,
@@ -1163,7 +1171,7 @@ def stream_recv_nb(
 
 cdef class UCXAddress:
     """Python representation of ucp_address_t"""
-    cdef ucp_address_t *_address
+    cdef ucp_address_t *_handle
     cdef size_t _length
     cdef worker
 
@@ -1171,9 +1179,13 @@ cdef class UCXAddress:
         cdef ucs_status_t status
         cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker
 
-        status = ucp_worker_get_address(ucp_worker, &self._address, &self._length)
+        status = ucp_worker_get_address(ucp_worker, &self._handle, &self._length)
         assert_ucs_status(status)
         self.worker = worker
+        self.__array_interface__["data"] = (<uintptr_t>self._handle, True)
+        self.__array_interface__["typestr"] = "|V1"
+        self.__array_interface__["shape"] = [self._length]
+        self.__array_interface__["version"] = 3
 
     @property
     def address(self):

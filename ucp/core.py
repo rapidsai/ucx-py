@@ -1104,7 +1104,7 @@ class UcxIO(RawIOBase):
         req = self.rmem.put_nb(buff, size, self.remote_addr + self.pos)
         self.block_on_request(req)
         self.pos += size
-        return len(buff)
+        return size
 
     def seekable(self):
         return True
