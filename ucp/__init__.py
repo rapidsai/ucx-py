@@ -43,6 +43,5 @@ if not os.environ.get("UCX_TCP_RX_SEG_SIZE", False):
 # After handling of environment variable logging, add formatting to the logger
 logger = get_ucxpy_logger()
 
-
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()

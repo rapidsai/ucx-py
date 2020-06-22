@@ -23,6 +23,8 @@ from ..exceptions import (
 from ..utils import nvtx_annotate
 from .utils import get_buffer_data, get_buffer_nbytes
 
+def get_constants():
+    return {"OK": UCS_OK, "INPROGRESS": UCS_INPROGRESS}
 
 # Struct used as requests by UCX
 cdef struct ucx_py_request:
@@ -47,7 +49,7 @@ logger = logging.getLogger("ucx")
 
 
 cdef assert_ucs_status(ucs_status_t status, msg_context=None):
-    if status != UCS_OK:
+    if status != UCS_OK and status != UCS_INPROGRESS:
         msg = "[%s] " % msg_context if msg_context is not None else ""
         msg += ucs_status_string(status).decode("utf-8")
         raise UCXError(msg)
@@ -202,6 +204,7 @@ cdef class UCXContext(UCXObject):
         # See <https://github.com/rapidsai/ucx-py/pull/377>
         ucp_params.features = (UCP_FEATURE_TAG |  # noqa
                                UCP_FEATURE_WAKEUP |  # noqa
+                               UCP_FEATURE_RMA |
                                UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucx_py_request)
@@ -240,10 +243,15 @@ cdef class UCXContext(UCXObject):
 cdef class PackedRemoteKey:
     cdef void *_key
     cdef size_t _length
-
-    def __cinit__(self, key, size):
-        self._key = <void*><uintptr_t>key
-        self._length = <size_t>size
+    __array_interface__ = dict()
+    def __init__(self, UCXMemoryHandle mem):
+        cdef ucs_status_t status
+        status = ucp_rkey_pack(mem._ctx, mem._memh, &self._key, &self._length)
+        assert_ucs_status(status)
+        self.__array_interface__["data"] = (<uintptr_t>self._key, True)
+        self.__array_interface__["typestr"] = "|V1"
+        self.__array_interface__["shape"] = [self._length]
+        self.__array_interface__["version"] = 3
 
     def __dealloc__(self):
         ucp_rkey_buffer_release(self._key)
@@ -257,39 +265,48 @@ cdef class PackedRemoteKey:
 cdef class UCXMemoryHandle:
     cdef ucp_mem_h _memh
     cdef ucp_context_h _ctx
+    cdef uint64_t r_address
+    cdef size_t _length
 
-    def __cinit__(self, handle, mem, alloc, fixed):
+    def __init__(self, handle, mem, alloc, fixed):
         cdef ucp_mem_map_params_t params
         cdef ucp_mem_h memh
         cdef ucs_status_t status
 
-        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_LENGTH
         if not alloc:
-            params.field_mask |= UCP_MEM_MAP_PARAM_FIELD_ADDRESS
+            params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
             params.address = <void*><uintptr_t>get_buffer_data(mem, check_writable=False)
             params.length = <size_t>get_buffer_nbytes(mem, 0, False)
         else:
-            params.field_mask |= UCP_MEM_MAP_PARAM_FIELD_FLAGS
+            params.field_mask = UCP_MEM_MAP_PARAM_FIELD_FLAGS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
             params.length = <size_t>mem
             params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
 
+        printf("c length: %zu\n", params.length)
         self._ctx = <ucp_context_h><uintptr_t>handle
         status = ucp_mem_map(self._ctx, &params, &self._memh)
         assert_ucs_status(status)
-        
+        self._populate_metadata()
         printf("ctx: %p memh: %p\n", self._ctx, self._memh)
 
     def pack_rkey(self):
-        cdef ucs_status_t status
-        cdef size_t size
-        cdef void *key
-        status = ucp_rkey_pack(self._ctx, self._memh, &key, &size)
-        assert_ucs_status(status)
-        return PackedRemoteKey(<uintptr_t>key, size)
+        return PackedRemoteKey(self)
 
     @property
     def memh(self):
         return <uintptr_t>self._memh
+
+    #Done as a separate function because some day I plan on making this loaded lazily
+    #Should also note that I believe this reports the actual registered space, rather than what was requested.
+    def _populate_metadata(self):
+        cdef ucs_status_t status
+        cdef ucp_mem_attr_t attr
+
+        attr.field_mask = UCP_MEM_ATTR_FIELD_ADDRESS | UCP_MEM_ATTR_FIELD_LENGTH
+        status = ucp_mem_query(self._memh, &attr)
+        assert_ucs_status(status)
+        self.r_address = <uintptr_t>attr.address
+        self._length = attr.length
 
     def __dealloc__(self):
         cdef ucs_status_t status
@@ -297,6 +314,40 @@ cdef class UCXMemoryHandle:
         #status = ucp_mem_unmap(self._ctx, self._memh)
         #assert_ucs_status(status)
 
+    def address(self):
+        return self.r_address
+
+    def length(self):
+        return self._length
+
+cdef class UCXRequest:
+    cdef void *_request
+    cdef ucs_status_t status
+    def __init__(self, int ucp_request):
+        self._request = <void*><uintptr_t>ucp_request
+        self.status = UCS_PTR_STATUS(self._request)
+        assert_ucs_status(self.status)
+
+    def check_status(self):
+        cdef ucs_status_t status
+
+        if UCS_PTR_STATUS(self._request) == UCS_OK:
+            #We don't check for errors in this branch because they would be raised at init.
+            return UCS_OK
+        status = ucp_request_check_status(self._request)
+        assert_ucs_status(status)
+        return status
+
+    def __dealloc__(self):
+        if UCS_PTR_IS_PTR(self._request):
+            ucp_request_free(self._request)
+
+    def __eq__(self, other):
+        cdef ucs_status_t status
+        if isinstance(other, UCXRequest):
+            return self._request == (<UCXRequest>other)._request
+        # This branch is needed to catch comparing a request to UCS_OK or UCS_INPROGRESS
+        return self.status == other
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     status_str = ucs_status_string(status).decode("utf-8")
@@ -439,6 +490,7 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+
     def ep_create_from_conn_request(
         self, uintptr_t conn_request, endpoint_error_handling
     ):
@@ -458,6 +510,18 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def fence(self):
+        cdef ucs_status_t status
+        status = ucp_worker_fence(self._handle)
+        assert_ucs_status(status)
+        return status
+
+    def flush(self):
+        cdef ucs_status_ptr_t req
+        req = ucp_worker_flush_nb(self._handle, 0, NULL)
+        if req == NULL:
+            return UCS_OK
+        return UCXRequest(<uintptr_t>req)
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
@@ -527,6 +591,9 @@ cdef class UCXEndpoint(UCXObject):
     def handle(self):
         assert self.initialized
         return int(<uintptr_t>self._handle)
+
+    def unpack_rkey(self, rkey):
+        return UCXRkey(self, rkey)
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
@@ -1100,7 +1167,7 @@ cdef class UCXAddress:
     cdef size_t _length
     cdef worker
 
-    def __cinit__(self, worker):
+    def __init__(self, worker):
         cdef ucs_status_t status
         cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker
 
@@ -1120,4 +1187,73 @@ cdef class UCXAddress:
         cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>self.worker
         ucp_worker_release_address(ucp_worker, <ucp_address_t *>self._address)
 
->>>>>>> RMA work
+cdef class UCXRkey:
+    cdef ucp_rkey_h _handle
+    cdef UCXEndpoint ep
+
+    def __init__(self, UCXEndpoint ep, rkey):
+        cdef ucs_status_t status
+        cdef const void *key_data = <const void *><const uintptr_t>get_buffer_data(rkey)
+        status = ucp_ep_rkey_unpack(ep._handle, key_data, &self._handle)
+        assert_ucs_status(status)
+        self.ep = ep
+
+    def __dealloc__(self):
+        if <void*>self._handle == NULL:
+            ucp_rkey_destroy(self._handle)
+
+def put_nbi(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
+    cdef ucs_status_t status = ucp_put_nbi(rkey.ep._handle,
+                                           data,
+                                           nbytes,
+                                           remote_addr,
+                                           rkey._handle)
+    assert_ucs_status(status)
+    return status
+
+def get_nbi(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
+    cdef ucs_status_t status = ucp_get_nbi(rkey.ep._handle,
+                                           data,
+                                           nbytes,
+                                           remote_addr,
+                                           rkey._handle)
+    assert_ucs_status(status)
+    return status
+
+#TODO: The *_nb functions can take a cb function. Need to integrate this.
+def put_nb(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
+    cdef ucs_status_t ucx_status
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=False))
+    cdef ucs_status_ptr_t status = ucp_put_nb(rkey.ep._handle,
+                                           data,
+                                           nbytes,
+                                           remote_addr,
+                                           rkey._handle,
+                                           NULL)
+    if not UCS_PTR_IS_PTR(status):
+        ucx_status = UCS_PTR_STATUS(status)
+        assert_ucs_status(ucx_status)
+        return ucx_status
+    return UCXRequest(<uintptr_t>status)
+
+def get_nb(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
+    cdef ucs_status_t ucx_status
+    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
+                                         check_writable=True))
+    cdef ucs_status_ptr_t status = ucp_get_nb(rkey.ep._handle,
+                                           data,
+                                           nbytes,
+                                           remote_addr,
+                                           rkey._handle,
+                                           NULL)
+
+    if not UCS_PTR_IS_PTR(status):
+        ucx_status = UCS_PTR_STATUS(status)
+        assert_ucs_status(ucx_status)
+        return ucx_status
+    return UCXRequest(<uintptr_t>status)

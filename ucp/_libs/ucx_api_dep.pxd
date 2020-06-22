@@ -237,11 +237,15 @@ cdef extern from "ucp/api/ucp.h":
         pass
    
     ctypedef struct ucp_mem_attr_t:
-        pass
+        uint64_t field_mask
+        void *address
+        size_t length
 
     int UCP_MEM_MAP_PARAM_FIELD_LENGTH
     int UCP_MEM_MAP_PARAM_FIELD_ADDRESS
     int UCP_MEM_MAP_PARAM_FIELD_FLAGS
+    int UCP_MEM_ATTR_FIELD_ADDRESS
+    int UCP_MEM_ATTR_FIELD_LENGTH
 
     ctypedef struct ucp_mem_map_params_t:
         uint64_t field_mask
@@ -261,7 +265,10 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_rkey_buffer_release(void *rkey_buffer)
     ucs_status_t ucp_rkey_ptr(ucp_rkey_h rkey, uint64_t raddr, void **addr_p)
     void ucp_rkey_destroy(ucp_rkey_h rkey)
-
+    ucs_status_t ucp_put_nbi(ucp_ep_h ep, const void *buffer, size_t length,
+                             uint64_t remote_addr, ucp_rkey_h rkey)
+    ucs_status_t ucp_get_nbi(ucp_ep_h ep, void *buffer, size_t length,
+                             uint64_t remote_addr, ucp_rkey_h rkey)
     ucs_status_ptr_t ucp_put_nb(ucp_ep_h ep, const void *buffer, size_t length,
                                 uint64_t remote_addr, ucp_rkey_h rkey,
                                 ucp_send_callback_t cb)
@@ -276,6 +283,10 @@ cdef extern from "ucp/api/ucp.h":
     void ucp_worker_release_address(ucp_worker_h worker,
                                     ucp_address_t *address)
 
+    ucs_status_t ucp_worker_fence(ucp_worker_h worker)
+    ucs_status_ptr_t ucp_worker_flush_nb(ucp_worker_h worker,
+		                                 unsigned flags,
+		                                 ucp_send_callback_t cb)
 
 cdef extern from "sys/epoll.h":
 

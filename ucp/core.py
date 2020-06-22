@@ -11,6 +11,7 @@ from functools import partial
 from os import close as close_fd
 from random import randint
 from functools import singledispatch
+from io import RawIOBase
 
 import psutil
 
@@ -27,6 +28,11 @@ logger = logging.getLogger("ucx")
 # However, the init of CUDA must happen after all process forks thus we delay
 # the instantiation of the application context to the first use of the API.
 _ctx = None
+
+#return codes for lower level APIs to remain compatible with UCX.
+api_constants = ucx_api.get_constants()
+OK = api_constants["OK"]
+INPROGRESS = api_constants["INPROGRESS"]
 
 
 def _get_ctx():
@@ -249,6 +255,7 @@ class ApplicationContext:
     def create_listener(
         self, callback_func, port, guarantee_msg_order, endpoint_error_handling=False
     ):
+
         """Create and start a listener to accept incoming connections
 
         callback_func is the function or coroutine that takes one
@@ -387,7 +394,7 @@ class ApplicationContext:
         print("About to return")
         return ep
 
-    async def create_ucp_endpoint(self, buffer, guarantee_msg_order):
+    def create_ucp_endpoint(self, buffer, guarantee_msg_order):
         """Create a new endpoint to a peer
 
         Parameters
@@ -483,6 +490,14 @@ class ApplicationContext:
 
     def mem_map(self, mem, alloc=False, fixed=False):
         return self.context.mem_map(mem, alloc, fixed)
+
+    def flush_worker(self):
+        return self.worker.flush()
+
+    def fence_worker(self):
+        return self.worker.fence()
+
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -738,12 +753,6 @@ class Endpoint:
         _rkey = self._ep.unpack_rkey(rkey)
         return RemoteMemory(_rkey, self)
 
-    async def _put(memory, start, rkey):
-        await self._ep.put(memory, start, rkey)
-
-    async def _get(memory, start, rkey):
-        await self._ep.get(memory, start, rkey)
-
 class WorkerAddress:
     """Object that represents an underlying ucp worker address. This will pack all possible addresses into an object exposed in a __array_interface__ dict"""
     def __init__(self, addr):
@@ -885,13 +894,11 @@ def mem_map(memory):
         If memory is an int, then a region of memory will be allocated and registered at a minimum of that size.
         If memory is a buffer, then the memory region containing that buffer object will be registered
     """
-    _memh = _get_ctx().mem_map(memory, alloc=False)
-    return MemoryHandle(_memh)
+    return _get_ctx().mem_map(memory, alloc=False)
 
 @mem_map.register
 def _(memory: int):
-    _memh = _get_ctx().mem_map(memory, alloc=True)
-    return MemoryHandle(_memh)
+    return _get_ctx().mem_map(memory, alloc=True)
 
 def continuous_ucx_progress(event_loop=None):
     _get_ctx().continuous_ucx_progress(event_loop=event_loop)
@@ -899,6 +906,10 @@ def continuous_ucx_progress(event_loop=None):
 
 def get_ucp_worker():
     return _get_ctx().get_ucp_worker()
+
+
+def create_ucp_endpoint(buffer, guarantee_msg_order):
+    return _get_ctx().create_ucp_endpoint(buffer, guarantee_msg_order)
 
 
 def get_ucp_worker_address():
@@ -909,14 +920,16 @@ def get_ucp_worker_address():
     return _get_ctx().get_address()
 
 
-async def flush():
+def flush():
     """Flushes outstanding AMO and RMA operations. This ensures that the
        operations issued on this worker have completed both locally and remotely.
        This function does not guarentee ordering. If more operations are issued
        after flush is called and before the future has completed then those ops may
        complete before outstanding operations in the flush have finished.
     """
-    await _get_ctx().flush_worker()
+    if _ctx is not None:
+        return _get_ctx().flush_worker()
+    return OK
 
     
 def fence():
@@ -937,8 +950,10 @@ def fence():
            await ucp.flush()
        # Continue with more RMA operations
     """
-    if not _get_ctx().fence_worker():
-        raise exceptions.UCXError("Could not fence.")
+    if _ctx is not None:
+        if not _get_ctx().fence_worker():
+            raise exceptions.UCXError("Could not fence.")
+    return OK
 
 class MemoryHandle:
     """This class represents a memory handle registered to UCX. This memory is registered
@@ -959,51 +974,144 @@ class RemoteMemory:
     """This class represents an unpacked rkey and associated meta data to do RMA/AMO
        operations with the memory represented by the packed rkey
     """
-    def __init__(self, rkey, ep):
+    def __init__(self, rkey, ep, explicit=False):
         self.ep = ep
         self._rkey = rkey
+        self._base = 0
+        if explicit:
+            self.put = self.put_nb
+            self.get = self.get_nb
+        else:
+            self.put = self.put_nbi
+            self.get = self.get_nbi
 
-    async def put(self, memory, start=None):
+    def put_nb(self, memory, size=None, dest=None):
         """RMA put operation. Takes the memory specified in the buffer object and writes it.
-           If the first parameter is a UcpBuffer then it is the only parmeter needed.
-           If the first parameter is is any other buffer object, then a second start
-           parameter is needed to specify where in remote memory the object should be written.
-        """
-        await self.ep._put(memory, start, self._rkey)
+        If the first parameter is a UcpBuffer then it is the only parmeter needed.
+        If the first parameter is is any other buffer object, then a second start
+        parameter is needed to specify where in remote memory the object should be written.
 
-    async def get(self, memory, start=None):
+        Returns
+        -------
+        UCXRequest
+            request object that holds metadata about the underlaying driver's progress
+        """
+        if dest is None:
+            dest = self._base
+        if size is None:
+            size = get_buffer_nbytes(memory, None, self.ep.cuda_support())
+        return ucx_api.put_nb(memory, size, dest, self._rkey)
+
+    def get_nb(self, memory, size=None, dest=None):
         """RMA get operation. Reads remote memory into a local buffer
-           If the first parameter is a UcpBuffer then it is the only parmeter needed.
-           If the first parameter is is any other buffer object, then a second start
-           parameter is needed to specify where in remote memory the object should be read.
-        """
-        await self.ep._get(memory, start, self._rkey)
+        If the first parameter is a UcpBuffer then it is the only parmeter needed.
+        If the first parameter is is any other buffer object, then a second start
+        parameter is needed to specify where in remote memory the object should be read.
 
-#TODO: Rewrite this in the ucx_api as a blocking call
+        Returns
+        -------
+        UCXRequest
+            request object that holds metadata about the underlaying driver's progress
+        """
+        if dest is None:
+            dest = self._base
+        if size is None:
+            size = get_buffer_nbytes(memory, None, self.ep.cuda_support())
+        return ucx_api.get_nb(memory, size, dest, self._rkey)
+
+    def put_nbi(self, memory, size=None, dest=None):
+        """RMA put operation. Takes the memory specified in the buffer object and writes it.
+        If the first parameter is a UcpBuffer then it is the only parmeter needed.
+        If the first parameter is is any other buffer object, then a second start
+        parameter is needed to specify where in remote memory the object should be written.
+
+        Returns
+        -------
+        UCS_OK
+            Buffer maybe reused immediately
+        UCS_INPROGRESS
+            Buffer is in use by the underlying driver and not safe for reuse until the worker is flushed
+        """
+        if dest is None:
+            dest = self._base
+        if size is None:
+            size = get_buffer_nbytes(memory, None, self.ep.cuda_support())
+        return ucx_api.put_nbi(memory, size, dest, self._rkey)
+
+    def get_nbi(self, memory, size=None, dest=None):
+        """RMA get operation. Reads remote memory into a local buffer
+        If the first parameter is a UcpBuffer then it is the only parmeter needed.
+        If the first parameter is is any other buffer object, then a second start
+        parameter is needed to specify where in remote memory the object should be read.
+
+        Returns
+        -------
+        UCS_OK
+            Buffer is ready for use immediately
+        UCS_INPROGRESS
+            Buffer is in use by the underlying driver and not safe for use until the worker is flushed
+        """
+        if dest is None:
+            dest = 0
+        if size is None:
+            get_buffer_nbytes(memory, None, self.ep.cuda_support())
+        return ucx_api.get_nbi(memory, size, dest, self._rkey)
+
+
 class UcxIO(RawIOBase):
     """A class to simulate python streams backed by UCX RMA operations"""
-    def __init__(self, uio_data, ep):
+    def __init__(self, ep, dest, length, rkey):
         self.pos = 0
-        self.rkey = uio_data['rkey']
-        self.start_addr = uio_data['start']
-        self.length = uio_data['length']
+        self.rkey = rkey
+        self.remote_addr = dest
+        self.length = length
         self.rmem = ep.unpack_rkey(self.rkey)
         self.ep = ep
-    def readinto(self,buff)
-        self.rmem.get(buff,start)
-        return len(buff)
+
+    def block_on_request(self, req):
+        if req == OK:
+            return
+        status = req.check_status()
+        while status != OK:
+            progress()
+            status = req.check_status()
+
+    def readinto(self, buff):
+        size = get_buffer_nbytes(buff, None, self.ep.cuda_support())
+        if self.pos + size > self.length:
+            size = self.length - self.pos
+        req = self.rmem.get_nb(buff, size, self.remote_addr + self.pos)
+        self.block_on_request(req)
+        self.pos += size
+        return size
+
     def flush(self):
-        flush()
+        req = flush()
+        self.block_on_request(req)
+
     def seek(self, pos, whence=0):
         if whence == 1:
             pos += self.pos
         if whence == 2:
             pos = self.length - pos
         self.pos = pos
+
+    def write(self, buff):
+        print("pos: {} addr: {}".format(self.pos, self.remote_addr))
+        size = get_buffer_nbytes(buff, None, self.ep.cuda_support())
+        if self.pos + size > self.length:
+            size = self.length - self.pos
+        req = self.rmem.put_nb(buff, size, self.remote_addr + self.pos)
+        self.block_on_request(req)
+        self.pos += size
+        return len(buff)
+
     def seekable(self):
         return True
+
     def writable(self):
         return True
+
     def readable(self):
         return True
 
