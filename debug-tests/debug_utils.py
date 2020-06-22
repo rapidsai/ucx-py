@@ -5,8 +5,7 @@ from distributed.utils import parse_bytes
 
 import cupy
 import rmm
-
-from .utils import get_num_gpus
+from utils import get_num_gpus
 
 ITERATIONS = 100
 
