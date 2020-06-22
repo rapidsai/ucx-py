@@ -260,6 +260,10 @@ cdef class PackedRemoteKey:
     def key(self):
         return int(<uintptr_t><void*>self._key)
 
+    @property
+    def length(self):
+        return int(self._length)
+
     #TODO: Buffer interface. Presently relies on upper level exposing an array_interface
     
 cdef class UCXMemoryHandle:
