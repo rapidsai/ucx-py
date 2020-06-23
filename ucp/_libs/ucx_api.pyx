@@ -1178,6 +1178,7 @@ cdef class UCXAddress:
     cdef ucp_address_t *_handle
     cdef size_t _length
     cdef worker
+    __array_interface__ = dict()
 
     def __init__(self, worker):
         cdef ucs_status_t status
@@ -1193,7 +1194,7 @@ cdef class UCXAddress:
 
     @property
     def address(self):
-        return <uintptr_t>self._address
+        return <uintptr_t>self._handle
 
     @property
     def length(self):
@@ -1201,7 +1202,7 @@ cdef class UCXAddress:
 
     def __dealloc__(self):
         cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>self.worker
-        ucp_worker_release_address(ucp_worker, <ucp_address_t *>self._address)
+        ucp_worker_release_address(ucp_worker, <ucp_address_t *>self._handle)
 
 cdef class UCXRkey:
     cdef ucp_rkey_h _handle
@@ -1217,6 +1218,10 @@ cdef class UCXRkey:
     def __dealloc__(self):
         if <void*>self._handle == NULL:
             ucp_rkey_destroy(self._handle)
+
+
+cdef empty_send_cb(void *request, ucs_status_t status):
+    pass
 
 def put_nbi(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
@@ -1245,12 +1250,13 @@ def put_nb(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
     cdef ucs_status_t ucx_status
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
+    cdef ucp_send_callback_t send_cb = <ucp_send_callback_t>empty_send_cb
     cdef ucs_status_ptr_t status = ucp_put_nb(rkey.ep._handle,
                                            data,
                                            nbytes,
                                            remote_addr,
                                            rkey._handle,
-                                           NULL)
+                                           send_cb)
     if not UCS_PTR_IS_PTR(status):
         ucx_status = UCS_PTR_STATUS(status)
         assert_ucs_status(ucx_status)
@@ -1261,12 +1267,13 @@ def get_nb(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
     cdef ucs_status_t ucx_status
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
+    cdef ucp_send_callback_t send_cb = <ucp_send_callback_t>empty_send_cb
     cdef ucs_status_ptr_t status = ucp_get_nb(rkey.ep._handle,
                                            data,
                                            nbytes,
                                            remote_addr,
                                            rkey._handle,
-                                           NULL)
+                                           send_cb)
 
     if not UCS_PTR_IS_PTR(status):
         ucx_status = UCS_PTR_STATUS(status)

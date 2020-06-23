@@ -409,7 +409,6 @@ class ApplicationContext:
         Endpoint
             The new endpoint
         """
-        self.continuous_ucx_progress()
         ucx_ep = self.worker.ucp_ep_create(buffer)
         print("Calling into create code")
         ep = Endpoint(
@@ -422,27 +421,6 @@ class ApplicationContext:
             guarantee_msg_order=guarantee_msg_order,
         )
         return ep
-
-    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
-        """Create a new endpoint to a server
-
-        Parameters
-        ----------
-        ip_address: str
-            IP address of the server the endpoint should connect to
-        port: int
-            IP address of the server the endpoint should connect to
-        guarantee_msg_order: boolean, optional
-            Whether to guarantee message order or not. Remember, both peers
-            of the endpoint must set guarantee_msg_order to the same value.
-        Returns
-        -------
-        Endpoint
-            The new endpoint
-        """
-        self.continuous_ucx_progress()
-        ucx_ep = self.worker.ep_create(ip_address, port)
-        return await self._create_ep(ucx_ep, port, guarantee_msg_order)
 
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress
@@ -486,7 +464,7 @@ class ApplicationContext:
         return self.context.get_config()
 
     def get_address(self):
-        return WorkerAddress(ucx_api.UCXAddress(self.get_ucp_worker()))
+        return ucx_api.UCXAddress(self.get_ucp_worker())
 
     def mem_map(self, mem, alloc=False, fixed=False):
         return self.context.mem_map(mem, alloc, fixed)
@@ -753,13 +731,6 @@ class Endpoint:
         _rkey = self._ep.unpack_rkey(rkey)
         return RemoteMemory(_rkey, self)
 
-class WorkerAddress:
-    """Object that represents an underlying ucp worker address. This will pack all possible addresses into an object exposed in a __array_interface__ dict"""
-    def __init__(self, addr):
-        self._addr = addr
-        print("Adding address", hex(addr.address))
-        self.__array_interface__ = {"version": 3, "shape": (addr.length), "typestr": "V", "data": (addr.address, True)}
-
 
 # The following functions initialize and use a single ApplicationContext instance
 
@@ -969,6 +940,14 @@ class MemoryHandle:
            such as tag_send()/tag_recv() or an out of band machanism such as PMI.
         """
         return self._memh.pack_rkey()
+
+    @property
+    def address(self):
+        return self._memh.address()
+
+    @property
+    def length(self):
+        return self._memh.length()
 
 class RemoteMemory:
     """This class represents an unpacked rkey and associated meta data to do RMA/AMO
