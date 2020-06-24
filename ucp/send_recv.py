@@ -57,7 +57,14 @@ def tag_recv(
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
     req = ucx_api.tag_recv(
-        ep, buffer, nbytes, tag, _cb_func, name=name, cb_args=(event_loop, ret)
+        ep.worker,
+        buffer,
+        nbytes,
+        tag,
+        _cb_func,
+        name=name,
+        cb_args=(event_loop, ret),
+        ep=ep,
     )
     if req is None and not ret.done():
         ret.set_result(True)

@@ -251,9 +251,18 @@ cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
     return err_cb
 
 
-def _ucx_worker_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+def _ucx_worker_handle_finalizer(
+    uintptr_t handle_as_int, UCXContext ctx, inflight_msgs
+):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
+
+    # Cancel all inflight messages
+    for req in list(inflight_msgs):
+        assert not req.closed()
+        logger.debug("Future cancelling: %s" % req.info["name"])
+        ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
+
     ucp_worker_destroy(handle)
 
 
@@ -262,6 +271,7 @@ cdef class UCXWorker(UCXObject):
     cdef:
         ucp_worker_h _handle
         UCXContext _context
+        set _inflight_msgs
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
@@ -274,11 +284,13 @@ cdef class UCXWorker(UCXObject):
         worker_params.thread_mode = UCS_THREAD_MODE_MULTI
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
+        self._inflight_msgs = set()
 
         self.add_handle_finalizer(
             _ucx_worker_handle_finalizer,
             int(<uintptr_t>self._handle),
-            self._context
+            self._context,
+            self._inflight_msgs
         )
         context.add_child(self)
 
@@ -723,14 +735,15 @@ cdef void _tag_recv_callback(
 
 
 def tag_recv(
-    UCXEndpoint ep,
+    UCXWorker worker,
     buffer,
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
     cb_args=tuple(),
     cb_kwargs=dict(),
-    name="tag_recv"
+    name="tag_recv",
+    UCXEndpoint ep=None
 ):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=True))
@@ -738,7 +751,7 @@ def tag_recv(
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(
-        ep.worker._handle,
+        worker._handle,
         data,
         nbytes,
         ucp_dt_make_contig(1),
@@ -746,8 +759,9 @@ def tag_recv(
         -1,
         _tag_recv_cb
     )
+    inflight_msgs = worker._inflight_msgs if ep is None else ep._inflight_msgs
     return _handle_status(
-        status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
+        status, nbytes, cb_func, cb_args, cb_kwargs, name, inflight_msgs
     )
 
 
