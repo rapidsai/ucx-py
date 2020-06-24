@@ -599,36 +599,6 @@ cdef class UCXRequest:
             )
 
 
-cdef void _send_callback(void *request, ucs_status_t status):
-    with log_errors():
-        req = UCXRequest(<uintptr_t><void*> request)
-        req.info["status"] = "finished"
-
-        if "cb_func" not in req.info:
-            # This callback function was called before ucp_tag_send_nb() returned
-            return
-
-        msg = "<%s>: " % req.info["name"]
-        if status == UCS_ERR_CANCELED:
-            exception = UCXCanceled(msg)
-        elif status != UCS_OK:
-            msg += ucs_status_string(status).decode("utf-8")
-            exception = UCXError(msg)
-        else:
-            exception = None
-        try:
-            req.info["inflight_msgs"].discard(req)
-            cb_func = req.info["cb_func"]
-            if cb_func is not None:
-                cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
-                cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
-                cb_func(req, exception, *cb_args, **cb_kwargs)
-        finally:
-            req.close()
-
-
 cdef _handle_status(
     ucs_status_ptr_t status,
     int64_t expected_receive,
@@ -670,7 +640,37 @@ cdef _handle_status(
         return req
 
 
-def tag_send(
+cdef void _send_callback(void *request, ucs_status_t status):
+    with log_errors():
+        req = UCXRequest(<uintptr_t><void*> request)
+        req.info["status"] = "finished"
+
+        if "cb_func" not in req.info:
+            # This callback function was called before ucp_tag_send_nb() returned
+            return
+
+        msg = "<%s>: " % req.info["name"]
+        if status == UCS_ERR_CANCELED:
+            exception = UCXCanceled(msg)
+        elif status != UCS_OK:
+            msg += ucs_status_string(status).decode("utf-8")
+            exception = UCXError(msg)
+        else:
+            exception = None
+        try:
+            req.info["inflight_msgs"].discard(req)
+            cb_func = req.info["cb_func"]
+            if cb_func is not None:
+                cb_args = req.info["cb_args"]
+                cb_args = cb_args if cb_args else tuple()
+                cb_kwargs = req.info["cb_kwargs"]
+                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                cb_func(req, exception, *cb_args, **cb_kwargs)
+        finally:
+            req.close()
+
+
+def tag_send_nb(
     UCXEndpoint ep,
     buffer,
     size_t nbytes,
@@ -678,8 +678,47 @@ def tag_send(
     cb_func,
     cb_args=tuple(),
     cb_kwargs=dict(),
-    name="tag_send"
+    name="tag_send_nb"
 ):
+    """ This routine sends a message to a destination endpoint
+
+    Each message is associated with a tag value that is used for message matching
+    on the receiver. The routine is non-blocking and therefore returns immediately,
+    however the actual send operation may be delayed. The send operation is
+    considered completed when it is safe to reuse the source buffer. If the send
+    operation is completed immediately the routine return None and the call-back
+    function **is not invoked**. If the operation is not completed immediately
+    and no exception raised then the UCP library will schedule to invoke the call-back
+    whenever the send operation will be completed. In other words, the completion
+    of a message can be signaled by the return code or the call-back.
+
+    Note
+    ----
+    The user should not modify any part of the buffer after this operation is called,
+    until the operation completes.
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The destination endpoint
+    buffer: object
+        The buffer object, which must support one of the following protocols and
+        is checked in order:
+            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
+            2) Numpy's Array Interface: `__array_interface__`
+            3) Python buffer protocol: `memoryview()`
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    tag: int
+        The tag of the message
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    """
     cdef void *data = <void*><uintptr_t>(
         get_buffer_data(buffer, check_writable=False)
     )
@@ -734,19 +773,63 @@ cdef void _tag_recv_callback(
             req.close()
 
 
-def tag_recv(
+def tag_recv_nb(
     UCXWorker worker,
     buffer,
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
+    ucp_tag_t tag_mask=-1,
     cb_args=tuple(),
     cb_kwargs=dict(),
-    name="tag_recv",
+    name="tag_recv_nb",
     UCXEndpoint ep=None
 ):
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=True))
+    """ This routine receives a message on a worker
+
+    The tag value of the receive message has to match the tag and tag_mask values,
+    where the tag_mask indicates what bits of the tag have to be matched.
+    The routine is a non-blocking and therefore returns immediately. The receive
+    operation is considered completed when the message is delivered to the buffer.
+    In order to notify the application about completion of the receive operation
+    the UCP library will invoke the call-back function when the received message
+    is in the receive buffer and ready for application access. If the receive
+    operation cannot be stated the routine raise an exception.
+
+    Note
+    ----
+    This routine cannot return None. It always returns a request handle or raise an
+    exception.
+
+    Parameters
+    ----------
+    worker: UCXWorker
+        The worker that is used for the receive operation
+    buffer: object
+        The buffer object, which must support one of the following protocols and
+        is checked in order:
+            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
+            2) Numpy's Array Interface: `__array_interface__`
+            3) Python buffer protocol: `memoryview()`
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    tag: int
+        Message tag to expect
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    tag_mask: int, optional
+        Bit mask that indicates the bits that are used for the matching of the
+        incoming tag against the expected tag.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    """
+
+    cdef void *data = <void*><uintptr_t>(
+        get_buffer_data(buffer, check_writable=True)
+    )
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
@@ -765,15 +848,51 @@ def tag_recv(
     )
 
 
-def stream_send(
+def stream_send_nb(
     UCXEndpoint ep,
     buffer,
     size_t nbytes,
     cb_func,
     cb_args=tuple(),
     cb_kwargs=dict(),
-    name="stream_send"
+    name="stream_send_nb"
 ):
+    """ This routine sends data to a destination endpoint
+
+    The routine is non-blocking and therefore returns immediately, however the
+    actual send operation may be delayed. The send operation is considered completed
+    when it is safe to reuse the source buffer. If the send operation is completed
+    immediately the routine returns None and the call-back function is not invoked.
+    If the operation is not completed immediately and no exception is raised, then
+    the UCP library will schedule invocation of the call-back upon completion of the
+    send operation. In other words, the completion of the operation will be signaled
+    either by the return code or by the call-back.
+
+    Note
+    ----
+    The user should not modify any part of the buffer after this operation is called,
+    until the operation completes.
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The destination endpoint
+    buffer: object
+        The buffer object, which must support one of the following protocols and
+        is checked in order:
+            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
+            2) Numpy's Array Interface: `__array_interface__`
+            3) Python buffer protocol: `memoryview()`
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    """
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
@@ -827,15 +946,46 @@ cdef void _stream_recv_callback(
             req.close()
 
 
-def stream_recv(
+def stream_recv_nb(
     UCXEndpoint ep,
     buffer,
     size_t nbytes,
     cb_func,
     cb_args=tuple(),
     cb_kwargs=dict(),
-    name="stream_recv"
+    name="stream_recv_nb"
 ):
+    """ This routine receives data on the endpoint.
+
+    The routine is non-blocking and therefore returns immediately. The receive
+    operation is considered complete when the message is delivered to the buffer.
+    If data is not immediately available, the operation will be scheduled for
+    receive and a request handle will be returned. In order to notify the application
+    about completion of a scheduled receive operation, the UCP library will invoke
+    the call-back when data is in the receive buffer and ready for application access.
+    If the receive operation cannot be started, the routine raise an exception.
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The destination endpoint
+    buffer: object
+        The buffer object, which must support one of the following protocols and
+        is checked in order:
+            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
+            2) Numpy's Array Interface: `__array_interface__`
+            3) Python buffer protocol: `memoryview()`
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    """
+
     cdef void *data = <void*><uintptr_t>(
         get_buffer_data(buffer, check_writable=True)
     )

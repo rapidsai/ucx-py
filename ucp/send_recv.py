@@ -25,7 +25,7 @@ def tag_send(
 ) -> asyncio.Future:
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
-    req = ucx_api.tag_send(
+    req = ucx_api.tag_send_nb(
         ep, buffer, nbytes, tag, _cb_func, name=name, cb_args=(event_loop, ret)
     )
     if req is None and not ret.done():
@@ -38,7 +38,7 @@ def stream_send(
 ) -> asyncio.Future:
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
-    req = ucx_api.stream_send(
+    req = ucx_api.stream_send_nb(
         ep, buffer, nbytes, _cb_func, name=name, cb_args=(event_loop, ret)
     )
     if req is None and not ret.done():
@@ -56,7 +56,7 @@ def tag_recv(
 ) -> asyncio.Future:
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
-    req = ucx_api.tag_recv(
+    req = ucx_api.tag_recv_nb(
         ep.worker,
         buffer,
         nbytes,
@@ -76,7 +76,7 @@ def stream_recv(
 ) -> asyncio.Future:
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
-    req = ucx_api.stream_recv(
+    req = ucx_api.stream_recv_nb(
         ep, buffer, nbytes, _cb_func, name=name, cb_args=(event_loop, ret)
     )
     if req is None and not ret.done():
