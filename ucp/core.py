@@ -13,12 +13,12 @@ from random import randint
 
 import psutil
 
+from . import send_recv
 from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import hash64bits, nvtx_annotate
-from . import send_recv
 
 logger = logging.getLogger("ucx")
 
