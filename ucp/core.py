@@ -18,6 +18,7 @@ from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import hash64bits, nvtx_annotate
+from . import send_recv
 
 logger = logging.getLogger("ucx")
 
@@ -54,11 +55,11 @@ async def exchange_peer_info(
     # Send/recv peer information. Notice, we force an `await` between the two
     # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
     if listener is True:
-        await ucx_api.stream_send(endpoint, my_info, len(my_info))
-        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+        await send_recv.stream_send(endpoint, my_info, len(my_info))
+        await send_recv.stream_recv(endpoint, peer_info, len(peer_info))
     else:
-        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
-        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+        await send_recv.stream_recv(endpoint, peer_info, len(peer_info))
+        await send_recv.stream_send(endpoint, my_info, len(my_info))
 
     # Unpacking and sanity check of the peer information
     ret = {}
@@ -130,8 +131,8 @@ class CtrlMsg:
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
         msg = bytearray(CtrlMsg.nbytes)
-        shutdown_fut = ucx_api.tag_recv(
-            ep._ep, msg, len(msg), ep._ctrl_tag_recv, log_msg=log,
+        shutdown_fut = send_recv.tag_recv(
+            ep._ep, msg, len(msg), ep._ctrl_tag_recv, name=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -139,7 +140,7 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(
+async def _listener_handler_coroutine(
     conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
 ):
     # We create the Endpoint in four steps:
@@ -194,6 +195,21 @@ async def _listener_handler(
         await func(ep)
     else:
         func(ep)
+
+
+def _listener_handler(
+    conn_request, callback_func, port, ctx, guarantee_msg_order, endpoint_error_handling
+):
+    asyncio.ensure_future(
+        _listener_handler_coroutine(
+            conn_request,
+            ctx,
+            callback_func,
+            port,
+            guarantee_msg_order,
+            endpoint_error_handling,
+        )
+    )
 
 
 def _epoll_fd_finalizer(epoll_fd, progress_tasks):
@@ -285,16 +301,16 @@ class ApplicationContext:
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
             ucx_api.UCXListener(
-                self.worker,
-                port,
-                {
-                    "cb_func": callback_func,
-                    "cb_coroutine": _listener_handler,
-                    "port": port,
-                    "ctx": self,
-                    "guarantee_msg_order": guarantee_msg_order,
-                    "endpoint_error_handling": endpoint_error_handling,
-                },
+                worker=self.worker,
+                port=port,
+                cb_func=_listener_handler,
+                cb_args=(
+                    callback_func,
+                    port,
+                    self,
+                    guarantee_msg_order,
+                    endpoint_error_handling,
+                ),
             )
         )
         return ret
@@ -513,8 +529,8 @@ class Endpoint:
             )
             logger.debug(log)
             try:
-                await ucx_api.tag_send(
-                    self._ep, msg, len(msg), self._ctrl_tag_send, log_msg=log,
+                await send_recv.tag_send(
+                    self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -563,7 +579,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await ucx_api.tag_send(self._ep, buffer, nbytes, tag, log_msg=log)
+        return await send_recv.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None, tag=None):
@@ -601,7 +617,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await ucx_api.tag_recv(self._ep, buffer, nbytes, tag, log_msg=log)
+        ret = await send_recv.tag_recv(self._ep, buffer, nbytes, tag, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
