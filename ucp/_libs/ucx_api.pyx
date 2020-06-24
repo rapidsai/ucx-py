@@ -617,7 +617,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
             req.close()
 
 
-cdef handle_status(
+cdef _handle_status(
     ucs_status_ptr_t status,
     int64_t expected_receive,
     cb_func,
@@ -680,7 +680,7 @@ def tag_send(
         tag,
         _send_cb
     )
-    return handle_status(
+    return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
 
@@ -746,7 +746,7 @@ def tag_recv(
         -1,
         _tag_recv_cb
     )
-    return handle_status(
+    return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
 
@@ -771,7 +771,7 @@ def stream_send(
         _send_cb,
         0
     )
-    return handle_status(
+    return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
 
@@ -838,6 +838,6 @@ def stream_recv(
         &length,
         UCP_STREAM_RECV_FLAG_WAITALL,
     )
-    return handle_status(
+    return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
