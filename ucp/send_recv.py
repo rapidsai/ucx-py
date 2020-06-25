@@ -15,6 +15,22 @@ def _cb_func(request, exception, event_loop, future):
         future.set_result(True)
 
 
+def _call_ucx_api(event_loop, func, *args, **kwargs):
+    """ Help function to avoid duplicated code.
+    Basically, all the communication functions have the
+    same structure, which this wrapper implements.
+    """
+    event_loop = event_loop if event_loop else asyncio.get_event_loop()
+    ret = event_loop.create_future()
+    # All the comm functions takes the call-back function and its arguments
+    kwargs["cb_func"] = _cb_func
+    kwargs["cb_args"] = (event_loop, ret)
+    req = func(*args, **kwargs)
+    if req is None and not ret.done():
+        ret.set_result(True)
+    return ret
+
+
 def tag_send(
     ep: ucx_api.UCXEndpoint,
     buffer,
@@ -23,27 +39,19 @@ def tag_send(
     name="tag_send",
     event_loop=None,
 ) -> asyncio.Future:
-    event_loop = event_loop if event_loop else asyncio.get_event_loop()
-    ret = event_loop.create_future()
-    req = ucx_api.tag_send_nb(
-        ep, buffer, nbytes, tag, _cb_func, name=name, cb_args=(event_loop, ret)
+
+    return _call_ucx_api(
+        event_loop, ucx_api.tag_send_nb, ep, buffer, nbytes, tag, name=name
     )
-    if req is None and not ret.done():
-        ret.set_result(True)
-    return ret
 
 
 def stream_send(
     ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_send", event_loop=None
 ) -> asyncio.Future:
-    event_loop = event_loop if event_loop else asyncio.get_event_loop()
-    ret = event_loop.create_future()
-    req = ucx_api.stream_send_nb(
-        ep, buffer, nbytes, _cb_func, name=name, cb_args=(event_loop, ret)
+
+    return _call_ucx_api(
+        event_loop, ucx_api.stream_send_nb, ep, buffer, nbytes, name=name
     )
-    if req is None and not ret.done():
-        ret.set_result(True)
-    return ret
 
 
 def tag_recv(
@@ -54,31 +62,23 @@ def tag_recv(
     name="tag_recv",
     event_loop=None,
 ) -> asyncio.Future:
-    event_loop = event_loop if event_loop else asyncio.get_event_loop()
-    ret = event_loop.create_future()
-    req = ucx_api.tag_recv_nb(
+
+    return _call_ucx_api(
+        event_loop,
+        ucx_api.tag_recv_nb,
         ep.worker,
         buffer,
         nbytes,
         tag,
-        _cb_func,
         name=name,
-        cb_args=(event_loop, ret),
         ep=ep,
     )
-    if req is None and not ret.done():
-        ret.set_result(True)
-    return ret
 
 
 def stream_recv(
     ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_recv", event_loop=None
 ) -> asyncio.Future:
-    event_loop = event_loop if event_loop else asyncio.get_event_loop()
-    ret = event_loop.create_future()
-    req = ucx_api.stream_recv_nb(
-        ep, buffer, nbytes, _cb_func, name=name, cb_args=(event_loop, ret)
+
+    return _call_ucx_api(
+        event_loop, ucx_api.stream_recv_nb, ep, buffer, nbytes, name=name
     )
-    if req is None and not ret.done():
-        ret.set_result(True)
-    return ret
