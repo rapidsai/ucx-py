@@ -718,6 +718,8 @@ def tag_send_nb(
         Extra arguments to the call-back function
     cb_kwargs: dict, optional
         Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
     """
     cdef void *data = <void*><uintptr_t>(
         get_buffer_data(buffer, check_writable=False)
@@ -825,6 +827,12 @@ def tag_recv_nb(
         Extra arguments to the call-back function
     cb_kwargs: dict, optional
         Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    ep: UCXEndpoint, optional
+        Registrate the inflight message at `ep` instead of `worker`, which
+        guarantee that the message is cancelled when `ep` closes as opposed to
+        when the `worker` closes.
     """
 
     cdef void *data = <void*><uintptr_t>(
@@ -892,6 +900,8 @@ def stream_send_nb(
         Extra arguments to the call-back function
     cb_kwargs: dict, optional
         Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
     """
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
                                          check_writable=False))
@@ -984,6 +994,8 @@ def stream_recv_nb(
         Extra arguments to the call-back function
     cb_kwargs: dict, optional
         Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
     """
 
     cdef void *data = <void*><uintptr_t>(
