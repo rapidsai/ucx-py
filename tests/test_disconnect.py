@@ -39,7 +39,7 @@ def _test_shutdown_closed_peer_server(client_queue, server_queue):
     logging.basicConfig(stream=log_stream, level=logging.INFO)
     asyncio.get_event_loop().run_until_complete(run())
     log = log_stream.getvalue()
-    assert log.find("""UCXError('Comm Error "[Send shutdown]""") != -1
+    assert log.find("""UCXError('<[Send shutdown]""") != -1
 
 
 def _test_shutdown_closed_peer_client(client_queue, server_queue):
