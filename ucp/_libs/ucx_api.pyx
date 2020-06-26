@@ -263,6 +263,10 @@ def _ucx_worker_handle_finalizer(
         logger.debug("Future cancelling: %s" % req.info["name"])
         ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
 
+    # Give UCX a change to settle before shutting down
+    while ucp_worker_progress(handle) != 0:
+        pass
+
     ucp_worker_destroy(handle)
 
 
