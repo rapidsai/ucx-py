@@ -22,6 +22,7 @@ UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
 import argparse
 import asyncio
 import multiprocessing as mp
+import os
 from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
@@ -32,6 +33,9 @@ mp = mp.get_context("spawn")
 
 
 def server(queue, args):
+    if args.server_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.server_cpu_affinity])
+
     ucp.init()
 
     if args.object_type == "numpy":
@@ -84,7 +88,8 @@ def server(queue, args):
 
 
 def client(queue, port, server_address, args):
-    import ucp
+    if args.client_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.client_cpu_affinity])
 
     ucp.init()
 
@@ -181,6 +186,22 @@ def parse_args():
         default=10,
         type=int,
         help="Numer of send / recv iterations (default 10).",
+    )
+    parser.add_argument(
+        "-b",
+        "--server-cpu-affinity",
+        metavar="N",
+        default=-1,
+        type=int,
+        help="CPU affinity for server process (default -1: not set).",
+    )
+    parser.add_argument(
+        "-c",
+        "--client-cpu-affinity",
+        metavar="N",
+        default=-1,
+        type=int,
+        help="CPU affinity for client process (default -1: not set).",
     )
     parser.add_argument(
         "-o",
