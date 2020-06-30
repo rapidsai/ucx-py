@@ -8,7 +8,7 @@ from distributed.protocol import to_serialize
 import cloudpickle
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, set_rmm, start_process, total_nvlink_transfer
+from debug_utils import ITERATIONS, get_object, parse_args, set_rmm, start_process, total_nvlink_transfer
 from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
@@ -69,37 +69,8 @@ def server(env, port, func, verbose):
         loop.run_until_complete(f(port))
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Tester server process")
-    parser.add_argument(
-        "-o",
-        "--object_type",
-        default="numpy",
-        choices=["numpy", "cupy", "cudf"],
-        help="In-memory array type.",
-    )
-    parser.add_argument(
-        "-c",
-        "--cpu-affinity",
-        metavar="N",
-        default=-1,
-        type=int,
-        help="CPU affinity (default -1: not set).",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        default=False,
-        action="store_true",
-        help="Print timings per iteration.",
-    )
-
-    args = parser.parse_args()
-    return args
-
-
 def main():
-    args = parse_args()
+    args = parse_args(server_address=False)
 
     start_process(args, server)
 

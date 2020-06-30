@@ -18,22 +18,37 @@ def set_rmm():
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
 
-def parse_args(args=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--server", default=None, help="server address.")
-    parser.add_argument("-p", "--port", default=13337, help="server port.", type=int)
+def parse_args(server_address=False):
+    parser = argparse.ArgumentParser(description="Tester client process")
+    if server_address is True:
+        parser.add_argument(
+            "-s",
+            "--server",
+            default=None,
+            help="Server address, ucp.get_address() if not specified"
+        )
+    parser.add_argument("-p", "--port", default=13337, help="Server port", type=int)
     parser.add_argument(
-        "-n",
-        "--n-bytes",
-        default="10 Mb",
-        type=parse_bytes,
-        help="Message size. Default '10 Mb'.",
+        "-o",
+        "--object_type",
+        default="numpy",
+        choices=["numpy", "cupy", "cudf"],
+        help="In-memory array type.",
     )
     parser.add_argument(
-        "--n-iter",
-        default=10,
+        "-c",
+        "--cpu-affinity",
+        metavar="N",
+        default=-1,
         type=int,
-        help="Numer of send / recv iterations (default 10).",
+        help="CPU affinity (default -1: unset).",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Print timings per iteration.",
     )
 
     return parser.parse_args()
