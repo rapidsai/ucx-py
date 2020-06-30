@@ -8,7 +8,7 @@ from distributed.protocol import to_serialize
 import cloudpickle
 import pytest
 import ucp
-from debug_utils import ITERATIONS, set_rmm
+from debug_utils import ITERATIONS, get_object, set_rmm
 from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
@@ -69,39 +69,6 @@ def server(env, port, func):
         loop.run_until_complete(f(port))
 
 
-def cudf_obj():
-    import cudf
-    import numpy as np
-
-    size = 2 ** 26
-    return cudf.DataFrame(
-        {"a": np.random.random(size), "b": np.random.random(size), "c": ["a"] * size}
-    )
-
-
-def cupy_obj():
-    import cupy
-    import numpy as np
-    import cudf
-
-    size = 9 ** 5
-    obj = cupy.arange(size)
-    data = [obj for i in range(10)]
-    data.extend([np.arange(10) for i in range(10)])
-    data.append(cudf.Series([1, 2, 3, 4]))
-    data.append({"key": "value"})
-    data.append({"key": cudf.Series([0.45, 0.134])})
-    return data
-
-
-def numpy_obj():
-    import numpy as np
-
-    size = 2 ** 20
-    obj = np.arange(size)
-    return obj
-
-
 def test_send_recv_cu(args):
     import os
     if args.cpu_affinity >= 0:
@@ -117,14 +84,7 @@ def test_send_recv_cu(args):
     # client will compare return values of the deserialized
     # data sent from the server
 
-    if args.object_type == "numpy":
-        obj = numpy_obj
-    elif args.object_type == "cupy":
-        obj = cupy_obj
-    elif args.object_type == "cudf":
-        obj = cudf_obj
-    else:
-        raise TypeError("Object type %s unknown" % (args.object_type))
+    obj = get_object(args.object_type)
 
     func = cloudpickle.dumps(obj)
     server(env1, port, func)
