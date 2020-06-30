@@ -155,7 +155,19 @@ def client(queue, port, server_address, args):
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
     if args.object_type == "numpy":
-        print("Device(s)    | Single CPU")
+        print("Device(s)   | CPU-only")
+        s_aff = (
+            args.server_cpu_affinity
+            if args.server_cpu_affinity >= 0
+            else "affinity not set"
+        )
+        c_aff = (
+            args.client_cpu_affinity
+            if args.client_cpu_affinity >= 0
+            else "affinity not set"
+        )
+        print(f"Server CPU  | {s_aff}")
+        print(f"Client CPU  | {c_aff}")
     else:
         print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     print(
