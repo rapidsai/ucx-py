@@ -7,7 +7,7 @@ import cloudpickle
 import pynvml
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, set_rmm, total_nvlink_transfer
+from debug_utils import ITERATIONS, get_object, set_rmm, start_process, total_nvlink_transfer
 from utils import recv, send
 
 pynvml.nvmlInit()
@@ -85,29 +85,6 @@ def client(env, port, func, verbose):
     #     assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def test_send_recv_cu(args):
-    import os
-
-    if args.cpu_affinity >= 0:
-        os.sched_setaffinity(0, [args.cpu_affinity])
-
-    base_env = os.environ
-
-    env2 = base_env.copy()
-
-    port = 15339
-    # serialize function and send to the client and server
-    # server will use the return value of the contents,
-    # serialize the values, then send serialized values to client.
-    # client will compare return values of the deserialized
-    # data sent from the server
-
-    obj = get_object(args.object_type)
-
-    func = cloudpickle.dumps(obj)
-    client(env2, port, func, args.verbose)
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Tester client process")
     parser.add_argument(
@@ -140,7 +117,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    test_send_recv_cu(args)
+    start_process(args, client)
 
 
 if __name__ == "__main__":

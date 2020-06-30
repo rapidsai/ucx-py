@@ -8,7 +8,7 @@ from distributed.protocol import to_serialize
 import cloudpickle
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, set_rmm, total_nvlink_transfer
+from debug_utils import ITERATIONS, get_object, set_rmm, start_process, total_nvlink_transfer
 from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
@@ -23,7 +23,7 @@ async def get_ep(name, port):
     return ep
 
 
-def server(env, port, func):
+def server(env, port, func, verbose):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
@@ -69,27 +69,6 @@ def server(env, port, func):
         loop.run_until_complete(f(port))
 
 
-def test_send_recv_cu(args):
-    import os
-    if args.cpu_affinity >= 0:
-        os.sched_setaffinity(0, [args.cpu_affinity])
-
-    base_env = os.environ
-    env1 = base_env.copy()
-
-    port = 15339
-    # serialize function and send to the client and server
-    # server will use the return value of the contents,
-    # serialize the values, then send serialized values to client.
-    # client will compare return values of the deserialized
-    # data sent from the server
-
-    obj = get_object(args.object_type)
-
-    func = cloudpickle.dumps(obj)
-    server(env1, port, func)
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Tester server process")
     parser.add_argument(
@@ -107,6 +86,13 @@ def parse_args():
         type=int,
         help="CPU affinity (default -1: not set).",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Print timings per iteration.",
+    )
 
     args = parser.parse_args()
     return args
@@ -115,7 +101,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    test_send_recv_cu(args)
+    start_process(args, server)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import argparse
 import os
 
+import cloudpickle
 from distributed.utils import parse_bytes
 
 import cupy
@@ -67,6 +68,27 @@ def total_nvlink_transfer():
         rx += transfer["rx"]
         tx += transfer["tx"]
     return rx, tx
+
+
+def start_process(args, process_function):
+    if args.cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.cpu_affinity])
+
+    base_env = os.environ
+    env = base_env.copy()
+
+    port = 15339
+
+    # serialize function and send to the client and server
+    # server will use the return value of the contents,
+    # serialize the values, then send serialized values to client.
+    # client will compare return values of the deserialized
+    # data sent from the server
+
+    obj = get_object(args.object_type)
+    obj_func = cloudpickle.dumps(obj)
+
+    process_function(env, port, obj_func, args.verbose)
 
 
 def cudf_obj():
