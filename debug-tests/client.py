@@ -1,11 +1,17 @@
 import asyncio
 import os
+import time
 
-import cloudpickle
 import pynvml
 import pytest
 import ucp
-from debug_utils import ITERATIONS, set_rmm
+from debug_utils import (
+    ITERATIONS,
+    parse_args,
+    set_rmm,
+    start_process,
+    total_nvlink_transfer,
+)
 from utils import recv, send
 
 pynvml.nvmlInit()
@@ -23,7 +29,7 @@ async def get_ep(name, port):
     return ep
 
 
-def client(env, port, func):
+def client(env, port, func, verbose):
     # wait for server to come up
     # receive cudf object
     # deserialize
@@ -55,7 +61,10 @@ def client(env, port, func):
     set_rmm()
     for i in range(ITERATIONS):
         print("ITER: ", i)
+        t = time.time()
         asyncio.get_event_loop().run_until_complete(read())
+        if verbose:
+            print("Time take for interation %d: %ss" % (i, time.time() - t))
 
     print("FINISHED")
     # num_bytes = nbytes(rx_cuda_obj)
@@ -68,6 +77,7 @@ def client(env, port, func):
     #     print(msg)
     #     assert rx > before_rx
 
+    # import cloudpickle
     # cuda_obj_generator = cloudpickle.loads(func)
     # pure_cuda_obj = cuda_obj_generator()
 
@@ -80,61 +90,11 @@ def client(env, port, func):
     #     assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def dataframe():
-    import cudf
-    import numpy as np
+def main():
+    args = parse_args(server_address=True)
 
-    size = 2 ** 26
-    return cudf.DataFrame({"a": np.random.random(size), "b": np.random.random(size)})
-
-
-def cupy():
-    import cupy as cp
-
-    size = 10 ** 9
-    return cp.arange(size)
-
-
-def test_send_recv_cu(cuda_obj_generator):
-    import os
-
-    base_env = os.environ
-
-    env2 = base_env.copy()
-
-    port = 15339
-    # serialize function and send to the client and server
-    # server will use the return value of the contents,
-    # serialize the values, then send serialized values to client.
-    # client will compare return values of the deserialized
-    # data sent from the server
-
-    func = cloudpickle.dumps(cuda_obj_generator)
-    client(env2, port, func)
-
-
-def total_nvlink_transfer():
-    import pynvml
-
-    pynvml.nvmlShutdown()
-
-    pynvml.nvmlInit()
-
-    try:
-        cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
-    except Exception as e:
-        print(e)
-        cuda_dev_id = 0
-    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
-    rx = 0
-    tx = 0
-    for i in range(nlinks):
-        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
-        rx += transfer["rx"]
-        tx += transfer["tx"]
-    return rx, tx
+    start_process(args, client)
 
 
 if __name__ == "__main__":
-    test_send_recv_cu(cupy)
+    main()

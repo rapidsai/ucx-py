@@ -49,7 +49,6 @@ conda install "cudatoolkit=$CUDA_REL" \
               "cupy>=6.5.0" "numpy>=1.16" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "dask>=2.8.1" "distributed>=2.8.1" \
-              "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
               -c rapidsai-nightly
 
 # needed for asynccontextmanager in py36
