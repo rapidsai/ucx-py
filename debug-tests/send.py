@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -68,7 +69,7 @@ def server(env, port, func):
         loop.run_until_complete(f(port))
 
 
-def dataframe():
+def cudf_obj():
     import cudf
     import numpy as np
 
@@ -93,8 +94,18 @@ def cupy_obj():
     return data
 
 
-def test_send_recv_cu(cuda_obj_generator):
+def numpy_obj():
+    import numpy as np
+
+    size = 2 ** 20
+    obj = np.arange(size)
+    return obj
+
+
+def test_send_recv_cu(args):
     import os
+    if args.cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.cpu_affinity])
 
     base_env = os.environ
     env1 = base_env.copy()
@@ -106,7 +117,16 @@ def test_send_recv_cu(cuda_obj_generator):
     # client will compare return values of the deserialized
     # data sent from the server
 
-    func = cloudpickle.dumps(cuda_obj_generator)
+    if args.object_type == "numpy":
+        obj = numpy_obj
+    elif args.object_type == "cupy":
+        obj = cupy_obj
+    elif args.object_type == "cudf":
+        obj = cudf_obj
+    else:
+        raise TypeError("Object type %s unknown" % (args.object_type))
+
+    func = cloudpickle.dumps(obj)
     server(env1, port, func)
 
 
@@ -133,7 +153,33 @@ def total_nvlink_transfer():
     return rx, tx
 
 
-if __name__ == "__main__":
-    # args = parse_args(args)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Tester server process")
+    parser.add_argument(
+        "-o",
+        "--object_type",
+        default="numpy",
+        choices=["numpy", "cupy", "cudf"],
+        help="In-memory array type.",
+    )
+    parser.add_argument(
+        "-c",
+        "--cpu-affinity",
+        metavar="N",
+        default=-1,
+        type=int,
+        help="CPU affinity (default -1: not set).",
+    )
 
-    test_send_recv_cu(cupy_obj)
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+
+    test_send_recv_cu(args)
+
+
+if __name__ == "__main__":
+    main()
