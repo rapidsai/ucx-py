@@ -1,9 +1,9 @@
 import argparse
 import os
 
-import cloudpickle
 from distributed.utils import parse_bytes
 
+import cloudpickle
 import cupy
 import rmm
 from utils import get_num_gpus
@@ -25,7 +25,7 @@ def parse_args(server_address=False):
             "-s",
             "--server",
             default=None,
-            help="Server address, ucp.get_address() if not specified"
+            help="Server address, ucp.get_address() if not specified",
         )
     parser.add_argument("-p", "--port", default=13337, help="Server port", type=int)
     parser.add_argument(

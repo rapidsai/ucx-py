@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import os
 
@@ -8,7 +7,7 @@ from distributed.protocol import to_serialize
 import cloudpickle
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, parse_args, set_rmm, start_process, total_nvlink_transfer
+from debug_utils import ITERATIONS, parse_args, set_rmm, start_process
 from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes

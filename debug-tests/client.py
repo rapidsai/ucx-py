@@ -1,13 +1,17 @@
-import argparse
 import asyncio
 import os
 import time
 
-import cloudpickle
 import pynvml
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, parse_args, set_rmm, start_process, total_nvlink_transfer
+from debug_utils import (
+    ITERATIONS,
+    parse_args,
+    set_rmm,
+    start_process,
+    total_nvlink_transfer,
+)
 from utils import recv, send
 
 pynvml.nvmlInit()
@@ -73,6 +77,7 @@ def client(env, port, func, verbose):
     #     print(msg)
     #     assert rx > before_rx
 
+    # import cloudpickle
     # cuda_obj_generator = cloudpickle.loads(func)
     # pure_cuda_obj = cuda_obj_generator()
 
