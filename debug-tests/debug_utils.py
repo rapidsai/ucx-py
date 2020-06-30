@@ -46,6 +46,29 @@ def get_cuda_devices():
         return list(range(ngpus))
 
 
+def total_nvlink_transfer():
+    import pynvml
+
+    pynvml.nvmlShutdown()
+
+    pynvml.nvmlInit()
+
+    try:
+        cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
+    except Exception as e:
+        print(e)
+        cuda_dev_id = 0
+    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
+    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
+    rx = 0
+    tx = 0
+    for i in range(nlinks):
+        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
+        rx += transfer["rx"]
+        tx += transfer["tx"]
+    return rx, tx
+
+
 def cudf_obj():
     import cudf
     import numpy as np

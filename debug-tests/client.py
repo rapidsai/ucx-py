@@ -7,7 +7,7 @@ import cloudpickle
 import pynvml
 import pytest
 import ucp
-from debug_utils import ITERATIONS, get_object, set_rmm
+from debug_utils import ITERATIONS, get_object, set_rmm, total_nvlink_transfer
 from utils import recv, send
 
 pynvml.nvmlInit()
@@ -106,29 +106,6 @@ def test_send_recv_cu(args):
 
     func = cloudpickle.dumps(obj)
     client(env2, port, func, args.verbose)
-
-
-def total_nvlink_transfer():
-    import pynvml
-
-    pynvml.nvmlShutdown()
-
-    pynvml.nvmlInit()
-
-    try:
-        cuda_dev_id = int(os.environ["CUDA_VISIBLE_DEVICES"].split(",")[0])
-    except Exception as e:
-        print(e)
-        cuda_dev_id = 0
-    nlinks = pynvml.NVML_NVLINK_MAX_LINKS
-    handle = pynvml.nvmlDeviceGetHandleByIndex(cuda_dev_id)
-    rx = 0
-    tx = 0
-    for i in range(nlinks):
-        transfer = pynvml.nvmlDeviceGetNvLinkUtilizationCounter(handle, i, 0)
-        rx += transfer["rx"]
-        tx += transfer["tx"]
-    return rx, tx
 
 
 def parse_args():
