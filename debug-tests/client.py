@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import time
 
 import cloudpickle
 import pynvml
@@ -24,7 +25,7 @@ async def get_ep(name, port):
     return ep
 
 
-def client(env, port, func):
+def client(env, port, func, verbose):
     # wait for server to come up
     # receive cudf object
     # deserialize
@@ -56,7 +57,10 @@ def client(env, port, func):
     set_rmm()
     for i in range(ITERATIONS):
         print("ITER: ", i)
+        t = time.time()
         asyncio.get_event_loop().run_until_complete(read())
+        if verbose:
+            print("Time take for interation %d: %ss" % (i, time.time() - t))
 
     print("FINISHED")
     # num_bytes = nbytes(rx_cuda_obj)
@@ -101,7 +105,7 @@ def test_send_recv_cu(args):
     obj = get_object(args.object_type)
 
     func = cloudpickle.dumps(obj)
-    client(env2, port, func)
+    client(env2, port, func, args.verbose)
 
 
 def total_nvlink_transfer():
@@ -144,9 +148,15 @@ def parse_args():
         type=int,
         help="CPU affinity (default -1: unset).",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Print timings per iteration.",
+    )
 
     args = parser.parse_args()
-    print(args)
     return args
 
 
