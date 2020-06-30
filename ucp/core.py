@@ -350,7 +350,6 @@ class ApplicationContext:
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
-        print("Post progress")
         # We create the Endpoint in four steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
@@ -358,7 +357,6 @@ class ApplicationContext:
         seed = os.urandom(16)
         msg_tag = hash64bits("msg_tag", seed, port)
         ctrl_tag = hash64bits("ctrl_tag", seed, port)
-        print("Exchanging peer info")
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
@@ -376,7 +374,6 @@ class ApplicationContext:
             ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
         )
-        print("EP class made")
         logger.debug(
             "create_endpoint() client: %s, msg-tag-send: %s, "
             "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
@@ -391,7 +388,6 @@ class ApplicationContext:
 
         # Setup the control receive
         CtrlMsg.setup_ctrl_recv(ep)
-        print("About to return")
         return ep
 
     def create_ucp_endpoint(self, buffer, guarantee_msg_order):
@@ -410,7 +406,6 @@ class ApplicationContext:
             The new endpoint
         """
         ucx_ep = self.worker.ucp_ep_create(buffer)
-        print("Calling into create code")
         ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
@@ -464,7 +459,7 @@ class ApplicationContext:
         return self.context.get_config()
 
     def get_address(self):
-        return ucx_api.UCXAddress(self.get_ucp_worker())
+        return ucx_api.UCXAddress(self.worker)
 
     def mem_map(self, mem, alloc=False, fixed=False):
         return self.context.mem_map(mem, alloc, fixed)
@@ -571,24 +566,25 @@ class Endpoint:
                 return
             self._shutting_down_peer = True
 
-            # Send a shutdown message to the peer
-            msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
-            log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
-                hex(self.uid),
-                hex(self._ctrl_tag_send),
-                self._send_count,
-            )
-            logger.debug(log)
-            try:
-                await comm.tag_send(
-                    self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
+            if self._ctrl_tag_send:
+                # Send a shutdown message to the peer
+                msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
+                log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
+                    hex(self.uid),
+                    hex(self._ctrl_tag_send),
+                    self._send_count,
                 )
-            # The peer might already be shutting down thus we can ignore any send errors
-            except UCXError as e:
-                logging.warning(
-                    "UCX failed closing worker %s (probably already closed): %s"
-                    % (hex(self.uid), repr(e))
-                )
+                logger.debug(log)
+                try:
+                    await comm.tag_send(
+                        self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
+                    )
+                # The peer might already be shutting down thus we can ignore any send errors
+                except UCXError as e:
+                    logging.warning(
+                        "UCX failed closing worker %s (probably already closed): %s"
+                        % (hex(self.uid), repr(e))
+                    )
         finally:
             if not self.closed():
                 # Give all current outstanding send() calls a chance to return

@@ -237,24 +237,33 @@ cdef class UCXContext(UCXObject):
         return int(<uintptr_t>self._handle)
 
     def mem_map(self, mem, alloc=False, fixed=False):
-        return UCXMemoryHandle(self.handle, mem, alloc, fixed)
+        return UCXMemoryHandle(self, mem, alloc, fixed)
 
 
-cdef class PackedRemoteKey:
+# I'm not sure the machinery here is actually needed, since we don't pass the memh to this
+def _ucx_packed_rkey_finalizer(uintptr_t handle_as_int):
+    cdef void *handle = <void*><uintptr_t>handle_as_int
+    cdef ucs_status_t status
+    ucp_rkey_buffer_release(handle)
+
+
+cdef class PackedRemoteKey(UCXObject):
     cdef void *_key
     cdef size_t _length
     __array_interface__ = dict()
     def __init__(self, UCXMemoryHandle mem):
         cdef ucs_status_t status
-        status = ucp_rkey_pack(mem._ctx, mem._memh, &self._key, &self._length)
+        status = ucp_rkey_pack(mem._context._handle, mem._memh, &self._key, &self._length)
         assert_ucs_status(status)
         self.__array_interface__["data"] = (<uintptr_t>self._key, True)
         self.__array_interface__["typestr"] = "|V1"
         self.__array_interface__["shape"] = [self._length]
         self.__array_interface__["version"] = 3
-
-    def __dealloc__(self):
-        ucp_rkey_buffer_release(self._key)
+        self.add_handle_finalizer(
+            _ucx_packed_rkey_finalizer,
+            int(<uintptr_t>self._key)
+        )
+        mem.add_child(self)
 
     @property
     def key(self):
@@ -265,17 +274,26 @@ cdef class PackedRemoteKey:
         return int(self._length)
 
     #TODO: Buffer interface. Presently relies on upper level exposing an array_interface
+
+def _ucx_mem_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+    assert ctx.initialized
+    cdef ucp_mem_h handle = <ucp_mem_h>handle_as_int
+    cdef ucs_status_t status
+    status = ucp_mem_unmap(ctx._handle, handle)
+    assert_ucs_status(status)
+
     
-cdef class UCXMemoryHandle:
+cdef class UCXMemoryHandle(UCXObject):
     cdef ucp_mem_h _memh
-    cdef ucp_context_h _ctx
+    cdef UCXContext _context
     cdef uint64_t r_address
     cdef size_t _length
 
-    def __init__(self, handle, mem, alloc, fixed):
+    def __init__(self, ctx, mem, alloc, fixed):
         cdef ucp_mem_map_params_t params
         cdef ucp_mem_h memh
         cdef ucs_status_t status
+        cdef ucp_context_h ucx_ctx
 
         if not alloc:
             params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
@@ -285,13 +303,17 @@ cdef class UCXMemoryHandle:
             params.field_mask = UCP_MEM_MAP_PARAM_FIELD_FLAGS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
             params.length = <size_t>mem
             params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
-
-        printf("c length: %zu\n", params.length)
-        self._ctx = <ucp_context_h><uintptr_t>handle
-        status = ucp_mem_map(self._ctx, &params, &self._memh)
+        self._context = ctx
+        ucx_ctx = <ucp_context_h><uintptr_t>ctx.handle
+        status = ucp_mem_map(ucx_ctx, &params, &self._memh)
         assert_ucs_status(status)
         self._populate_metadata()
-        printf("ctx: %p memh: %p\n", self._ctx, self._memh)
+        self.add_handle_finalizer(
+            _ucx_mem_handle_finalizer,
+            int(<uintptr_t>self.memh),
+            self._context
+        )
+        ctx.add_child(self)
 
     def pack_rkey(self):
         return PackedRemoteKey(self)
@@ -312,46 +334,11 @@ cdef class UCXMemoryHandle:
         self.r_address = <uintptr_t>attr.address
         self._length = attr.length
 
-    def __dealloc__(self):
-        cdef ucs_status_t status
-        printf("dealloc: ctx: %p memh: %p\n", self._ctx, self._memh) 
-        #status = ucp_mem_unmap(self._ctx, self._memh)
-        #assert_ucs_status(status)
-
     def address(self):
         return self.r_address
 
     def length(self):
         return self._length
-
-cdef class UCXRequestStatus:
-    cdef void *_request
-    cdef ucs_status_t status
-    def __init__(self, int ucp_request):
-        self._request = <void*><uintptr_t>ucp_request
-        self.status = UCS_PTR_STATUS(self._request)
-        assert_ucs_status(self.status)
-
-    def check_status(self):
-        cdef ucs_status_t status
-
-        if UCS_PTR_STATUS(self._request) == UCS_OK:
-            #We don't check for errors in this branch because they would be raised at init.
-            return UCS_OK
-        status = ucp_request_check_status(self._request)
-        assert_ucs_status(status)
-        return status
-
-    def __dealloc__(self):
-        if UCS_PTR_IS_PTR(self._request):
-            ucp_request_free(self._request)
-
-    def __eq__(self, other):
-        cdef ucs_status_t status
-        if isinstance(other, UCXRequestStatus):
-            return self._request == (<UCXRequestStatus>other)._request
-        # This branch is needed to catch comparing a request to UCS_OK or UCS_INPROGRESS
-        return self.status == other
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     status_str = ucs_status_string(status).decode("utf-8")
@@ -525,7 +512,7 @@ cdef class UCXWorker(UCXObject):
         req = ucp_worker_flush_nb(self._handle, 0, NULL)
         if req == NULL:
             return UCS_OK
-        return UCXRequestStatus(<uintptr_t>req)
+        return UCXRequest(<uintptr_t>req)
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
@@ -746,7 +733,6 @@ cdef class UCXRequest:
 
     def check_status(self):
         cdef ucs_status_t status
-
         if UCS_PTR_STATUS(self._handle) == UCS_OK:
             return UCS_OK
         status = ucp_request_check_status(self._handle)
@@ -1173,7 +1159,13 @@ def stream_recv_nb(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
 
-cdef class UCXAddress:
+def _ucx_address_finalizer(uintptr_t handle_as_int, UCXWorker worker):
+    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
+    cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.get_ucp_worker()
+    ucp_worker_release_address(ucp_worker, address)
+
+
+cdef class UCXAddress(UCXObject):
     """Python representation of ucp_address_t"""
     cdef ucp_address_t *_handle
     cdef size_t _length
@@ -1182,7 +1174,7 @@ cdef class UCXAddress:
 
     def __init__(self, worker):
         cdef ucs_status_t status
-        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
 
         status = ucp_worker_get_address(ucp_worker, &self._handle, &self._length)
         assert_ucs_status(status)
@@ -1191,6 +1183,12 @@ cdef class UCXAddress:
         self.__array_interface__["typestr"] = "|V1"
         self.__array_interface__["shape"] = [self._length]
         self.__array_interface__["version"] = 3
+        self.add_handle_finalizer(
+            _ucx_address_finalizer,
+            int(<uintptr_t>self._handle),
+	    worker
+        )	
+        worker.add_child(self)
 
     @property
     def address(self):
@@ -1200,11 +1198,13 @@ cdef class UCXAddress:
     def length(self):
         return int(self._length)
 
-    def __dealloc__(self):
-        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>self.worker
-        ucp_worker_release_address(ucp_worker, <ucp_address_t *>self._handle)
 
-cdef class UCXRkey:
+def _ucx_rkey_finalizer(uintptr_t handle_as_int):
+    cdef ucp_rkey_h rkey = <ucp_rkey_h>handle_as_int
+    ucp_rkey_destroy(rkey)
+
+
+cdef class UCXRkey(UCXObject):
     cdef ucp_rkey_h _handle
     cdef UCXEndpoint ep
 
@@ -1214,14 +1214,16 @@ cdef class UCXRkey:
         status = ucp_ep_rkey_unpack(ep._handle, key_data, &self._handle)
         assert_ucs_status(status)
         self.ep = ep
-
-    def __dealloc__(self):
-        if <void*>self._handle == NULL:
-            ucp_rkey_destroy(self._handle)
+        self.add_handle_finalizer(
+            _ucx_rkey_finalizer,
+            int(<uintptr_t>self._handle)
+        )	
+        ep.add_child(self)
 
 
 cdef empty_send_cb(void *request, ucs_status_t status):
-    pass
+    req = UCXRequest(<uintptr_t><void*> request)
+    req.close()
 
 def put_nbi(buffer, size_t nbytes, uint64_t remote_addr, UCXRkey rkey):
     cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
