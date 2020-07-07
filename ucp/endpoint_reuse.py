@@ -15,14 +15,14 @@ class EPHandle:
 class EndpointReuse:
     """
     Class to seamlessly reuse endpoints. It uses the tag feature of send/recv
-    to separate "virtual" endpoint pars from eachother.
+    to separate "virtual" endpoint pairs from each other.
 
     Connection Protocol
     -------------------
     1) Client connect to server using a new endpoint.
     2) Client send the IDs of all its existing endpoints.
     3) Server receives the IDs from the client and checks if it has a
-       matching existing endpoint. It then sends the matching IDto the
+       matching existing endpoint. It then sends the matching ID to the
        client or zero if no match.
     4) The client and server now continue with either the existing matching
        endpoints or the new endpoints (which are registered for later reuse).
