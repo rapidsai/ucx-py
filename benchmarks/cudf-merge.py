@@ -10,12 +10,14 @@ import pstats
 import sys
 from time import perf_counter as clock
 
+import cupy
+import numpy as np
+
 from dask.utils import format_bytes, format_time
 
 import cudf
-import cupy
-import numpy as np
 import rmm
+
 import ucp
 from ucp.utils import run_on_local_network
 

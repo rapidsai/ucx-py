@@ -2,7 +2,6 @@
 # UCXPY_IFNAME=ib0 UCX_NET_DEVICES=mlx5_0:1 \
 # UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm \
 # py.test --cache-clear tests/debug-tests/test_endpoint_error_callback.py
-
 import asyncio
 import logging
 import multiprocessing
@@ -12,14 +11,15 @@ import random
 import signal
 import sys
 
+import cloudpickle
+import pytest
+from utils import get_cuda_devices, get_num_gpus, recv, send
+
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
-import cloudpickle
-import pytest
 import ucp
 from ucp.utils import get_ucxpy_logger
-from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cupy = pytest.importorskip("cupy")
 

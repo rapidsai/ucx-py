@@ -1,24 +1,25 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 # cython: language_level=3
-
-import socket
 import logging
+import socket
 import weakref
-from libc.stdio cimport FILE, fflush, fclose
+
+from posix.stdio cimport open_memstream
+
+from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
+from libc.stdint cimport uintptr_t
+from libc.stdio cimport FILE, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
-from libc.stdint cimport uintptr_t
-from posix.stdio cimport open_memstream
-from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
-
 from ucx_api_dep cimport *
+
 from ..exceptions import (
-    log_errors,
-    UCXError,
-    UCXConfigError,
     UCXCanceled,
+    UCXConfigError,
+    UCXError,
     UCXMsgTruncated,
+    log_errors,
 )
 from ..utils import nvtx_annotate
 from .utils import get_buffer_data

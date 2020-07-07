@@ -1,11 +1,12 @@
 import asyncio
 import pickle
 
+import numpy as np
+import pytest
+
 from distributed.comm.utils import to_frames  # noqa
 from distributed.utils import nbytes  # noqa
 
-import numpy as np
-import pytest
 import ucp
 
 cudf = pytest.importorskip("cudf")

@@ -5,6 +5,7 @@ import mmap
 import operator
 
 import pytest
+
 from ucp._libs.utils import get_buffer_data, get_buffer_nbytes
 
 builtin_buffers = [

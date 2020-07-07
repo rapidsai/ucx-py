@@ -4,7 +4,6 @@ import time
 
 import pynvml
 import pytest
-import ucp
 from debug_utils import (
     ITERATIONS,
     parse_args,
@@ -13,6 +12,8 @@ from debug_utils import (
     total_nvlink_transfer,
 )
 from utils import recv, send
+
+import ucp
 
 pynvml.nvmlInit()
 

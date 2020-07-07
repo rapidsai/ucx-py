@@ -1,12 +1,12 @@
 import asyncio
 import time
 
-import dask.array as da
+import cupy
+
+from dask import array as da
 from dask_cuda import LocalCUDACluster
 from dask_cuda.initialize import initialize
 from distributed import Client
-
-import cupy
 
 enable_tcp_over_ucx = True
 enable_infiniband = False
