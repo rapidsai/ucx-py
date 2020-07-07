@@ -1,4 +1,4 @@
-import asyncio
+import ctypes
 import uuid
 
 import numpy as np
@@ -41,7 +41,7 @@ class EndpointReuse:
 
     @classmethod
     async def create_endpoint(cls, ip, port):
-        tag = np.uint32(uuid.uuid4().int % np.iinfo(np.uint32).max)
+        tag = ctypes.c_uint32(uuid.uuid4().int).value
         ep_new = await core.create_endpoint(ip, port)
 
         existing_endpoints = list(cls.existing_endpoints.values())
