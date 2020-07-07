@@ -1,12 +1,13 @@
 import argparse
 import os
 
-from distributed.utils import parse_bytes
-
 import cloudpickle
 import cupy
-import rmm
 from utils import get_num_gpus
+
+from distributed.utils import parse_bytes
+
+import rmm
 
 ITERATIONS = 100
 
@@ -107,8 +108,9 @@ def start_process(args, process_function):
 
 
 def cudf_obj():
-    import cudf
     import numpy as np
+
+    import cudf
 
     size = 2 ** 26
     return cudf.DataFrame(
@@ -119,6 +121,7 @@ def cudf_obj():
 def cudf_from_cupy_obj():
     import cupy
     import numpy as np
+
     import cudf
 
     size = 9 ** 5

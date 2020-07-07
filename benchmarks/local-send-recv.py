@@ -18,7 +18,6 @@ UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
 --client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --client-only \
 --server-address 192.168.40.44 --port 53496 --n-iter 100
 """
-
 import argparse
 import asyncio
 import multiprocessing as mp
@@ -46,6 +45,7 @@ def server(queue, args):
         np.cuda.runtime.setDevice(args.server_dev)
     else:
         import cupy as np
+
         import rmm
 
         rmm.reinitialize(
@@ -101,6 +101,7 @@ def client(queue, port, server_address, args):
         np.cuda.runtime.setDevice(args.client_dev)
     else:
         import cupy as np
+
         import rmm
 
         rmm.reinitialize(

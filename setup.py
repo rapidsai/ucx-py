@@ -8,9 +8,10 @@ from __future__ import absolute_import, print_function
 import os
 from distutils.sysconfig import get_config_var, get_python_inc
 
-import versioneer
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
+
+import versioneer
 
 try:
     from Cython.Distutils.build_ext import new_build_ext as build_ext

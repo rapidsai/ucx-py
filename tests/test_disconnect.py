@@ -5,6 +5,7 @@ from io import StringIO
 from queue import Empty
 
 import numpy as np
+
 import ucp
 
 mp = mp.get_context("spawn")

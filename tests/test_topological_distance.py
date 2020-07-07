@@ -2,6 +2,7 @@ import os
 
 import pynvml
 import pytest
+
 from ucp._libs.topological_distance import TopologicalDistance
 
 
