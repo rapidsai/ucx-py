@@ -678,7 +678,7 @@ class Endpoint:
         """Send `obj` to connected peer that calls `recv_obj()`.
 
         The transfer includes an extra message containing the size of `obj`,
-        which increses the overhead slightly.
+        which increases the overhead slightly.
 
         Parameters
         ----------
@@ -713,7 +713,7 @@ class Endpoint:
             UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
             send that also sets `tag=None`.
         allocator: callabale, optional
-            Function to allocate the recvied object. The function should
+            Function to allocate the received object. The function should
             take the number of bytes to allocate as input and return a new
             buffer of that size as output.
 
