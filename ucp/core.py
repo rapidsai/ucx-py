@@ -702,6 +702,7 @@ class Endpoint:
         """Receive from connected peer that calls `send_obj()`.
 
         As opposed to `recv()`, this function returns the received object.
+        Data is received into a buffer allocated by `allocator`.
 
         The transfer includes an extra message containing the size of `obj`,
         which increses the overhead slightly.
