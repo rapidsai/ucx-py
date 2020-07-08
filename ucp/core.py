@@ -677,7 +677,8 @@ class Endpoint:
     async def send_obj(self, obj, tag=None):
         """Send `obj` to connected peer that calls `recv_obj()`.
 
-        The message include size information of the object.
+        The transfer includes an extra message containing the size of `obj`,
+        which increses the overhead slightly.
 
         Parameters
         ----------
@@ -685,6 +686,10 @@ class Endpoint:
             The object to send.
         tag: hashable, optional
             Set a tag that the receiver must match.
+
+        Example
+        -------
+        >>> await ep.send_obj(pickle.dumps([1,2,3]))
         """
 
         nbytes = get_buffer_nbytes(
@@ -698,6 +703,9 @@ class Endpoint:
 
         As opposed to `recv()`, this function returns the received object.
 
+        The transfer includes an extra message containing the size of `obj`,
+        which increses the overhead slightly.
+
         Parameters
         ----------
         tag: hashable, optional
@@ -708,6 +716,10 @@ class Endpoint:
             Function to allocate the recvied object. The function should
             take the number of bytes to allocate as input and return a new
             buffer of that size as output.
+
+        Example
+        -------
+        >>> await pickle.loads(ep.recv_obj())
         """
         nbytes = bytearray(struct.calcsize("Q"))
         await self.recv(nbytes, tag=tag)
