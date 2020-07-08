@@ -1,7 +1,6 @@
 import ctypes
+import pickle
 import uuid
-
-import numpy as np
 
 from . import core
 
@@ -21,6 +20,11 @@ class EndpointReuse:
     Warning
     -------
     When closing a reused endpoint, the peer might not be notified.
+
+    Performance
+    -----------
+    The overhead of creating endpoints is increased but the performance
+    of the created connections is the same.
 
     Connection Protocol
     -------------------
@@ -51,12 +55,8 @@ class EndpointReuse:
                 ep.refcount += 1
                 my_ep_ids.append(ep.ep._msg_tag_recv)
 
-        await ep_new.send(np.array([len(my_ep_ids), tag], dtype=np.uint64))
-        await ep_new.send(np.array(my_ep_ids, dtype=np.uint64))
-
-        reuse_ep_id = np.empty(1, dtype=np.uint64)
-        await ep_new.recv(reuse_ep_id)
-        reuse_ep_id = reuse_ep_id[0]
+        await ep_new.send_obj(pickle.dumps((my_ep_ids, tag)))
+        reuse_ep_id = pickle.loads(await ep_new.recv_obj())
 
         for ep in existing_endpoints:
             if not ep.ep.closed():
@@ -77,11 +77,7 @@ class EndpointReuse:
     @classmethod
     def create_listener(cls, cb_coroutine, port):
         async def _handle(ep_new):
-            msg = np.empty(2, dtype=np.uint64)
-            await ep_new.recv(msg)
-            n_peers_ep_ids, tag = (msg[0], np.uint32(msg[1]))
-            peers_ep_ids = np.empty(n_peers_ep_ids, dtype=np.uint64)
-            await ep_new.recv(peers_ep_ids)
+            peers_ep_ids, tag = pickle.loads(await ep_new.recv_obj())
             existing_ep = None
             for peers_ep_id in peers_ep_ids:
                 existing_ep = cls.existing_endpoints.get(peers_ep_id)
@@ -90,12 +86,10 @@ class EndpointReuse:
 
             if existing_ep:
                 existing_ep.refcount += 1
-                await ep_new.send(
-                    np.array([existing_ep.ep._msg_tag_recv], dtype=np.uint64)
-                )
+                await ep_new.send_obj(pickle.dumps(existing_ep.ep._msg_tag_recv))
                 await ep_new.close()
             else:
-                await ep_new.send(np.array([0], dtype=np.uint64))
+                await ep_new.send_obj(pickle.dumps(None))
                 existing_ep = EPHandle(ep_new)
                 assert ep_new._msg_tag_send not in cls.existing_endpoints
                 cls.existing_endpoints[ep_new._msg_tag_send] = existing_ep
