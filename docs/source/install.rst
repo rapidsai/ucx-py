@@ -47,7 +47,7 @@ Build Dependencies
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
         libhwloc psutil \
-        python=3.7 setuptools cython>=0.29.14,<3.0.0a0
+        "python=3.7" setuptools "cython>=0.29.14,<3.0.0a0"
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
@@ -56,7 +56,7 @@ Test Dependencies
 
     conda install -n ucx -c rapidsai -c nvidia -c conda-forge \
         pytest pytest-asyncio \
-        cupy numba>=0.46 rmm \
+        cupy "numba>=0.46" rmm \
         distributed
 
 UCX
