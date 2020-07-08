@@ -1,7 +1,7 @@
 Send/Recv Internals
 ===================
 
-A generally UCX establish a connection between endpoints in the following steps:
+Generally UCX creates connections between endpoints with the following steps:
 
 1. Create a ``Listener`` with defined ip address an port
   a. ``Listener`` defines a callback function to process communications from endpoints
@@ -9,13 +9,13 @@ A generally UCX establish a connection between endpoints in the following steps:
 3. ``Endpoint`` sends and receives data with the ``Listener``
 
 
-Below we go into more detail as we create an echo server in UCX and compare `Python Sockets <https://docs.python.org/3/library/socket.html#example>`_
+Below we go into more detail as we create an echo server in UCX and compare with `Python Sockets <https://docs.python.org/3/library/socket.html#example>`_
 
 Server
 ------
 First, we create the server -- in UCX-Py, we create a server with ``create_listener`` and build a blocking call to keep the listener alive.  The listener invokes a callback function when an incoming connection is accepted.  This callback should take in an ``Endpoint`` as an argument for send/recv.
 
-For Python sockets, the server is similarly constructed. ``bind`` opens a connection on a given port and ``accept`` is Python sockets' blocking call for incoming connections.  In both UCX-Py and Sockets, once a connection has been made, both receive data and echo the same data back to the client
+For Python sockets, the server is similarly constructed. ``bind`` opens a connection on a given port and ``accept`` is Python Sockets' blocking call for incoming connections.  In both UCX-Py and Sockets, once a connection has been made, both receive data and echo the same data back to the client
 
 +------------------------------------------------------+----------------------------------------------------------+
 | UCX                                                  | Python Sockets                                           |
@@ -37,7 +37,7 @@ For Python sockets, the server is similarly constructed. ``bind`` opens a connec
 Client
 ------
 
-For Sockets, on the client-side we connect to the established host/port combination and send data to the socket.  Whereas in UCX-Py, the client-side is a bit more interesting.  ``create_endpoint``, also uses a host/port combination to establish a connection, and after an ``Endpoint`` is created, ``hello, world`` is passed back an forth between the client an server.
+For Sockets, on the client-side we connect to the established host/port combination and send data to the socket.  Whereas in UCX-Py, the client-side is a bit more interesting.  ``create_endpoint``, also uses a host/port combination to establish a connection, and after an ``Endpoint`` is created, ``hello, world`` is passed back and forth between the client an server.
 
 +------------------------------------------------------+----------------------------------------------------------+
 | UCX                                                  | Python Sockets                                           |
@@ -52,7 +52,7 @@ For Sockets, on the client-side we connect to the established host/port combinat
 |                                                      |                                                          |
 +------------------------------------------------------+----------------------------------------------------------+
 
-So what happens with ``create_endpoint`` ?  UCX, unlike with Sockets, employs a tag-matching strategy where endpoints are identified with a unique id and send/receive operations occur on unique tags for those IDs. For more details on tag-matching please see the `following page <https://community.mellanox.com/s/article/understanding-tag-matching-for-developers>`_. ``create_endpoint``, will create an ``Endpoint`` with three steps:
+So what happens with ``create_endpoint`` ?  UCX, unlike with Sockets, employs a tag-matching strategy where endpoints are created with a unique id and send/receive operations also use unique tags for those. For more details on tag-matching please see the `following page <https://community.mellanox.com/s/article/understanding-tag-matching-for-developers>`_. ``create_endpoint``, will create an ``Endpoint`` with three steps:
 
 #. Generate unique IDs to use as tags
 #. Exchange endpoint info such as tags
