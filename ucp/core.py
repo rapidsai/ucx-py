@@ -674,6 +674,61 @@ class Endpoint:
                 % (n, self._finished_recv_count)
             )
 
+    async def send_obj(self, obj, tag=None):
+        """Send `obj` to connected peer that calls `recv_obj()`.
+
+        The transfer includes an extra message containing the size of `obj`,
+        which increases the overhead slightly.
+
+        Parameters
+        ----------
+        obj: exposing the buffer protocol or array/cuda interface
+            The object to send.
+        tag: hashable, optional
+            Set a tag that the receiver must match.
+
+        Example
+        -------
+        >>> await ep.send_obj(pickle.dumps([1,2,3]))
+        """
+
+        nbytes = get_buffer_nbytes(
+            buffer=obj, check_min_size=None, cuda_support=self._cuda_support
+        )
+        await self.send(struct.pack("Q", nbytes), tag=tag)
+        await self.send(obj, tag=tag)
+
+    async def recv_obj(self, tag=None, allocator=bytearray):
+        """Receive from connected peer that calls `send_obj()`.
+
+        As opposed to `recv()`, this function returns the received object.
+        Data is received into a buffer allocated by `allocator`.
+
+        The transfer includes an extra message containing the size of `obj`,
+        which increses the overhead slightly.
+
+        Parameters
+        ----------
+        tag: hashable, optional
+            Set a tag that must match the received message. Notice, currently
+            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
+            send that also sets `tag=None`.
+        allocator: callabale, optional
+            Function to allocate the received object. The function should
+            take the number of bytes to allocate as input and return a new
+            buffer of that size as output.
+
+        Example
+        -------
+        >>> await pickle.loads(ep.recv_obj())
+        """
+        nbytes = bytearray(struct.calcsize("Q"))
+        await self.recv(nbytes, tag=tag)
+        (nbytes,) = struct.unpack("Q", nbytes)
+        ret = allocator(nbytes)
+        await self.recv(ret, nbytes=nbytes, tag=tag)
+        return ret
+
 
 # The following functions initialize and use a single ApplicationContext instance
 
