@@ -7,7 +7,7 @@ Below is a list of commonly used tools and commands to monitor InfiniBand and CU
 Infiniband
 ----------
 
-Montior Infiniband packet counters -- this number should dramatically increase when data is sent via IB:
+Monitor InfiniBand packet counters -- this number should dramatically increase when there's InfiniBand traffic:
 
 ::
 
