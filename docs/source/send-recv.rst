@@ -38,7 +38,7 @@ For Python sockets, the server is similarly constructed. ``bind`` opens a connec
 Client
 ------
 
-For Sockets, on the client-side we connect to the established host/port combination and send data to the socket.  Whereas in UCX-Py, the client-side is a bit more interesting.  ``create_endpoint``, also uses a host/port combination to establish a connection, and after an ``Endpoint`` is created, ``hello, world`` is passed back and forth between the client an server.
+For Sockets, on the client-side we connect to the established host/port combination and send data to the socket.  The client-side is a bit more interesting in UCX-Py: ``create_endpoint``, also uses a host/port combination to establish a connection, and after an ``Endpoint`` is created, ``hello, world`` is passed back and forth between the client an server.
 
 +------------------------------------------------------+----------------------------------------------------------+
 | UCX                                                  | Python Sockets                                           |
