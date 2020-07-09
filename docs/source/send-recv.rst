@@ -88,6 +88,6 @@ Most users will not care about these details but developers and interested netwo
     [1594305226.989332] [dgx12:67497] UCXPY  DEBUG [Recv #001] ep: 0x7fef8bdc8048, tag: 0xabeef1db009f97af, nbytes: 12, type: <class 'bytearray'>
 
 
-We can see from the above that when the ``Endpoint`` is created, 4 tags are generated:  ``msg-tag-send``, ``msg-tag-recv``, ``ctrl-tag-send``, and ``ctrl-tag-recv``.  This data is transmitted to the server via a `stream <http://openucx.github.io/ucx/api/v1.8/html/group___u_c_p___c_o_m_m.html#ga9022ff0ebb56cac81f6ba81bb28f71b3>`_ send/receive in an `exchange peer info <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L38-L89>`_ convenience function.
+We can see from the above that when the ``Endpoint`` is created, 4 tags are generated:  ``msg-tag-send``, ``msg-tag-recv``, ``ctrl-tag-send``, and ``ctrl-tag-recv``.  This data is transmitted to the server via a `stream <http://openucx.github.io/ucx/api/v1.8/html/group___u_c_p___c_o_m_m.html#ga9022ff0ebb56cac81f6ba81bb28f71b3>`_ communication in an `exchange peer info <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L38-L89>`_ convenience function.
 
 Next, The client sends data on the ``msg-tag-send`` tag.  Two messages are sent, the size of the data ``8 bytes`` and data itself.  The server receives the data and immediately echos the data back.  Lastly, the client the receives two messages the size of the data an the data itself
