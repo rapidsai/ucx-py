@@ -13,7 +13,7 @@ Below we go into more detail as we create an echo server in UCX and compare with
 
 Server
 ------
-First, we create the server -- in UCX-Py, we create a server with ``create_listener`` and build a blocking call to keep the listener alive.  The listener invokes a callback function when an incoming connection is accepted.  This callback should take in an ``Endpoint`` as an argument for send/recv.
+First, we create the server -- in UCX-Py, we create a server with ``create_listener`` and build a blocking call to keep the listener alive.  The listener invokes a callback function when an incoming connection is accepted.  This callback should take in an ``Endpoint`` as an argument for ``send``/``recv``.
 
 For Python sockets, the server is similarly constructed. ``bind`` opens a connection on a given port and ``accept`` is Python Sockets' blocking call for incoming connections.  In both UCX-Py and Sockets, once a connection has been made, both receive data and echo the same data back to the client
 
