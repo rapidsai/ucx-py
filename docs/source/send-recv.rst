@@ -3,7 +3,7 @@ Send/Recv Internals
 
 Generally UCX creates connections between endpoints with the following steps:
 
-1. Create a ``Listener`` with defined ip address an port
+1. Create a ``Listener`` with defined IP address and port
   a. ``Listener`` defines a callback function to process communications from endpoints
 2. Connect an ``Endpoint`` to the ``Listener``
 3. ``Endpoint`` sends and receives data with the ``Listener``
