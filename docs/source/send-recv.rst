@@ -6,7 +6,7 @@ Generally UCX creates connections between endpoints with the following steps:
 1. Create a ``Listener`` with defined IP address and port
   a. ``Listener`` defines a callback function to process communications from endpoints
 2. Connect an ``Endpoint`` to the ``Listener``
-3. ``Endpoint`` sends and receives data with the ``Listener``
+3. ``Endpoint`` communicates with the ``Listener``
 
 
 Below we go into more detail as we create an echo server in UCX and compare with `Python Sockets <https://docs.python.org/3/library/socket.html#example>`_
