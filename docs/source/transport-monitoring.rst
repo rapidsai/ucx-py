@@ -17,7 +17,7 @@ Montior Infiniband packet counters -- this number should dramatically increase w
 CUDA IPC/NVLink
 ---------------
 
-Montior traffic over all GPUs on counter 0
+Monitor traffic over all GPUs on counter 0
 
 ::
 
