@@ -73,7 +73,7 @@ Again, an ``Endpoint`` sends and receives with `unique tags <http://openucx.gith
             guarantee_msg_order=guarantee_msg_order,
         )
 
-Most users will should not care about these details but developers and interested network enthusiasts may.  Looking at the DEBUG (``UCXPY_LOG_LEVEL=DEBUG``) output of the client can help illuminate what UCX-Py/UCX is doing::
+Most users will not care about these details but developers and interested network enthusiasts may.  Looking at the DEBUG (``UCXPY_LOG_LEVEL=DEBUG``) output of the client can help clarify what UCX-Py/UCX is doing under the hood:
 
 
     # client = await ucp.create_endpoint(addr, port)
