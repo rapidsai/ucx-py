@@ -1,7 +1,7 @@
 Monitoring Transports
 =====================
 
-Below is a list of commonly used tools and commands to monitor Infiniband and CUDA IPC messages:
+Below is a list of commonly used tools and commands to monitor InfiniBand and CUDA IPC messages:
 
 
 Infiniband
