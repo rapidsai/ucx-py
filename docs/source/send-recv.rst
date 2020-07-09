@@ -53,7 +53,7 @@ For Sockets, on the client-side we connect to the established host/port combinat
 |                                                      |                                                          |
 +------------------------------------------------------+----------------------------------------------------------+
 
-So what happens with ``create_endpoint`` ?  UCX, unlike with Sockets, employs a tag-matching strategy where endpoints are created with a unique id and send/receive operations also use unique tags for those. For more details on tag-matching please see the `following page <https://community.mellanox.com/s/article/understanding-tag-matching-for-developers>`_. ``create_endpoint``, will create an ``Endpoint`` with three steps:
+So what happens with ``create_endpoint`` ?  Unlike Sockets, UCX employs a tag-matching strategy where endpoints are created with a unique id and send/receive operations also use unique tags for those. For more details on tag-matching please see the `this page <https://community.mellanox.com/s/article/understanding-tag-matching-for-developers>`_. ``create_endpoint``, will create an ``Endpoint`` with three steps:
 
 #. Generate unique IDs to use as tags
 #. Exchange endpoint info such as tags
