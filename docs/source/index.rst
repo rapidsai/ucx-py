@@ -18,5 +18,13 @@ UCX-Py is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a lo
    configuration
    dask
    deployment
+
+.. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Help & reference
+
+   transport-monitoring
+   send-recv
    api
    glossary
