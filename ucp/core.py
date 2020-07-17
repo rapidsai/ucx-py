@@ -1,6 +1,7 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import array
 import asyncio
 import gc
 import logging
@@ -692,10 +693,15 @@ class Endpoint:
         >>> await ep.send_obj(pickle.dumps([1,2,3]))
         """
 
-        nbytes = get_buffer_nbytes(
-            buffer=obj, check_min_size=None, cuda_support=self._cuda_support
+        nbytes = array.array(
+            "Q",
+            [
+                get_buffer_nbytes(
+                    buffer=obj, check_min_size=None, cuda_support=self._cuda_support
+                )
+            ],
         )
-        await self.send(struct.pack("Q", nbytes), tag=tag)
+        await self.send(nbytes, tag=tag)
         await self.send(obj, tag=tag)
 
     async def recv_obj(self, tag=None, allocator=bytearray):
@@ -722,9 +728,9 @@ class Endpoint:
         -------
         >>> await pickle.loads(ep.recv_obj())
         """
-        nbytes = bytearray(struct.calcsize("Q"))
+        nbytes = array.array("Q", [0])
         await self.recv(nbytes, tag=tag)
-        (nbytes,) = struct.unpack("Q", nbytes)
+        nbytes = nbytes[0]
         ret = allocator(nbytes)
         await self.recv(ret, nbytes=nbytes, tag=tag)
         return ret
