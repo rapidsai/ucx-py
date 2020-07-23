@@ -45,6 +45,11 @@ def tag_send(
     )
 
 
+def flush(worker):
+    return _call_ucx_api(
+        None, worker.flush
+    )
+
 def stream_send(
     ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_send", event_loop=None
 ) -> asyncio.Future:

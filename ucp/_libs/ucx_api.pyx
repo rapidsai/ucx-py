@@ -507,12 +507,14 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return status
 
-    def flush(self):
+    def flush(self, cb_func, cb_args, cb_kwargs=dict()):
         cdef ucs_status_ptr_t req
-        req = ucp_worker_flush_nb(self._handle, 0, NULL)
-        if req == NULL:
-            return UCS_OK
-        return UCXRequest(<uintptr_t>req)
+        cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
+
+        cdef ucs_status_ptr_t status = ucp_worker_flush_nb(self._handle, 0, _send_cb)
+        return _handle_status(
+            status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
+        )
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
