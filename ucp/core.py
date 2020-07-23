@@ -465,7 +465,7 @@ class ApplicationContext:
         return self.context.mem_map(mem, alloc, fixed)
 
     def flush_worker(self):
-        return self.worker.flush()
+        return comm.flush(self.worker)
 
     def fence_worker(self):
         return self.worker.fence()
