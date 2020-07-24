@@ -229,16 +229,16 @@ class ApplicationContext:
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
 
-        # For now, a application context only has one worker
-        self.context = ucx_api.UCXContext(config_dict)
-        self.worker = ucx_api.UCXWorker(self.context)
-
         if blocking_progress_mode is not None:
             self.blocking_progress_mode = blocking_progress_mode
         elif "UCXPY_NON_BLOCKING_MODE" in os.environ:
             self.blocking_progress_mode = False
         else:
             self.blocking_progress_mode = True
+
+        # For now, a application context only has one worker
+        self.context = ucx_api.UCXContext(config_dict, blocking_progress_mode=self.blocking_progress_mode)
+        self.worker = ucx_api.UCXWorker(self.context)
 
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
