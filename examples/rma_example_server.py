@@ -1,3 +1,5 @@
+#Copyright (c) 2020   UT-Battelle, LLC. All rights reserved.
+
 import ucp
 import asyncio
 import numpy as np
