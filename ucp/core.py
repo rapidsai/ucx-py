@@ -237,7 +237,9 @@ class ApplicationContext:
             self.blocking_progress_mode = True
 
         # For now, a application context only has one worker
-        self.context = ucx_api.UCXContext(config_dict, blocking_progress_mode=self.blocking_progress_mode)
+        self.context = ucx_api.UCXContext(
+            config_dict, blocking_progress_mode=self.blocking_progress_mode
+        )
         self.worker = ucx_api.UCXWorker(self.context)
 
         if self.blocking_progress_mode:
