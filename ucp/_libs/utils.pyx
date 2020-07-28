@@ -54,8 +54,8 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         iface = buffer.__cuda_array_interface__
         if not cuda_support:
             msg = "UCX is not configured with CUDA support, please add " \
-                  "`cuda_copy` and/or `cuda_ipc` to " \
-                  "the UCX_TLS environment variable"
+                  "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment" \
+                  "variable and that the ucx-proc=*=gpu package is installed."
             raise ValueError(msg)
     elif hasattr(buffer, "__array_interface__"):
         iface = buffer.__array_interface__
