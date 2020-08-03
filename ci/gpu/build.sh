@@ -44,6 +44,7 @@ logger "Check GPU usage..."
 nvidia-smi
 
 logger "Check Network Interfaces..."
+sudo yum install -y net-tools
 /sbin/ifconfig
 
 logger "Activate conda env..."
