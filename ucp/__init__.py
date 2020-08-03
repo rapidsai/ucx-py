@@ -46,4 +46,3 @@ logger = get_ucxpy_logger()
 
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
-
