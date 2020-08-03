@@ -13,6 +13,7 @@ from .utils import get_address, get_ucxpy_logger  # noqa
 
 logger = logging.getLogger("ucx")
 
+
 # Notice, if we have to update environment variables
 # we need to do it before importing UCX
 if "UCX_MEMTYPE_CACHE" not in os.environ:
