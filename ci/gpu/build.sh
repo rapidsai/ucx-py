@@ -44,7 +44,7 @@ logger "Check GPU usage..."
 nvidia-smi
 
 logger "Check Network Interfaces..."
-ip address show
+/sbin/ifconfig
 
 logger "Activate conda env..."
 source activate gdf
