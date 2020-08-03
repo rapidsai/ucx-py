@@ -24,10 +24,7 @@ cuda = pytest.importorskip("numba.cuda")
         lambda cudf: cudf.Series(range(2 ** 13)),
         lambda cudf: cudf.DataFrame({"a": np.random.random(1200000)}),
         lambda cudf: cudf.DataFrame({"a": range(2 ** 20)}),
-        pytest.param(
-            lambda cudf: cudf.DataFrame({"a": range(2 ** 26)}),
-            marks=pytest.mark.xfail(reason="too large an allocation for CI"),
-        ),
+        lambda cudf: cudf.DataFrame({"a": range(2 ** 26)}),
         lambda cudf: cudf.Series(),
         lambda cudf: cudf.DataFrame(),
         lambda cudf: cudf.DataFrame({"a": [], "b": []}),
