@@ -43,6 +43,9 @@ env
 logger "Check GPU usage..."
 nvidia-smi
 
+logger "Check Network Interfaces..."
+/sbin/ifconfig
+
 logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
