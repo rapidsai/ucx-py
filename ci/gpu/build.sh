@@ -52,8 +52,7 @@ conda install "cudatoolkit=$CUDA_REL" \
               "ucx" "ucx-proc=*=gpu" \
               -c rapidsai-nightly
 
-# needed for asynccontextmanager in py36
-conda install -c conda-forge "async_generator" "cython>=0.29.14,<3.0.0a0" \
+conda install -c conda-forge "cython>=0.29.14,<3.0.0a0" \
                              "pytest" "pytest-asyncio" \
                              "pynvml" "libhwloc" "psutil"
 
