@@ -49,10 +49,10 @@ conda install "cudatoolkit=$CUDA_REL" \
               "cupy>=6.5.0" "numpy>=1.16" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "dask>=2.8.1" "distributed>=2.8.1" \
-              "ucx" "ucx-proc=*=gpu" \
               "cython>=0.29.14,<3.0.0a0" \
+              "libhwloc" "ucx" "ucx-proc=*=gpu" \
               "pytest" "pytest-asyncio" \
-              "pynvml" "libhwloc" "psutil"
+              "pynvml" "psutil"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
