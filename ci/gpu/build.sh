@@ -46,12 +46,12 @@ nvidia-smi
 logger "Activate conda env..."
 source activate gdf
 conda install "cudatoolkit=$CUDA_REL" \
-              "cupy>=6.5.0" \
-              "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
-              "dask>=2.8.1" "distributed>=2.8.1" \
               "cython>=0.29.14,<3.0.0a0" \
               "libhwloc" "ucx" "ucx-proc=*=gpu" \
               "numpy>=1.16" \
+              "cupy>=6.5.0" \
+              "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
+              "dask>=2.8.1" "distributed>=2.8.1" \
               "pytest" "pytest-asyncio" \
               "pynvml" "psutil"
 
