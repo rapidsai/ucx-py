@@ -52,8 +52,8 @@ conda install "cudatoolkit=$CUDA_REL" \
               -c rapidsai-nightly
 
 # needed for asynccontextmanager in py36
-conda install -c conda-forge "async_generator" "libtool" \
-                              "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
+conda install -c conda-forge "async_generator" "autoconf" "automake" "libtool" \
+                              "cython>=0.29.14,<3.0.0a0" \
                               "pytest" "pkg-config" "pytest-asyncio" \
                               "pynvml" "libhwloc" "psutil"
 
