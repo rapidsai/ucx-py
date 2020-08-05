@@ -53,10 +53,9 @@ conda install "cudatoolkit=$CUDA_REL" \
               -c rapidsai-nightly
 
 # needed for asynccontextmanager in py36
-conda install -c conda-forge "async_generator" "autoconf" "automake" "libtool" \
-                              "make" "cython>=0.29.14,<3.0.0a0" \
-                              "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml" "libhwloc" "psutil"
+conda install -c conda-forge "async_generator" "cython>=0.29.14,<3.0.0a0" \
+                             "pytest" "pytest-asyncio" \
+                             "pynvml" "libhwloc" "psutil"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
