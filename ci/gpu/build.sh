@@ -70,25 +70,6 @@ $CXX --version
 conda list
 
 ################################################################################
-# BUILD - Build ucx
-################################################################################
-
-logger "Build ucx"
-git clone https://github.com/openucx/ucx
-cd ucx
-git checkout v1.8.x
-ls
-./autogen.sh
-mkdir build
-cd build
-../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I//$CUDA_HOME/include"
-make -j install
-cd $WORKSPACE
-
-
-
-
-################################################################################
 # BUILD - Build ucx-py
 ################################################################################
 
