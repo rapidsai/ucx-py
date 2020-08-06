@@ -72,6 +72,11 @@ install_requires = [
     "psutil",
 ]
 
+tests_require = [
+    "pytest",
+    "pytest-asyncio",
+]
+
 setup(
     name="ucx-py",
     packages=find_packages(exclude=["tests*"]),
@@ -80,6 +85,7 @@ setup(
     version=versioneer.get_version(),
     python_requires=">=3.6",
     install_requires=install_requires,
+    tests_require=tests_require,
     description="Python Bindings for the Unified Communication X library (UCX)",
     long_description=readme,
     author="NVIDIA Corporation",
