@@ -70,6 +70,7 @@ cmdclass["build_ext"] = build_ext
 install_requires = [
     "numpy",
     "psutil",
+    "pynvml",
 ]
 
 tests_require = [
