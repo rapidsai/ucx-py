@@ -49,6 +49,9 @@ conda install "cudatoolkit=${CUDA_REL}" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "rapids-build-env=${MINOR_VERSION}"
 
+# Install pytorch to run related tests
+conda install -c pytorch "pytorch" "torchvision"
+
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
 pip install "git+https://github.com/dask/distributed.git" --upgrade --no-deps
@@ -106,6 +109,7 @@ else
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_torch as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
