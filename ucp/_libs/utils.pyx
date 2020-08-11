@@ -86,6 +86,10 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         if not mview.contiguous:
             raise ValueError("buffer must be contiguous")
 
-    if check_min_size is not None and nbytes < check_min_size:
-        raise ValueError("the nbytes is greater than the size of the buffer!")
+    if check_min_size is not None:
+        min_size = check_min_size
+        if nbytes < min_size:
+            raise ValueError(
+                "the nbytes is greater than the size of the buffer!"
+            )
     return nbytes
