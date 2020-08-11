@@ -29,7 +29,7 @@ def get_buffer_data(buffer, check_writable=False):
     else:
         mview = memoryview(buffer)
         data_ptr = <uintptr_t>PyMemoryView_GET_BUFFER(mview).buf
-        data_readonly = mview.readonly
+        data_readonly = <bint>PyMemoryView_GET_BUFFER(mview).readonly
 
     if data_ptr == 0:
         raise NotImplementedError("zero-sized buffers isn't supported")
