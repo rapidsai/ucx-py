@@ -5,8 +5,8 @@
 
 
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
+from cython cimport boundscheck, wraparound
 from libc.stdint cimport uintptr_t
-cimport cython
 
 
 cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
@@ -37,8 +37,8 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     return data_ptr
 
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
+@boundscheck(False)
+@wraparound(False)
 cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) except *:
     """
     Returns the size of the buffer in bytes. Returns ValueError
