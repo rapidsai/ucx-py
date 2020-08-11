@@ -3,7 +3,7 @@
 # cython: language_level=3
 
 import pynvml
-from topological_distance_dep cimport *
+from .topological_distance_dep cimport *
 
 
 cdef class TopologicalDistance:
