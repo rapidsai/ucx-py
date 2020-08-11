@@ -10,8 +10,6 @@ from functools import reduce
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from libc.stdint cimport uintptr_t
 
-from ..exceptions import UCXCloseError, UCXError
-
 
 def get_buffer_data(buffer, check_writable=False):
     """
