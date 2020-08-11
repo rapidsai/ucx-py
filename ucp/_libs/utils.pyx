@@ -63,17 +63,18 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         itemsize = int(numpy.dtype(iface["typestr"]).itemsize)
         # Making sure that the elements in shape is integers
         shape = [int(s) for s in iface["shape"]]
+        ndim = len(shape)
         nbytes = reduce(operator.mul, shape, itemsize)
         # Check that data is contiguous
         strides = iface.get("strides")
-        if len(shape) > 0 and strides is not None:
+        if ndim > 0 and strides is not None:
             strides = [int(s) for s in strides]
-            if len(strides) != len(shape):
+            if len(strides) != ndim:
                 raise ValueError(
                     "The length of shape and strides must be equal"
                 )
             s = itemsize
-            for i in reversed(range(len(shape))):
+            for i in reversed(range(ndim)):
                 if s != strides[i]:
                     raise ValueError("Array must be contiguous")
                 s *= shape[i]
