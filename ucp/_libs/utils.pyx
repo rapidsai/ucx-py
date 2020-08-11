@@ -27,7 +27,7 @@ def get_buffer_data(buffer, check_writable=False):
         iface = buffer.__array_interface__
 
     if iface is not None:
-        data_ptr, data_readonly = iface['data']
+        data_ptr, data_readonly = iface["data"]
     else:
         mview = memoryview(buffer)
         data_ptr = int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
@@ -69,13 +69,13 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
 
     if iface is not None:
         import numpy
-        itemsize = int(numpy.dtype(iface['typestr']).itemsize)
+        itemsize = int(numpy.dtype(iface["typestr"]).itemsize)
         # Making sure that the elements in shape is integers
-        shape = [int(s) for s in iface['shape']]
+        shape = [int(s) for s in iface["shape"]]
         nbytes = reduce(operator.mul, shape, 1) * itemsize
         # Check that data is contiguous
         if len(shape) > 0 and iface.get("strides", None) is not None:
-            strides = [int(s) for s in iface['strides']]
+            strides = [int(s) for s in iface["strides"]]
             if len(strides) != len(shape):
                 msg = "The length of shape and strides must be equal"
                 raise ValueError(msg)
