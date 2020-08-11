@@ -722,9 +722,7 @@ def tag_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    cdef void *data = <void*><uintptr_t>(
-        get_buffer_data(buffer, check_writable=False)
-    )
+    cdef void *data = <void*>get_buffer_data(buffer, check_writable=False)
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
@@ -836,9 +834,7 @@ def tag_recv_nb(
         when the `worker` closes.
     """
 
-    cdef void *data = <void*><uintptr_t>(
-        get_buffer_data(buffer, check_writable=True)
-    )
+    cdef void *data = <void*>get_buffer_data(buffer, check_writable=True)
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
@@ -904,8 +900,7 @@ def stream_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    cdef void *data = <void*><uintptr_t>(get_buffer_data(buffer,
-                                         check_writable=False))
+    cdef void *data = <void*>get_buffer_data(buffer, check_writable=False)
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
@@ -999,9 +994,7 @@ def stream_recv_nb(
         Descriptive name of the operation
     """
 
-    cdef void *data = <void*><uintptr_t>(
-        get_buffer_data(buffer, check_writable=True)
-    )
+    cdef void *data = <void*>get_buffer_data(buffer, check_writable=True)
     cdef size_t length
     cdef ucp_stream_recv_callback_t _stream_recv_cb = (
         <ucp_stream_recv_callback_t>_stream_recv_callback
