@@ -55,13 +55,14 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
     if iface is None:
         iface = getattr(buffer, "__cuda_array_interface__", None)
         if not cuda_support and iface is not None:
-            msg = "UCX is not configured with CUDA support, please add " \
-                  "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment" \
-                  "variable and that the ucx-proc=*=gpu package is " \
-                  "installed. See " \
-                  "https://ucx-py.readthedocs.io/en/latest/install.html for " \
-                  "more information."
-            raise ValueError(msg)
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
 
     if iface is not None:
         import numpy
