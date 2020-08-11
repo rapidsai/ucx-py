@@ -55,7 +55,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
         )
 
     cdef tuple shape, strides
-    cdef Py_ssize_t i, s, itemsize, ndim, nbytes, min_size
+    cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
         import numpy
         itemsize = numpy.dtype(iface["typestr"]).itemsize
@@ -85,6 +85,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
         if not mview.c_contiguous:
             raise ValueError("buffer must be C-contiguous")
 
+    cdef Py_ssize_t min_size
     if check_min_size is not None:
         min_size = check_min_size
         if nbytes < min_size:
