@@ -82,8 +82,8 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
     else:
         mview = memoryview(buffer)
         nbytes = mview.nbytes
-        if not mview.contiguous:
-            raise ValueError("buffer must be contiguous")
+        if not mview.c_contiguous:
+            raise ValueError("buffer must be C-contiguous")
 
     if check_min_size is not None:
         min_size = check_min_size
