@@ -71,7 +71,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
             nbytes *= <Py_ssize_t>shape[i]
         # Check that data is contiguous
         strides = iface.get("strides")
-        if ndim > 0 and strides is not None:
+        if strides is not None and ndim > 0:
             if len(strides) != ndim:
                 raise ValueError(
                     "The length of shape and strides must be equal"
