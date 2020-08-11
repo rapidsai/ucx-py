@@ -12,7 +12,7 @@ from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
-from ucx_api_dep cimport *
+from .ucx_api_dep cimport *
 
 from ..exceptions import (
     UCXCanceled,
