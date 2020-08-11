@@ -68,7 +68,7 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         itemsize = int(numpy.dtype(iface["typestr"]).itemsize)
         # Making sure that the elements in shape is integers
         shape = [int(s) for s in iface["shape"]]
-        nbytes = reduce(operator.mul, shape, 1) * itemsize
+        nbytes = reduce(operator.mul, shape, itemsize)
         # Check that data is contiguous
         strides = iface.get("strides")
         if len(shape) > 0 and strides is not None:
