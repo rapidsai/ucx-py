@@ -28,7 +28,7 @@ def get_buffer_data(buffer, check_writable=False):
         data_ptr, data_readonly = iface["data"]
     else:
         mview = memoryview(buffer)
-        data_ptr = int(<uintptr_t>PyMemoryView_GET_BUFFER(mview).buf)
+        data_ptr = <uintptr_t>PyMemoryView_GET_BUFFER(mview).buf
         data_readonly = mview.readonly
 
     if data_ptr == 0:
