@@ -4,7 +4,6 @@
 # cython: language_level=3
 
 
-import asyncio
 import operator
 from functools import reduce
 
