@@ -70,8 +70,9 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
         if len(shape) > 0 and strides is not None:
             strides = [int(s) for s in strides]
             if len(strides) != len(shape):
-                msg = "The length of shape and strides must be equal"
-                raise ValueError(msg)
+                raise ValueError(
+                    "The length of shape and strides must be equal"
+                )
             s = itemsize
             for i in reversed(range(len(shape))):
                 if s != strides[i]:
