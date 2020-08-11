@@ -15,9 +15,7 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     is read only and check_writable=True is set.
     """
 
-    cdef dict iface = getattr(buffer, "__array_interface__", None)
-    if iface is None:
-        iface = getattr(buffer, "__cuda_array_interface__", None)
+    cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
 
     cdef uintptr_t data_ptr
     cdef bint data_readonly
@@ -45,18 +43,16 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
     if `check_min_size` is greater than the size of the buffer
     """
 
-    cdef dict iface = getattr(buffer, "__array_interface__", None)
-    if iface is None:
-        iface = getattr(buffer, "__cuda_array_interface__", None)
-        if not cuda_support and iface is not None:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
+    cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
+    if not cuda_support and iface is not None:
+        raise ValueError(
+            "UCX is not configured with CUDA support, please add "
+            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+            "variable and that the ucx-proc=*=gpu package is "
+            "installed. See "
+            "https://ucx-py.readthedocs.io/en/latest/install.html for "
+            "more information."
+        )
 
     cdef tuple shape, strides
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes, min_size
