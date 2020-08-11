@@ -4,23 +4,22 @@
 # cython: language_level=3
 
 
-import operator
-from functools import reduce
-
 from cpython.memoryview cimport PyMemoryView_GET_BUFFER
 from libc.stdint cimport uintptr_t
 
 
-def get_buffer_data(buffer, check_writable=False):
+cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     """
     Returns data pointer of the buffer. Raising ValueError if the buffer
     is read only and check_writable=True is set.
     """
 
-    iface = getattr(buffer, "__array_interface__", None)
+    cdef dict iface = getattr(buffer, "__array_interface__", None)
     if iface is None:
         iface = getattr(buffer, "__cuda_array_interface__", None)
 
+    cdef uintptr_t data_ptr
+    cdef bint data_readonly
     if iface is not None:
         data_ptr, data_readonly = iface["data"]
     else:
@@ -37,13 +36,13 @@ def get_buffer_data(buffer, check_writable=False):
     return data_ptr
 
 
-def get_buffer_nbytes(buffer, check_min_size, cuda_support):
+cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) except *:
     """
     Returns the size of the buffer in bytes. Returns ValueError
     if `check_min_size` is greater than the size of the buffer
     """
 
-    iface = getattr(buffer, "__array_interface__", None)
+    cdef dict iface = getattr(buffer, "__array_interface__", None)
     if iface is None:
         iface = getattr(buffer, "__cuda_array_interface__", None)
         if not cuda_support and iface is not None:
@@ -56,26 +55,29 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
                 "more information."
             )
 
+    cdef tuple shape, strides
+    cdef Py_ssize_t i, s, itemsize, ndim, nbytes, min_size
     if iface is not None:
         import numpy
-        itemsize = int(numpy.dtype(iface["typestr"]).itemsize)
+        itemsize = numpy.dtype(iface["typestr"]).itemsize
         # Making sure that the elements in shape is integers
-        shape = [int(s) for s in iface["shape"]]
+        shape = iface["shape"]
         ndim = len(shape)
-        nbytes = reduce(operator.mul, shape, itemsize)
+        nbytes = itemsize
+        for i in range(ndim):
+            nbytes *= <Py_ssize_t>shape[i]
         # Check that data is contiguous
         strides = iface.get("strides")
         if ndim > 0 and strides is not None:
-            strides = [int(s) for s in strides]
             if len(strides) != ndim:
                 raise ValueError(
                     "The length of shape and strides must be equal"
                 )
             s = itemsize
-            for i in reversed(range(ndim)):
-                if s != strides[i]:
+            for i from ndim > i >= 0 by 1:
+                if s != <Py_ssize_t>strides[i]:
                     raise ValueError("Array must be contiguous")
-                s *= shape[i]
+                s *= <Py_ssize_t>shape[i]
         if iface.get("mask") is not None:
             raise NotImplementedError("mask attribute not supported")
     else:
