@@ -20,11 +20,9 @@ def get_buffer_data(buffer, check_writable=False):
     is read only and check_writable=True is set.
     """
 
-    iface = None
-    if hasattr(buffer, "__cuda_array_interface__"):
-        iface = buffer.__cuda_array_interface__
-    elif hasattr(buffer, "__array_interface__"):
-        iface = buffer.__array_interface__
+    iface = getattr(buffer, "__array_interface__", None)
+    if iface is None:
+        iface = getattr(buffer, "__cuda_array_interface__", None)
 
     if iface is not None:
         data_ptr, data_readonly = iface["data"]
@@ -53,10 +51,10 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
     if `check_min_size` is greater than the size of the buffer
     """
 
-    iface = None
-    if hasattr(buffer, "__cuda_array_interface__"):
-        iface = buffer.__cuda_array_interface__
-        if not cuda_support:
+    iface = getattr(buffer, "__array_interface__", None)
+    if iface is None:
+        iface = getattr(buffer, "__cuda_array_interface__", None)
+        if not cuda_support and iface is not None:
             msg = "UCX is not configured with CUDA support, please add " \
                   "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment" \
                   "variable and that the ucx-proc=*=gpu package is " \
@@ -64,8 +62,6 @@ def get_buffer_nbytes(buffer, check_min_size, cuda_support):
                   "https://ucx-py.readthedocs.io/en/latest/install.html for " \
                   "more information."
             raise ValueError(msg)
-    elif hasattr(buffer, "__array_interface__"):
-        iface = buffer.__array_interface__
 
     if iface is not None:
         import numpy
