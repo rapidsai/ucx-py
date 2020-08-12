@@ -20,7 +20,6 @@ os.environ["RAPIDS_NO_INITIALIZE"] = "1"
 from dask.utils import format_bytes, format_time
 
 import cudf
-import rmm
 
 import ucp
 from ucp.utils import run_on_local_network
@@ -163,6 +162,9 @@ async def worker(rank, eps, args):
     # Setting current device and make RMM use it
     dev_id = args.devs[rank % len(args.devs)]
     cupy.cuda.runtime.setDevice(dev_id)
+
+    # Initialize RMM and use pool
+    import rmm
     rmm.reinitialize(
         pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
     )
