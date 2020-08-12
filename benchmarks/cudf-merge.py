@@ -19,8 +19,6 @@ os.environ["RAPIDS_NO_INITIALIZE"] = "1"
 
 from dask.utils import format_bytes, format_time
 
-import cudf
-
 import ucp
 from ucp.utils import run_on_local_network
 
@@ -76,6 +74,8 @@ async def recv_bins(eps, bins):
 
 
 async def exchange_and_concat_bins(rank, eps, bins, timings=None):
+    import cudf
+
     ret = [bins[rank]]
     if timings is not None:
         t1 = clock()
@@ -98,6 +98,8 @@ async def distributed_join(args, rank, eps, left_table, right_table, timings=Non
 
 
 def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
+    import cudf
+
     cupy.random.seed(42)
 
     if chunk_type == "build":
