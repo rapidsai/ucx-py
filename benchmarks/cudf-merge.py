@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import cProfile
 import io
+import os
 import pickle
 import pstats
 import sys
@@ -12,6 +13,9 @@ from time import perf_counter as clock
 
 import cupy
 import numpy as np
+
+os.environ["RMM_NO_INITIALIZE"] = "1"
+os.environ["RAPIDS_NO_INITIALIZE"] = "1"
 
 from dask.utils import format_bytes, format_time
 

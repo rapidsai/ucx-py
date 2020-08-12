@@ -28,6 +28,9 @@ from distributed.utils import format_bytes, parse_bytes
 
 import ucp
 
+os.environ["RMM_NO_INITIALIZE"] = "1"
+os.environ["RAPIDS_NO_INITIALIZE"] = "1"
+
 mp = mp.get_context("spawn")
 
 
