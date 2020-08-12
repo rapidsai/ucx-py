@@ -168,6 +168,7 @@ async def worker(rank, eps, args):
 
     # Initialize RMM and use pool
     import rmm
+
     rmm.reinitialize(
         pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
     )
