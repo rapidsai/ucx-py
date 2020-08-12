@@ -19,7 +19,6 @@ from dask.utils import format_bytes, format_time
 import ucp
 from ucp.utils import run_on_local_network
 
-
 os.environ["RMM_NO_INITIALIZE"] = "1"
 os.environ["RAPIDS_NO_INITIALIZE"] = "1"
 
