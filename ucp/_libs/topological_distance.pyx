@@ -21,10 +21,10 @@ cdef class TopologicalDistance:
         (e.g., InfiniBand, aka. 'mlx5' or 'ib') interfaces closest to a NVIDIA GPU.
 
         """
-        self.topo = <hwloc_topology_t> initialize_topology()
+        self.topo = initialize_topology()
 
     def __dealloc__(self):
-        cdef hwloc_topology_t topo = <hwloc_topology_t> self.topo
+        cdef hwloc_topology_t topo = self.topo
         hwloc_topology_destroy(topo)
 
     def get_cuda_distances_from_pci_info(self, domain, bus, device,
@@ -80,8 +80,8 @@ cdef class TopologicalDistance:
             raise RuntimeError("Unknown device type: %s" % device_type)
 
         cdef hwloc_obj_t cuda_pcidev
-        cuda_pcidev = <hwloc_obj_t> get_cuda_pcidev_from_pci_info(
-            <hwloc_topology_t> self.topo, domain, bus, device
+        cuda_pcidev = get_cuda_pcidev_from_pci_info(
+            self.topo, domain, bus, device
         )
 
         cdef topological_distance_objs_t *dev_dist
@@ -90,12 +90,10 @@ cdef class TopologicalDistance:
                                      hwloc_osdev_type)
 
         cdef topological_distance_and_name_t *dist_name
-        dist_name = <topological_distance_and_name_t *> (
-            get_topological_distance_and_name(dev_dist, dev_count)
-        )
+        dist_name = get_topological_distance_and_name(dev_dist, dev_count)
 
-        ret = [{"distance": <int>(&dist_name[i]).distance,
-               "name": (<char *>(&dist_name[i]).name).decode("utf-8")}
+        ret = [{"distance": (&dist_name[i]).distance,
+               "name": ((&dist_name[i]).name).decode("utf-8")}
                for i in range(dev_count)]
 
         free(dev_dist)
