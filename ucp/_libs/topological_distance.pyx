@@ -103,8 +103,8 @@ cdef class TopologicalDistance:
 
         return ret
 
-    def get_cuda_distances_from_device_index(self, cuda_device_index,
-                                             str device_type="openfabrics"):
+    cpdef get_cuda_distances_from_device_index(self, cuda_device_index,
+                                               str device_type="openfabrics"):
         """ Find network or openfabrics devices closest to CUDA device of given index.
 
         Parameters
