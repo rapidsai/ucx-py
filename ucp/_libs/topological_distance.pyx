@@ -8,9 +8,6 @@ from .topological_distance_dep cimport *
 
 
 cdef class TopologicalDistance:
-    cdef:
-        hwloc_topology_t topo
-
     def __init__(self):
         """ Find topological distance between devices
 
