@@ -10,3 +10,10 @@ from .topological_distance_dep cimport *
 cdef class TopologicalDistance:
     cdef:
         hwloc_topology_t topo
+
+    cpdef get_cuda_distances_from_pci_info(self, int domain, int bus,
+                                           int device,
+                                           str device_type=*)
+
+    cpdef get_cuda_distances_from_device_index(self, cuda_device_index,
+                                               str device_type=*)

@@ -27,8 +27,9 @@ cdef class TopologicalDistance:
         cdef hwloc_topology_t topo = self.topo
         hwloc_topology_destroy(topo)
 
-    def get_cuda_distances_from_pci_info(self, int domain, int bus, int device,
-                                         str device_type="openfabrics"):
+    cpdef get_cuda_distances_from_pci_info(self, int domain, int bus,
+                                           int device,
+                                           str device_type="openfabrics"):
         """ Find network or openfabrics devices closest to CUDA device at
         domain:bus:device address.
 
