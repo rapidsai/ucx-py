@@ -181,8 +181,8 @@ cdef class UCXObject:
         )
 
 
-def _ucx_context_handle_finalizer(handle_as_int):
-    cdef ucp_context_h handle = <ucp_context_h><uintptr_t> handle_as_int
+def _ucx_context_handle_finalizer(uintptr_t handle_as_int):
+    cdef ucp_context_h handle = <ucp_context_h> handle_as_int
     ucp_cleanup(handle)
 
 
