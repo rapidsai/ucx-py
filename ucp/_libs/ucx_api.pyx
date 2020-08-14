@@ -181,9 +181,8 @@ cdef class UCXObject:
         )
 
 
-def _ucx_context_handle_finalizer(uintptr_t handle_as_int):
-    cdef ucp_context_h handle = <ucp_context_h> handle_as_int
-    ucp_cleanup(handle)
+def _ucx_context_handle_finalizer(uintptr_t handle):
+    ucp_cleanup(<ucp_context_h> handle)
 
 
 cdef class UCXContext(UCXObject):
@@ -470,9 +469,8 @@ cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
         )
 
 
-def _ucx_listener_handle_finalizer(uintptr_t handle_as_int):
-    cdef ucp_listener_h handle = <ucp_listener_h>handle_as_int
-    ucp_listener_destroy(handle)
+def _ucx_listener_handle_finalizer(uintptr_t handle):
+    ucp_listener_destroy(<ucp_listener_h> handle)
 
 
 cdef class UCXListener(UCXObject):
