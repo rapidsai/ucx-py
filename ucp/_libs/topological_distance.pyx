@@ -92,8 +92,8 @@ cdef class TopologicalDistance:
         cdef topological_distance_and_name_t *dist_name
         dist_name = get_topological_distance_and_name(dev_dist, dev_count)
 
-        ret = [{"distance": (&dist_name[i]).distance,
-               "name": ((&dist_name[i]).name).decode("utf-8")}
+        ret = [{"distance": dist_name[i].distance,
+               "name": dist_name[i].name.decode("utf-8")}
                for i in range(dev_count)]
 
         free(dev_dist)
