@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 import asyncio
@@ -81,4 +82,20 @@ def stream_recv(
 
     return _call_ucx_api(
         event_loop, ucx_api.stream_recv_nb, ep, buffer, nbytes, name=name
+    )
+
+
+def flush_worker(
+        worker: ucx_api.UCXWorker, event_loop=None
+) -> asyncio.Future:
+    return _call_ucx_api(
+        event_loop, worker.flush
+    )
+
+
+def flush_ep(
+        ep: ucx_api.UCXEndpoint, event_loop=None
+) -> asyncio.Future:
+    return _call_ucx_api(
+        event_loop, ep.flush
     )

@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
@@ -386,6 +387,64 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def fence(self):
+        cdef ucs_status_t status
+        status = ucp_worker_fence(self._handle)
+        assert_ucs_status(status)
+        return status
+
+    def flush(self, cb_func, cb_args, cb_kwargs=dict()):
+        cdef ucs_status_ptr_t req
+        cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
+
+        cdef ucs_status_ptr_t status = ucp_worker_flush_nb(self._handle, 0, _send_cb)
+        return _handle_status(
+            status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
+        )
+
+    def get_address(self):
+        return UCXAddress(self)
+
+
+def _ucx_address_finalizer(uintptr_t handle_as_int, UCXWorker worker):
+    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
+    cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
+    ucp_worker_release_address(ucp_worker, address)
+
+
+cdef class UCXAddress(UCXObject):
+    """Python representation of ucp_address_t"""
+    cdef ucp_address_t *_handle
+    cdef size_t _length
+    cdef worker
+    __array_interface__ = dict()
+
+    def __init__(self, UCXWorker worker):
+        cdef ucs_status_t status
+        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
+
+        status = ucp_worker_get_address(ucp_worker, &self._handle, &self._length)
+        assert_ucs_status(status)
+        self.worker = worker
+        self.__array_interface__["data"] = (<uintptr_t>self._handle, True)
+        self.__array_interface__["typestr"] = "|V1"
+        self.__array_interface__["shape"] = [self._length]
+        self.__array_interface__["version"] = 3
+        self.add_handle_finalizer(
+            _ucx_address_finalizer,
+            int(<uintptr_t>self._handle),
+	    worker
+        )
+        worker.add_child(self)
+
+    @property
+    def address(self):
+        return <uintptr_t>self._handle
+
+    @property
+    def length(self):
+        return int(self._length)
+
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
@@ -455,6 +514,16 @@ cdef class UCXEndpoint(UCXObject):
     def handle(self):
         assert self.initialized
         return int(<uintptr_t>self._handle)
+
+    def flush(self, cb_func, cb_args, cb_kwargs=dict()):
+        cdef ucs_status_ptr_t req
+        cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
+
+        cdef ucs_status_ptr_t status = ucp_ep_flush_nb(self._handle, 0, _send_cb)
+        return _handle_status(
+            status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
+        )
+
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
