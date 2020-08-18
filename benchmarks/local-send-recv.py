@@ -53,6 +53,8 @@ def server(queue, args):
             managed_memory=False,
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.server_dev],
+            logging=True,
+            log_file_name="server-local-send-recv-rmm.log",
         )
         np.cuda.runtime.setDevice(args.server_dev)
         np.cuda.set_allocator(rmm.rmm_cupy_allocator)
@@ -109,6 +111,8 @@ def client(queue, port, server_address, args):
             managed_memory=False,
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.client_dev],
+            logging=True,
+            log_file_name="client-local-send-recv-rmm.log",
         )
         np.cuda.runtime.setDevice(args.client_dev)
         np.cuda.set_allocator(rmm.rmm_cupy_allocator)
