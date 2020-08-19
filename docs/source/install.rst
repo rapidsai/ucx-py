@@ -98,7 +98,7 @@ As noted above, the UCX conda package no longer builds support for IB/RDMA.  To 
 If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
 
 
-To build UCX with IB/RDMA support, include the ``--with-rdmacm``, ``--with-verbs``, and ``--with-cm`` build flags.  For example:
+To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-verbs`` build flags.  For example:
 
 ::
      ../contrib/configure-release --enable-mt
