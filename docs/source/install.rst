@@ -38,6 +38,11 @@ Source
 
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
+.. note::
+    As of version 0.15, the UCX conda package build will no longer include IB/RDMA support.  This is largely due to compatibility issues
+    between OFED versions.  We do however provide instructions below for how to build UCX with IB/RDMA support in the `UCX + OFED`_
+    section.
+
 
 Build Dependencies
 ~~~~~~~~~~~~~~~~~~
@@ -68,6 +73,11 @@ UCX
     git clone https://github.com/openucx/ucx
     cd ucx
     git checkout v1.8.x
+    # apply UCX IB registration cache patches, improves overall
+    # IB performance when using a memory pool
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch
+    git apply ib_registration_cache.patch && git apply add-page-alignment.patch
     ./autogen.sh
     mkdir build
     cd build
@@ -76,6 +86,33 @@ UCX
     # Debug build
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
+
+UCX + OFED
+~~~~~~~~~~
+
+As noted above, the UCX conda package no longer builds support for IB/RDMA.  To build UCX with IB/RDMA support first confirm OFED is installed properly:
+
+::
+
+    (ucx) user@dgx:~$ ofed_info -s
+    OFED-internal-4.7-3.2.9
+
+If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
+
+
+To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-verbs`` build flags.  For example:
+
+::
+
+    ../contrib/configure-release \
+    --enable-mt \
+    --prefix="$CONDA_PREFIX" \
+    --with-cuda="$CUDA_HOME" \
+    --enable-mt \
+    --with-rdmacm \
+    --with-verbs \
+    CPPFLAGS="-I/$CUDA_HOME/include"
+
 
 UCX-Py
 ~~~~~~
