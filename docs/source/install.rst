@@ -73,9 +73,9 @@ UCX
     cd ucx
     git checkout v1.8.x
     # apply UCX IB registration patches
-    curl -L https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch > /tmp/add-page-alignment.patch
-    curl -L https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch > /tmp/ib_registration_cache.patch
-    git apply /tmp/ib_registration_cache.patch && git apply /tmp/add-page-alignment.patch
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch
+    git apply ib_registration_cache.patch && git apply add-page-alignment.patch
     ./autogen.sh
     mkdir build
     cd build
