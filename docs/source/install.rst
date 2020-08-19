@@ -124,11 +124,3 @@ UCX-Py
     pip install .
     # or for develop build
     pip install -v -e .
-
-
-##
-
-
-
-(ucx) bzaitlen@dgx12:/datasets/bzaitlen/GitRepos/ucx$ git apply /tmp/ib_registration_cache.patch
-(ucx) bzaitlen@dgx12:/datasets/bzaitlen/GitRepos/ucx$ git apply /tmp/add-page-alignment.patch
