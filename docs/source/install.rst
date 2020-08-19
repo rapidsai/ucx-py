@@ -106,7 +106,6 @@ To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-ve
     --prefix="$CONDA_PREFIX" \
     --with-cuda="$CUDA_HOME" \
     --enable-mt \
-    --with-cm \
     --with-rdmacm \
     --with-verbs \
     CPPFLAGS="-I/$CUDA_HOME/include"
