@@ -39,7 +39,7 @@ Source
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 .. note::
-    As of version 0.15, the UCX conda package will no longer build with IB/RDMA included.  This is largely due in part to compatibility issues
+    As of version 0.15, the UCX conda package build will no longer include IB/RDMA support.  This is largely due in part to compatibility issues
     between OFED versions.  However, we do provide instructions below for how to build UCX with IB/RDMA support.
 
 
