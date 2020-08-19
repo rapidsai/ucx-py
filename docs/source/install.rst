@@ -72,7 +72,8 @@ UCX
     git clone https://github.com/openucx/ucx
     cd ucx
     git checkout v1.8.x
-    # apply UCX IB registration patches
+    # apply UCX IB registration cache patches, improves overall
+    # IB performance when using a memory pool
     curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch
     curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch
     git apply ib_registration_cache.patch && git apply add-page-alignment.patch
