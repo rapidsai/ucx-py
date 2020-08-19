@@ -39,8 +39,9 @@ Source
 The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 .. note::
-    As of version 0.15, the UCX conda package build will no longer include IB/RDMA support.  This is largely due in part to compatibility issues
-    between OFED versions.  However, we do provide instructions below for how to build UCX with IB/RDMA support.
+    As of version 0.15, the UCX conda package build will no longer include IB/RDMA support.  This is largely due to compatibility issues
+    between OFED versions.  We do however provide instructions below for how to build UCX with IB/RDMA support in the `UCX + OFED`_
+    section.
 
 
 Build Dependencies
@@ -102,7 +103,9 @@ If OFED drivers are not installed on the machine, you can download drivers at di
 To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-verbs`` build flags.  For example:
 
 ::
-     ../contrib/configure-release --enable-mt
+
+    ../contrib/configure-release \
+    --enable-mt \
     --prefix="$CONDA_PREFIX" \
     --with-cuda="$CUDA_HOME" \
     --enable-mt \
