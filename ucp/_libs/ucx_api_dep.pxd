@@ -105,7 +105,7 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef enum ucs_thread_mode_t:
         pass
 
-    # < Only the master thread can access (i.e. the thread that initialized
+    # < Only the main thread can access (i.e. the thread that initialized
     # the context; multiple threads may exist and never access) */
     ucs_thread_mode_t UCS_THREAD_MODE_SINGLE,
 
