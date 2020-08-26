@@ -23,7 +23,7 @@
 from ucp import __version__ as release
 
 # The short X.Y version.
-version = ".".join(release.split(".")[:2])
+version = '0.15'
 
 project = "ucx-py"
 copyright = "2019, NVIDIA"
