@@ -4,16 +4,17 @@ import os
 import random
 import threading
 
-from distributed.comm.utils import to_frames
-from distributed.protocol import to_serialize
-
 import cloudpickle
 import numpy as np
 import pytest
-import ucp
 from debug_utils import get_cuda_devices, set_rmm
-from ucp._libs.topological_distance import TopologicalDistance
 from utils import recv, send
+
+from distributed.comm.utils import to_frames
+from distributed.protocol import to_serialize
+
+import ucp
+from ucp._libs.topological_distance import TopologicalDistance
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
@@ -156,8 +157,9 @@ def server(env, port, func, enable_rmm, num_workers, proc_conn):
 
 
 def dataframe():
-    import cudf
     import numpy as np
+
+    import cudf
 
     # always generate the same random numbers
     np.random.seed(0)

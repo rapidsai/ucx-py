@@ -18,10 +18,10 @@ UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py --server-dev 0 \
 --client-dev 5 --object_type rmm --reuse-alloc --n-bytes 1GB --client-only \
 --server-address 192.168.40.44 --port 53496 --n-iter 100
 """
-
 import argparse
 import asyncio
 import multiprocessing as mp
+import os
 from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
@@ -32,6 +32,9 @@ mp = mp.get_context("spawn")
 
 
 def server(queue, args):
+    if args.server_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.server_cpu_affinity])
+
     ucp.init()
 
     if args.object_type == "numpy":
@@ -42,6 +45,7 @@ def server(queue, args):
         np.cuda.runtime.setDevice(args.server_dev)
     else:
         import cupy as np
+
         import rmm
 
         rmm.reinitialize(
@@ -84,7 +88,8 @@ def server(queue, args):
 
 
 def client(queue, port, server_address, args):
-    import ucp
+    if args.client_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.client_cpu_affinity])
 
     ucp.init()
 
@@ -96,6 +101,7 @@ def client(queue, port, server_address, args):
         np.cuda.runtime.setDevice(args.client_dev)
     else:
         import cupy as np
+
         import rmm
 
         rmm.reinitialize(
@@ -150,7 +156,19 @@ def client(queue, port, server_address, args):
     print(f"reuse alloc | {args.reuse_alloc}")
     print("==========================")
     if args.object_type == "numpy":
-        print("Device(s)    | Single CPU")
+        print("Device(s)   | CPU-only")
+        s_aff = (
+            args.server_cpu_affinity
+            if args.server_cpu_affinity >= 0
+            else "affinity not set"
+        )
+        c_aff = (
+            args.client_cpu_affinity
+            if args.client_cpu_affinity >= 0
+            else "affinity not set"
+        )
+        print(f"Server CPU  | {s_aff}")
+        print(f"Client CPU  | {c_aff}")
     else:
         print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
     print(
@@ -181,6 +199,22 @@ def parse_args():
         default=10,
         type=int,
         help="Numer of send / recv iterations (default 10).",
+    )
+    parser.add_argument(
+        "-b",
+        "--server-cpu-affinity",
+        metavar="N",
+        default=-1,
+        type=int,
+        help="CPU affinity for server process (default -1: not set).",
+    )
+    parser.add_argument(
+        "-c",
+        "--client-cpu-affinity",
+        metavar="N",
+        default=-1,
+        type=int,
+        help="CPU affinity for client process (default -1: not set).",
     )
     parser.add_argument(
         "-o",

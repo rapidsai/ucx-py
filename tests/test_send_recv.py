@@ -1,6 +1,8 @@
 import asyncio
+import functools
 
 import pytest
+
 import ucp
 
 np = pytest.importorskip("numpy")
@@ -151,3 +153,41 @@ async def test_send_recv_error(blocking_progress_mode):
         match=r"length mismatch: 3 \(got\) != 100 \(expected\)",
     ):
         await client.recv(msg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_obj(blocking_progress_mode):
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
+
+    async def echo_obj_server(ep):
+        obj = await ep.recv_obj()
+        await ep.send_obj(obj)
+
+    listener = ucp.create_listener(echo_obj_server)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(b"hello")
+    await client.send_obj(msg)
+    got = await client.recv_obj()
+    assert msg == got
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_send_recv_obj_numpy(blocking_progress_mode):
+    ucp.init(blocking_progress_mode=blocking_progress_mode)
+
+    allocator = functools.partial(np.empty, dtype=np.uint8)
+
+    async def echo_obj_server(ep):
+        obj = await ep.recv_obj(allocator=allocator)
+        await ep.send_obj(obj)
+
+    listener = ucp.create_listener(echo_obj_server)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
+
+    msg = bytearray(b"hello")
+    await client.send_obj(msg)
+    got = await client.recv_obj(allocator=allocator)
+    assert msg == got

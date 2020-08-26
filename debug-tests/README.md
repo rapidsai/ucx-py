@@ -1,6 +1,8 @@
 ## Debug Tests
 
-Files in this directory are useful for debugging purposes and often require being executed in two separate sessions (tmux/ssh/etc)
+Files in this directory are useful for debugging purposes and often require being executed in two separate sessions (tmux/ssh/etc).
+
+NOTE: This was moved outside of the tests directory to prevent users running potentially unstable tests by accident.
 
 
 ## Send/Recv

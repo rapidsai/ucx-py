@@ -3,16 +3,18 @@ import multiprocessing
 import os
 import random
 
+import cloudpickle
+import numpy as np
+import pytest
+from utils import get_cuda_devices, get_num_gpus, recv, send
+
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
-import cloudpickle
 import cudf.tests.utils
-import numpy as np
-import pytest
+
 import ucp
-from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -123,8 +125,9 @@ def server(port, func):
 
 
 def dataframe():
-    import cudf
     import numpy as np
+
+    import cudf
 
     # always generate the same random numbers
     np.random.seed(0)

@@ -1,6 +1,7 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
+import array
 import asyncio
 import gc
 import logging
@@ -13,6 +14,7 @@ from random import randint
 
 import psutil
 
+from . import comm
 from ._libs import ucx_api
 from ._libs.utils import get_buffer_nbytes
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
@@ -54,11 +56,11 @@ async def exchange_peer_info(
     # Send/recv peer information. Notice, we force an `await` between the two
     # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
     if listener is True:
-        await ucx_api.stream_send(endpoint, my_info, len(my_info))
-        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
+        await comm.stream_send(endpoint, my_info, len(my_info))
+        await comm.stream_recv(endpoint, peer_info, len(peer_info))
     else:
-        await ucx_api.stream_recv(endpoint, peer_info, len(peer_info))
-        await ucx_api.stream_send(endpoint, my_info, len(my_info))
+        await comm.stream_recv(endpoint, peer_info, len(peer_info))
+        await comm.stream_send(endpoint, my_info, len(my_info))
 
     # Unpacking and sanity check of the peer information
     ret = {}
@@ -130,8 +132,8 @@ class CtrlMsg:
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
         msg = bytearray(CtrlMsg.nbytes)
-        shutdown_fut = ucx_api.tag_recv(
-            ep._ep, msg, len(msg), ep._ctrl_tag_recv, log_msg=log,
+        shutdown_fut = comm.tag_recv(
+            ep._ep, msg, len(msg), ep._ctrl_tag_recv, name=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -139,7 +141,9 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
+async def _listener_handler_coroutine(
+    conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
+):
     # We create the Endpoint in four steps:
     #  1) Generate unique IDs to use as tags
     #  2) Exchange endpoint info such as tags
@@ -147,6 +151,10 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
     seed = os.urandom(16)
     msg_tag = hash64bits("msg_tag", seed, port)
     ctrl_tag = hash64bits("ctrl_tag", seed, port)
+
+    endpoint = ctx.worker.ep_create_from_conn_request(
+        conn_request, endpoint_error_handling
+    )
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
@@ -190,6 +198,21 @@ async def _listener_handler(endpoint, ctx, func, port, guarantee_msg_order):
         func(ep)
 
 
+def _listener_handler(
+    conn_request, callback_func, port, ctx, guarantee_msg_order, endpoint_error_handling
+):
+    asyncio.ensure_future(
+        _listener_handler_coroutine(
+            conn_request,
+            ctx,
+            callback_func,
+            port,
+            guarantee_msg_order,
+            endpoint_error_handling,
+        )
+    )
+
+
 def _epoll_fd_finalizer(epoll_fd, progress_tasks):
     assert epoll_fd >= 0
     # Notice, progress_tasks must be cleared before we close
@@ -223,7 +246,9 @@ class ApplicationContext:
                 self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
             )
 
-    def create_listener(self, callback_func, port, guarantee_msg_order):
+    def create_listener(
+        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=False
+    ):
         """Create and start a listener to accept incoming connections
 
         callback_func is the function or coroutine that takes one
@@ -245,6 +270,10 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
+        endpoint_error_handling: boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
 
         Returns
         -------
@@ -273,20 +302,23 @@ class ApplicationContext:
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
             ucx_api.UCXListener(
-                self.worker,
-                port,
-                {
-                    "cb_func": callback_func,
-                    "cb_coroutine": _listener_handler,
-                    "port": port,
-                    "ctx": self,
-                    "guarantee_msg_order": guarantee_msg_order,
-                },
+                worker=self.worker,
+                port=port,
+                cb_func=_listener_handler,
+                cb_args=(
+                    callback_func,
+                    port,
+                    self,
+                    guarantee_msg_order,
+                    endpoint_error_handling,
+                ),
             )
         )
         return ret
 
-    async def create_endpoint(self, ip_address, port, guarantee_msg_order):
+    async def create_endpoint(
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=False
+    ):
         """Create a new endpoint to a server
 
         Parameters
@@ -298,13 +330,18 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
+        endpoint_error_handling: boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
+
         Returns
         -------
         Endpoint
             The new endpoint
         """
         self.continuous_ucx_progress()
-        ucx_ep = self.worker.ep_create(ip_address, port)
+        ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
         # We create the Endpoint in four steps:
@@ -493,8 +530,8 @@ class Endpoint:
             )
             logger.debug(log)
             try:
-                await ucx_api.tag_send(
-                    self._ep, msg, len(msg), self._ctrl_tag_send, log_msg=log,
+                await comm.tag_send(
+                    self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -543,7 +580,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await ucx_api.tag_send(self._ep, buffer, nbytes, tag, log_msg=log)
+        return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=None, tag=None):
@@ -581,7 +618,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await ucx_api.tag_recv(self._ep, buffer, nbytes, tag, log_msg=log)
+        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
@@ -638,6 +675,66 @@ class Endpoint:
                 % (n, self._finished_recv_count)
             )
 
+    async def send_obj(self, obj, tag=None):
+        """Send `obj` to connected peer that calls `recv_obj()`.
+
+        The transfer includes an extra message containing the size of `obj`,
+        which increases the overhead slightly.
+
+        Parameters
+        ----------
+        obj: exposing the buffer protocol or array/cuda interface
+            The object to send.
+        tag: hashable, optional
+            Set a tag that the receiver must match.
+
+        Example
+        -------
+        >>> await ep.send_obj(pickle.dumps([1,2,3]))
+        """
+
+        nbytes = array.array(
+            "Q",
+            [
+                get_buffer_nbytes(
+                    buffer=obj, check_min_size=None, cuda_support=self._cuda_support
+                )
+            ],
+        )
+        await self.send(nbytes, tag=tag)
+        await self.send(obj, tag=tag)
+
+    async def recv_obj(self, tag=None, allocator=bytearray):
+        """Receive from connected peer that calls `send_obj()`.
+
+        As opposed to `recv()`, this function returns the received object.
+        Data is received into a buffer allocated by `allocator`.
+
+        The transfer includes an extra message containing the size of `obj`,
+        which increses the overhead slightly.
+
+        Parameters
+        ----------
+        tag: hashable, optional
+            Set a tag that must match the received message. Notice, currently
+            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
+            send that also sets `tag=None`.
+        allocator: callabale, optional
+            Function to allocate the received object. The function should
+            take the number of bytes to allocate as input and return a new
+            buffer of that size as output.
+
+        Example
+        -------
+        >>> await pickle.loads(ep.recv_obj())
+        """
+        nbytes = array.array("Q", [0])
+        await self.recv(nbytes, tag=tag)
+        nbytes = nbytes[0]
+        ret = allocator(nbytes)
+        await self.recv(ret, nbytes=nbytes, tag=tag)
+        return ret
+
 
 # The following functions initialize and use a single ApplicationContext instance
 
@@ -692,7 +789,7 @@ def reset():
                 "ApplicationContext: "
             )
             for o in gc.get_referrers(weakref_ctx()):
-                msg += "\n  %s" % o
+                msg += "\n  %s" % str(o)
             raise UCXError(msg)
 
 
@@ -739,12 +836,26 @@ def get_config():
         return _get_ctx().get_config()
 
 
-def create_listener(callback_func, port=None, guarantee_msg_order=False):
-    return _get_ctx().create_listener(callback_func, port, guarantee_msg_order)
+def create_listener(
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=False
+):
+    return _get_ctx().create_listener(
+        callback_func,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
-async def create_endpoint(ip_address, port, guarantee_msg_order=False):
-    return await _get_ctx().create_endpoint(ip_address, port, guarantee_msg_order)
+async def create_endpoint(
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=False
+):
+    return await _get_ctx().create_endpoint(
+        ip_address,
+        port,
+        guarantee_msg_order,
+        endpoint_error_handling=endpoint_error_handling,
+    )
 
 
 def continuous_ucx_progress(event_loop=None):

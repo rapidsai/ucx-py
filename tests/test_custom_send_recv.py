@@ -1,11 +1,12 @@
 import asyncio
 import pickle
 
+import numpy as np
+import pytest
+
 from distributed.comm.utils import to_frames  # noqa
 from distributed.utils import nbytes  # noqa
 
-import numpy as np
-import pytest
 import ucp
 
 cudf = pytest.importorskip("cudf")
@@ -117,7 +118,7 @@ async def test_send_recv_cudf(event_loop, g):
     typ = type(msg)
     res = typ.deserialize(ucx_header, cudf_buffer)
 
-    from dask.dataframe.utils import assert_eq
+    from cudf.tests.utils import assert_eq
 
     assert_eq(res, msg)
     await uu.comm.ep.close()

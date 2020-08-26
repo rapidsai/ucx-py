@@ -1,8 +1,8 @@
 Configuration
 =============
 
-UCX/UCX-PY can be configured with a wide variety of options and optimizations including: transport, caching, etc.  Users can configure
-UCX/UCX-PY either with environment variables or programmatically during initialization.  Below we demonstrate setting ``UCX_MEMTYPE_CACHE`` to
+UCX/UCX-Py can be configured with a wide variety of options and optimizations including: transport, caching, etc.  Users can configure
+UCX/UCX-Py either with environment variables or programmatically during initialization.  Below we demonstrate setting ``UCX_MEMTYPE_CACHE`` to
 ``n`` and checking the configuration:
 
 .. code-block:: python
@@ -29,7 +29,7 @@ Env Vars
 DEBUG
 ~~~~~
 
-Debug variables for both UCX and UCX-PY can be set
+Debug variables for both UCX and UCX-Py can be set
 
 UCXPY_LOG_LEVEL/UCX_LOG_LEVEL
 `````````````````````````````
@@ -44,14 +44,14 @@ MEMORY
 UCX_MEMTYPE_CACHE
 `````````````````
 
-This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-PY defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
+This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-Py defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
 Values: n/y
 
 UCX_CUDA_IPC_CACHE
 ``````````````````
 
-This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-py defaults this value to ``y``
+This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-Py defaults this value to ``y``
 
 Values: n/y
 

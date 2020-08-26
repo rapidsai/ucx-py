@@ -3,11 +3,13 @@ import logging
 import os
 from contextlib import contextmanager
 
+import numpy as np
+
 from distributed.comm.utils import from_frames
 from distributed.utils import nbytes
 
-import numpy as np
 import rmm
+
 import ucp
 
 normal_env = {

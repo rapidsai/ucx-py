@@ -45,18 +45,12 @@ nvidia-smi
 
 logger "Activate conda env..."
 source activate gdf
-conda install "cudatoolkit=$CUDA_REL" \
-              "cupy>=6.5.0" "numpy>=1.16" \
+conda install "cudatoolkit=${CUDA_REL}" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
-              "dask>=2.8.1" "distributed>=2.8.1" \
-              "pyarrow=0.15.0" "arrow-cpp=0.15.0" \
-              -c rapidsai-nightly
+              "rapids-build-env=${MINOR_VERSION}"
 
-# needed for asynccontextmanager in py36
-conda install -c conda-forge "async_generator" "automake" "libtool" \
-                              "cmake" "automake" "autoconf" "cython>=0.29.14,<3.0.0a0" \
-                              "pytest" "pkg-config" "pytest-asyncio" \
-                              "pynvml" "libhwloc" "psutil"
+# Install pytorch to run related tests
+conda install -c pytorch "pytorch" "torchvision"
 
 # Install the master version of dask and distributed
 logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
@@ -69,25 +63,6 @@ python --version
 $CC --version
 $CXX --version
 conda list
-
-################################################################################
-# BUILD - Build ucx
-################################################################################
-
-logger "Build ucx"
-git clone https://github.com/openucx/ucx
-cd ucx
-git checkout v1.8.x
-ls
-./autogen.sh
-mkdir build
-cd build
-../configure --prefix=$CONDA_PREFIX --enable-debug --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I//$CUDA_HOME/include"
-make -j install
-cd $WORKSPACE
-
-
-
 
 ################################################################################
 # BUILD - Build ucx-py
@@ -126,7 +101,7 @@ else
 
     # Test with TCP/Sockets
     logger "TEST WITH TCP ONLY..."
-    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py --ignore-glob tests/debug-tests/test_send_recv_many_workers.py tests/debug-tests/test_send_recv_many_workers.py tests/
+    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
@@ -134,6 +109,7 @@ else
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
+        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_torch as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
@@ -142,5 +118,5 @@ else
 
     logger "Run local benchmark..."
     python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-    python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 100
+    python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
 fi

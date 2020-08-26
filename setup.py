@@ -8,9 +8,10 @@ from __future__ import absolute_import, print_function
 import os
 from distutils.sysconfig import get_config_var, get_python_inc
 
-import versioneer
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
+
+import versioneer
 
 try:
     from Cython.Distutils.build_ext import new_build_ext as build_ext
@@ -69,6 +70,12 @@ cmdclass["build_ext"] = build_ext
 install_requires = [
     "numpy",
     "psutil",
+    "pynvml",
+]
+
+tests_require = [
+    "pytest",
+    "pytest-asyncio",
 ]
 
 setup(
@@ -79,6 +86,7 @@ setup(
     version=versioneer.get_version(),
     python_requires=">=3.6",
     install_requires=install_requires,
+    tests_require=tests_require,
     description="Python Bindings for the Unified Communication X library (UCX)",
     long_description=readme,
     author="NVIDIA Corporation",
