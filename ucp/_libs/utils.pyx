@@ -4,7 +4,11 @@
 # cython: language_level=3
 
 
-from cpython.memoryview cimport PyMemoryView_GET_BUFFER
+from cpython.buffer cimport PyBuffer_IsContiguous
+from cpython.memoryview cimport (
+    PyMemoryView_FromObject,
+    PyMemoryView_GET_BUFFER,
+)
 from cython cimport boundscheck, wraparound
 from libc.stdint cimport uintptr_t
 
@@ -17,14 +21,16 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
 
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
 
+    cdef const Py_buffer* pybuf
     cdef uintptr_t data_ptr
     cdef bint data_readonly
     if iface is not None:
         data_ptr, data_readonly = iface["data"]
     else:
-        mview = memoryview(buffer)
-        data_ptr = <uintptr_t>PyMemoryView_GET_BUFFER(mview).buf
-        data_readonly = <bint>PyMemoryView_GET_BUFFER(mview).readonly
+        mview = PyMemoryView_FromObject(buffer)
+        pybuf = PyMemoryView_GET_BUFFER(mview)
+        data_ptr = <uintptr_t>pybuf.buf
+        data_readonly = pybuf.readonly
 
     if data_ptr == 0:
         raise NotImplementedError("zero-sized buffers isn't supported")
@@ -54,6 +60,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
             "more information."
         )
 
+    cdef const Py_buffer* pybuf
     cdef tuple shape, strides
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
@@ -80,9 +87,12 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
         if iface.get("mask") is not None:
             raise NotImplementedError("mask attribute not supported")
     else:
-        mview = memoryview(buffer)
-        nbytes = mview.nbytes
-        if not mview.c_contiguous:
+        mview = PyMemoryView_FromObject(buffer)
+        pybuf = PyMemoryView_GET_BUFFER(mview)
+        nbytes = pybuf.itemsize
+        for i in range(pybuf.ndim):
+            nbytes *= pybuf.shape[i]
+        if not PyBuffer_IsContiguous(pybuf, b"C"):
             raise ValueError("buffer must be C-contiguous")
 
     cdef Py_ssize_t min_size
