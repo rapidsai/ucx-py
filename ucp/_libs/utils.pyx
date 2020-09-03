@@ -25,7 +25,7 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     cdef uintptr_t data_ptr
     cdef bint data_readonly
     if iface is not None:
-        data_ptr, data_readonly = iface["data"]
+        data_ptr, data_readonly = <tuple>iface["data"]
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
