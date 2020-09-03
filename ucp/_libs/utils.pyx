@@ -30,7 +30,7 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
         data_ptr = <uintptr_t>pybuf.buf
-        data_readonly = pybuf.readonly
+        data_readonly = <bint>pybuf.readonly
 
     if data_ptr == 0:
         raise NotImplementedError("zero-sized buffers isn't supported")
