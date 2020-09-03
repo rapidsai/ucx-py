@@ -13,6 +13,11 @@ from cython cimport boundscheck, wraparound
 from libc.stdint cimport uintptr_t
 
 
+cdef struct iface_data_t:
+    uintptr_t ptr
+    bint readonly
+
+
 cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     """
     Returns data pointer of the buffer. Raising ValueError if the buffer
@@ -22,23 +27,22 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
 
     cdef const Py_buffer* pybuf
-    cdef uintptr_t data_ptr
-    cdef bint data_readonly
+    cdef iface_data_t data
     if iface is not None:
-        data_ptr, data_readonly = <tuple>iface["data"]
+        data.ptr, data.readonly = <tuple>iface["data"]
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
-        data_ptr = <uintptr_t>pybuf.buf
-        data_readonly = <bint>pybuf.readonly
+        data.ptr = <uintptr_t>pybuf.buf
+        data.readonly = <bint>pybuf.readonly
 
-    if data_ptr == 0:
+    if data.ptr == 0:
         raise NotImplementedError("zero-sized buffers isn't supported")
 
-    if check_writable and data_readonly:
+    if check_writable and data.readonly:
         raise ValueError("writing to readonly buffer!")
 
-    return data_ptr
+    return data.ptr
 
 
 @boundscheck(False)
