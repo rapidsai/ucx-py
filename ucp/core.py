@@ -882,6 +882,7 @@ def get_ucp_worker():
 def get_worker_address():
     return _get_ctx().get_worker_address()
 
+
 async def flush():
     """Flushes outstanding AMO and RMA operations. This ensures that the
        operations issued on this worker have completed both locally and remotely.

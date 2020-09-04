@@ -433,7 +433,7 @@ cdef class UCXAddress(UCXObject):
         self.add_handle_finalizer(
             _ucx_address_finalizer,
             int(<uintptr_t>self._handle),
-	    worker
+        worker
         )
         worker.add_child(self)
 
@@ -523,7 +523,6 @@ cdef class UCXEndpoint(UCXObject):
         return _handle_status(
             status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
         )
-
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):

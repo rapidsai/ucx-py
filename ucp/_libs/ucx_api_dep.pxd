@@ -226,8 +226,8 @@ cdef extern from "ucp/api/ucp.h":
                                     ucp_address_t *address)
     ucs_status_t ucp_worker_fence(ucp_worker_h worker)
     ucs_status_ptr_t ucp_worker_flush_nb(ucp_worker_h worker,
-		                                 unsigned flags,
-		                                 ucp_send_callback_t cb)
+                                         unsigned flags,
+                                         ucp_send_callback_t cb)
     ucs_status_ptr_t ucp_ep_flush_nb(ucp_ep_h ep,
                                      unsigned flags,
                                      ucp_send_callback_t cb)
