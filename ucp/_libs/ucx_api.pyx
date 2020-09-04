@@ -433,7 +433,7 @@ cdef class UCXAddress(UCXObject):
         self.add_handle_finalizer(
             _ucx_address_finalizer,
             int(<uintptr_t>self._handle),
-        worker
+            worker
         )
         worker.add_child(self)
 
