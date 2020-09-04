@@ -88,14 +88,10 @@ def stream_recv(
 def flush_worker(
         worker: ucx_api.UCXWorker, event_loop=None
 ) -> asyncio.Future:
-    return _call_ucx_api(
-        event_loop, worker.flush
-    )
+    return _call_ucx_api(event_loop, worker.flush)
 
 
 def flush_ep(
         ep: ucx_api.UCXEndpoint, event_loop=None
 ) -> asyncio.Future:
-    return _call_ucx_api(
-        event_loop, ep.flush
-    )
+    return _call_ucx_api(event_loop, ep.flush)

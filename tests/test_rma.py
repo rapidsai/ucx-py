@@ -6,7 +6,7 @@ import ucp
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 def test_fence(blocking_progress_mode):
     ucp.init(blocking_progress_mode=blocking_progress_mode)
-#   this should always succeed
+    # this should always succeed
     ucp.fence()
     ucp.reset()
 
