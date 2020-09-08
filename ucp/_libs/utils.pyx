@@ -12,10 +12,68 @@ from cpython.memoryview cimport (
 from cython cimport boundscheck, wraparound
 from libc.stdint cimport uintptr_t
 
+try:
+    from numpy import dtype as numpy_dtype
+except ImportError:
+    numpy_dtype = None
+
 
 cdef struct iface_data_t:
     uintptr_t ptr
     bint readonly
+
+
+cdef dict itemsize_mapping = {
+    "|b1": 1,
+    "|i1": 1,
+    "|u1": 1,
+    "<i2": 2,
+    ">i2": 2,
+    "<u2": 2,
+    ">u2": 2,
+    "<i4": 4,
+    ">i4": 4,
+    "<u4": 4,
+    ">u4": 4,
+    "<i8": 8,
+    ">i8": 8,
+    "<u8": 8,
+    ">u8": 8,
+    "<f2": 2,
+    ">f2": 2,
+    "<f4": 4,
+    ">f4": 4,
+    "<f8": 8,
+    ">f8": 8,
+    "<f16": 16,
+    ">f16": 16,
+    "<c8": 8,
+    ">c8": 8,
+    "<c16": 16,
+    ">c16": 16,
+    "<c32": 32,
+    ">c32": 32,
+}
+
+cpdef Py_ssize_t get_itemsize(str fmt) except *:
+    """
+    Get the itemsize of the format provided.
+    """
+    if fmt is None:
+        raise ValueError("Expected `str`, but got `None`")
+    elif fmt == "":
+        raise ValueError("Got unexpected empty `str`")
+    else:
+        itemsize = itemsize_mapping.get(fmt)
+        if itemsize is None:
+            if numpy_dtype is not None:
+                itemsize = numpy_dtype(fmt).itemsize
+            else:
+                raise ValueError(
+                    f"Unexpected `fmt`, {fmt}."
+                    " Please install NumPy to handle this format."
+                )
+    return itemsize
 
 
 cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
@@ -68,8 +126,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
     cdef tuple shape, strides
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
-        import numpy
-        itemsize = numpy.dtype(iface["typestr"]).itemsize
+        itemsize = get_itemsize(iface["typestr"])
         # Making sure that the elements in shape is integers
         shape = iface["shape"]
         ndim = len(shape)
