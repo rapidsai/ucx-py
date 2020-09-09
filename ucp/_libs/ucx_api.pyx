@@ -192,7 +192,7 @@ cdef class UCXContext(UCXObject):
         ucp_context_h _handle
         dict _config
 
-    def __init__(self, config_dict):
+    def __init__(self, config_dict, blocking_progress_mode=False):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
@@ -202,11 +202,17 @@ cdef class UCXContext(UCXObject):
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_INIT)
 
-        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
-        # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+        # We only enable UCP_FEATURE_WAKEUP on blocking mode. This is
+        # required for shared memory, which is currently only supported
+        # by non-blocking mode, and that doesn't implement UCP_FEATURE_WAKEUP.
+        # See <https://github.com/openucx/ucx/issues/5322>
+        if blocking_progress_mode is True:
+            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                                   UCP_FEATURE_WAKEUP |  # noqa
+                                   UCP_FEATURE_STREAM)
+        else:
+            ucp_params.features = (UCP_FEATURE_TAG |  # noqa
+                                   UCP_FEATURE_STREAM)
 
         ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
