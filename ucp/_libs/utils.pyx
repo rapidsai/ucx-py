@@ -47,7 +47,9 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
 
 @boundscheck(False)
 @wraparound(False)
-cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) except *:
+cpdef Py_ssize_t get_buffer_nbytes(buffer,
+                                   Py_ssize_t min_size=-1,
+                                   bint cuda_support=False) except *:
     """
     Returns the size of the buffer in bytes. Returns ValueError
     if `check_min_size` is greater than the size of the buffer
@@ -99,11 +101,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
         if not PyBuffer_IsContiguous(pybuf, b"C"):
             raise ValueError("buffer must be C-contiguous")
 
-    cdef Py_ssize_t min_size
-    if check_min_size is not None:
-        min_size = check_min_size
-        if nbytes < min_size:
-            raise ValueError(
-                "the nbytes is greater than the size of the buffer!"
-            )
+    if min_size > 0 and nbytes < min_size:
+        raise ValueError("the nbytes is greater than the size of the buffer!")
+
     return nbytes
