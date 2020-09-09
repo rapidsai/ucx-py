@@ -54,20 +54,20 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
     """
 
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
-    if not cuda_support and iface is not None:
-        raise ValueError(
-            "UCX is not configured with CUDA support, please add "
-            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-            "variable and that the ucx-proc=*=gpu package is "
-            "installed. See "
-            "https://ucx-py.readthedocs.io/en/latest/install.html for "
-            "more information."
-        )
-
     cdef const Py_buffer* pybuf
     cdef tuple shape, strides
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
+        if not cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+
         import numpy
         itemsize = numpy.dtype(iface["typestr"]).itemsize
         # Making sure that the elements in shape is integers
