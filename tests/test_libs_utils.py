@@ -93,6 +93,10 @@ def test_get_buffer_data_array(xp, shape, dtype, strides):
 def test_get_buffer_nbytes_array(xp, shape, dtype, strides):
     xp, arr, iface = create_array(xp, shape, dtype, strides)
 
+    if xp.__name__ == "cupy":
+        with pytest.raises(ValueError):
+            get_buffer_nbytes(arr, check_min_size=None, cuda_support=False)
+
     if arr.flags.c_contiguous:
         nbytes = get_buffer_nbytes(arr, check_min_size=None, cuda_support=True)
         assert nbytes == arr.nbytes
