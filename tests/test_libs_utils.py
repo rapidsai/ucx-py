@@ -46,7 +46,7 @@ def test_get_buffer_nbytes_builtins(buffer):
     with pytest.raises(ValueError):
         get_buffer_nbytes(memoryview(buffer)[::2], cuda_support=True)
 
-    # Test exceptional cases with `check_min_size`
+    # Test exceptional cases with `min_size`
     get_buffer_nbytes(buffer, min_size=nbytes, cuda_support=True)
     with pytest.raises(ValueError):
         get_buffer_nbytes(buffer, min_size=(nbytes + 1), cuda_support=True)
@@ -93,7 +93,7 @@ def test_get_buffer_nbytes_array(xp, shape, dtype, strides):
 
     if xp.__name__ == "cupy":
         with pytest.raises(ValueError):
-            get_buffer_nbytes(arr, check_min_size=None, cuda_support=False)
+            get_buffer_nbytes(arr, cuda_support=False)
 
     if arr.flags.c_contiguous:
         nbytes = get_buffer_nbytes(arr, cuda_support=True)
