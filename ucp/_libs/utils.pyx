@@ -51,8 +51,8 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                                    Py_ssize_t min_size=-1,
                                    bint cuda_support=False) except *:
     """
-    Returns the size of the buffer in bytes. Returns ValueError
-    if `check_min_size` is greater than the size of the buffer
+    Returns the size of the buffer in bytes. Raises `ValueError`
+    if `min_size` is greater than the size of the buffer
     """
 
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
