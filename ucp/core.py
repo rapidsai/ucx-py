@@ -547,7 +547,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, nbytes=None, tag=None):
+    async def send(self, buffer, nbytes=-1, tag=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -563,7 +563,7 @@ class Endpoint:
         if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
-            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+            buffer, min_size=nbytes, cuda_support=self._cuda_support
         )
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
@@ -583,7 +583,7 @@ class Endpoint:
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, nbytes=None, tag=None):
+    async def recv(self, buffer, nbytes=-1, tag=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -601,7 +601,7 @@ class Endpoint:
         if self.closed():
             raise UCXCloseError("Endpoint closed")
         nbytes = get_buffer_nbytes(
-            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
+            buffer, min_size=nbytes, cuda_support=self._cuda_support
         )
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
@@ -694,12 +694,7 @@ class Endpoint:
         """
 
         nbytes = array.array(
-            "Q",
-            [
-                get_buffer_nbytes(
-                    buffer=obj, check_min_size=None, cuda_support=self._cuda_support
-                )
-            ],
+            "Q", [get_buffer_nbytes(buffer=obj, cuda_support=self._cuda_support)]
         )
         await self.send(nbytes, tag=tag)
         await self.send(obj, tag=tag)

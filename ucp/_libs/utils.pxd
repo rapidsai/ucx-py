@@ -9,4 +9,6 @@ from libc.stdint cimport uintptr_t
 
 cpdef Py_ssize_t get_itemsize(str fmt) except *
 cpdef uintptr_t get_buffer_data(buffer, bint check_writable=*) except *
-cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) except *
+cpdef Py_ssize_t get_buffer_nbytes(buffer,
+                                   Py_ssize_t min_size=*,
+                                   bint cuda_support=*) except *

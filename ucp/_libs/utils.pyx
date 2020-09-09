@@ -105,27 +105,29 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
 
 @boundscheck(False)
 @wraparound(False)
-cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) except *:
+cpdef Py_ssize_t get_buffer_nbytes(buffer,
+                                   Py_ssize_t min_size=-1,
+                                   bint cuda_support=False) except *:
     """
     Returns the size of the buffer in bytes. Returns ValueError
     if `check_min_size` is greater than the size of the buffer
     """
 
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
-    if not cuda_support and iface is not None:
-        raise ValueError(
-            "UCX is not configured with CUDA support, please add "
-            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-            "variable and that the ucx-proc=*=gpu package is "
-            "installed. See "
-            "https://ucx-py.readthedocs.io/en/latest/install.html for "
-            "more information."
-        )
-
     cdef const Py_buffer* pybuf
     cdef tuple shape, strides
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
+        if not cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+
         itemsize = get_itemsize(iface["typestr"])
         # Making sure that the elements in shape is integers
         shape = iface["shape"]
@@ -156,11 +158,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer, check_min_size, bint cuda_support) ex
         if not PyBuffer_IsContiguous(pybuf, b"C"):
             raise ValueError("buffer must be C-contiguous")
 
-    cdef Py_ssize_t min_size
-    if check_min_size is not None:
-        min_size = check_min_size
-        if nbytes < min_size:
-            raise ValueError(
-                "the nbytes is greater than the size of the buffer!"
-            )
+    if min_size > 0 and nbytes < min_size:
+        raise ValueError("the nbytes is greater than the size of the buffer!")
+
     return nbytes
