@@ -136,6 +136,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         ndim = len(shape)
         nbytes = itemsize
         if ndim > 0:
+            # Compute size
             for i in range(ndim):
                 nbytes *= <Py_ssize_t>shape[i]
             # Check that data is contiguous
