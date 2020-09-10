@@ -5,6 +5,7 @@
 
 
 from cpython.buffer cimport PyBuffer_IsContiguous
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.memoryview cimport (
     PyMemoryView_FromObject,
     PyMemoryView_GET_BUFFER,
@@ -116,6 +117,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
     cdef const Py_buffer* pybuf
     cdef tuple shape, strides
+    cdef Py_ssize_t *shape_p, *strides_p
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     if iface is not None:
         if not cuda_support:
@@ -136,20 +138,35 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         ndim = len(shape)
         nbytes = itemsize
         if ndim > 0:
-            # Check that data is contiguous
-            if strides is not None:
-                if len(strides) != ndim:
-                    raise ValueError(
-                        "The length of shape and strides must be equal"
+            shape_p = <Py_ssize_t*>PyMem_Malloc(ndim * sizeof(Py_ssize_t))
+            try:
+                # Make sure that the elements in shape are integers
+                for i in range(ndim):
+                    shape_p[i] = shape[i]
+                # Check that data is contiguous
+                if strides is not None:
+                    if len(strides) != ndim:
+                        raise ValueError(
+                            "The length of shape and strides must be equal"
+                        )
+                    strides_p = <Py_ssize_t*>PyMem_Malloc(
+                        ndim * sizeof(Py_ssize_t)
                     )
-                s = itemsize
-                for i from ndim > i >= 0 by 1:
-                    if s != <Py_ssize_t>strides[i]:
-                        raise ValueError("Array must be contiguous")
-                    s *= <Py_ssize_t>shape[i]
-            # Compute size
-            for i in range(ndim):
-                nbytes *= <Py_ssize_t>shape[i]
+                    try:
+                        for i in range(ndim):
+                            strides_p[i] = strides[i]
+                        s = itemsize
+                        for i from ndim > i >= 0 by 1:
+                            if s != strides_p[i]:
+                                raise ValueError("Array must be contiguous")
+                            s *= shape_p[i]
+                    finally:
+                        PyMem_Free(<void*>strides_p)
+                # Compute size
+                for i in range(ndim):
+                    nbytes *= shape_p[i]
+            finally:
+                PyMem_Free(<void*>shape_p)
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
