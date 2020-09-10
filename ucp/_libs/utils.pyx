@@ -142,7 +142,8 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
     cdef dict iface = getattr(buffer, "__cuda_array_interface__", None)
     cdef const Py_buffer* pybuf
     cdef tuple shape, strides
-    cdef Py_ssize_t *shape_p, *strides_p
+    cdef Py_ssize_t *shape_p
+    cdef Py_ssize_t *strides_p
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
     cdef bint c_contiguous
     if iface is not None:
