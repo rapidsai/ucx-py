@@ -133,12 +133,12 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         itemsize = get_itemsize(iface["typestr"])
         # Make sure that the elements in shape are integers
         shape = iface["shape"]
+        strides = iface.get("strides")
         ndim = len(shape)
         nbytes = itemsize
         for i in range(ndim):
             nbytes *= <Py_ssize_t>shape[i]
         # Check that data is contiguous
-        strides = iface.get("strides")
         if strides is not None and ndim > 0:
             if len(strides) != ndim:
                 raise ValueError(
