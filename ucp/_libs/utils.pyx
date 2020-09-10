@@ -201,12 +201,12 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
-        nbytes = _nbytes(pybuf.itemsize, pybuf.ndim, pybuf.shape)
         c_contiguous = _c_contiguous(
             pybuf.itemsize, pybuf.ndim, pybuf.shape, pybuf.strides
         )
         if not c_contiguous:
             raise ValueError("Array must be C-contiguous")
+        nbytes = _nbytes(pybuf.itemsize, pybuf.ndim, pybuf.shape)
 
     if min_size > 0 and nbytes < min_size:
         raise ValueError("the nbytes is greater than the size of the buffer!")
