@@ -131,12 +131,12 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
             raise NotImplementedError("mask attribute not supported")
 
         itemsize = get_itemsize(iface["typestr"])
-        # Make sure that the elements in shape are integers
         shape = iface["shape"]
         strides = iface.get("strides")
         ndim = len(shape)
         nbytes = itemsize
         if ndim > 0:
+            # Make sure that the elements in shape are integers
             for i in range(ndim):
                 nbytes *= <Py_ssize_t>shape[i]
             # Check that data is contiguous
