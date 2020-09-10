@@ -55,6 +55,7 @@ cdef dict itemsize_mapping = {
     intern(">c32"): 32,
 }
 
+
 cpdef Py_ssize_t get_itemsize(str fmt) except *:
     """
     Get the itemsize of the format provided.
