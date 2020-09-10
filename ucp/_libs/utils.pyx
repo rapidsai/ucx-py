@@ -185,7 +185,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 if strides_p != NULL:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
-                        strides_p[i] = shape[i]
+                        strides_p[i] = strides[i]
                 else:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
