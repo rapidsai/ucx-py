@@ -139,16 +139,17 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         for i in range(ndim):
             nbytes *= <Py_ssize_t>shape[i]
         # Check that data is contiguous
-        if strides is not None and ndim > 0:
-            if len(strides) != ndim:
-                raise ValueError(
-                    "The length of shape and strides must be equal"
-                )
-            s = itemsize
-            for i from ndim > i >= 0 by 1:
-                if s != <Py_ssize_t>strides[i]:
-                    raise ValueError("Array must be contiguous")
-                s *= <Py_ssize_t>shape[i]
+        if ndim > 0:
+            if strides is not None:
+                if len(strides) != ndim:
+                    raise ValueError(
+                        "The length of shape and strides must be equal"
+                    )
+                s = itemsize
+                for i from ndim > i >= 0 by 1:
+                    if s != <Py_ssize_t>strides[i]:
+                        raise ValueError("Array must be contiguous")
+                    s *= <Py_ssize_t>shape[i]
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
