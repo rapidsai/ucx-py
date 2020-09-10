@@ -138,31 +138,33 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         ndim = len(shape)
         nbytes = itemsize
         if ndim > 0:
-            shape_p = <Py_ssize_t*>PyMem_Malloc(ndim * sizeof(Py_ssize_t))
-            try:
-                # Make sure that the elements in shape are integers
-                for i in range(ndim):
-                    shape_p[i] = shape[i]
-                if strides is not None:
-                    if len(strides) != ndim:
-                        raise ValueError(
-                            "The length of shape and strides must be equal"
-                        )
-                    strides_p = <Py_ssize_t*>PyMem_Malloc(
-                        ndim * sizeof(Py_ssize_t)
+            if strides is not None:
+                if len(strides) != ndim:
+                    raise ValueError(
+                        "The length of shape and strides must be equal"
                     )
-                    try:
-                        # Make sure that the elements in strides are integers
-                        for i in range(ndim):
-                            strides_p[i] = strides[i]
-                        # Check that data is contiguous
-                        s = itemsize
-                        for i from ndim > i >= 0 by 1:
-                            if s != strides_p[i]:
-                                raise ValueError("Array must be contiguous")
-                            s *= shape_p[i]
-                    finally:
-                        PyMem_Free(<void*>strides_p)
+                shape_p = <Py_ssize_t*>PyMem_Malloc(
+                    2 * ndim * sizeof(Py_ssize_t)
+                )
+                strides_p = &shape_p[ndim]
+            else:
+                shape_p = <Py_ssize_t*>PyMem_Malloc(ndim * sizeof(Py_ssize_t))
+                strides_p = NULL
+            try:
+                # Make sure that the elements are integers
+                if strides_p != NULL:
+                    for i in range(ndim):
+                        shape_p[i] = shape[i]
+                        strides_p[i] = shape[i]
+                    # Check that data is contiguous
+                    s = itemsize
+                    for i from ndim > i >= 0 by 1:
+                        if s != strides_p[i]:
+                            raise ValueError("Array must be contiguous")
+                        s *= shape_p[i]
+                else:
+                    for i in range(ndim):
+                        shape_p[i] = shape[i]
                 # Compute size
                 for i in range(ndim):
                     nbytes *= shape_p[i]
