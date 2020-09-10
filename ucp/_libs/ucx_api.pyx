@@ -54,8 +54,10 @@ cdef assert_ucs_status(ucs_status_t status, str msg_context=None):
     cdef str msg, ucs_status
     if status != UCS_OK:
         ucs_status = ucs_status_string(status).decode("utf-8")
-        msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += ucs_status
+        if msg_context is not None:
+            msg = "[%s] %s" % (msg_context, ucs_status)
+        else:
+            msg = ucs_status
         raise UCXError(msg)
 
 
