@@ -127,6 +127,8 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 "https://ucx-py.readthedocs.io/en/latest/install.html for "
                 "more information."
             )
+        if iface.get("mask") is not None:
+            raise NotImplementedError("mask attribute not supported")
 
         itemsize = get_itemsize(iface["typestr"])
         # Make sure that the elements in shape are integers
@@ -147,8 +149,6 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 if s != <Py_ssize_t>strides[i]:
                     raise ValueError("Array must be contiguous")
                 s *= <Py_ssize_t>shape[i]
-        if iface.get("mask") is not None:
-            raise NotImplementedError("mask attribute not supported")
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
