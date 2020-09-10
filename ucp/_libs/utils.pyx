@@ -109,8 +109,9 @@ cdef inline bint _c_contiguous(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
                                Py_ssize_t* shape_p,
                                Py_ssize_t* strides_p) nogil:
-    cdef Py_ssize_t i, s = itemsize
+    cdef Py_ssize_t i, s
     if strides_p != NULL:
+        s = itemsize
         for i from ndim > i >= 0 by 1:
             if s != strides_p[i]:
                 return False
