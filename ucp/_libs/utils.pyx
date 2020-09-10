@@ -129,7 +129,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
             )
 
         itemsize = get_itemsize(iface["typestr"])
-        # Making sure that the elements in shape is integers
+        # Make sure that the elements in shape are integers
         shape = iface["shape"]
         ndim = len(shape)
         nbytes = itemsize
