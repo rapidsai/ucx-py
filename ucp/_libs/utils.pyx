@@ -106,6 +106,17 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
 
 @boundscheck(False)
 @wraparound(False)
+cdef inline Py_ssize_t _nbytes(Py_ssize_t itemsize,
+                               Py_ssize_t ndim,
+                               Py_ssize_t* shape_p) nogil:
+    cdef Py_ssize_t i, nbytes = itemsize
+    for i in range(ndim):
+        nbytes *= shape_p[i]
+    return nbytes
+
+
+@boundscheck(False)
+@wraparound(False)
 cpdef Py_ssize_t get_buffer_nbytes(buffer,
                                    Py_ssize_t min_size=-1,
                                    bint cuda_support=False) except *:
@@ -166,16 +177,13 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                     for i in range(ndim):
                         shape_p[i] = shape[i]
                 # Compute size
-                for i in range(ndim):
-                    nbytes *= shape_p[i]
+                nbytes = _nbytes(itemsize, ndim, shape_p)
             finally:
                 PyMem_Free(<void*>shape_p)
     else:
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
-        nbytes = pybuf.itemsize
-        for i in range(pybuf.ndim):
-            nbytes *= pybuf.shape[i]
+        nbytes = _nbytes(pybuf.itemsize, pybuf.ndim, pybuf.shape)
         if not PyBuffer_IsContiguous(pybuf, b"C"):
             raise ValueError("buffer must be C-contiguous")
 
