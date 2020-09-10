@@ -159,10 +159,10 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         if iface.get("mask") is not None:
             raise NotImplementedError("mask attribute not supported")
 
-        itemsize = get_itemsize(iface["typestr"])
         shape = iface["shape"]
         strides = iface.get("strides")
         ndim = len(shape)
+        itemsize = get_itemsize(iface["typestr"])
         nbytes = itemsize
         if ndim > 0:
             if strides is not None:
