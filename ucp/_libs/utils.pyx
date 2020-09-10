@@ -4,7 +4,6 @@
 # cython: language_level=3
 
 
-from cpython.buffer cimport PyBuffer_IsContiguous
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.memoryview cimport (
     PyMemoryView_FromObject,
@@ -106,6 +105,21 @@ cpdef uintptr_t get_buffer_data(buffer, bint check_writable=False) except *:
 
 @boundscheck(False)
 @wraparound(False)
+cdef inline bint _c_contiguous(Py_ssize_t itemsize,
+                               Py_ssize_t ndim,
+                               Py_ssize_t* shape_p,
+                               Py_ssize_t* strides_p) nogil:
+    cdef Py_ssize_t i, s = itemsize
+    if strides_p != NULL:
+        for i from ndim > i >= 0 by 1:
+            if s != strides_p[i]:
+                return False
+            s *= shape_p[i]
+    return True
+
+
+@boundscheck(False)
+@wraparound(False)
 cdef inline Py_ssize_t _nbytes(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
                                Py_ssize_t* shape_p) nogil:
@@ -130,6 +144,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
     cdef tuple shape, strides
     cdef Py_ssize_t *shape_p, *strides_p
     cdef Py_ssize_t i, s, itemsize, ndim, nbytes
+    cdef bint c_contiguous
     if iface is not None:
         if not cuda_support:
             raise ValueError(
@@ -168,11 +183,11 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                         shape_p[i] = shape[i]
                         strides_p[i] = shape[i]
                     # Check that data is contiguous
-                    s = itemsize
-                    for i from ndim > i >= 0 by 1:
-                        if s != strides_p[i]:
-                            raise ValueError("Array must be contiguous")
-                        s *= shape_p[i]
+                    c_contiguous = _c_contiguous(
+                        itemsize, ndim, shape_p, strides_p
+                    )
+                    if not c_contiguous:
+                        raise ValueError("Array must be contiguous")
                 else:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
@@ -184,7 +199,10 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         mview = PyMemoryView_FromObject(buffer)
         pybuf = PyMemoryView_GET_BUFFER(mview)
         nbytes = _nbytes(pybuf.itemsize, pybuf.ndim, pybuf.shape)
-        if not PyBuffer_IsContiguous(pybuf, b"C"):
+        c_contiguous = _c_contiguous(
+            pybuf.itemsize, pybuf.ndim, pybuf.shape, pybuf.strides
+        )
+        if not c_contiguous:
             raise ValueError("buffer must be C-contiguous")
 
     if min_size > 0 and nbytes < min_size:
