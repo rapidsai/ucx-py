@@ -136,9 +136,9 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
         strides = iface.get("strides")
         ndim = len(shape)
         nbytes = itemsize
-        for i in range(ndim):
-            nbytes *= <Py_ssize_t>shape[i]
         if ndim > 0:
+            for i in range(ndim):
+                nbytes *= <Py_ssize_t>shape[i]
             # Check that data is contiguous
             if strides is not None:
                 if len(strides) != ndim:
