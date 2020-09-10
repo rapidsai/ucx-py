@@ -191,7 +191,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                     itemsize, ndim, shape_p, strides_p
                 )
                 if not c_contiguous:
-                    raise ValueError("Array must be contiguous")
+                    raise ValueError("Array must be C-contiguous")
                 # Compute size
                 nbytes = _nbytes(itemsize, ndim, shape_p)
             finally:
@@ -204,7 +204,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
             pybuf.itemsize, pybuf.ndim, pybuf.shape, pybuf.strides
         )
         if not c_contiguous:
-            raise ValueError("buffer must be C-contiguous")
+            raise ValueError("Array must be C-contiguous")
 
     if min_size > 0 and nbytes < min_size:
         raise ValueError("the nbytes is greater than the size of the buffer!")
