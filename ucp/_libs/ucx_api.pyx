@@ -387,9 +387,8 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
-    def fence(self):
-        cdef ucs_status_t status
-        status = ucp_worker_fence(self._handle)
+    cpdef ucs_status_t fence(self) except *:
+        cdef ucs_status_t status = ucp_worker_fence(self._handle)
         assert_ucs_status(status)
         return status
 
