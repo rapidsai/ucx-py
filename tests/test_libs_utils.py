@@ -9,9 +9,12 @@ import pytest
 from ucp._libs.utils import get_buffer_data, get_buffer_nbytes
 
 builtin_buffers = [
+    b"",
     b"abcd",
+    array.array("i", []),
     array.array("i", [0, 1, 2, 3]),
     array.array("I", [0, 1, 2, 3]),
+    array.array("f", []),
     array.array("f", [0, 1, 2, 3]),
     array.array("d", [0, 1, 2, 3]),
     memoryview(array.array("B", [0, 1, 2, 3, 4, 5])).cast("B", (3, 2)),
