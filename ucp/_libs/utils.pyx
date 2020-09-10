@@ -4,7 +4,7 @@
 # cython: language_level=3
 
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.mem cimport PyMem_Free, PyMem_Malloc
 from cpython.memoryview cimport (
     PyMemoryView_FromObject,
     PyMemoryView_GET_BUFFER,
