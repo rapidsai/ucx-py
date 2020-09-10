@@ -152,6 +152,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                         ndim * sizeof(Py_ssize_t)
                     )
                     try:
+                        # Make sure that the elements in strides are integers
                         for i in range(ndim):
                             strides_p[i] = strides[i]
                         # Check that data is contiguous
