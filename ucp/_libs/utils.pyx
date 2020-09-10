@@ -177,6 +177,10 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
             else:
                 shape_p = <Py_ssize_t*>PyMem_Malloc(ndim * sizeof(Py_ssize_t))
                 strides_p = NULL
+            if shape_p == NULL:
+                raise MemoryError(
+                    "Unable to allocate memory for shape & strides"
+                )
             try:
                 if strides_p != NULL:
                     for i in range(ndim):
