@@ -143,7 +143,6 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 # Make sure that the elements in shape are integers
                 for i in range(ndim):
                     shape_p[i] = shape[i]
-                # Check that data is contiguous
                 if strides is not None:
                     if len(strides) != ndim:
                         raise ValueError(
@@ -155,6 +154,7 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                     try:
                         for i in range(ndim):
                             strides_p[i] = strides[i]
+                        # Check that data is contiguous
                         s = itemsize
                         for i from ndim > i >= 0 by 1:
                             if s != strides_p[i]:
