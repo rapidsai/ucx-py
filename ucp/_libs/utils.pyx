@@ -178,7 +178,6 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 shape_p = <Py_ssize_t*>PyMem_Malloc(ndim * sizeof(Py_ssize_t))
                 strides_p = NULL
             try:
-                # Make sure that the elements are integers
                 if strides_p != NULL:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
@@ -186,13 +185,11 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                 else:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
-                # Check that data is contiguous
                 c_contiguous = _c_contiguous(
                     itemsize, ndim, shape_p, strides_p
                 )
                 if not c_contiguous:
                     raise ValueError("Array must be C-contiguous")
-                # Compute size
                 nbytes = _nbytes(itemsize, ndim, shape_p)
             finally:
                 PyMem_Free(<void*>shape_p)
