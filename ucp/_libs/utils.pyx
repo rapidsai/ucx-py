@@ -182,15 +182,15 @@ cpdef Py_ssize_t get_buffer_nbytes(buffer,
                     for i in range(ndim):
                         shape_p[i] = shape[i]
                         strides_p[i] = shape[i]
-                    # Check that data is contiguous
-                    c_contiguous = _c_contiguous(
-                        itemsize, ndim, shape_p, strides_p
-                    )
-                    if not c_contiguous:
-                        raise ValueError("Array must be contiguous")
                 else:
                     for i in range(ndim):
                         shape_p[i] = shape[i]
+                # Check that data is contiguous
+                c_contiguous = _c_contiguous(
+                    itemsize, ndim, shape_p, strides_p
+                )
+                if not c_contiguous:
+                    raise ValueError("Array must be contiguous")
                 # Compute size
                 nbytes = _nbytes(itemsize, ndim, shape_p)
             finally:
