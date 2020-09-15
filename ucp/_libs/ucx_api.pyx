@@ -50,10 +50,14 @@ cdef int _ucx_py_request_counter = 0
 logger = logging.getLogger("ucx")
 
 
-cdef assert_ucs_status(ucs_status_t status, msg_context=None):
+cdef assert_ucs_status(ucs_status_t status, str msg_context=None):
+    cdef str msg, ucs_status
     if status != UCS_OK:
-        msg = "[%s] " % msg_context if msg_context is not None else ""
-        msg += ucs_status_string(status).decode("utf-8")
+        ucs_status = ucs_status_string(status).decode("utf-8")
+        if msg_context is not None:
+            msg = f"[{msg_context}] {ucs_status}"
+        else:
+            msg = ucs_status
         raise UCXError(msg)
 
 
