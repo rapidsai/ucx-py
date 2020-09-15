@@ -16,7 +16,7 @@ import psutil
 
 from . import comm
 from ._libs import ucx_api
-from ._libs.utils import get_buffer_nbytes
+from ._libs.arr import Array
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import hash64bits, nvtx_annotate
@@ -52,15 +52,17 @@ async def exchange_peer_info(
         hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
     )
     peer_info = bytearray(len(my_info))
+    my_info_arr = Array(my_info)
+    peer_info_arr = Array(peer_info)
 
     # Send/recv peer information. Notice, we force an `await` between the two
     # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
     if listener is True:
-        await comm.stream_send(endpoint, my_info, len(my_info))
-        await comm.stream_recv(endpoint, peer_info, len(peer_info))
+        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
+        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
     else:
-        await comm.stream_recv(endpoint, peer_info, len(peer_info))
-        await comm.stream_send(endpoint, my_info, len(my_info))
+        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
+        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
 
     # Unpacking and sanity check of the peer information
     ret = {}
@@ -132,8 +134,9 @@ class CtrlMsg:
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
         msg = bytearray(CtrlMsg.nbytes)
+        msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg, len(msg), ep._ctrl_tag_recv, name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._ctrl_tag_recv, name=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -523,6 +526,7 @@ class Endpoint:
 
             # Send a shutdown message to the peer
             msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
+            msg_arr = Array(msg)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid),
                 hex(self._ctrl_tag_send),
@@ -531,7 +535,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._ctrl_tag_send, name=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -562,15 +566,28 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
-            buffer, min_size=nbytes, cuda_support=self._cuda_support
-        )
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        if not self._cuda_support and buffer.cuda:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+        if not buffer.c_contiguous:
+            raise ValueError("Array must be C-contiguous")
+        buffer_nbytes = buffer.nbytes
+        if nbytes > 0 and buffer_nbytes < nbytes:
+            raise ValueError("the nbytes is greater than the size of the buffer!")
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
             hex(self._msg_tag_send),
-            nbytes,
-            type(buffer),
+            buffer_nbytes,
+            type(buffer.obj),
         )
         logger.debug(log)
         self._send_count += 1
@@ -580,7 +597,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+        return await comm.tag_send(self._ep, buffer, buffer_nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, nbytes=-1, tag=None):
@@ -600,15 +617,28 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
-            buffer, min_size=nbytes, cuda_support=self._cuda_support
-        )
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        if not self._cuda_support and buffer.cuda:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+        if not buffer.c_contiguous:
+            raise ValueError("Array must be C-contiguous")
+        buffer_nbytes = buffer.nbytes
+        if nbytes > 0 and buffer_nbytes < nbytes:
+            raise ValueError("the nbytes is greater than the size of the buffer!")
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
             hex(self._msg_tag_recv),
-            nbytes,
-            type(buffer),
+            buffer_nbytes,
+            type(buffer.obj),
         )
         logger.debug(log)
         self._recv_count += 1
@@ -618,7 +648,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+        ret = await comm.tag_recv(self._ep, buffer, buffer_nbytes, tag, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
@@ -692,10 +722,9 @@ class Endpoint:
         -------
         >>> await ep.send_obj(pickle.dumps([1,2,3]))
         """
-
-        nbytes = array.array(
-            "Q", [get_buffer_nbytes(buffer=obj, cuda_support=self._cuda_support)]
-        )
+        if not isinstance(obj, Array):
+            obj = Array(obj)
+        nbytes = Array(array.array("Q", [obj.nbytes]))
         await self.send(nbytes, tag=tag)
         await self.send(obj, tag=tag)
 
