@@ -39,6 +39,14 @@ ext_modules = [
         extra_compile_args=extra_compile_args,
     ),
     Extension(
+        "ucp._libs.arr",
+        sources=["ucp/_libs/arr.pyx"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
         "ucp._libs.utils",
         sources=["ucp/_libs/utils.pyx"],
         include_dirs=include_dirs,
