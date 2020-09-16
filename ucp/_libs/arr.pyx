@@ -4,15 +4,22 @@
 # cython: language_level=3
 
 
+from cpython.array cimport array, newarrayobject
 from cpython.buffer cimport PyBuffer_IsContiguous
-from cpython.mem cimport PyMem_Free, PyMem_Malloc
 from cpython.memoryview cimport (
     PyMemoryView_FromObject,
     PyMemoryView_GET_BUFFER,
 )
+from cpython.object cimport PyObject
 from cpython.ref cimport Py_INCREF
 from cpython.tuple cimport PyTuple_New, PyTuple_SET_ITEM
-from cython cimport auto_pickle, boundscheck, wraparound
+from cython cimport (
+    auto_pickle,
+    boundscheck,
+    initializedcheck,
+    nonecheck,
+    wraparound,
+)
 from libc.stdint cimport uintptr_t
 from libc.string cimport memcpy
 
@@ -53,6 +60,15 @@ cdef dict itemsize_mapping = {
     intern("<c32"): 32,
     intern(">c32"): 32,
 }
+
+
+cdef array array_Py_ssize_t = array("q")
+
+
+cdef inline Py_ssize_t[::1] new_Py_ssize_t_array(Py_ssize_t n):
+    return newarrayobject(
+        (<PyObject*>array_Py_ssize_t).ob_type, n, array_Py_ssize_t.ob_descr
+    )
 
 
 @auto_pickle(False)
@@ -100,36 +116,23 @@ cdef class Array:
             strides = iface.get("strides")
             self.ndim = len(shape)
             if self.ndim > 0:
+                self.shape_mv = new_Py_ssize_t_array(self.ndim)
                 if strides is not None:
                     if len(strides) != self.ndim:
                         raise ValueError(
                             "The length of shape and strides must be equal"
                         )
-                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                        2 * self.ndim * sizeof(Py_ssize_t)
-                    )
-                    if self.shape_p == NULL:
-                        raise MemoryError(
-                            "Unable to allocate memory for shape & strides"
-                        )
-                    self.strides_p = self.shape_p + self.ndim
+                    self.strides_mv = new_Py_ssize_t_array(self.ndim)
                     for i in range(self.ndim):
-                        self.shape_p[i] = shape[i]
-                        self.strides_p[i] = strides[i]
+                        self.shape_mv[i] = shape[i]
+                        self.strides_mv[i] = strides[i]
                 else:
-                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                        self.ndim * sizeof(Py_ssize_t)
-                    )
-                    if self.shape_p == NULL:
-                        raise MemoryError(
-                            "Unable to allocate memory for shape"
-                        )
-                    self.strides_p = NULL
+                    self.strides_mv = None
                     for i in range(self.ndim):
-                        self.shape_p[i] = shape[i]
+                        self.shape_mv[i] = shape[i]
             else:
-                self.shape_p = NULL
-                self.strides_p = NULL
+                self.shape_mv = None
+                self.strides_mv = None
         else:
             mv = PyMemoryView_FromObject(obj)
             pybuf = PyMemoryView_GET_BUFFER(mv)
@@ -144,41 +147,28 @@ cdef class Array:
             self.itemsize = <Py_ssize_t>pybuf.itemsize
 
             if self.ndim > 0:
+                self.shape_mv = new_Py_ssize_t_array(self.ndim)
+                memcpy(
+                    &self.shape_mv[0],
+                    pybuf.shape,
+                    self.ndim * sizeof(Py_ssize_t)
+                )
                 if not PyBuffer_IsContiguous(pybuf, b"C"):
-                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                        2 * self.ndim * sizeof(Py_ssize_t)
-                    )
-                    self.strides_p = self.shape_p + self.ndim
-                else:
-                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                        self.ndim * sizeof(Py_ssize_t)
-                    )
-                    self.strides_p = NULL
-
-                if self.shape_p == NULL:
-                    raise MemoryError(
-                        "Unable to allocate memory for shape & strides"
-                    )
-
-                memcpy(self.shape_p, pybuf.shape, self.ndim * sizeof(Py_ssize_t))
-                if self.strides_p != NULL:
+                    self.strides_mv = new_Py_ssize_t_array(self.ndim)
                     memcpy(
-                        self.strides_p,
+                        &self.strides_mv[0],
                         pybuf.strides,
                         self.ndim * sizeof(Py_ssize_t)
                     )
+                else:
+                    self.strides_mv = None
             else:
-                self.shape_p = NULL
-                self.strides_p = NULL
-
-    def __dealloc__(self):
-        PyMem_Free(self.shape_p)
-        self.shape_p = NULL
-        self.strides_p = NULL
+                self.shape_mv = None
+                self.strides_mv = None
 
     cpdef bint _c_contiguous(self):
         return _c_contiguous(
-            self.itemsize, self.ndim, self.shape_p, self.strides_p
+            self.itemsize, self.ndim, self.shape_mv, self.strides_mv
         )
 
     @property
@@ -187,7 +177,7 @@ cdef class Array:
 
     cpdef bint _f_contiguous(self):
         return _f_contiguous(
-            self.itemsize, self.ndim, self.shape_p, self.strides_p
+            self.itemsize, self.ndim, self.shape_mv, self.strides_mv
         )
 
     @property
@@ -196,7 +186,7 @@ cdef class Array:
 
     cpdef bint _contiguous(self):
         return _contiguous(
-            self.itemsize, self.ndim, self.shape_p, self.strides_p
+            self.itemsize, self.ndim, self.shape_mv, self.strides_mv
         )
 
     @property
@@ -204,7 +194,7 @@ cdef class Array:
         return self._contiguous()
 
     cpdef Py_ssize_t _nbytes(self):
-        return _nbytes(self.itemsize, self.ndim, self.shape_p)
+        return _nbytes(self.itemsize, self.ndim, self.shape_mv)
 
     @property
     def nbytes(self):
@@ -212,27 +202,31 @@ cdef class Array:
 
     @property
     @boundscheck(False)
+    @initializedcheck(False)
+    @nonecheck(False)
     @wraparound(False)
     def shape(self):
         cdef tuple shape = PyTuple_New(self.ndim)
         cdef Py_ssize_t i
         cdef object o
         for i in range(self.ndim):
-            o = self.shape_p[i]
+            o = self.shape_mv[i]
             Py_INCREF(o)
             PyTuple_SET_ITEM(shape, i, o)
         return shape
 
     @property
     @boundscheck(False)
+    @initializedcheck(False)
+    @nonecheck(False)
     @wraparound(False)
     def strides(self):
         cdef tuple strides = PyTuple_New(self.ndim)
         cdef Py_ssize_t i, s
         cdef object o
-        if self.strides_p != NULL:
+        if self.strides_mv is not None:
             for i from self.ndim > i >= 0 by 1:
-                o = self.strides_p[i]
+                o = self.strides_mv[i]
                 Py_INCREF(o)
                 PyTuple_SET_ITEM(strides, i, o)
         else:
@@ -241,39 +235,43 @@ cdef class Array:
                 o = s
                 Py_INCREF(o)
                 PyTuple_SET_ITEM(strides, i, o)
-                s *= self.shape_p[i]
+                s *= self.shape_mv[i]
         return strides
 
 
 @boundscheck(False)
+@initializedcheck(False)
+@nonecheck(False)
 @wraparound(False)
 cdef inline bint _c_contiguous(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
-                               Py_ssize_t* shape_p,
-                               Py_ssize_t* strides_p) nogil:
+                               Py_ssize_t[::1] shape_mv,
+                               Py_ssize_t[::1] strides_mv) nogil:
     cdef Py_ssize_t i, s
-    if strides_p != NULL:
+    if strides_mv is not None:
         s = itemsize
         for i from ndim > i >= 0 by 1:
-            if s != strides_p[i]:
+            if s != strides_mv[i]:
                 return False
-            s *= shape_p[i]
+            s *= shape_mv[i]
     return True
 
 
 @boundscheck(False)
+@initializedcheck(False)
+@nonecheck(False)
 @wraparound(False)
 cdef inline bint _f_contiguous(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
-                               Py_ssize_t* shape_p,
-                               Py_ssize_t* strides_p) nogil:
+                               Py_ssize_t[::1] shape_mv,
+                               Py_ssize_t[::1] strides_mv) nogil:
     cdef Py_ssize_t i, s
-    if strides_p != NULL:
+    if strides_mv is not None:
         s = itemsize
         for i from 0 <= i < ndim by 1:
-            if s != strides_p[i]:
+            if s != strides_mv[i]:
                 return False
-            s *= shape_p[i]
+            s *= shape_mv[i]
     elif ndim > 1:
         return False
     return True
@@ -281,20 +279,22 @@ cdef inline bint _f_contiguous(Py_ssize_t itemsize,
 
 cdef inline bint _contiguous(Py_ssize_t itemsize,
                              Py_ssize_t ndim,
-                             Py_ssize_t* shape_p,
-                             Py_ssize_t* strides_p) nogil:
-    cdef bint r = _c_contiguous(itemsize, ndim, shape_p, strides_p)
+                             Py_ssize_t[::1] shape_mv,
+                             Py_ssize_t[::1] strides_mv) nogil:
+    cdef bint r = _c_contiguous(itemsize, ndim, shape_mv, strides_mv)
     if not r:
-        r = _f_contiguous(itemsize, ndim, shape_p, strides_p)
+        r = _f_contiguous(itemsize, ndim, shape_mv, strides_mv)
     return r
 
 
 @boundscheck(False)
+@initializedcheck(False)
+@nonecheck(False)
 @wraparound(False)
 cdef inline Py_ssize_t _nbytes(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
-                               Py_ssize_t* shape_p) nogil:
+                               Py_ssize_t[::1] shape_mv) nogil:
     cdef Py_ssize_t i, nbytes = itemsize
     for i in range(ndim):
-        nbytes *= shape_p[i]
+        nbytes *= shape_mv[i]
     return nbytes

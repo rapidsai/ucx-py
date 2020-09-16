@@ -15,8 +15,8 @@ cdef class Array:
     cdef readonly Py_ssize_t itemsize
 
     cdef readonly Py_ssize_t ndim
-    cdef Py_ssize_t* shape_p
-    cdef Py_ssize_t* strides_p
+    cdef Py_ssize_t[::1] shape_mv
+    cdef Py_ssize_t[::1] strides_mv
 
     cdef readonly bint cuda
 
