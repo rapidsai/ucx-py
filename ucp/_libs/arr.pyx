@@ -209,6 +209,8 @@ cdef class Array:
         return self._nbytes()
 
     @property
+    @boundscheck(False)
+    @wraparound(False)
     def shape(self):
         cdef tuple shape = PyTuple_New(self.ndim)
         cdef Py_ssize_t i
@@ -220,6 +222,8 @@ cdef class Array:
         return shape
 
     @property
+    @boundscheck(False)
+    @wraparound(False)
     def strides(self):
         cdef tuple strides = PyTuple_New(self.ndim)
         cdef Py_ssize_t i, s
