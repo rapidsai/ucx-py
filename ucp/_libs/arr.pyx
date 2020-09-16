@@ -57,6 +57,10 @@ cdef dict itemsize_mapping = {
 
 @auto_pickle(False)
 cdef class Array:
+    """
+    An efficient wrapper for host and device array-like objects
+    """
+
     def __cinit__(self, obj):
 
         cdef dict iface = getattr(obj, "__cuda_array_interface__", None)
