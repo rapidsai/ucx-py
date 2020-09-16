@@ -125,6 +125,9 @@ cdef class Array:
                 else:
                     for i in range(self.ndim):
                         self.shape_p[i] = shape[i]
+            else:
+                self.shape_p = NULL
+                self.strides_p = NULL
         else:
             mv = PyMemoryView_FromObject(obj)
             pybuf = PyMemoryView_GET_BUFFER(mv)
@@ -138,29 +141,33 @@ cdef class Array:
             self.ndim = <Py_ssize_t>pybuf.ndim
             self.itemsize = <Py_ssize_t>pybuf.itemsize
 
-            if not PyBuffer_IsContiguous(pybuf, b"C"):
-                self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                    2 * self.ndim * sizeof(Py_ssize_t)
-                )
-                self.strides_p = self.shape_p + self.ndim
+            if self.ndim > 0:
+                if not PyBuffer_IsContiguous(pybuf, b"C"):
+                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
+                        2 * self.ndim * sizeof(Py_ssize_t)
+                    )
+                    self.strides_p = self.shape_p + self.ndim
+                else:
+                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
+                        self.ndim * sizeof(Py_ssize_t)
+                    )
+                    self.strides_p = NULL
+
+                if self.shape_p == NULL:
+                    raise MemoryError(
+                        "Unable to allocate memory for shape & strides"
+                    )
+
+                memcpy(self.shape_p, pybuf.shape, self.ndim * sizeof(Py_ssize_t))
+                if self.strides_p != NULL:
+                    memcpy(
+                        self.strides_p,
+                        pybuf.strides,
+                        self.ndim * sizeof(Py_ssize_t)
+                    )
             else:
-                self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                    self.ndim * sizeof(Py_ssize_t)
-                )
+                self.shape_p = NULL
                 self.strides_p = NULL
-
-            if self.shape_p == NULL:
-                raise MemoryError(
-                    "Unable to allocate memory for shape & strides"
-                )
-
-            memcpy(self.shape_p, pybuf.shape, self.ndim * sizeof(Py_ssize_t))
-            if self.strides_p != NULL:
-                memcpy(
-                    self.strides_p,
-                    pybuf.strides,
-                    self.ndim * sizeof(Py_ssize_t)
-                )
 
     def __dealloc__(self):
         PyMem_Free(self.shape_p)
