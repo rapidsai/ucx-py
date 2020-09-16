@@ -65,8 +65,6 @@ cdef class Array:
         cdef const Py_buffer* pybuf
         cdef str typestr
         cdef tuple data, shape, strides
-        cdef Py_ssize_t *shape_p
-        cdef Py_ssize_t *strides_p
         cdef Py_ssize_t i
         if self.cuda:
             if iface.get("mask") is not None:
