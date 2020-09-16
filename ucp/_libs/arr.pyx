@@ -106,23 +106,23 @@ cdef class Array:
                     self.shape_p = <Py_ssize_t*>PyMem_Malloc(
                         2 * self.ndim * sizeof(Py_ssize_t)
                     )
+                    if self.shape_p == NULL:
+                        raise MemoryError(
+                            "Unable to allocate memory for shape & strides"
+                        )
                     self.strides_p = self.shape_p + self.ndim
-                else:
-                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
-                        self.ndim * sizeof(Py_ssize_t)
-                    )
-                    self.strides_p = NULL
-
-                if self.shape_p == NULL:
-                    raise MemoryError(
-                        "Unable to allocate memory for shape & strides"
-                    )
-
-                if self.strides_p != NULL:
                     for i in range(self.ndim):
                         self.shape_p[i] = shape[i]
                         self.strides_p[i] = strides[i]
                 else:
+                    self.shape_p = <Py_ssize_t*>PyMem_Malloc(
+                        self.ndim * sizeof(Py_ssize_t)
+                    )
+                    if self.shape_p == NULL:
+                        raise MemoryError(
+                            "Unable to allocate memory for shape"
+                        )
+                    self.strides_p = NULL
                     for i in range(self.ndim):
                         self.shape_p[i] = shape[i]
             else:
