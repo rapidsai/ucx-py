@@ -117,6 +117,8 @@ cdef class Array:
             self.ndim = len(shape)
             if self.ndim > 0:
                 self.shape_mv = new_Py_ssize_t_array(self.ndim)
+                for i in range(self.ndim):
+                    self.shape_mv[i] = shape[i]
                 if strides is not None:
                     if len(strides) != self.ndim:
                         raise ValueError(
@@ -124,12 +126,9 @@ cdef class Array:
                         )
                     self.strides_mv = new_Py_ssize_t_array(self.ndim)
                     for i in range(self.ndim):
-                        self.shape_mv[i] = shape[i]
                         self.strides_mv[i] = strides[i]
                 else:
                     self.strides_mv = None
-                    for i in range(self.ndim):
-                        self.shape_mv[i] = shape[i]
             else:
                 self.shape_mv = None
                 self.strides_mv = None
