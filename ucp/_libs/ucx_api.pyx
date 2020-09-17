@@ -68,22 +68,23 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     """
     cdef ucp_config_t *config
     cdef ucs_status_t status
+    cdef str status_msg
     status = ucp_config_read(NULL, NULL, &config)
     if status != UCS_OK:
-        raise UCXConfigError(
-            "Couldn't read the UCX options: %s" %
-            ucs_status_string(status).decode("utf-8")
-        )
+        status_msg = ucs_status_string(status).decode("utf-8")
+        raise UCXConfigError(f"Couldn't read the UCX options: {status_msg}")
 
     # Modify the UCX configuration options based on `config_dict`
+    cdef str k, v
     for k, v in user_options.items():
         status = ucp_config_modify(config, k.encode(), v.encode())
         if status == UCS_ERR_NO_ELEM:
-            raise UCXConfigError("Option %s doesn't exist" % k)
+            raise UCXConfigError(f"Option {k} doesn't exist")
         elif status != UCS_OK:
-            msg = "Couldn't set option %s to %s: %s" % \
-                  (k, v, ucs_status_string(status).decode("utf-8"))
-            raise UCXConfigError(msg)
+            status_msg = ucs_status_string(status).decode("utf-8")
+            raise UCXConfigError(
+                f"Couldn't set option {k} to {v}: {status_msg}"
+            )
     return config
 
 
