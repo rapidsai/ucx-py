@@ -232,7 +232,7 @@ cdef class UCXContext(UCXObject):
         logger.info("UCP initiated using config: ")
         cdef str k, v
         for k, v in self._config.items():
-            logger.info("  %s: %s" % (k, v))
+            logger.info(f"  {k}: {v}")
 
     def get_config(self):
         return self._config
