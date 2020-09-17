@@ -84,8 +84,9 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
             raise UCXConfigError(f"Option {k} doesn't exist")
         elif status != UCS_OK:
             status_msg = ucs_status_string(status).decode("utf-8")
-            msg = f"Couldn't set option {k} to {v}: {status_msg}"
-            raise UCXConfigError(msg)
+            raise UCXConfigError(
+                f"Couldn't set option {k} to {v}: {status_msg}"
+            )
     return config
 
 
