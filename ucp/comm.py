@@ -3,7 +3,7 @@
 
 import asyncio
 
-from ._libs import ucx_api
+from ._libs import arr, ucx_api
 
 
 def _cb_func(request, exception, event_loop, future):
@@ -33,7 +33,7 @@ def _call_ucx_api(event_loop, func, *args, **kwargs):
 
 def tag_send(
     ep: ucx_api.UCXEndpoint,
-    buffer,
+    buffer: arr.Array,
     nbytes: int,
     tag: int,
     name="tag_send",
@@ -46,7 +46,11 @@ def tag_send(
 
 
 def stream_send(
-    ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_send", event_loop=None
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="stream_send",
+    event_loop=None,
 ) -> asyncio.Future:
 
     return _call_ucx_api(
@@ -56,7 +60,7 @@ def stream_send(
 
 def tag_recv(
     ep: ucx_api.UCXEndpoint,
-    buffer,
+    buffer: arr.Array,
     nbytes: int,
     tag: int,
     name="tag_recv",
@@ -76,7 +80,11 @@ def tag_recv(
 
 
 def stream_recv(
-    ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_recv", event_loop=None
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="stream_recv",
+    event_loop=None,
 ) -> asyncio.Future:
 
     return _call_ucx_api(

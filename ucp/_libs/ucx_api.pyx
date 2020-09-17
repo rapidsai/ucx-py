@@ -15,8 +15,8 @@ from libc.stdio cimport FILE, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
 
+from .arr cimport Array
 from .ucx_api_dep cimport *
-from .utils cimport get_buffer_data
 
 from ..exceptions import (
     UCXCanceled,
@@ -678,7 +678,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
 
 def tag_send_nb(
     UCXEndpoint ep,
-    buffer,
+    Array buffer,
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
@@ -707,12 +707,8 @@ def tag_send_nb(
     ----------
     ep: UCXEndpoint
         The destination endpoint
-    buffer: object
-        The buffer object, which must support one of the following protocols and
-        is checked in order:
-            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
-            2) Numpy's Array Interface: `__array_interface__`
-            3) Python buffer protocol: `memoryview()`
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
     nbytes: int
         Size of the buffer to use. Must be equal or less than the size of buffer
     tag: int
@@ -727,11 +723,10 @@ def tag_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    cdef void *data = <void*>get_buffer_data(buffer, check_writable=False)
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
-        data,
+        <void*>buffer.ptr,
         nbytes,
         ucp_dt_make_contig(1),
         tag,
@@ -781,7 +776,7 @@ cdef void _tag_recv_callback(
 
 def tag_recv_nb(
     UCXWorker worker,
-    buffer,
+    Array buffer,
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
@@ -811,12 +806,8 @@ def tag_recv_nb(
     ----------
     worker: UCXWorker
         The worker that is used for the receive operation
-    buffer: object
-        The buffer object, which must support one of the following protocols and
-        is checked in order:
-            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
-            2) Numpy's Array Interface: `__array_interface__`
-            3) Python buffer protocol: `memoryview()`
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
     nbytes: int
         Size of the buffer to use. Must be equal or less than the size of buffer
     tag: int
@@ -838,14 +829,14 @@ def tag_recv_nb(
         guarantee that the message is cancelled when `ep` closes as opposed to
         when the `worker` closes.
     """
-
-    cdef void *data = <void*>get_buffer_data(buffer, check_writable=True)
+    if buffer.readonly:
+        raise ValueError("writing to readonly buffer!")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
     cdef ucs_status_ptr_t status = ucp_tag_recv_nb(
         worker._handle,
-        data,
+        <void*>buffer.ptr,
         nbytes,
         ucp_dt_make_contig(1),
         tag,
@@ -860,7 +851,7 @@ def tag_recv_nb(
 
 def stream_send_nb(
     UCXEndpoint ep,
-    buffer,
+    Array buffer,
     size_t nbytes,
     cb_func,
     cb_args=tuple(),
@@ -887,12 +878,8 @@ def stream_send_nb(
     ----------
     ep: UCXEndpoint
         The destination endpoint
-    buffer: object
-        The buffer object, which must support one of the following protocols and
-        is checked in order:
-            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
-            2) Numpy's Array Interface: `__array_interface__`
-            3) Python buffer protocol: `memoryview()`
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
     nbytes: int
         Size of the buffer to use. Must be equal or less than the size of buffer
     cb_func: callable
@@ -905,11 +892,10 @@ def stream_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    cdef void *data = <void*>get_buffer_data(buffer, check_writable=False)
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
-        data,
+        <void*>buffer.ptr,
         nbytes,
         ucp_dt_make_contig(1),
         _send_cb,
@@ -959,7 +945,7 @@ cdef void _stream_recv_callback(
 
 def stream_recv_nb(
     UCXEndpoint ep,
-    buffer,
+    Array buffer,
     size_t nbytes,
     cb_func,
     cb_args=tuple(),
@@ -980,12 +966,8 @@ def stream_recv_nb(
     ----------
     ep: UCXEndpoint
         The destination endpoint
-    buffer: object
-        The buffer object, which must support one of the following protocols and
-        is checked in order:
-            1) Numba's CUDA Array Interface: `__cuda_array_interface__`
-            2) Numpy's Array Interface: `__array_interface__`
-            3) Python buffer protocol: `memoryview()`
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
     nbytes: int
         Size of the buffer to use. Must be equal or less than the size of buffer
     cb_func: callable
@@ -998,15 +980,15 @@ def stream_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
-
-    cdef void *data = <void*>get_buffer_data(buffer, check_writable=True)
+    if buffer.readonly:
+        raise ValueError("writing to readonly buffer!")
     cdef size_t length
     cdef ucp_stream_recv_callback_t _stream_recv_cb = (
         <ucp_stream_recv_callback_t>_stream_recv_callback
     )
     cdef ucs_status_ptr_t status = ucp_stream_recv_nb(
         ep._handle,
-        data,
+        <void*>buffer.ptr,
         nbytes,
         ucp_dt_make_contig(1),
         _stream_recv_cb,
