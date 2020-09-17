@@ -72,9 +72,7 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     status = ucp_config_read(NULL, NULL, &config)
     if status != UCS_OK:
         status_msg = ucs_status_string(status).decode("utf-8")
-        raise UCXConfigError(
-            f"Couldn't read the UCX options: {status_msg}"
-        )
+        raise UCXConfigError(f"Couldn't read the UCX options: {status_msg}")
 
     # Modify the UCX configuration options based on `config_dict`
     cdef str k, v
