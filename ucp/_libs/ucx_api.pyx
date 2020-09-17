@@ -76,6 +76,7 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
         )
 
     # Modify the UCX configuration options based on `config_dict`
+    cdef str k, v
     for k, v in user_options.items():
         status = ucp_config_modify(config, k.encode(), v.encode())
         if status == UCS_ERR_NO_ELEM:
