@@ -230,6 +230,7 @@ cdef class UCXContext(UCXObject):
         ucp_config_release(config)
 
         logger.info("UCP initiated using config: ")
+        cdef str k, v
         for k, v in self._config.items():
             logger.info("  %s: %s" % (k, v))
 
