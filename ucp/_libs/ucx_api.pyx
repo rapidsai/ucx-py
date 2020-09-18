@@ -248,7 +248,7 @@ cdef class UCXContext(UCXObject):
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     cdef str status_str = ucs_status_string(status).decode("utf-8")
-    msg = (
+    cdef str msg = (
         "Endpoint %s failed with status %d: %s" % (
             hex(int(<uintptr_t>ep)), status, status_str
         )
