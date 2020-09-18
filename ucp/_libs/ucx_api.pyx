@@ -258,6 +258,7 @@ cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
 
 cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+    cdef str t
     if endpoint_error_handling and any(t in tls for t in ["dc", "ib", "rc"]):
         err_cb = <ucp_err_handler_cb_t>_ib_err_cb
     return err_cb
