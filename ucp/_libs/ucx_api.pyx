@@ -416,6 +416,7 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
 
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
+    cdef str msg
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
         ucp_request_free(status)
@@ -628,11 +629,11 @@ cdef _handle_status(
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
-    msg = "<%s>: " % name
+    cdef str msg = "<%s>: " % name
     if UCS_PTR_IS_ERR(status):
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         raise UCXError(msg)
-    req = UCXRequest(<uintptr_t><void*> status)
+    cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
     if req.info["status"] == "finished":
         try:
             # The callback function has already handle the request
@@ -659,6 +660,8 @@ cdef _handle_status(
 
 
 cdef void _send_callback(void *request, ucs_status_t status):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -752,6 +755,8 @@ def tag_send_nb(
 cdef void _tag_recv_callback(
     void *request, ucs_status_t status, ucp_tag_recv_info_t *info
 ):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -921,6 +926,8 @@ def stream_send_nb(
 cdef void _stream_recv_callback(
     void *request, ucs_status_t status, size_t length
 ):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
