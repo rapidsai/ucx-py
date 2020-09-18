@@ -260,7 +260,8 @@ cdef ucp_err_handler_cb_t _get_error_callback(str tls,
                                               bint endpoint_error_handling):
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
     cdef str t
-    if endpoint_error_handling and any(t in tls for t in ["dc", "ib", "rc"]):
+    cdef list transports = ["dc", "ib", "rc"]
+    if endpoint_error_handling and any(t in tls for t in transports):
         err_cb = <ucp_err_handler_cb_t>_ib_err_cb
     return err_cb
 
