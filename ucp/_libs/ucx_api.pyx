@@ -80,7 +80,7 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     for k, v in user_options.items():
         kb = k.encode()
         vb = v.encode()
-        status = ucp_config_modify(config, kb, vb)
+        status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
         if status == UCS_ERR_NO_ELEM:
             raise UCXConfigError(f"Option {k} doesn't exist")
         elif status != UCS_OK:
