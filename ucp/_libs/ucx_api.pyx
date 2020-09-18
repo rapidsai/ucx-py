@@ -365,7 +365,7 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, port, endpoint_error_handling):
+    def ep_create(self, str ip_address, port, bint endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
@@ -384,7 +384,7 @@ cdef class UCXWorker(UCXObject):
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
     def ep_create_from_conn_request(
-        self, uintptr_t conn_request, endpoint_error_handling
+        self, uintptr_t conn_request, bint endpoint_error_handling
     ):
         assert self.initialized
 
