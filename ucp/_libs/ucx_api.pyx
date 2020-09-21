@@ -108,7 +108,7 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
         py_text = text.decode()
         for line in py_text.splitlines():
             k, v = line.split("=")
-            k = k[len("UCX_"):]
+            k = k[4:]  # Strip "UCX_" prefix
             ret[k] = v
     finally:
         fclose(text_fd)
