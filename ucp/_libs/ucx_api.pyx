@@ -624,8 +624,8 @@ cdef UCXRequest _handle_status(
     cb_func,
     cb_args,
     cb_kwargs,
-    name,
-    inflight_msgs
+    unicode name,
+    set inflight_msgs
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
