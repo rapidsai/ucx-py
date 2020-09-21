@@ -111,8 +111,11 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
             k = k[4:]  # Strip "UCX_" prefix
             ret[k] = v
     finally:
-        fclose(text_fd)
-        free(text)
+        if fclose(text_fd) != 0:
+            free(text)
+            raise IOError("fclose() failed to close memory stream")
+        else:
+            free(text)
     return ret
 
 
