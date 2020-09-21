@@ -462,15 +462,20 @@ cdef class UCXEndpoint(UCXObject):
         cdef size_t text_len
         cdef unicode py_text
         cdef FILE *text_fd = open_memstream(&text, &text_len)
-        if(text_fd == NULL):
+        if text_fd == NULL:
             raise IOError("open_memstream() returned NULL")
         ucp_ep_print_info(self._handle, text_fd)
-        fflush(text_fd)
         try:
+            if fflush(text_fd) != 0:
+                clearerr(text_fd)
+                raise IOError("fflush() failed on memory stream")
             py_text = text.decode()
         finally:
-            fclose(text_fd)
-            free(text)
+            if fclose(text_fd) != 0:
+                free(text)
+                raise IOError("fclose() failed to close memory stream")
+            else:
+                free(text)
         return py_text
 
     @property
