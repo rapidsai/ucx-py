@@ -461,7 +461,8 @@ cdef class UCXEndpoint(UCXObject):
             raise IOError("open_memstream() returned NULL")
         ucp_ep_print_info(self._handle, text_fd)
         try:
-            fflush(text_fd)
+            if fflush(text_fd) != 0:
+                raise IOError("fflush() failed on memory stream")
             py_text = text.decode()
         finally:
             fclose(text_fd)
