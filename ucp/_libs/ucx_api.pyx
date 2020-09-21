@@ -95,7 +95,7 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
     """Returns a dict of a UCX config"""
     cdef char *text
     cdef size_t text_len
-    cdef unicode py_text
+    cdef unicode py_text, line
     cdef FILE *text_fd = open_memstream(&text, &text_len)
     if text_fd == NULL:
         raise IOError("open_memstream() returned NULL")
