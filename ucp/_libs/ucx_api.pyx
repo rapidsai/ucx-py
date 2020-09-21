@@ -618,7 +618,7 @@ cdef class UCXRequest:
             )
 
 
-cdef _handle_status(
+cdef UCXRequest _handle_status(
     ucs_status_ptr_t status,
     int64_t expected_receive,
     cb_func,
