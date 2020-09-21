@@ -466,8 +466,11 @@ cdef class UCXEndpoint(UCXObject):
                 raise IOError("fflush() failed on memory stream")
             py_text = text.decode()
         finally:
-            fclose(text_fd)
-            free(text)
+            if fclose(text_fd) != 0:
+                free(text)
+                raise IOError("fclose() failed to close memory stream")
+            else:
+                free(text)
         return py_text
 
     @property
