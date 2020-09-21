@@ -76,8 +76,11 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
 
     # Modify the UCX configuration options based on `config_dict`
     cdef str k, v
+    cdef bytes kb, vb
     for k, v in user_options.items():
-        status = ucp_config_modify(config, k.encode(), v.encode())
+        kb = k.encode()
+        vb = v.encode()
+        status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
         if status == UCS_ERR_NO_ELEM:
             raise UCXConfigError(f"Option {k} doesn't exist")
         elif status != UCS_OK:
@@ -117,7 +120,7 @@ def get_current_options():
     if UCX were to be initialized now.
     """
     cdef ucp_config_t *config = _read_ucx_config({})
-    ret = ucx_config_to_dict(config)
+    cdef dict ret = ucx_config_to_dict(config)
     ucp_config_release(config)
     return ret
 
@@ -230,8 +233,9 @@ cdef class UCXContext(UCXObject):
         ucp_config_release(config)
 
         logger.info("UCP initiated using config: ")
+        cdef str k, v
         for k, v in self._config.items():
-            logger.info("  %s: %s" % (k, v))
+            logger.info(f"  {k}: {v}")
 
     def get_config(self):
         return self._config
@@ -243,8 +247,8 @@ cdef class UCXContext(UCXObject):
 
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
-    status_str = ucs_status_string(status).decode("utf-8")
-    msg = (
+    cdef str status_str = ucs_status_string(status).decode("utf-8")
+    cdef str msg = (
         "Endpoint %s failed with status %d: %s" % (
             hex(int(<uintptr_t>ep)), status, status_str
         )
@@ -252,10 +256,17 @@ cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     logger.error(msg)
 
 
-cdef ucp_err_handler_cb_t _get_error_callback(tls, endpoint_error_handling):
+cdef ucp_err_handler_cb_t _get_error_callback(str tls,
+                                              bint endpoint_error_handling):
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
-    if endpoint_error_handling and any(t in tls for t in ["dc", "ib", "rc"]):
-        err_cb = <ucp_err_handler_cb_t>_ib_err_cb
+    cdef str t
+    cdef list transports
+    if endpoint_error_handling:
+        transports = ["dc", "ib", "rc"]
+        for t in transports:
+            if t in tls:
+                err_cb = <ucp_err_handler_cb_t>_ib_err_cb
+                break
     return err_cb
 
 
@@ -354,7 +365,7 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, port, endpoint_error_handling):
+    def ep_create(self, str ip_address, port, bint endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
@@ -373,7 +384,7 @@ cdef class UCXWorker(UCXObject):
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
     def ep_create_from_conn_request(
-        self, uintptr_t conn_request, endpoint_error_handling
+        self, uintptr_t conn_request, bint endpoint_error_handling
     ):
         assert self.initialized
 
@@ -405,6 +416,7 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
 
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
+    cdef str msg
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
         ucp_request_free(status)
@@ -617,11 +629,11 @@ cdef _handle_status(
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
-    msg = "<%s>: " % name
+    cdef str msg = "<%s>: " % name
     if UCS_PTR_IS_ERR(status):
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         raise UCXError(msg)
-    req = UCXRequest(<uintptr_t><void*> status)
+    cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
     if req.info["status"] == "finished":
         try:
             # The callback function has already handle the request
@@ -648,6 +660,8 @@ cdef _handle_status(
 
 
 cdef void _send_callback(void *request, ucs_status_t status):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -741,6 +755,8 @@ def tag_send_nb(
 cdef void _tag_recv_callback(
     void *request, ucs_status_t status, ucp_tag_recv_info_t *info
 ):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -910,6 +926,8 @@ def stream_send_nb(
 cdef void _stream_recv_callback(
     void *request, ucs_status_t status, size_t length
 ):
+    cdef UCXRequest req
+    cdef str msg
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
