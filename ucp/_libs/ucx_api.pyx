@@ -11,7 +11,7 @@ from posix.stdio cimport open_memstream
 
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uintptr_t
-from libc.stdio cimport FILE, fclose, fflush
+from libc.stdio cimport FILE, clearerr, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
 
@@ -103,6 +103,7 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     try:
         if fflush(text_fd) != 0:
+            clearerr(text_fd)
             raise IOError("fflush() failed on memory stream")
         py_text = text.decode()
         for line in py_text.splitlines():
