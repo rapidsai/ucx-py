@@ -457,7 +457,7 @@ cdef class UCXEndpoint(UCXObject):
         cdef size_t text_len
         cdef unicode py_text
         cdef FILE *text_fd = open_memstream(&text, &text_len)
-        if(text_fd == NULL):
+        if text_fd == NULL:
             raise IOError("open_memstream() returned NULL")
         ucp_ep_print_info(self._handle, text_fd)
         fflush(text_fd)
