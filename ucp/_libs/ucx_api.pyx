@@ -102,7 +102,8 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
     cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
     try:
-        fflush(text_fd)
+        if fflush(text_fd) != 0:
+            raise IOError("fflush() failed on memory stream")
         py_text = text.decode()
         for line in py_text.splitlines():
             k, v = line.split("=")
