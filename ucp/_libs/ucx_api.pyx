@@ -11,7 +11,7 @@ from posix.stdio cimport open_memstream
 
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uintptr_t
-from libc.stdio cimport FILE, fclose, fflush
+from libc.stdio cimport FILE, clearerr, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
 
@@ -462,6 +462,7 @@ cdef class UCXEndpoint(UCXObject):
         ucp_ep_print_info(self._handle, text_fd)
         try:
             if fflush(text_fd) != 0:
+                clearerr(text_fd)
                 raise IOError("fflush() failed on memory stream")
             py_text = text.decode()
         finally:
