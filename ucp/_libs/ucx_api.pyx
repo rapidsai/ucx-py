@@ -101,8 +101,8 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
         raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    fflush(text_fd)
     try:
+        fflush(text_fd)
         py_text = text.decode()
         for line in py_text.splitlines():
             k, v = line.split("=")
