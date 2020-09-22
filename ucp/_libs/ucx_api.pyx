@@ -682,6 +682,8 @@ cdef UCXRequest _handle_status(
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -703,9 +705,11 @@ cdef void _send_callback(void *request, ucs_status_t status):
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
@@ -783,6 +787,8 @@ cdef void _tag_recv_callback(
 ):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -809,9 +815,11 @@ cdef void _tag_recv_callback(
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
@@ -966,6 +974,8 @@ cdef void _stream_recv_callback(
 ):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -992,9 +1002,11 @@ cdef void _stream_recv_callback(
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
