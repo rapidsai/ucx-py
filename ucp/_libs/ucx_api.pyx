@@ -715,7 +715,7 @@ def tag_send_nb(
     cb_func,
     tuple cb_args=tuple(),
     dict cb_kwargs=dict(),
-    name="tag_send_nb"
+    str name="tag_send_nb"
 ):
     """ This routine sends a message to a destination endpoint
 
@@ -816,7 +816,7 @@ def tag_recv_nb(
     ucp_tag_t tag_mask=-1,
     tuple cb_args=tuple(),
     dict cb_kwargs=dict(),
-    name="tag_recv_nb",
+    str name="tag_recv_nb",
     UCXEndpoint ep=None
 ):
     """ This routine receives a message on a worker
@@ -889,7 +889,7 @@ def stream_send_nb(
     cb_func,
     tuple cb_args=tuple(),
     dict cb_kwargs=dict(),
-    name="stream_send_nb"
+    str name="stream_send_nb"
 ):
     """ This routine sends data to a destination endpoint
 
@@ -985,7 +985,7 @@ def stream_recv_nb(
     cb_func,
     tuple cb_args=tuple(),
     dict cb_kwargs=dict(),
-    name="stream_recv_nb"
+    str name="stream_recv_nb"
 ):
     """ This routine receives data on the endpoint.
 
