@@ -520,8 +520,8 @@ cdef class UCXListener(UCXObject):
         UCXWorker worker,
         uint16_t port,
         cb_func,
-        cb_args=tuple(),
-        cb_kwargs=dict()
+        tuple cb_args=tuple(),
+        dict cb_kwargs=dict()
     ):
         cdef ucp_listener_params_t params
         cdef ucp_listener_conn_callback_t _listener_cb = (
@@ -713,8 +713,8 @@ def tag_send_nb(
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
+    tuple cb_args=tuple(),
+    dict cb_kwargs=dict(),
     name="tag_send_nb"
 ):
     """ This routine sends a message to a destination endpoint
@@ -814,8 +814,8 @@ def tag_recv_nb(
     ucp_tag_t tag,
     cb_func,
     ucp_tag_t tag_mask=-1,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
+    tuple cb_args=tuple(),
+    dict cb_kwargs=dict(),
     name="tag_recv_nb",
     UCXEndpoint ep=None
 ):
@@ -887,8 +887,8 @@ def stream_send_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
+    tuple cb_args=tuple(),
+    dict cb_kwargs=dict(),
     name="stream_send_nb"
 ):
     """ This routine sends data to a destination endpoint
@@ -983,8 +983,8 @@ def stream_recv_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
+    tuple cb_args=tuple(),
+    dict cb_kwargs=dict(),
     name="stream_recv_nb"
 ):
     """ This routine receives data on the endpoint.
