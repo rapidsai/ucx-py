@@ -77,17 +77,21 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     # Modify the UCX configuration options based on `config_dict`
     cdef str k, v
     cdef bytes kb, vb
-    for k, v in user_options.items():
-        kb = k.encode()
-        vb = v.encode()
-        status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
-        if status == UCS_ERR_NO_ELEM:
-            raise UCXConfigError(f"Option {k} doesn't exist")
-        elif status != UCS_OK:
-            status_msg = ucs_status_string(status).decode("utf-8")
-            raise UCXConfigError(
-                f"Couldn't set option {k} to {v}: {status_msg}"
-            )
+    try:
+        for k, v in user_options.items():
+            kb = k.encode()
+            vb = v.encode()
+            status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
+            if status == UCS_ERR_NO_ELEM:
+                raise UCXConfigError(f"Option {k} doesn't exist")
+            elif status != UCS_OK:
+                status_msg = ucs_status_string(status).decode("utf-8")
+                raise UCXConfigError(
+                    f"Couldn't set option {k} to {v}: {status_msg}"
+                )
+    except Exception:
+        ucp_config_release(config)
+        raise
     return config
 
 
@@ -125,9 +129,10 @@ def get_current_options():
     if UCX were to be initialized now.
     """
     cdef ucp_config_t *config = _read_ucx_config({})
-    cdef dict ret = ucx_config_to_dict(config)
-    ucp_config_release(config)
-    return ret
+    try:
+        return ucx_config_to_dict(config)
+    finally:
+        ucp_config_release(config)
 
 
 def get_ucx_version():
@@ -226,16 +231,17 @@ cdef class UCXContext(UCXObject):
         )
 
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
-        status = ucp_init(&ucp_params, config, &self._handle)
-        assert_ucs_status(status)
+        try:
+            status = ucp_init(&ucp_params, config, &self._handle)
+            assert_ucs_status(status)
+            self._config = ucx_config_to_dict(config)
+        finally:
+            ucp_config_release(config)
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
             int(<uintptr_t>self._handle)
         )
-
-        self._config = ucx_config_to_dict(config)
-        ucp_config_release(config)
 
         logger.info("UCP initiated using config: ")
         cdef str k, v
