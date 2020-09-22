@@ -524,9 +524,9 @@ cdef class UCXListener(UCXObject):
         dict cb_kwargs=None
     ):
         if cb_args is None:
-            cb_args = tuple()
+            cb_args = ()
         if cb_kwargs is None:
-            cb_kwargs = dict()
+            cb_kwargs = {}
         cdef ucp_listener_params_t params
         cdef ucp_listener_conn_callback_t _listener_cb = (
             <ucp_listener_conn_callback_t>_listener_callback
@@ -759,9 +759,9 @@ def tag_send_nb(
         Descriptive name of the operation
     """
     if cb_args is None:
-        cb_args = tuple()
+        cb_args = ()
     if cb_kwargs is None:
-        cb_kwargs = dict()
+        cb_kwargs = {}
     if name is None:
         name = "tag_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
@@ -873,9 +873,9 @@ def tag_recv_nb(
         when the `worker` closes.
     """
     if cb_args is None:
-        cb_args = tuple()
+        cb_args = ()
     if cb_kwargs is None:
-        cb_kwargs = dict()
+        cb_kwargs = {}
     if name is None:
         name = "tag_recv_nb"
     if buffer.readonly:
@@ -942,9 +942,9 @@ def stream_send_nb(
         Descriptive name of the operation
     """
     if cb_args is None:
-        cb_args = tuple()
+        cb_args = ()
     if cb_kwargs is None:
-        cb_kwargs = dict()
+        cb_kwargs = {}
     if name is None:
         name = "stream_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
@@ -1038,9 +1038,9 @@ def stream_recv_nb(
         Descriptive name of the operation
     """
     if cb_args is None:
-        cb_args = tuple()
+        cb_args = ()
     if cb_kwargs is None:
-        cb_kwargs = dict()
+        cb_kwargs = {}
     if name is None:
         name = "stream_recv_nb"
     if buffer.readonly:
