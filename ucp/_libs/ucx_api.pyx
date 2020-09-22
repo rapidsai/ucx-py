@@ -10,7 +10,7 @@ import weakref
 from posix.stdio cimport open_memstream
 
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
-from libc.stdint cimport uintptr_t
+from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport FILE, clearerr, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
@@ -376,7 +376,7 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, port, bint endpoint_error_handling):
+    def ep_create(self, str ip_address, uint16_t port, bint endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
@@ -513,12 +513,12 @@ cdef class UCXListener(UCXObject):
         dict cb_data
 
     cdef public:
-        int port
+        uint16_t port
 
     def __init__(
         self,
         UCXWorker worker,
-        port,
+        uint16_t port,
         cb_func,
         cb_args=tuple(),
         cb_kwargs=dict()
