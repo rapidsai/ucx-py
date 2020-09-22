@@ -77,17 +77,21 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
     # Modify the UCX configuration options based on `config_dict`
     cdef str k, v
     cdef bytes kb, vb
-    for k, v in user_options.items():
-        kb = k.encode()
-        vb = v.encode()
-        status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
-        if status == UCS_ERR_NO_ELEM:
-            raise UCXConfigError(f"Option {k} doesn't exist")
-        elif status != UCS_OK:
-            status_msg = ucs_status_string(status).decode("utf-8")
-            raise UCXConfigError(
-                f"Couldn't set option {k} to {v}: {status_msg}"
-            )
+    try:
+        for k, v in user_options.items():
+            kb = k.encode()
+            vb = v.encode()
+            status = ucp_config_modify(config, <const char*>kb, <const char*>vb)
+            if status == UCS_ERR_NO_ELEM:
+                raise UCXConfigError(f"Option {k} doesn't exist")
+            elif status != UCS_OK:
+                status_msg = ucs_status_string(status).decode("utf-8")
+                raise UCXConfigError(
+                    f"Couldn't set option {k} to {v}: {status_msg}"
+                )
+    except Exception:
+        ucp_config_release(config)
+        raise
     return config
 
 
