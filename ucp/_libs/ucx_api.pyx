@@ -520,9 +520,13 @@ cdef class UCXListener(UCXObject):
         UCXWorker worker,
         uint16_t port,
         cb_func,
-        tuple cb_args=tuple(),
-        dict cb_kwargs=dict()
+        tuple cb_args=None,
+        dict cb_kwargs=None
     ):
+        if cb_args is None:
+            cb_args = tuple()
+        if cb_kwargs is None:
+            cb_kwargs = dict()
         cdef ucp_listener_params_t params
         cdef ucp_listener_conn_callback_t _listener_cb = (
             <ucp_listener_conn_callback_t>_listener_callback
@@ -713,9 +717,9 @@ def tag_send_nb(
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
-    tuple cb_args=tuple(),
-    dict cb_kwargs=dict(),
-    str name="tag_send_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine sends a message to a destination endpoint
 
@@ -754,6 +758,12 @@ def tag_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = tuple()
+    if cb_kwargs is None:
+        cb_kwargs = dict()
+    if name is None:
+        name = "tag_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
@@ -814,9 +824,9 @@ def tag_recv_nb(
     ucp_tag_t tag,
     cb_func,
     ucp_tag_t tag_mask=-1,
-    tuple cb_args=tuple(),
-    dict cb_kwargs=dict(),
-    str name="tag_recv_nb",
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None,
     UCXEndpoint ep=None
 ):
     """ This routine receives a message on a worker
@@ -862,6 +872,12 @@ def tag_recv_nb(
         guarantee that the message is cancelled when `ep` closes as opposed to
         when the `worker` closes.
     """
+    if cb_args is None:
+        cb_args = tuple()
+    if cb_kwargs is None:
+        cb_kwargs = dict()
+    if name is None:
+        name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
@@ -887,9 +903,9 @@ def stream_send_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    tuple cb_args=tuple(),
-    dict cb_kwargs=dict(),
-    str name="stream_send_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine sends data to a destination endpoint
 
@@ -925,6 +941,12 @@ def stream_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = tuple()
+    if cb_kwargs is None:
+        cb_kwargs = dict()
+    if name is None:
+        name = "stream_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
@@ -983,9 +1005,9 @@ def stream_recv_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    tuple cb_args=tuple(),
-    dict cb_kwargs=dict(),
-    str name="stream_recv_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine receives data on the endpoint.
 
@@ -1015,6 +1037,12 @@ def stream_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = tuple()
+    if cb_kwargs is None:
+        cb_kwargs = dict()
+    if name is None:
+        name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
     cdef size_t length
