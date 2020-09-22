@@ -50,7 +50,7 @@ cdef int _ucx_py_request_counter = 0
 logger = logging.getLogger("ucx")
 
 
-cdef assert_ucs_status(ucs_status_t status, str msg_context=None):
+cdef void assert_ucs_status(ucs_status_t status, str msg_context=None) except *:
     cdef str msg, ucs_status
     if status != UCS_OK:
         ucs_status = ucs_status_string(status).decode("utf-8")
@@ -628,14 +628,14 @@ cdef class UCXRequest:
             )
 
 
-cdef _handle_status(
+cdef UCXRequest _handle_status(
     ucs_status_ptr_t status,
     int64_t expected_receive,
     cb_func,
     cb_args,
     cb_kwargs,
-    name,
-    inflight_msgs
+    unicode name,
+    set inflight_msgs
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
