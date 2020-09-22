@@ -233,14 +233,13 @@ cdef class UCXContext(UCXObject):
         cdef ucp_config_t *config = _read_ucx_config(config_dict)
         status = ucp_init(&ucp_params, config, &self._handle)
         assert_ucs_status(status)
+        self._config = ucx_config_to_dict(config)
+        ucp_config_release(config)
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
             int(<uintptr_t>self._handle)
         )
-
-        self._config = ucx_config_to_dict(config)
-        ucp_config_release(config)
 
         logger.info("UCP initiated using config: ")
         cdef str k, v
