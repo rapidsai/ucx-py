@@ -128,14 +128,12 @@ def get_current_options():
     Returns the current UCX options
     if UCX were to be initialized now.
     """
-    cdef dict ret
     cdef ucp_config_t *config
     config = _read_ucx_config({})
     try:
-        ret = ucx_config_to_dict(config)
+        return ucx_config_to_dict(config)
     finally:
         ucp_config_release(config)
-    return ret
 
 
 def get_ucx_version():
