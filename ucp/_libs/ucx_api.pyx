@@ -10,7 +10,7 @@ import weakref
 from posix.stdio cimport open_memstream
 
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
-from libc.stdint cimport uintptr_t
+from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport FILE, clearerr, fclose, fflush
 from libc.stdlib cimport free
 from libc.string cimport memset
@@ -376,7 +376,7 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, port, bint endpoint_error_handling):
+    def ep_create(self, str ip_address, uint16_t port, bint endpoint_error_handling):
         assert self.initialized
         cdef ucp_ep_params_t params
         ip_address = socket.gethostbyname(ip_address)
@@ -513,16 +513,20 @@ cdef class UCXListener(UCXObject):
         dict cb_data
 
     cdef public:
-        int port
+        uint16_t port
 
     def __init__(
         self,
         UCXWorker worker,
-        port,
+        uint16_t port,
         cb_func,
-        cb_args=tuple(),
-        cb_kwargs=dict()
+        tuple cb_args=None,
+        dict cb_kwargs=None
     ):
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
         cdef ucp_listener_params_t params
         cdef ucp_listener_conn_callback_t _listener_cb = (
             <ucp_listener_conn_callback_t>_listener_callback
@@ -678,6 +682,8 @@ cdef UCXRequest _handle_status(
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -699,9 +705,11 @@ cdef void _send_callback(void *request, ucs_status_t status):
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
@@ -713,9 +721,9 @@ def tag_send_nb(
     size_t nbytes,
     ucp_tag_t tag,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
-    name="tag_send_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine sends a message to a destination endpoint
 
@@ -754,6 +762,12 @@ def tag_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = "tag_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
@@ -773,6 +787,8 @@ cdef void _tag_recv_callback(
 ):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -799,9 +815,11 @@ cdef void _tag_recv_callback(
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
@@ -814,9 +832,9 @@ def tag_recv_nb(
     ucp_tag_t tag,
     cb_func,
     ucp_tag_t tag_mask=-1,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
-    name="tag_recv_nb",
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None,
     UCXEndpoint ep=None
 ):
     """ This routine receives a message on a worker
@@ -862,6 +880,12 @@ def tag_recv_nb(
         guarantee that the message is cancelled when `ep` closes as opposed to
         when the `worker` closes.
     """
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
@@ -889,9 +913,9 @@ def stream_send_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
-    name="stream_send_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine sends data to a destination endpoint
 
@@ -927,6 +951,12 @@ def stream_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = "stream_send_nb"
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
@@ -946,6 +976,8 @@ cdef void _stream_recv_callback(
 ):
     cdef UCXRequest req
     cdef str msg
+    cdef tuple cb_args
+    cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
         req.info["status"] = "finished"
@@ -972,9 +1004,11 @@ cdef void _stream_recv_callback(
             cb_func = req.info["cb_func"]
             if cb_func is not None:
                 cb_args = req.info["cb_args"]
-                cb_args = cb_args if cb_args else tuple()
+                if cb_args is None:
+                    cb_args = ()
                 cb_kwargs = req.info["cb_kwargs"]
-                cb_kwargs = cb_kwargs if cb_kwargs else dict()
+                if cb_kwargs is None:
+                    cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
         finally:
             req.close()
@@ -985,9 +1019,9 @@ def stream_recv_nb(
     Array buffer,
     size_t nbytes,
     cb_func,
-    cb_args=tuple(),
-    cb_kwargs=dict(),
-    name="stream_recv_nb"
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
 ):
     """ This routine receives data on the endpoint.
 
@@ -1017,6 +1051,12 @@ def stream_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
     cdef size_t length
