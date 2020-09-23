@@ -282,7 +282,7 @@ cdef ucp_err_handler_cb_t _get_error_callback(str tls,
 
 
 def _ucx_worker_handle_finalizer(
-    uintptr_t handle_as_int, UCXContext ctx, inflight_msgs
+    uintptr_t handle_as_int, UCXContext ctx, set inflight_msgs
 ):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
@@ -414,7 +414,7 @@ cdef class UCXWorker(UCXObject):
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
 
-def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
+def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
@@ -876,7 +876,9 @@ def tag_recv_nb(
         -1,
         _tag_recv_cb
     )
-    inflight_msgs = worker._inflight_msgs if ep is None else ep._inflight_msgs
+    cdef set inflight_msgs = (
+        worker._inflight_msgs if ep is None else ep._inflight_msgs
+    )
     return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, inflight_msgs
     )
