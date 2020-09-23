@@ -701,6 +701,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
             # This callback function was called before ucp_tag_send_nb() returned
             return
 
+        exception = None
         if status == UCS_ERR_CANCELED:
             name = req_info["name"]
             msg = "<%s>: " % name
@@ -710,8 +711,6 @@ cdef void _send_callback(void *request, ucs_status_t status):
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
             msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
-        else:
-            exception = None
         try:
             inflight_msgs = req_info["inflight_msgs"]
             inflight_msgs.discard(req)
@@ -813,6 +812,7 @@ cdef void _tag_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
+        exception = None
         if status == UCS_ERR_CANCELED:
             name = req_info["name"]
             msg = "<%s>: " % name
@@ -828,8 +828,6 @@ cdef void _tag_recv_callback(
                 name, info.length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
-        else:
-            exception = None
         try:
             inflight_msgs = req_info["inflight_msgs"]
             inflight_msgs.discard(req)
@@ -1010,6 +1008,7 @@ cdef void _stream_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
+        exception = None
         if status == UCS_ERR_CANCELED:
             name = req_info["name"]
             msg = "<%s>: " % name
@@ -1025,8 +1024,6 @@ cdef void _stream_recv_callback(
                 name, length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
-        else:
-            exception = None
         try:
             inflight_msgs = req_info["inflight_msgs"]
             inflight_msgs.discard(req)
