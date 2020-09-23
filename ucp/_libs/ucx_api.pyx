@@ -702,12 +702,12 @@ cdef void _send_callback(void *request, ucs_status_t status):
             return
 
         name = req_info["name"]
-        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
+            msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
-            msg += ucx_status_msg
+            msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
         else:
             exception = None
@@ -813,16 +813,16 @@ cdef void _tag_recv_callback(
             return
 
         name = req_info["name"]
-        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
+            msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
-            msg += ucx_status_msg
+            msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
         elif info.length != req_info["expected_receive"]:
-            msg += "length mismatch: %d (got) != %d (expected)" % (
-                info.length, req_info["expected_receive"]
+            msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
+                name, info.length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
         else:
@@ -1008,16 +1008,16 @@ cdef void _stream_recv_callback(
             return
 
         name = req_info["name"]
-        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
+            msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
-            msg += ucx_status_msg
+            msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
         elif length != req_info["expected_receive"]:
-            msg += "length mismatch: %d (got) != %d (expected)" % (
-                length, req_info["expected_receive"]
+            msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
+                name, length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
         else:
