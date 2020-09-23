@@ -288,9 +288,11 @@ def _ucx_worker_handle_finalizer(
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
 
     # Cancel all inflight messages
+    cdef str name
     for req in list(inflight_msgs):
         assert not req.closed()
-        logger.debug("Future cancelling: %s" % req.info["name"])
+        name = req.info["name"]
+        logger.debug("Future cancelling: %s" % name)
         ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
 
     ucp_worker_destroy(handle)
@@ -420,8 +422,10 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef ucs_status_ptr_t status
 
     # Cancel all inflight messages
+    cdef str name
     for req in list(inflight_msgs):
-        logger.debug("Future cancelling: %s" % req.info["name"])
+        name = req.info["name"]
+        logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
 
@@ -684,7 +688,7 @@ cdef UCXRequest _handle_status(
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str msg
+    cdef str name, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -697,7 +701,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
             # This callback function was called before ucp_tag_send_nb() returned
             return
 
-        msg = "<%s>: " % req_info["name"]
+        name = req_info["name"]
+        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
@@ -793,7 +798,7 @@ cdef void _tag_recv_callback(
 ):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str msg
+    cdef str name, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -806,7 +811,8 @@ cdef void _tag_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        msg = "<%s>: " % req_info["name"]
+        name = req_info["name"]
+        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
@@ -986,7 +992,7 @@ cdef void _stream_recv_callback(
 ):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str msg
+    cdef str name, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -999,7 +1005,8 @@ cdef void _stream_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        msg = "<%s>: " % req_info["name"]
+        name = req_info["name"]
+        msg = "<%s>: " % name
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
