@@ -685,6 +685,7 @@ cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
     cdef dict req_info
     cdef str msg
+    cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
@@ -705,7 +706,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
         else:
             exception = None
         try:
-            req_info["inflight_msgs"].discard(req)
+            inflight_msgs = req_info["inflight_msgs"]
+            inflight_msgs.discard(req)
             cb_func = req_info["cb_func"]
             if cb_func is not None:
                 cb_args = req_info["cb_args"]
@@ -792,6 +794,7 @@ cdef void _tag_recv_callback(
     cdef UCXRequest req
     cdef dict req_info
     cdef str msg
+    cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
@@ -817,7 +820,8 @@ cdef void _tag_recv_callback(
         else:
             exception = None
         try:
-            req_info["inflight_msgs"].discard(req)
+            inflight_msgs = req_info["inflight_msgs"]
+            inflight_msgs.discard(req)
             cb_func = req_info["cb_func"]
             if cb_func is not None:
                 cb_args = req_info["cb_args"]
@@ -983,6 +987,7 @@ cdef void _stream_recv_callback(
     cdef UCXRequest req
     cdef dict req_info
     cdef str msg
+    cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
@@ -1008,7 +1013,8 @@ cdef void _stream_recv_callback(
         else:
             exception = None
         try:
-            req_info["inflight_msgs"].discard(req)
+            inflight_msgs = req_info["inflight_msgs"]
+            inflight_msgs.discard(req)
             cb_func = req_info["cb_func"]
             if cb_func is not None:
                 cb_args = req_info["cb_args"]
