@@ -786,8 +786,8 @@ def tag_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "tag_send_nb"
-    if not buffer._c_contiguous():
-        raise ValueError("Array must be C-contiguous")
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
@@ -915,8 +915,8 @@ def tag_recv_nb(
         name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
-    if not buffer._c_contiguous():
-        raise ValueError("Array must be C-contiguous")
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
@@ -986,8 +986,8 @@ def stream_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "stream_send_nb"
-    if not buffer._c_contiguous():
-        raise ValueError("Array must be C-contiguous")
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
@@ -1097,8 +1097,8 @@ def stream_recv_nb(
         name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
-    if not buffer._c_contiguous():
-        raise ValueError("Array must be C-contiguous")
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef size_t length
     cdef ucp_stream_recv_callback_t _stream_recv_cb = (
         <ucp_stream_recv_callback_t>_stream_recv_callback
