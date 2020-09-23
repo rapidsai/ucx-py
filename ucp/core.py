@@ -577,8 +577,6 @@ class Endpoint:
                 "https://ucx-py.readthedocs.io/en/latest/install.html for "
                 "more information."
             )
-        if not buffer.c_contiguous:
-            raise ValueError("Array must be C-contiguous")
         buffer_nbytes = buffer.nbytes
         if nbytes > 0 and buffer_nbytes < nbytes:
             raise ValueError("the nbytes is greater than the size of the buffer!")
@@ -628,8 +626,6 @@ class Endpoint:
                 "https://ucx-py.readthedocs.io/en/latest/install.html for "
                 "more information."
             )
-        if not buffer.c_contiguous:
-            raise ValueError("Array must be C-contiguous")
         buffer_nbytes = buffer.nbytes
         if nbytes > 0 and buffer_nbytes < nbytes:
             raise ValueError("the nbytes is greater than the size of the buffer!")
