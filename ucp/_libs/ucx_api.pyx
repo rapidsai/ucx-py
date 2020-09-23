@@ -654,10 +654,12 @@ cdef UCXRequest _handle_status(
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         raise UCXError(msg)
     cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
-    if req.info["status"] == "finished":
+    cdef dict req_info
+    req_info = req.info
+    if req_info["status"] == "finished":
         try:
             # The callback function has already handle the request
-            received = req.info.get("received", None)
+            received = req_info.get("received", None)
             if received is not None and received != expected_receive:
                 msg += "length mismatch: %d (got) != %d (expected)" % (
                     received, expected_receive
@@ -669,30 +671,32 @@ cdef UCXRequest _handle_status(
         finally:
             req.close()
     else:
-        req.info["cb_func"] = cb_func
-        req.info["cb_args"] = cb_args
-        req.info["cb_kwargs"] = cb_kwargs
-        req.info["expected_receive"] = expected_receive
-        req.info["name"] = name
+        req_info["cb_func"] = cb_func
+        req_info["cb_args"] = cb_args
+        req_info["cb_kwargs"] = cb_kwargs
+        req_info["expected_receive"] = expected_receive
+        req_info["name"] = name
         inflight_msgs.add(req)
-        req.info["inflight_msgs"] = inflight_msgs
+        req_info["inflight_msgs"] = inflight_msgs
         return req
 
 
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
+    cdef dict req_info
     cdef str msg
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req.info["status"] = "finished"
+        req_info = req.info
+        req_info["status"] = "finished"
 
-        if "cb_func" not in req.info:
+        if "cb_func" not in req_info:
             # This callback function was called before ucp_tag_send_nb() returned
             return
 
-        msg = "<%s>: " % req.info["name"]
+        msg = "<%s>: " % req_info["name"]
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
@@ -701,13 +705,13 @@ cdef void _send_callback(void *request, ucs_status_t status):
         else:
             exception = None
         try:
-            req.info["inflight_msgs"].discard(req)
-            cb_func = req.info["cb_func"]
+            req_info["inflight_msgs"].discard(req)
+            cb_func = req_info["cb_func"]
             if cb_func is not None:
-                cb_args = req.info["cb_args"]
+                cb_args = req_info["cb_args"]
                 if cb_args is None:
                     cb_args = ()
-                cb_kwargs = req.info["cb_kwargs"]
+                cb_kwargs = req_info["cb_kwargs"]
                 if cb_kwargs is None:
                     cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
@@ -786,38 +790,40 @@ cdef void _tag_recv_callback(
     void *request, ucs_status_t status, ucp_tag_recv_info_t *info
 ):
     cdef UCXRequest req
+    cdef dict req_info
     cdef str msg
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req.info["status"] = "finished"
+        req_info = req.info
+        req_info["status"] = "finished"
 
-        if "cb_func" not in req.info:
+        if "cb_func" not in req_info:
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        msg = "<%s>: " % req.info["name"]
+        msg = "<%s>: " % req_info["name"]
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
             msg += ucs_status_string(status).decode("utf-8")
             exception = UCXError(msg)
-        elif info.length != req.info["expected_receive"]:
+        elif info.length != req_info["expected_receive"]:
             msg += "length mismatch: %d (got) != %d (expected)" % (
-                info.length, req.info["expected_receive"]
+                info.length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
         else:
             exception = None
         try:
-            req.info["inflight_msgs"].discard(req)
-            cb_func = req.info["cb_func"]
+            req_info["inflight_msgs"].discard(req)
+            cb_func = req_info["cb_func"]
             if cb_func is not None:
-                cb_args = req.info["cb_args"]
+                cb_args = req_info["cb_args"]
                 if cb_args is None:
                     cb_args = ()
-                cb_kwargs = req.info["cb_kwargs"]
+                cb_kwargs = req_info["cb_kwargs"]
                 if cb_kwargs is None:
                     cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
@@ -975,38 +981,40 @@ cdef void _stream_recv_callback(
     void *request, ucs_status_t status, size_t length
 ):
     cdef UCXRequest req
+    cdef dict req_info
     cdef str msg
     cdef tuple cb_args
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req.info["status"] = "finished"
+        req_info = req.info
+        req_info["status"] = "finished"
 
-        if "cb_func" not in req.info:
+        if "cb_func" not in req_info:
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        msg = "<%s>: " % req.info["name"]
+        msg = "<%s>: " % req_info["name"]
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
             msg += ucs_status_string(status).decode("utf-8")
             exception = UCXError(msg)
-        elif length != req.info["expected_receive"]:
+        elif length != req_info["expected_receive"]:
             msg += "length mismatch: %d (got) != %d (expected)" % (
-                length, req.info["expected_receive"]
+                length, req_info["expected_receive"]
             )
             exception = UCXMsgTruncated(msg)
         else:
             exception = None
         try:
-            req.info["inflight_msgs"].discard(req)
-            cb_func = req.info["cb_func"]
+            req_info["inflight_msgs"].discard(req)
+            cb_func = req_info["cb_func"]
             if cb_func is not None:
-                cb_args = req.info["cb_args"]
+                cb_args = req_info["cb_args"]
                 if cb_args is None:
                     cb_args = ()
-                cb_kwargs = req.info["cb_kwargs"]
+                cb_kwargs = req_info["cb_kwargs"]
                 if cb_kwargs is None:
                     cb_kwargs = {}
                 cb_func(req, exception, *cb_args, **cb_kwargs)
