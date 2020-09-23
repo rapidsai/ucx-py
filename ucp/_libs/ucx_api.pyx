@@ -688,7 +688,7 @@ cdef UCXRequest _handle_status(
 cdef void _send_callback(void *request, ucs_status_t status):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str name, msg
+    cdef str name, ucx_status_msg, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -706,7 +706,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
-            msg += ucs_status_string(status).decode("utf-8")
+            ucx_status_msg = ucs_status_string(status).decode("utf-8")
+            msg += ucx_status_msg
             exception = UCXError(msg)
         else:
             exception = None
@@ -798,7 +799,7 @@ cdef void _tag_recv_callback(
 ):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str name, msg
+    cdef str name, ucx_status_msg, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -816,7 +817,8 @@ cdef void _tag_recv_callback(
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
-            msg += ucs_status_string(status).decode("utf-8")
+            ucx_status_msg = ucs_status_string(status).decode("utf-8")
+            msg += ucx_status_msg
             exception = UCXError(msg)
         elif info.length != req_info["expected_receive"]:
             msg += "length mismatch: %d (got) != %d (expected)" % (
@@ -992,7 +994,7 @@ cdef void _stream_recv_callback(
 ):
     cdef UCXRequest req
     cdef dict req_info
-    cdef str name, msg
+    cdef str name, ucx_status_msg, msg
     cdef set inflight_msgs
     cdef tuple cb_args
     cdef dict cb_kwargs
@@ -1010,7 +1012,8 @@ cdef void _stream_recv_callback(
         if status == UCS_ERR_CANCELED:
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
-            msg += ucs_status_string(status).decode("utf-8")
+            ucx_status_msg = ucs_status_string(status).decode("utf-8")
+            msg += ucx_status_msg
             exception = UCXError(msg)
         elif length != req_info["expected_receive"]:
             msg += "length mismatch: %d (got) != %d (expected)" % (
