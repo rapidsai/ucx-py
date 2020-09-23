@@ -288,6 +288,7 @@ def _ucx_worker_handle_finalizer(
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
 
     # Cancel all inflight messages
+    cdef UCXRequest req
     cdef str name
     for req in list(inflight_msgs):
         assert not req.closed()
@@ -422,6 +423,7 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef ucs_status_ptr_t status
 
     # Cancel all inflight messages
+    cdef UCXRequest req
     cdef str name
     for req in list(inflight_msgs):
         name = req.info["name"]
