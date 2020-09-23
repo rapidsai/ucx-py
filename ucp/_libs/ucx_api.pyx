@@ -701,11 +701,12 @@ cdef void _send_callback(void *request, ucs_status_t status):
             # This callback function was called before ucp_tag_send_nb() returned
             return
 
-        name = req_info["name"]
         if status == UCS_ERR_CANCELED:
+            name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
+            name = req_info["name"]
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
             msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
@@ -812,15 +813,17 @@ cdef void _tag_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        name = req_info["name"]
         if status == UCS_ERR_CANCELED:
+            name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
+            name = req_info["name"]
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
             msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
         elif info.length != req_info["expected_receive"]:
+            name = req_info["name"]
             msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
                 name, info.length, req_info["expected_receive"]
             )
@@ -1007,15 +1010,17 @@ cdef void _stream_recv_callback(
             # This callback function was called before ucp_tag_recv_nb() returned
             return
 
-        name = req_info["name"]
         if status == UCS_ERR_CANCELED:
+            name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXCanceled(msg)
         elif status != UCS_OK:
+            name = req_info["name"]
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
             msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
         elif length != req_info["expected_receive"]:
+            name = req_info["name"]
             msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
                 name, length, req_info["expected_receive"]
             )
