@@ -289,10 +289,12 @@ def _ucx_worker_handle_finalizer(
 
     # Cancel all inflight messages
     cdef UCXRequest req
+    cdef dict req_info
     cdef str name
     for req in list(inflight_msgs):
         assert not req.closed()
-        name = req.info["name"]
+        req_info = req.info
+        name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
         ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
 
@@ -424,9 +426,11 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
 
     # Cancel all inflight messages
     cdef UCXRequest req
+    cdef dict req_info
     cdef str name
     for req in list(inflight_msgs):
-        name = req.info["name"]
+        req_info = req.info
+        name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
