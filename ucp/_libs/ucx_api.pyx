@@ -11,6 +11,7 @@ import weakref
 from posix.stdio cimport open_memstream
 
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
+from cpython.buffer cimport PyBUF_WRITABLE, PyBUF_ND, PyBUF_FORMAT
 from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE, fclose, fflush
 from libc.stdlib cimport free
@@ -416,7 +417,6 @@ cdef class UCXAddress(UCXObject):
     cdef ucp_address_t *_handle
     cdef size_t _length
     cdef worker
-    __array_interface__ = dict()
 
     def __init__(self, UCXWorker worker):
         cdef ucs_status_t status
@@ -425,10 +425,6 @@ cdef class UCXAddress(UCXObject):
         status = ucp_worker_get_address(ucp_worker, &self._handle, &self._length)
         assert_ucs_status(status)
         self.worker = worker
-        self.__array_interface__["data"] = (<uintptr_t>self._handle, True)
-        self.__array_interface__["typestr"] = "|V1"
-        self.__array_interface__["shape"] = [self._length]
-        self.__array_interface__["version"] = 3
         self.add_handle_finalizer(
             _ucx_address_finalizer,
             int(<uintptr_t>self._handle),
@@ -444,6 +440,28 @@ cdef class UCXAddress(UCXObject):
     def length(self):
         return int(self._length)
 
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
+            raise BufferError("Requested writable view on readonly data")
+        buffer.buf = <void*>self._handle
+        buffer.obj = self
+        buffer.len = self._length
+        buffer.readonly = True
+        buffer.itemsize = self._length
+        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
+            buffer.format = b"p"
+        else:
+            buffer.format = NULL
+        buffer.ndim = 1
+        if (flags & PyBUF_ND) == PyBUF_ND:
+            buffer.shape = <Py_ssize_t *>&self._length
+        else:
+            buffer.shape = NULL
+        buffer.strides = NULL
+        buffer.suboffsets = NULL
+        buffer.internal = NULL
+    def __releasebuffer__(self, Py_buffer *buffer):
+        pass
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
