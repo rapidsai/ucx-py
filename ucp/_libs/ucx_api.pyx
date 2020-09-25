@@ -10,8 +10,8 @@ import weakref
 
 from posix.stdio cimport open_memstream
 
-from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from cpython.buffer cimport PyBUF_WRITABLE, PyBUF_ND, PyBUF_FORMAT
+from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE, fclose, fflush
 from libc.stdlib cimport free
@@ -460,8 +460,10 @@ cdef class UCXAddress(UCXObject):
         buffer.strides = NULL
         buffer.suboffsets = NULL
         buffer.internal = NULL
+
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
+
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, inflight_msgs):
     assert worker.initialized
