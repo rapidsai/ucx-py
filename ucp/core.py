@@ -483,9 +483,6 @@ class Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._shutting_down_peer = False  # Told peer to shutdown
-        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        tls = ctx.get_config()["TLS"]
-        self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
     @property
@@ -566,7 +563,7 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._cuda_support and buffer.cuda:
+        if not self._ctx.context.cuda_support and buffer.cuda:
             raise ValueError(
                 "UCX is not configured with CUDA support, please add "
                 "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
@@ -611,7 +608,7 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._cuda_support and buffer.cuda:
+        if not self._ctx.context.cuda_support and buffer.cuda:
             raise ValueError(
                 "UCX is not configured with CUDA support, please add "
                 "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
@@ -647,7 +644,7 @@ class Endpoint:
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
-        return self._cuda_support
+        return self._ctx.context.cuda_support
 
     def get_ucp_worker(self):
         """Returns the underlying UCP worker handle (ucp_worker_h)
