@@ -10,7 +10,7 @@ import weakref
 
 from posix.stdio cimport open_memstream
 
-from cpython.buffer cimport PyBUF_WRITABLE, PyBUF_ND, PyBUF_FORMAT
+from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE, fclose, fflush
