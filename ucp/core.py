@@ -563,15 +563,6 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._ctx.context.cuda_support and buffer.cuda:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
         nbytes = buffer.nbytes
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
@@ -608,15 +599,6 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._ctx.context.cuda_support and buffer.cuda:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
         nbytes = buffer.nbytes
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
