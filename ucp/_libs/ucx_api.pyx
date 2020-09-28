@@ -241,7 +241,7 @@ cdef class UCXContext(UCXObject):
 
         # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
         cdef str tls = self._config["TLS"]
-        self.cuda_support = "cuda" in tls or tls == "all"
+        self.cuda_support = tls == "all" or "cuda" in tls
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
