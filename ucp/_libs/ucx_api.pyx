@@ -929,15 +929,21 @@ def tag_recv_nb(
         name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
-    if buffer.cuda and not worker._context.cuda_support:
-        raise ValueError(
-            "UCX is not configured with CUDA support, please add "
-            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-            "variable and that the ucx-proc=*=gpu package is "
-            "installed. See "
-            "https://ucx-py.readthedocs.io/en/latest/install.html for "
-            "more information."
-        )
+    cdef bint cuda_support
+    if buffer.cuda:
+        if ep is None:
+            cuda_support = worker._context.cuda_support
+        else:
+            cuda_support = ep.worker._context.cuda_support
+        if not cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
     if not buffer._contiguous():
         raise ValueError("Array must be C or F contiguous")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
