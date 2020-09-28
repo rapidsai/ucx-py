@@ -208,6 +208,7 @@ cdef class UCXContext(UCXObject):
     cdef:
         ucp_context_h _handle
         dict _config
+        readonly bint cuda_support
 
     def __init__(self, config_dict):
         cdef ucp_params_t ucp_params
@@ -237,6 +238,10 @@ cdef class UCXContext(UCXObject):
             self._config = ucx_config_to_dict(config)
         finally:
             ucp_config_release(config)
+
+        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
+        cdef str tls = self._config["TLS"]
+        self.cuda_support = "cuda" in tls or tls == "all"
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
