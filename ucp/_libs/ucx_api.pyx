@@ -932,9 +932,9 @@ def tag_recv_nb(
     cdef bint cuda_support
     if buffer.cuda:
         if ep is None:
-            cuda_support = worker._context.cuda_support
+            cuda_support = <bint>worker._context.cuda_support
         else:
-            cuda_support = ep.worker._context.cuda_support
+            cuda_support = <bint>ep.worker._context.cuda_support
         if not cuda_support:
             raise ValueError(
                 "UCX is not configured with CUDA support, please add "
