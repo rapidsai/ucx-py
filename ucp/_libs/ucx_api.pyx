@@ -208,6 +208,7 @@ cdef class UCXContext(UCXObject):
     cdef:
         ucp_context_h _handle
         dict _config
+        readonly bint cuda_support
 
     def __init__(self, config_dict):
         cdef ucp_params_t ucp_params
@@ -237,6 +238,10 @@ cdef class UCXContext(UCXObject):
             self._config = ucx_config_to_dict(config)
         finally:
             ucp_config_release(config)
+
+        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
+        cdef str tls = self._config["TLS"]
+        self.cuda_support = tls == "all" or "cuda" in tls
 
         self.add_handle_finalizer(
             _ucx_context_handle_finalizer,
@@ -786,6 +791,17 @@ def tag_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "tag_send_nb"
+    if buffer.cuda and not ep.worker._context.cuda_support:
+        raise ValueError(
+            "UCX is not configured with CUDA support, please add "
+            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+            "variable and that the ucx-proc=*=gpu package is "
+            "installed. See "
+            "https://ucx-py.readthedocs.io/en/latest/install.html for "
+            "more information."
+        )
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_tag_send_nb(
         ep._handle,
@@ -913,6 +929,23 @@ def tag_recv_nb(
         name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    cdef bint cuda_support
+    if buffer.cuda:
+        if ep is None:
+            cuda_support = <bint>worker._context.cuda_support
+        else:
+            cuda_support = <bint>ep.worker._context.cuda_support
+        if not cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_tag_recv_callback_t _tag_recv_cb = (
         <ucp_tag_recv_callback_t>_tag_recv_callback
     )
@@ -982,6 +1015,17 @@ def stream_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "stream_send_nb"
+    if buffer.cuda and not ep.worker._context.cuda_support:
+        raise ValueError(
+            "UCX is not configured with CUDA support, please add "
+            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+            "variable and that the ucx-proc=*=gpu package is "
+            "installed. See "
+            "https://ucx-py.readthedocs.io/en/latest/install.html for "
+            "more information."
+        )
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
     cdef ucs_status_ptr_t status = ucp_stream_send_nb(
         ep._handle,
@@ -1091,6 +1135,17 @@ def stream_recv_nb(
         name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    if buffer.cuda and not ep.worker._context.cuda_support:
+        raise ValueError(
+            "UCX is not configured with CUDA support, please add "
+            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+            "variable and that the ucx-proc=*=gpu package is "
+            "installed. See "
+            "https://ucx-py.readthedocs.io/en/latest/install.html for "
+            "more information."
+        )
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
     cdef size_t length
     cdef ucp_stream_recv_callback_t _stream_recv_cb = (
         <ucp_stream_recv_callback_t>_stream_recv_callback

@@ -98,11 +98,11 @@ class EndpointReuse:
 
         return core.create_listener(_handle, port=port)
 
-    async def send(self, buffer, nbytes=-1):
-        await self.handle.ep.send(buffer, nbytes=nbytes, tag=self.tag)
+    async def send(self, buffer):
+        await self.handle.ep.send(buffer, tag=self.tag)
 
-    async def recv(self, buffer, nbytes=-1):
-        await self.handle.ep.recv(buffer, nbytes=nbytes, tag=self.tag)
+    async def recv(self, buffer):
+        await self.handle.ep.recv(buffer, tag=self.tag)
 
     async def close(self):
         if self.closed():

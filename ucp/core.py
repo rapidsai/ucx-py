@@ -483,9 +483,6 @@ class Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._shutting_down_peer = False  # Told peer to shutdown
-        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        tls = ctx.get_config()["TLS"]
-        self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
     @property
@@ -551,7 +548,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, nbytes=-1, tag=None):
+    async def send(self, buffer, tag=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -559,8 +556,6 @@ class Endpoint:
         buffer: exposing the buffer protocol or array/cuda interface
             The buffer to send. Raise ValueError if buffer is smaller
             than nbytes.
-        nbytes: int, optional
-            Number of bytes to send. Default is the whole buffer.
         tag: hashable, optional
             Set a tag that the receiver must match.
         """
@@ -568,25 +563,12 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._cuda_support and buffer.cuda:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
-        if not buffer.c_contiguous:
-            raise ValueError("Array must be C-contiguous")
-        buffer_nbytes = buffer.nbytes
-        if nbytes > 0 and buffer_nbytes < nbytes:
-            raise ValueError("the nbytes is greater than the size of the buffer!")
+        nbytes = buffer.nbytes
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
             hex(self._msg_tag_send),
-            buffer_nbytes,
+            nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
@@ -597,10 +579,10 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_send, hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await comm.tag_send(self._ep, buffer, buffer_nbytes, tag, name=log)
+        return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, nbytes=-1, tag=None):
+    async def recv(self, buffer, tag=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -608,8 +590,6 @@ class Endpoint:
         buffer: exposing the buffer protocol or array/cuda interface
             The buffer to receive into. Raise ValueError if buffer
             is smaller than nbytes or read-only.
-        nbytes: int, optional
-            Number of bytes to receive. Default is the whole buffer.
         tag: hashable, optional
             Set a tag that must match the received message. Notice, currently
             UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
@@ -619,25 +599,12 @@ class Endpoint:
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        if not self._cuda_support and buffer.cuda:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
-        if not buffer.c_contiguous:
-            raise ValueError("Array must be C-contiguous")
-        buffer_nbytes = buffer.nbytes
-        if nbytes > 0 and buffer_nbytes < nbytes:
-            raise ValueError("the nbytes is greater than the size of the buffer!")
+        nbytes = buffer.nbytes
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
             hex(self._msg_tag_recv),
-            buffer_nbytes,
+            nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
@@ -648,7 +615,7 @@ class Endpoint:
             tag = hash64bits(self._msg_tag_recv, hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await comm.tag_recv(self._ep, buffer, buffer_nbytes, tag, name=log)
+        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
@@ -659,7 +626,7 @@ class Endpoint:
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
-        return self._cuda_support
+        return self._ctx.context.cuda_support
 
     def get_ucp_worker(self):
         """Returns the underlying UCP worker handle (ucp_worker_h)
@@ -756,7 +723,7 @@ class Endpoint:
         await self.recv(nbytes, tag=tag)
         nbytes = nbytes[0]
         ret = allocator(nbytes)
-        await self.recv(ret, nbytes=nbytes, tag=tag)
+        await self.recv(ret, tag=tag)
         return ret
 
 
