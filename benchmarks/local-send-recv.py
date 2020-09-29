@@ -198,7 +198,7 @@ def parse_args():
         metavar="N",
         default=10,
         type=int,
-        help="Numer of send / recv iterations (default 10).",
+        help="Number of send / recv iterations (default 10).",
     )
     parser.add_argument(
         "-b",
