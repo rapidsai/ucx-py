@@ -44,7 +44,7 @@ cdef void ucx_py_request_reset(void* request):
     req.info = NULL
 
 # Counter used as UCXRequest UIDs
-cdef int _ucx_py_request_counter = 0
+cdef unsigned int _ucx_py_request_counter = 0
 
 
 logger = logging.getLogger("ucx")
@@ -584,7 +584,7 @@ cdef class UCXRequest:
     """
     cdef:
         ucx_py_request *_handle
-        int _uid
+        unsigned int _uid
 
     def __init__(self, uintptr_t req_as_int):
         global _ucx_py_request_counter
