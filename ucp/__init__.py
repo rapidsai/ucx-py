@@ -39,11 +39,11 @@ if not os.environ.get("UCX_TCP_TX_SEG_SIZE", False):
 if not os.environ.get("UCX_TCP_RX_SEG_SIZE", False):
     os.environ["UCX_TCP_RX_SEG_SIZE"] = "8M"
 
-if os.environ.get("UCX_MEM_MMAP_HOOK_MODE", False):
+if os.environ.get("UCX_MEM_MMAP_HOOK_MODE", False) == "none":
     msg = (
-        "Setting `UCX_MEM_MMAP_HOOK_MODE` disable IB registration cache "
-        "which disable GPURDMAincluding GPU direct. \nPlease unset "
-        "UCX_MEM_MMAP_HOOK_MODE"
+        "WARNING: Disabling UCX memory hooks also disables IB registration "
+        "cache and zero-copy flows in UCX. This can cause serious performance "
+        "degradation."
     )
     logger.warning(msg)
 

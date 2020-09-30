@@ -14,4 +14,4 @@ def test_mem_mmap_hook_warn(caplog):
         import ucp
 
         ucp.init()
-    assert any(["UCX_MEM_MMAP_HOOK_MODE" in rec.message for rec in caplog.records])
+    assert any(["UCX memory hooks" in rec.message for rec in caplog.records])
