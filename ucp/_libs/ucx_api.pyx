@@ -415,16 +415,18 @@ def _ucx_address_finalizer(uintptr_t handle_as_int, UCXWorker worker):
 cdef class UCXAddress(UCXObject):
     """Python representation of ucp_address_t"""
     cdef ucp_address_t *_handle
-    cdef size_t _length
+    cdef Py_ssize_t _length
     cdef worker
 
     def __init__(self, UCXWorker worker):
         cdef ucs_status_t status
         cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
+        cdef size_t length
 
-        status = ucp_worker_get_address(ucp_worker, &self._handle, &self._length)
+        status = ucp_worker_get_address(ucp_worker, &self._handle, &length)
         assert_ucs_status(status)
         self.worker = worker
+        self._length = <Py_ssize_t>length
         self.add_handle_finalizer(
             _ucx_address_finalizer,
             int(<uintptr_t>self._handle),
@@ -454,7 +456,7 @@ cdef class UCXAddress(UCXObject):
             buffer.format = NULL
         buffer.ndim = 1
         if (flags & PyBUF_ND) == PyBUF_ND:
-            buffer.shape = <Py_ssize_t *>&self._length
+            buffer.shape = &self._length
         else:
             buffer.shape = NULL
         buffer.strides = NULL
