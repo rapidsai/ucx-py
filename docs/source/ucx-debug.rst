@@ -23,7 +23,7 @@ Perf test for IB should be in the 10+ GB/s range
 ::
 
     CUDA_VISIBLE_DEVICES=0 UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=rc,cuda_copy ucx_perftest -t tag_bw -m cuda -s 10000000 -n 10 -p 9999 & \
-    CUDA_VISIBLE_DEVICES= 1UCX_NET_DEVICES=mlx5_1:1 UCX_TLS=rc,cuda_copy ucx_perftest `hostname` -t tag_bw -m cuda -s 100000000 -n 10 -p 9999
+    CUDA_VISIBLE_DEVICES=1 UCX_NET_DEVICES=mlx5_1:1 UCX_TLS=rc,cuda_copy ucx_perftest `hostname` -t tag_bw -m cuda -s 100000000 -n 10 -p 9999
 
     +--------------+-----------------------------+---------------------+-----------------------+
     |              |       latency (usec)        |   bandwidth (MB/s)  |  message rate (msg/s) |
