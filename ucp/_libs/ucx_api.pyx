@@ -301,7 +301,7 @@ def _ucx_worker_handle_finalizer(
         req_info = req.info
         name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
-        ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
+        ucp_request_cancel(handle, <void*>req._handle)
 
     ucp_worker_destroy(handle)
 
