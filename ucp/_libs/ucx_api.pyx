@@ -609,7 +609,7 @@ cdef class UCXRequest:
         else:
             self._uid = self._handle.uid
 
-    def closed(self):
+    cpdef bint closed(self):
         return self._handle == NULL or self._uid != self._handle.uid
 
     def close(self):
