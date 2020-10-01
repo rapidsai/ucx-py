@@ -674,7 +674,7 @@ cdef UCXRequest _handle_status(
     cdef dict req_info = <dict>req._handle.info
     if req_info["status"] == "finished":
         try:
-            # The callback function has already handle the request
+            # The callback function has already handled the request
             received = req_info.get("received", None)
             if received is not None and received != expected_receive:
                 msg += "length mismatch: %d (got) != %d (expected)" % (
