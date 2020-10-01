@@ -298,7 +298,7 @@ def _ucx_worker_handle_finalizer(
     cdef str name
     for req in list(inflight_msgs):
         assert not req.closed()
-        req_info = req.info
+        req_info = <dict>req._handle.info
         name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
         ucp_request_cancel(handle, <void*>req._handle)
@@ -434,7 +434,8 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef dict req_info
     cdef str name
     for req in list(inflight_msgs):
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
@@ -669,8 +670,9 @@ cdef UCXRequest _handle_status(
         msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         raise UCXError(msg)
     cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
+    assert not req.closed()
     cdef dict req_info
-    req_info = req.info
+    req_info = <dict>req._handle.info
     if req_info["status"] == "finished":
         try:
             # The callback function has already handle the request
@@ -705,7 +707,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
@@ -827,7 +830,8 @@ cdef void _tag_recv_callback(
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
@@ -1051,7 +1055,8 @@ cdef void _stream_recv_callback(
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
