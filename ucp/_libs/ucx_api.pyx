@@ -612,7 +612,7 @@ cdef class UCXRequest:
     cpdef bint closed(self):
         return self._handle == NULL or self._uid != self._handle.uid
 
-    def close(self):
+    cpdef close(self):
         """This routine releases the non-blocking request back to UCX,
         regardless of its current state. Communications operations associated with
         this request will make progress internally, however no further notifications or
