@@ -671,8 +671,7 @@ cdef UCXRequest _handle_status(
         raise UCXError(msg)
     cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
     assert not req.closed()
-    cdef dict req_info
-    req_info = <dict>req._handle.info
+    cdef dict req_info = <dict>req._handle.info
     if req_info["status"] == "finished":
         try:
             # The callback function has already handle the request
