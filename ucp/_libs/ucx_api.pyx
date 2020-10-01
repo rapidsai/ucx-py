@@ -31,7 +31,7 @@ from ..utils import nvtx_annotate
 # Struct used as requests by UCX
 cdef struct ucx_py_request:
     bint finished  # Used by downstream projects such as cuML
-    int uid
+    unsigned int uid
     PyObject *info
 
 
