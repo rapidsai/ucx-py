@@ -88,7 +88,7 @@ UCX
     make -j install
 
 .. note::
-    If you're running on a machine without CUDA then you can skip applying the patches
+    If you're running on a machine without CUDA then you _must NOT_ apply the patches.
 
 UCX + OFED
 ~~~~~~~~~~
