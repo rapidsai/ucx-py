@@ -665,9 +665,12 @@ cdef UCXRequest _handle_status(
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
-    cdef str msg = "<%s>: " % name
+    cdef str ucx_status_msg, msg
     if UCS_PTR_IS_ERR(status):
-        msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        ucx_status_msg = (
+            ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        )
+        msg = "<%s>: %s" % (name, ucx_status_msg)
         raise UCXError(msg)
     cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
     assert not req.closed()
@@ -677,8 +680,8 @@ cdef UCXRequest _handle_status(
             # The callback function has already handled the request
             received = req_info.get("received", None)
             if received is not None and received != expected_receive:
-                msg += "length mismatch: %d (got) != %d (expected)" % (
-                    received, expected_receive
+                msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
+                    name, received, expected_receive
                 )
                 raise UCXMsgTruncated(msg)
             else:
