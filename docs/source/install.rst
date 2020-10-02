@@ -74,7 +74,7 @@ UCX
     cd ucx
     git checkout v1.8.x
     # apply UCX IB registration cache patches, improves overall
-    # IB performance when using a memory pool
+    # CUDA IB performance when using a memory pool
     curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch
     curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch
     git apply ib_registration_cache.patch && git apply add-page-alignment.patch
@@ -86,6 +86,9 @@ UCX
     # Debug build
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
     make -j install
+
+.. note::
+    If you're running on a machine without CUDA then you can skip applying the patches
 
 UCX + OFED
 ~~~~~~~~~~
