@@ -169,7 +169,7 @@ cdef class UCXObject:
         # List of weak references of UCX objects that make use of this object
         self._children = []
 
-    def close(self):
+    cpdef void close(self) except *:
         """Close the object and free the underlying UCX handle.
         Does nothing if the object is already closed
         """
@@ -181,7 +181,7 @@ cdef class UCXObject:
         """Is the underlying UCX handle initialized"""
         return self._finalizer and self._finalizer.alive
 
-    def add_child(self, child):
+    cpdef void add_child(self, child) except *:
         """Add a UCX object to this object's children. The underlying UCX
         handle will be freed when this obejct is freed.
         """
@@ -253,7 +253,7 @@ cdef class UCXContext(UCXObject):
         for k, v in self._config.items():
             logger.info(f"  {k}: {v}")
 
-    def get_config(self):
+    cpdef dict get_config(self):
         return self._config
 
     @property
@@ -298,10 +298,10 @@ def _ucx_worker_handle_finalizer(
     cdef str name
     for req in list(inflight_msgs):
         assert not req.closed()
-        req_info = req.info
+        req_info = <dict>req._handle.info
         name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
-        ucp_request_cancel(handle, <void*><uintptr_t>req.handle)
+        ucp_request_cancel(handle, <void*>req._handle)
 
     ucp_worker_destroy(handle)
 
@@ -358,7 +358,7 @@ cdef class UCXWorker(UCXObject):
             raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
 
-    def arm(self):
+    cpdef bint arm(self) except *:
         assert self.initialized
         cdef ucs_status_t status
         status = ucp_worker_arm(self._handle)
@@ -378,7 +378,7 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
-    def request_cancel(self, UCXRequest req):
+    cpdef void request_cancel(self, UCXRequest req) except *:
         assert self.initialized
         assert not req.closed()
 
@@ -434,7 +434,8 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef dict req_info
     cdef str name
     for req in list(inflight_msgs):
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         name = req_info["name"]
         logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
@@ -608,10 +609,10 @@ cdef class UCXRequest:
         else:
             self._uid = self._handle.uid
 
-    def closed(self):
+    cpdef bint closed(self):
         return self._handle == NULL or self._uid != self._handle.uid
 
-    def close(self):
+    cpdef void close(self) except *:
         """This routine releases the non-blocking request back to UCX,
         regardless of its current state. Communications operations associated with
         this request will make progress internally, however no further notifications or
@@ -664,20 +665,23 @@ cdef UCXRequest _handle_status(
 ):
     if UCS_PTR_STATUS(status) == UCS_OK:
         return
-    cdef str msg = "<%s>: " % name
+    cdef str ucx_status_msg, msg
     if UCS_PTR_IS_ERR(status):
-        msg += ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        ucx_status_msg = (
+            ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+        )
+        msg = "<%s>: %s" % (name, ucx_status_msg)
         raise UCXError(msg)
     cdef UCXRequest req = UCXRequest(<uintptr_t><void*> status)
-    cdef dict req_info
-    req_info = req.info
+    assert not req.closed()
+    cdef dict req_info = <dict>req._handle.info
     if req_info["status"] == "finished":
         try:
-            # The callback function has already handle the request
+            # The callback function has already handled the request
             received = req_info.get("received", None)
             if received is not None and received != expected_receive:
-                msg += "length mismatch: %d (got) != %d (expected)" % (
-                    received, expected_receive
+                msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
+                    name, received, expected_receive
                 )
                 raise UCXMsgTruncated(msg)
             else:
@@ -705,7 +709,8 @@ cdef void _send_callback(void *request, ucs_status_t status):
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
@@ -827,7 +832,8 @@ cdef void _tag_recv_callback(
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
@@ -1051,7 +1057,8 @@ cdef void _stream_recv_callback(
     cdef dict cb_kwargs
     with log_errors():
         req = UCXRequest(<uintptr_t><void*> request)
-        req_info = req.info
+        assert not req.closed()
+        req_info = <dict>req._handle.info
         req_info["status"] = "finished"
 
         if "cb_func" not in req_info:
