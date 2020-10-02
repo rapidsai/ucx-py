@@ -436,22 +436,25 @@ cdef class UCXAddress(UCXObject):
 
     @property
     def address(self):
+        assert self.initialized
         return <uintptr_t>self._handle
 
     @property
     def length(self):
+        assert self.initialized
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
+        assert self.initialized
         if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
             raise BufferError("Requested writable view on readonly data")
         buffer.buf = <void*>self._handle
         buffer.obj = self
         buffer.len = self._length
         buffer.readonly = True
-        buffer.itemsize = self._length
+        buffer.itemsize = 1
         if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
-            buffer.format = b"p"
+            buffer.format = b"B"
         else:
             buffer.format = NULL
         buffer.ndim = 1
