@@ -83,7 +83,7 @@ Process 2 - Client
 
         # send message
         print("Send Original NumPy array")
-        await ep.send(msg, msg_size)  # send the real message
+        await ep.send(msg)  # send the real message
 
         # recv response
         print("Receive Incremented NumPy arrays")
@@ -163,7 +163,7 @@ Process 2 - Client
 
         # send message
         print("Send Original CuPy array")
-        await ep.send(msg, msg_size)  # send the real message
+        await ep.send(msg)  # send the real message
 
         # recv response
         print("Receive Incremented CuPy arrays")
