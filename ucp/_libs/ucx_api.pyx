@@ -169,7 +169,7 @@ cdef class UCXObject:
         # List of weak references of UCX objects that make use of this object
         self._children = []
 
-    def close(self):
+    cpdef void close(self) except *:
         """Close the object and free the underlying UCX handle.
         Does nothing if the object is already closed
         """
@@ -181,7 +181,7 @@ cdef class UCXObject:
         """Is the underlying UCX handle initialized"""
         return self._finalizer and self._finalizer.alive
 
-    def add_child(self, child):
+    cpdef void add_child(self, child) except *:
         """Add a UCX object to this object's children. The underlying UCX
         handle will be freed when this obejct is freed.
         """
@@ -253,7 +253,7 @@ cdef class UCXContext(UCXObject):
         for k, v in self._config.items():
             logger.info(f"  {k}: {v}")
 
-    def get_config(self):
+    cpdef dict get_config(self):
         return self._config
 
     @property
@@ -358,7 +358,7 @@ cdef class UCXWorker(UCXObject):
             raise IOError("epoll_ctl() returned %d" % err)
         return epoll_fd
 
-    def arm(self):
+    cpdef bint arm(self) except *:
         assert self.initialized
         cdef ucs_status_t status
         status = ucp_worker_arm(self._handle)
@@ -378,7 +378,7 @@ cdef class UCXWorker(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
-    def request_cancel(self, UCXRequest req):
+    cpdef void request_cancel(self, UCXRequest req) except *:
         assert self.initialized
         assert not req.closed()
 
@@ -612,7 +612,7 @@ cdef class UCXRequest:
     cpdef bint closed(self):
         return self._handle == NULL or self._uid != self._handle.uid
 
-    cpdef close(self):
+    cpdef void close(self) except *:
         """This routine releases the non-blocking request back to UCX,
         regardless of its current state. Communications operations associated with
         this request will make progress internally, however no further notifications or
