@@ -4,8 +4,7 @@ import pickle
 import numpy as np
 import pytest
 
-from distributed.comm.utils import to_frames  # noqa
-from distributed.utils import nbytes  # noqa
+from distributed.utils import nbytes
 
 import ucp
 
@@ -43,8 +42,6 @@ async def test_send_recv_cudf(event_loop, g):
     class UCX:
         def __init__(self, ep):
             self.ep = ep
-            loop = asyncio.get_event_loop()
-            self.queue = asyncio.Queue(loop=loop)
 
         async def write(self, cdf):
             header, _frames = cdf.serialize()
