@@ -850,7 +850,7 @@ cdef void _tag_recv_callback(
             ucx_status_msg = ucs_status_string(status).decode("utf-8")
             msg = "<%s>: %s" % (name, ucx_status_msg)
             exception = UCXError(msg)
-        elif info.length != req_info["expected_receive"]:
+        elif info.length != <size_t>req_info["expected_receive"]:
             name = req_info["name"]
             msg = "<%s>: length mismatch: %d (got) != %d (expected)" % (
                 name, info.length, req_info["expected_receive"]
