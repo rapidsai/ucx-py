@@ -40,9 +40,9 @@ def make_echo_server(create_empty_data):
         Basic echo server for sized messages.
         We expect the other endpoint to follow the pattern::
         # size of the real message (in bytes)
-        >>> await ep.send(msg_size, np.uint64().nbytes)
-        >>> await ep.send(msg, msg_size)       # send the real message
-        >>> await ep.recv(responds, msg_size)  # receive the echo
+        >>> await ep.send(msg_size)
+        >>> await ep.send(msg)       # send the real message
+        >>> await ep.recv(responds)  # receive the echo
         """
         msg_size = np.empty(1, dtype=np.uint64)
         await ep.recv(msg_size)
