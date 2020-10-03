@@ -406,9 +406,9 @@ cdef class UCXWorker(UCXObject):
         return UCXAddress(self)
 
 
-def _ucx_address_finalizer(uintptr_t handle_as_int, UCXWorker worker):
+def _ucx_address_finalizer(uintptr_t handle_as_int, uintptr_t worker_as_int):
     cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
-    cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
+    cdef ucp_worker_h ucp_worker = <ucp_worker_h>worker_as_int
     ucp_worker_release_address(ucp_worker, address)
 
 
@@ -430,7 +430,7 @@ cdef class UCXAddress(UCXObject):
         self.add_handle_finalizer(
             _ucx_address_finalizer,
             int(<uintptr_t>self._handle),
-            worker
+            int(<uintptr_t>worker._handle)
         )
         worker.add_child(self)
 
