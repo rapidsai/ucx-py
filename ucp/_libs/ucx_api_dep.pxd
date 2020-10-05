@@ -126,8 +126,10 @@ cdef extern from "ucp/api/ucp.h":
                                    ucp_worker_h *worker_p)
     void ucp_worker_destroy(ucp_worker_h worker)
 
-    ctypedef struct ucp_listener_h:
+    ctypedef struct ucp_listener:
         pass
+
+    ctypedef ucp_listener* ucp_listener_h
 
     ucs_status_t ucp_listener_create(ucp_worker_h worker,
                                      const ucp_listener_params_t *params,
