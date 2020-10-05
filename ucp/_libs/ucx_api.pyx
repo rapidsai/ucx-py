@@ -274,7 +274,7 @@ cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
 
 cdef ucp_err_handler_cb_t _get_error_callback(
     str tls, bint endpoint_error_handling
-):
+) except *:
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
     cdef str t
     cdef list transports
