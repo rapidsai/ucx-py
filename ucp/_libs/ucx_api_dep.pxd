@@ -208,6 +208,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef enum ucs_config_print_flags_t:
         pass
+
     ucs_config_print_flags_t UCS_CONFIG_PRINT_CONFIG
     void ucp_config_print(const ucp_config_t *config,
                           FILE *stream,
