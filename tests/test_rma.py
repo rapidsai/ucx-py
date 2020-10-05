@@ -81,7 +81,7 @@ async def test_send_recv_addr(blocking_progress_mode):
     msg = ucp.get_worker_address()
     msg_size = np.array([len(bytes(msg))], dtype=np.uint64)
     listener = ucp.create_listener(make_echo_server(lambda n: bytearray(n)))
-    client = await ucp.create_endpoint(ucp.get_address("wlp7s0"), listener.port)
+    client = await ucp.create_endpoint(ucp.get_address(), listener.port)
 
     await client.send(msg_size)
     await client.send(msg)

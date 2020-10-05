@@ -543,7 +543,11 @@ cdef class UCXEndpoint(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
-    def flush(self, cb_func, cb_args, cb_kwargs=dict()):
+    def flush(self, cb_func, cb_args=None, cb_kwargs=None):
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
         cdef ucs_status_ptr_t req
         cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
 
