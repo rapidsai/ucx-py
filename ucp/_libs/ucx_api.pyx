@@ -424,7 +424,7 @@ cdef class UCXAddress(UCXObject):
 
     def __init__(self, UCXWorker worker):
         cdef ucs_status_t status
-        cdef ucp_worker_h ucp_worker = <ucp_worker_h><uintptr_t>worker.handle
+        cdef ucp_worker_h ucp_worker = worker._handle
         cdef size_t length
 
         status = ucp_worker_get_address(ucp_worker, &self._handle, &length)
