@@ -28,8 +28,7 @@ cdef extern from "src/c_util.h":
 
     ctypedef ucp_conn_request* ucp_conn_request_h
 
-    ctypedef struct ucp_err_handler_cb_t:
-        pass
+    ctypedef void(*ucp_err_handler_cb_t)(void *arg, ucp_ep_h ep, ucs_status_t status)
 
     ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
 
@@ -127,8 +126,10 @@ cdef extern from "ucp/api/ucp.h":
                                    ucp_worker_h *worker_p)
     void ucp_worker_destroy(ucp_worker_h worker)
 
-    ctypedef struct ucp_listener_h:
+    ctypedef struct ucp_listener:
         pass
+
+    ctypedef ucp_listener* ucp_listener_h
 
     ucs_status_t ucp_listener_create(ucp_worker_h worker,
                                      const ucp_listener_params_t *params,
@@ -207,6 +208,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef enum ucs_config_print_flags_t:
         pass
+
     ucs_config_print_flags_t UCS_CONFIG_PRINT_CONFIG
     void ucp_config_print(const ucp_config_t *config,
                           FILE *stream,
