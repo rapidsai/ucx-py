@@ -272,8 +272,9 @@ cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     logger.error(msg)
 
 
-cdef ucp_err_handler_cb_t _get_error_callback(str tls,
-                                              bint endpoint_error_handling):
+cdef ucp_err_handler_cb_t _get_error_callback(
+    str tls, bint endpoint_error_handling
+):
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
     cdef str t
     cdef list transports
