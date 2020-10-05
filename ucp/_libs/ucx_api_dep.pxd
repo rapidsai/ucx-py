@@ -28,8 +28,7 @@ cdef extern from "src/c_util.h":
 
     ctypedef ucp_conn_request* ucp_conn_request_h
 
-    ctypedef struct ucp_err_handler_cb_t:
-        pass
+    ctypedef void(*ucp_err_handler_cb_t)(void *arg, ucp_ep_h ep, ucs_status_t status)
 
     ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
 
