@@ -519,7 +519,7 @@ cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
 
 
 def _ucx_listener_handle_finalizer(uintptr_t handle):
-    ucp_listener_destroy(<ucp_listener_h> handle)
+    ucp_listener_destroy(<ucp_listener_h><void*>handle)
 
 
 cdef class UCXListener(UCXObject):
