@@ -112,8 +112,8 @@ NVLink Performance
                 10     0.000  4163.694  4163.694   22904.52   22904.52         240         240
 
 
-ExperimentalDebugging
----------------------
+Experimental Debugging
+----------------------
 
 A list of problems we have run into along the way while trying to understand performance issues with UCX/UCX-Py:
 
