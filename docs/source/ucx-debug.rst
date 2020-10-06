@@ -18,7 +18,7 @@ System Configuration
     mlx5_2 port 1 ==> ib2 (Up)
     mlx5_3 port 1 ==> ib3 (Up)
 
-``ucx_info -d`` and ``ucx_info -p -u t`` are helpful commands to display what UCX understand about the underlying hardware
+``ucx_info -d`` and ``ucx_info -p -u t`` are helpful commands to display what UCX understands about the underlying hardware
 
 
 InfiniBand Performance
@@ -47,7 +47,7 @@ InfiniBand Performance
                 10     0.000  9104.800  9104.800   10474.41   10474.41         110         110
 
 
-``-c`` option is NUMA dependent and sets the CPU Affinity of process for a partiular GPU.  CPU Affinity information can be found in ``nvidia-smi topo -m``
+``-c`` option is NUMA dependent and sets the CPU Affinity of process for a particular GPU.  CPU Affinity information can be found in ``nvidia-smi topo -m``
 ::
 
     user@mlnx:~$  nvidia-smi topo -m
@@ -81,8 +81,11 @@ NVLink
 System Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-Again, using the ``nvidia-smi topo -m`` command which show the hardware topology of the GPUs and display NVLink information.  For example, using the output above, we can see that GPUs 0-4 are conneted to another with NVLink,
-and GPUs 5-8 are also connected with NVLink.  However, these sets of GPUs are only connected to one another with InfiniBand.
+
+The NVLink connectivity on the system above (DGX-1) is not homogenous,
+some GPUs are connected by a single NVLink connection (NV1, e.g., GPUs 0 and
+1), others with two NVLink connections (NV2, e.g., GPUs 1 and 2), and some not
+connected at all via NVLink (SYS, e.g., GPUs 3 and 4)."
 
 NVLink Performance
 ~~~~~~~~~~~~~~~~~~
@@ -109,7 +112,7 @@ NVLink Performance
                 10     0.000  4163.694  4163.694   22904.52   22904.52         240         240
 
 
-Experiental Debugging
+ExperimentalDebugging
 ---------------------
 
 A list of problems we have run into along the way while trying to understand performance issues with UCX/UCX-Py:
