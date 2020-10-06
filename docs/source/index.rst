@@ -18,6 +18,8 @@ UCX-Py is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a lo
    configuration
    dask
    deployment
+   ucx-debug
+
 
 .. toctree::
    :maxdepth: 1
