@@ -21,8 +21,39 @@ cdef extern from "src/c_util.h":
 
     ctypedef ucp_ep* ucp_ep_h
 
-    ctypedef struct ucp_ep_params_t:
+    ctypedef enum ucp_err_handling_mode_t:
+        UCP_ERR_HANDLING_MODE_NONE
+        UCP_ERR_HANDLING_MODE_PEER
+
+    ctypedef void(* ucp_err_handler_cb_t) (void *arg, ucp_ep_h ep, ucs_status_t status)
+
+    ctypedef struct ucp_err_handler_t:
+        ucp_err_handler_cb_t cb
+        void *arg
+
+    ctypedef struct ucs_sock_addr_t:
         pass
+
+    ctypedef enum field_masks:
+        UCP_EP_PARAM_FIELD_REMOTE_ADDRESS = 1
+        UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE = 1<<1
+        UCP_EP_PARAM_FIELD_ERR_HANDLER = 1<<2
+        UCP_EP_PARAM_FIELD_USER_DATA = 1<<3
+        UCP_EP_PARAM_FIELD_SOCK_ADDR = 1<<4
+        UCP_EP_PARAM_FIELD_FLAGS = 1<<5
+        UCP_EP_PARAM_FIELD_CONN_REQUEST = 1<<6
+
+    ctypedef ucp_conn_request* ucp_conn_request_h
+
+    ctypedef struct ucp_ep_params_t:
+        uint64_t field_mask
+        const ucp_address_t *address
+        ucp_err_handling_mode_t err_mode
+        ucp_err_handler_t err_handler
+        void *user_data
+        unsigned flags
+        ucs_sock_addr_t sockaddr
+        ucp_conn_request_h conn_request
 
     ctypedef struct ucp_conn_request:
         pass
@@ -99,6 +130,9 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_FEATURE_TAG
     int UCP_FEATURE_WAKEUP
     int UCP_FEATURE_STREAM
+    int UCP_FEATURE_RMA
+    int UCP_FEATURE_AMO32
+    int UCP_FEATURE_AMO64
     ucs_status_t ucp_init(const ucp_params_t *params,
                           const ucp_config_t *config,
                           ucp_context_h *context_p)
