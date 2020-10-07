@@ -55,7 +55,7 @@ def _test_shutdown_unexpected_closed_peer_client(client_queue, server_queue):
 
 def test_shutdown_unexpected_closed_peer(caplog):
     """
-    Test clean client shutdown after unexpected peer close
+    Test clean server shutdown after unexpected peer close
 
     This will causes some UCX warnings to be issued, but this as expected.
     The main goal is to assert that the processes exit without errors
