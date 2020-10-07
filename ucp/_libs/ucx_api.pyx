@@ -220,7 +220,10 @@ cdef class UCXContext(UCXObject):
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT)
+                                 UCP_PARAM_FIELD_REQUEST_INIT |  # noqa
+                                 UCP_FEATURE_RMA |  # noqa
+                                 UCP_FEATURE_AMO32 |  # noqa
+                                 UCP_FEATURE_AMO64)
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
@@ -404,6 +407,30 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_get_ucp_ep_params_free(&params)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
+    def ep_create_from_address(self, Array address, endpoint_error_handling):
+        assert self.initialized
+        cdef ucp_ep_params_t params
+
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+
+        params.field_mask = (UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
+                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+                             UCP_EP_PARAM_FIELD_ERR_HANDLER)
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        if err_cb == <ucp_err_handler_cb_t>NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.address = <ucp_address_t*>address.ptr
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 

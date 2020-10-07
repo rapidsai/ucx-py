@@ -89,3 +89,17 @@ async def test_send_recv_addr(blocking_progress_mode):
     resp = bytearray(msg_size[0])
     await client.recv(resp)
     assert resp == bytes(msg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_talk_to_self(blocking_progress_mode):
+    addr = ucp.get_worker_address()
+    ep = ucp.create_one_sided_ep(addr)
+    # use send/recv with the same tag
+    ep.wireup_tags(1, 1, 2, 2)
+    await ep.send(addr)
+    msg_size = len(memoryview(addr))
+    in_buff = bytearray(msg_size)
+    await ep.recv(in_buff)
+    assert in_buff == bytes(addr)
