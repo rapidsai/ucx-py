@@ -243,7 +243,10 @@ cdef class UCXContext(UCXObject):
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT)
+                                 UCP_PARAM_FIELD_REQUEST_INIT |  # noqa
+                                 UCP_FEATURE_RMA |  # noqa
+                                 UCP_FEATURE_AMO32 |  # noqa
+                                 UCP_FEATURE_AMO64)
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
