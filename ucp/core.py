@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 import array
@@ -429,6 +430,15 @@ class ApplicationContext:
         """
         return self.context.get_config()
 
+    def fence(self):
+        return self.worker.fence()
+
+    async def flush(self):
+        return await comm.flush_worker(self.worker)
+
+    def get_worker_address(self):
+        return self.worker.get_address()
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -726,6 +736,9 @@ class Endpoint:
         await self.recv(ret, tag=tag)
         return ret
 
+    async def flush(self):
+        return await comm.flush_ep(self)
+
 
 # The following functions initialize and use a single ApplicationContext instance
 
@@ -855,6 +868,31 @@ def continuous_ucx_progress(event_loop=None):
 
 def get_ucp_worker():
     return _get_ctx().get_ucp_worker()
+
+
+def get_worker_address():
+    return _get_ctx().get_worker_address()
+
+
+async def flush():
+    """Flushes outstanding AMO and RMA operations. This ensures that the
+       operations issued on this worker have completed both locally and remotely.
+       This function does not guarantee ordering.
+    """
+    if _ctx is not None:
+        return await _get_ctx().flush()
+    else:
+        # If ctx is not initialized we still want to do the right thing by asyncio
+        return await asyncio.sleep(0)
+
+
+def fence():
+    """Ensures ordering of non-blocking communication operations on the UCP worker.
+       This function returns nothing, but will raise an error if it cannot make
+       this guarantee. This function does not ensure any operations have completed.
+    """
+    if _ctx is not None:
+        _get_ctx().fence()
 
 
 # Setting the __doc__
