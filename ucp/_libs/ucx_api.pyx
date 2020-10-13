@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
@@ -9,6 +10,7 @@ import weakref
 
 from posix.stdio cimport open_memstream
 
+from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport FILE, clearerr, fclose, fflush
@@ -424,6 +426,91 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    cpdef ucs_status_t fence(self) except *:
+        cdef ucs_status_t status = ucp_worker_fence(self._handle)
+        assert_ucs_status(status)
+        return status
+
+    def flush(self, cb_func, tuple cb_args=None, dict cb_kwargs=None):
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
+        cdef ucs_status_ptr_t req
+        cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
+
+        cdef ucs_status_ptr_t status = ucp_worker_flush_nb(self._handle, 0, _send_cb)
+        return _handle_status(
+            status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
+        )
+
+    def get_address(self):
+        return UCXAddress(self)
+
+
+def _ucx_address_finalizer(uintptr_t handle_as_int, uintptr_t worker_as_int):
+    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
+    cdef ucp_worker_h ucp_worker = <ucp_worker_h>worker_as_int
+    ucp_worker_release_address(ucp_worker, address)
+
+
+cdef class UCXAddress(UCXObject):
+    """Python representation of ucp_address_t"""
+    cdef ucp_address_t *_handle
+    cdef Py_ssize_t _length
+    cdef worker
+
+    def __init__(self, UCXWorker worker):
+        cdef ucs_status_t status
+        cdef ucp_worker_h ucp_worker = worker._handle
+        cdef size_t length
+
+        status = ucp_worker_get_address(ucp_worker, &self._handle, &length)
+        assert_ucs_status(status)
+        self.worker = worker
+        self._length = <Py_ssize_t>length
+        self.add_handle_finalizer(
+            _ucx_address_finalizer,
+            int(<uintptr_t>self._handle),
+            int(<uintptr_t>worker._handle)
+        )
+        worker.add_child(self)
+
+    @property
+    def address(self):
+        assert self.initialized
+        return <uintptr_t>self._handle
+
+    @property
+    def length(self):
+        assert self.initialized
+        return int(self._length)
+
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        assert self.initialized
+        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
+            raise BufferError("Requested writable view on readonly data")
+        buffer.buf = <void*>self._handle
+        buffer.obj = self
+        buffer.len = self._length
+        buffer.readonly = True
+        buffer.itemsize = 1
+        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
+            buffer.format = b"B"
+        else:
+            buffer.format = NULL
+        buffer.ndim = 1
+        if (flags & PyBUF_ND) == PyBUF_ND:
+            buffer.shape = &self._length
+        else:
+            buffer.shape = NULL
+        buffer.strides = NULL
+        buffer.suboffsets = NULL
+        buffer.internal = NULL
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        pass
+
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     assert worker.initialized
@@ -505,6 +592,19 @@ cdef class UCXEndpoint(UCXObject):
     def handle(self):
         assert self.initialized
         return int(<uintptr_t>self._handle)
+
+    def flush(self, cb_func, cb_args=None, cb_kwargs=None):
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
+        cdef ucs_status_ptr_t req
+        cdef ucp_send_callback_t _send_cb = <ucp_send_callback_t>_send_callback
+
+        cdef ucs_status_ptr_t status = ucp_ep_flush_nb(self._handle, 0, _send_cb)
+        return _handle_status(
+            status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
+        )
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
