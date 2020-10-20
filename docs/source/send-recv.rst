@@ -66,7 +66,7 @@ So what happens with ``create_endpoint`` ?  Unlike Sockets, UCX employs a tag-ma
 #. Exchange endpoint info such as tags
 #. Use the info to create an endpoint
 
-Again, an ``Endpoint`` sends and receives with `unique tags <http://openucx.github.io/ucx/api/v1.8/html/group___u_c_t___t_a_g.html>`_.
+Again, an ``Endpoint`` sends and receives with `unique tags <http://openucx.github.io/ucx/api/v1.9/html/group___u_c_t___t_a_g.html>`_.
 
 .. code-block:: python
 
@@ -99,7 +99,7 @@ Most users will not care about these details but developers and interested netwo
     [1594319287.523172] [dgx12:5904] UCXPY  DEBUG Endpoint.abort(): 0x7f5e6e7bd0d8
     [1594319287.523331] [dgx12:5904] UCXPY  DEBUG Future cancelling: [Recv shutdown] ep: 0x7f5e6e7bd0d8, tag: 0xe79506f1d24b4997
 
-We can see from the above that when the ``Endpoint`` is created, 4 tags are generated:  ``msg-tag-send``, ``msg-tag-recv``, ``ctrl-tag-send``, and ``ctrl-tag-recv``.  This data is transmitted to the server via a `stream <http://openucx.github.io/ucx/api/v1.8/html/group___u_c_p___c_o_m_m.html#ga9022ff0ebb56cac81f6ba81bb28f71b3>`_ communication in an `exchange peer info <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L38-L89>`_ convenience function.
+We can see from the above that when the ``Endpoint`` is created, 4 tags are generated:  ``msg-tag-send``, ``msg-tag-recv``, ``ctrl-tag-send``, and ``ctrl-tag-recv``.  This data is transmitted to the server via a `stream <http://openucx.github.io/ucx/api/v1.9/html/group___u_c_p___c_o_m_m.html#ga9022ff0ebb56cac81f6ba81bb28f71b3>`_ communication in an `exchange peer info <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L38-L89>`_ convenience function.
 
 Next, the client sends data on the ``msg-tag-send`` tag.  Two messages are sent, the size of the data ``8 bytes`` and data itself.  The server receives the data and immediately echos the data back.  The client then receives two messages the size of the data and the data itself.  Lastly, the client closes down.  When the client closes, it sends a `control message <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L524-L534>`_ to the server's ``Endpoint`` instructing it to `also close <https://github.com/rapidsai/ucx-py/blob/6e1c1d201a382c689ca098c848cbfdc8237e1eba/ucp/core.py#L112-L140>`_
 
