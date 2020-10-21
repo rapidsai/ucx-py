@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 import array
@@ -16,7 +17,7 @@ import psutil
 
 from . import comm
 from ._libs import ucx_api
-from ._libs.utils import get_buffer_nbytes
+from ._libs.arr import Array
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
 from .utils import hash64bits, nvtx_annotate
@@ -52,15 +53,17 @@ async def exchange_peer_info(
         hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
     )
     peer_info = bytearray(len(my_info))
+    my_info_arr = Array(my_info)
+    peer_info_arr = Array(peer_info)
 
     # Send/recv peer information. Notice, we force an `await` between the two
     # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
     if listener is True:
-        await comm.stream_send(endpoint, my_info, len(my_info))
-        await comm.stream_recv(endpoint, peer_info, len(peer_info))
+        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
+        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
     else:
-        await comm.stream_recv(endpoint, peer_info, len(peer_info))
-        await comm.stream_send(endpoint, my_info, len(my_info))
+        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
+        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
 
     # Unpacking and sanity check of the peer information
     ret = {}
@@ -132,8 +135,9 @@ class CtrlMsg:
         """Help function to setup the receive of the control message"""
         log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
         msg = bytearray(CtrlMsg.nbytes)
+        msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg, len(msg), ep._ctrl_tag_recv, name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._ctrl_tag_recv, name=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -426,6 +430,15 @@ class ApplicationContext:
         """
         return self.context.get_config()
 
+    def fence(self):
+        return self.worker.fence()
+
+    async def flush(self):
+        return await comm.flush_worker(self.worker)
+
+    def get_worker_address(self):
+        return self.worker.get_address()
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -480,9 +493,6 @@ class Endpoint:
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._shutting_down_peer = False  # Told peer to shutdown
-        # UCX supports CUDA if "cuda" is part of the TLS or TLS is "all"
-        tls = ctx.get_config()["TLS"]
-        self._cuda_support = "cuda" in tls or tls == "all"
         self._close_after_n_recv = None
 
     @property
@@ -523,6 +533,7 @@ class Endpoint:
 
             # Send a shutdown message to the peer
             msg = CtrlMsg.serialize(opcode=1, close_after_n_recv=self._send_count)
+            msg_arr = Array(msg)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid),
                 hex(self._ctrl_tag_send),
@@ -531,7 +542,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep, msg, len(msg), self._ctrl_tag_send, name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._ctrl_tag_send, name=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -547,7 +558,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, nbytes=None, tag=None):
+    async def send(self, buffer, tag=None):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -555,22 +566,20 @@ class Endpoint:
         buffer: exposing the buffer protocol or array/cuda interface
             The buffer to send. Raise ValueError if buffer is smaller
             than nbytes.
-        nbytes: int, optional
-            Number of bytes to send. Default is the whole buffer.
         tag: hashable, optional
             Set a tag that the receiver must match.
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
-            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
-        )
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
             hex(self._msg_tag_send),
             nbytes,
-            type(buffer),
+            type(buffer.obj),
         )
         logger.debug(log)
         self._send_count += 1
@@ -583,7 +592,7 @@ class Endpoint:
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, nbytes=None, tag=None):
+    async def recv(self, buffer, tag=None):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -591,8 +600,6 @@ class Endpoint:
         buffer: exposing the buffer protocol or array/cuda interface
             The buffer to receive into. Raise ValueError if buffer
             is smaller than nbytes or read-only.
-        nbytes: int, optional
-            Number of bytes to receive. Default is the whole buffer.
         tag: hashable, optional
             Set a tag that must match the received message. Notice, currently
             UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
@@ -600,15 +607,15 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        nbytes = get_buffer_nbytes(
-            buffer, check_min_size=nbytes, cuda_support=self._cuda_support
-        )
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
             hex(self._msg_tag_recv),
             nbytes,
-            type(buffer),
+            type(buffer.obj),
         )
         logger.debug(log)
         self._recv_count += 1
@@ -629,7 +636,7 @@ class Endpoint:
 
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
-        return self._cuda_support
+        return self._ctx.context.cuda_support
 
     def get_ucp_worker(self):
         """Returns the underlying UCP worker handle (ucp_worker_h)
@@ -692,15 +699,9 @@ class Endpoint:
         -------
         >>> await ep.send_obj(pickle.dumps([1,2,3]))
         """
-
-        nbytes = array.array(
-            "Q",
-            [
-                get_buffer_nbytes(
-                    buffer=obj, check_min_size=None, cuda_support=self._cuda_support
-                )
-            ],
-        )
+        if not isinstance(obj, Array):
+            obj = Array(obj)
+        nbytes = Array(array.array("Q", [obj.nbytes]))
         await self.send(nbytes, tag=tag)
         await self.send(obj, tag=tag)
 
@@ -732,8 +733,11 @@ class Endpoint:
         await self.recv(nbytes, tag=tag)
         nbytes = nbytes[0]
         ret = allocator(nbytes)
-        await self.recv(ret, nbytes=nbytes, tag=tag)
+        await self.recv(ret, tag=tag)
         return ret
+
+    async def flush(self):
+        return await comm.flush_ep(self)
 
 
 # The following functions initialize and use a single ApplicationContext instance
@@ -864,6 +868,31 @@ def continuous_ucx_progress(event_loop=None):
 
 def get_ucp_worker():
     return _get_ctx().get_ucp_worker()
+
+
+def get_worker_address():
+    return _get_ctx().get_worker_address()
+
+
+async def flush():
+    """Flushes outstanding AMO and RMA operations. This ensures that the
+       operations issued on this worker have completed both locally and remotely.
+       This function does not guarantee ordering.
+    """
+    if _ctx is not None:
+        return await _get_ctx().flush()
+    else:
+        # If ctx is not initialized we still want to do the right thing by asyncio
+        return await asyncio.sleep(0)
+
+
+def fence():
+    """Ensures ordering of non-blocking communication operations on the UCP worker.
+       This function returns nothing, but will raise an error if it cannot make
+       this guarantee. This function does not ensure any operations have completed.
+    """
+    if _ctx is not None:
+        _get_ctx().fence()
 
 
 # Setting the __doc__

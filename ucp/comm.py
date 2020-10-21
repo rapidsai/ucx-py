@@ -1,9 +1,10 @@
 # Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 import asyncio
 
-from ._libs import ucx_api
+from ._libs import arr, ucx_api
 
 
 def _cb_func(request, exception, event_loop, future):
@@ -33,7 +34,7 @@ def _call_ucx_api(event_loop, func, *args, **kwargs):
 
 def tag_send(
     ep: ucx_api.UCXEndpoint,
-    buffer,
+    buffer: arr.Array,
     nbytes: int,
     tag: int,
     name="tag_send",
@@ -46,7 +47,11 @@ def tag_send(
 
 
 def stream_send(
-    ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_send", event_loop=None
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="stream_send",
+    event_loop=None,
 ) -> asyncio.Future:
 
     return _call_ucx_api(
@@ -56,7 +61,7 @@ def stream_send(
 
 def tag_recv(
     ep: ucx_api.UCXEndpoint,
-    buffer,
+    buffer: arr.Array,
     nbytes: int,
     tag: int,
     name="tag_recv",
@@ -76,9 +81,21 @@ def tag_recv(
 
 
 def stream_recv(
-    ep: ucx_api.UCXEndpoint, buffer, nbytes: int, name="stream_recv", event_loop=None
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="stream_recv",
+    event_loop=None,
 ) -> asyncio.Future:
 
     return _call_ucx_api(
         event_loop, ucx_api.stream_recv_nb, ep, buffer, nbytes, name=name
     )
+
+
+def flush_worker(worker: ucx_api.UCXWorker, event_loop=None) -> asyncio.Future:
+    return _call_ucx_api(event_loop, worker.flush)
+
+
+def flush_ep(ep: ucx_api.UCXEndpoint, event_loop=None) -> asyncio.Future:
+    return _call_ucx_api(event_loop, ep.flush)

@@ -1,4 +1,5 @@
 # Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 # cython: language_level=3
 
@@ -28,8 +29,7 @@ cdef extern from "src/c_util.h":
 
     ctypedef ucp_conn_request* ucp_conn_request_h
 
-    ctypedef struct ucp_err_handler_cb_t:
-        pass
+    ctypedef void(*ucp_err_handler_cb_t)(void *arg, ucp_ep_h ep, ucs_status_t status)
 
     ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
 
@@ -64,6 +64,9 @@ cdef extern from "ucp/api/ucp.h":
         pass
 
     ctypedef struct ucp_config_t:
+        pass
+
+    ctypedef struct ucp_address_t:
         pass
 
     ctypedef void(* ucp_request_init_callback_t)(void *request)
@@ -127,8 +130,10 @@ cdef extern from "ucp/api/ucp.h":
                                    ucp_worker_h *worker_p)
     void ucp_worker_destroy(ucp_worker_h worker)
 
-    ctypedef struct ucp_listener_h:
+    ctypedef struct ucp_listener:
         pass
+
+    ctypedef ucp_listener* ucp_listener_h
 
     ucs_status_t ucp_listener_create(ucp_worker_h worker,
                                      const ucp_listener_params_t *params,
@@ -207,6 +212,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef enum ucs_config_print_flags_t:
         pass
+
     ucs_config_print_flags_t UCS_CONFIG_PRINT_CONFIG
     void ucp_config_print(const ucp_config_t *config,
                           FILE *stream,
@@ -215,7 +221,18 @@ cdef extern from "ucp/api/ucp.h":
 
     ucs_status_t ucp_config_modify(ucp_config_t *config, const char *name,
                                    const char *value)
-
+    ucs_status_t ucp_worker_get_address(ucp_worker_h worker,
+                                        ucp_address_t **address,
+                                        size_t *len)
+    void ucp_worker_release_address(ucp_worker_h worker,
+                                    ucp_address_t *address)
+    ucs_status_t ucp_worker_fence(ucp_worker_h worker)
+    ucs_status_ptr_t ucp_worker_flush_nb(ucp_worker_h worker,
+                                         unsigned flags,
+                                         ucp_send_callback_t cb)
+    ucs_status_ptr_t ucp_ep_flush_nb(ucp_ep_h ep,
+                                     unsigned flags,
+                                     ucp_send_callback_t cb)
 
 cdef extern from "sys/epoll.h":
 

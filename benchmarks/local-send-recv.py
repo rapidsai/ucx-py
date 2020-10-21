@@ -71,8 +71,8 @@ def server(queue, args):
 
             assert msg_recv_list[0].nbytes == args.n_bytes
             for i in range(args.n_iter):
-                await ep.recv(msg_recv_list[i], args.n_bytes)
-                await ep.send(msg_recv_list[i], args.n_bytes)
+                await ep.recv(msg_recv_list[i])
+                await ep.send(msg_recv_list[i])
             await ep.close()
             lf.close()
 
@@ -135,8 +135,8 @@ def client(queue, port, server_address, args):
         times = []
         for i in range(args.n_iter):
             start = clock()
-            await ep.send(msg_send_list[i], args.n_bytes)
-            await ep.recv(msg_recv_list[i], args.n_bytes)
+            await ep.send(msg_send_list[i])
+            await ep.recv(msg_recv_list[i])
             stop = clock()
             times.append(stop - start)
         if args.cuda_profile:
@@ -198,7 +198,7 @@ def parse_args():
         metavar="N",
         default=10,
         type=int,
-        help="Numer of send / recv iterations (default 10).",
+        help="Number of send / recv iterations (default 10).",
     )
     parser.add_argument(
         "-b",

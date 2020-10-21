@@ -39,12 +39,3 @@ else
 fi
 
 echo "Preparing '$RELEASE_TYPE' release [$CURRENT_TAG -> $NEXT_FULL_TAG]"
-
-# Inplace sed replace; workaround for Linux and Mac
-function sed_runner() {
-    sed -i.bak ''"$1"'' $2 && rm -f ${2}.bak
-}
-
-# RTD update
-sed_runner 's/version = .*/version = '"'${NEXT_SHORT_TAG}'"'/g' docs/source/conf.py
-sed_runner 's/release = .*/release = '"'${NEXT_FULL_TAG}'"'/g' docs/source/conf.py
