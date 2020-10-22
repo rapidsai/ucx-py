@@ -4,6 +4,14 @@ Using with Dask
 ``UCX/UCX-Py`` can be used with `Dask <https://dask.org/>`_ as a drop-in replacement for the communication protocol between workers.  Below we show how to use UCX-Py with both helper utilities such as `dask-cuda <https://github.com/rapidsai/dask-cuda>`_
 and manually starting a dask cluster with UCX enabled.  Additionally, we demonstrate using UCX with a `cuDF Example`_ and `CuPy Example`_.
 
+
+.. note::
+
+    If using TCP without NVLink or Infiniband, TCP alone may require additional configuration
+    settings.  Please consult the :ref:`TCP Configuration<tcp-config>` reference
+
+
+
 Starting with Dask-cuda
 -----------------------
 
