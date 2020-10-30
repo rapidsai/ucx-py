@@ -394,7 +394,7 @@ class ApplicationContext:
         return ep
 
     def create_endpoint_sync(
-        self, address, guarantee_msg_order=False, endpoint_error_handling=False
+        self, address, guarantee_msg_order=False, endpoint_error_handling=False, tags=None
     ):
         """Create a new endpoint to a remote worker
 
@@ -425,6 +425,7 @@ class ApplicationContext:
             endpoint=ucx_ep,
             ctx=self,
             guarantee_msg_order=guarantee_msg_order,
+            tags=tags
         )
 
         logger.debug("create_endpoint() client: %s" % (hex(ep._ep.handle)))
@@ -937,10 +938,10 @@ def fence():
         _get_ctx().fence()
 
 
-def create_one_sided_ep(address):
+def create_one_sided_ep(address, tags=None):
     if not isinstance(address, Array):
         address = Array(address)
-    return _get_ctx().create_endpoint_sync(address)
+    return _get_ctx().create_endpoint_sync(address, tags=tags)
 
 
 # Setting the __doc__
