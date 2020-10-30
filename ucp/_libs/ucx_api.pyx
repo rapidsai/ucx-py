@@ -205,6 +205,16 @@ def _ucx_context_handle_finalizer(uintptr_t handle):
     ucp_cleanup(<ucp_context_h> handle)
 
 
+ucp_features = {
+    "UCP_FEATURE_TAG" : UCP_FEATURE_TAG,
+    "UCP_FEATURE_WAKEUP" : UCP_FEATURE_WAKEUP,
+    "UCP_FEATURE_STREAM" : UCP_FEATURE_STREAM,
+    "UCP_FEATURE_RMA" : UCP_FEATURE_RMA,
+    "UCP_FEATURE_AMO32" : UCP_FEATURE_AMO32,
+    "UCP_FEATURE_AMO64" : UCP_FEATURE_AMO64
+}
+
+
 cdef class UCXContext(UCXObject):
     """Python representation of `ucp_context_h`"""
     cdef:
@@ -212,10 +222,23 @@ cdef class UCXContext(UCXObject):
         dict _config
         readonly bint cuda_support
 
-    def __init__(self, config_dict):
+    def __init__(self, config_dict, feature_list=None):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+        cdef uint64_t features_flag = 0
+
+        if feature_list is None:
+            features_flag = (UCP_FEATURE_TAG |  # noqa
+                             UCP_FEATURE_WAKEUP |  # noqa
+                             UCP_FEATURE_STREAM |  # noqa
+                             UCP_FEATURE_RMA |  # noqa
+                             UCP_FEATURE_AMO32 |  # noqa
+                             UCP_FEATURE_AMO64)
+        else:
+            for feature in feature_list:
+                features_flag |= ucp_features[feature]
+
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
@@ -224,12 +247,7 @@ cdef class UCXContext(UCXObject):
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM |  # noqa
-                               UCP_FEATURE_RMA |  # noqa
-                               UCP_FEATURE_AMO32 |  # noqa
-                               UCP_FEATURE_AMO64)
+        ucp_params.features = features_flag
 
         ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (

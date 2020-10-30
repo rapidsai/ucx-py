@@ -167,12 +167,14 @@ async def _listener_handler_coroutine(
         listener=True,
         port=port,
     )
-    ep = Endpoint(endpoint=endpoint, ctx=ctx, guarantee_msg_order=guarantee_msg_order,)
-    ep.wireup_tags(
-        msg_tag_send=peer_info["msg_tag"],
-        msg_tag_recv=msg_tag,
-        ctrl_tag_send=peer_info["ctrl_tag"],
-        ctrl_tag_recv=ctrl_tag,
+    tags = {
+        "msg_tag_send": peer_info["msg_tag"],
+        "msg_tag_recv": msg_tag,
+        "ctrl_tag_send": peer_info["ctrl_tag"],
+        "ctrl_tag_recv": ctrl_tag,
+    }
+    ep = Endpoint(
+        endpoint=endpoint, ctx=ctx, guarantee_msg_order=guarantee_msg_order, tags=tags
     )
 
     logger.debug(
@@ -362,14 +364,17 @@ class ApplicationContext:
             listener=False,
             port=port,
         )
+        tags = {
+            "msg_tag_send": peer_info["msg_tag"],
+            "msg_tag_recv": msg_tag,
+            "ctrl_tag_send": peer_info["ctrl_tag"],
+            "ctrl_tag_recv": ctrl_tag,
+        }
         ep = Endpoint(
-            endpoint=ucx_ep, ctx=self, guarantee_msg_order=guarantee_msg_order,
-        )
-        ep.wireup_tags(
-            msg_tag_send=peer_info["msg_tag"],
-            msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info["ctrl_tag"],
-            ctrl_tag_recv=ctrl_tag,
+            endpoint=ucx_ep,
+            ctx=self,
+            guarantee_msg_order=guarantee_msg_order,
+            tags=tags,
         )
 
         logger.debug(
@@ -417,7 +422,9 @@ class ApplicationContext:
 
         # Since this Ep doesn't have a remote pair so there are no tags to wire up
         ep = Endpoint(
-            endpoint=ucx_ep, ctx=self, guarantee_msg_order=guarantee_msg_order,
+            endpoint=ucx_ep,
+            ctx=self,
+            guarantee_msg_order=guarantee_msg_order,
         )
 
         logger.debug("create_endpoint() client: %s" % (hex(ep._ep.handle)))
@@ -507,25 +514,23 @@ class Endpoint:
     to create an Endpoint.
     """
 
-    def __init__(
-        self, endpoint, ctx, guarantee_msg_order,
-    ):
+    def __init__(self, endpoint, ctx, guarantee_msg_order, tags=None):
         self._ep = endpoint
         self._ctx = ctx
-        self._use_tags = False
         self._guarantee_msg_order = guarantee_msg_order
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._shutting_down_peer = False  # Told peer to shutdown
         self._close_after_n_recv = None
-
-    def wireup_tags(self, msg_tag_send, msg_tag_recv, ctrl_tag_send, ctrl_tag_recv):
-        self._use_tags = True
-        self._msg_tag_send = msg_tag_send
-        self._msg_tag_recv = msg_tag_recv
-        self._ctrl_tag_send = ctrl_tag_send
-        self._ctrl_tag_recv = ctrl_tag_recv
+        if tags is not None:
+            self._use_tags = True
+            self._msg_tag_send = tags["msg_tag_send"]
+            self._msg_tag_recv = tags["msg_tag_recv"]
+            self._ctrl_tag_send = tags["ctrl_tag_send"]
+            self._ctrl_tag_recv = tags["ctrl_tag_recv"]
+        else:
+            self._use_tags = False
 
     @property
     def uid(self):
