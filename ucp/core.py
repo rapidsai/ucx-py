@@ -394,7 +394,11 @@ class ApplicationContext:
         return ep
 
     def create_endpoint_sync(
-        self, address, guarantee_msg_order=False, endpoint_error_handling=False, tags=None
+        self,
+        address,
+        guarantee_msg_order=False,
+        endpoint_error_handling=False,
+        tags=None,
     ):
         """Create a new endpoint to a remote worker
 
@@ -425,7 +429,7 @@ class ApplicationContext:
             endpoint=ucx_ep,
             ctx=self,
             guarantee_msg_order=guarantee_msg_order,
-            tags=tags
+            tags=tags,
         )
 
         logger.debug("create_endpoint() client: %s" % (hex(ep._ep.handle)))
