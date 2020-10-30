@@ -206,12 +206,12 @@ def _ucx_context_handle_finalizer(uintptr_t handle):
 
 
 ucp_features = {
-    "UCP_FEATURE_TAG" : UCP_FEATURE_TAG,
-    "UCP_FEATURE_WAKEUP" : UCP_FEATURE_WAKEUP,
-    "UCP_FEATURE_STREAM" : UCP_FEATURE_STREAM,
-    "UCP_FEATURE_RMA" : UCP_FEATURE_RMA,
-    "UCP_FEATURE_AMO32" : UCP_FEATURE_AMO32,
-    "UCP_FEATURE_AMO64" : UCP_FEATURE_AMO64
+    "UCP_FEATURE_TAG": UCP_FEATURE_TAG,
+    "UCP_FEATURE_WAKEUP": UCP_FEATURE_WAKEUP,
+    "UCP_FEATURE_STREAM": UCP_FEATURE_STREAM,
+    "UCP_FEATURE_RMA": UCP_FEATURE_RMA,
+    "UCP_FEATURE_AMO32": UCP_FEATURE_AMO32,
+    "UCP_FEATURE_AMO64": UCP_FEATURE_AMO64
 }
 
 
@@ -238,7 +238,6 @@ cdef class UCXContext(UCXObject):
         else:
             for feature in feature_list:
                 features_flag |= ucp_features[feature]
-
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
