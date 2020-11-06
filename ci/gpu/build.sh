@@ -33,10 +33,6 @@ export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
 export UCX_PATH=$CONDA_PREFIX
 
-# Setup 'gpuci_conda_retry' for build retries (results in 2 total attempts)
-export GPUCI_CONDA_RETRY_MAX=1
-export GPUCI_CONDA_RETRY_SLEEP=30
-
 ################################################################################
 # SETUP - Check environment
 ################################################################################
