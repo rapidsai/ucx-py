@@ -25,7 +25,7 @@ export UCX_SOCKADDR_TLS_PRIORITY=sockcm
 export UCXPY_IFNAME="eth0"
 
 # InfiniBand using "ib0" and CUDA support
-export UCX_TLS=sockcm,cuda_copy,cuda_ipc
+export UCX_TLS=ib,sockcm,cuda_copy,cuda_ipc
 export UCX_SOCKADDR_TLS_PRIORITY=sockcm
 export UCXPY_IFNAME="ib0"
 
