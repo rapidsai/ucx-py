@@ -418,6 +418,11 @@ class ApplicationContext:
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
             from terminating unexpectedly that may happen when disabled.
+        tags: dict, optional
+            Tags to use for the tag matching interface. Useful if there is an external
+            way to distribute tags externally. Optional for cases when the tag matching
+            interface is undesired. If internally managed tags are desired see
+            the create_endpoint() function.
 
         Returns
         -------

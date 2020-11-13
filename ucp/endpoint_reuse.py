@@ -86,7 +86,9 @@ class EndpointReuse:
 
             if existing_ep:
                 existing_ep.refcount += 1
-                await ep_new.send_obj(pickle.dumps(existing_ep.ep._tags["msg_tag_recv"]))
+                await ep_new.send_obj(
+                    pickle.dumps(existing_ep.ep._tags["msg_tag_recv"])
+                )
                 await ep_new.close()
             else:
                 await ep_new.send_obj(pickle.dumps(None))
