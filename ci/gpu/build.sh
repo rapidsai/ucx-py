@@ -49,10 +49,10 @@ gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
 gpuci_conda_retry install -c pytorch "pytorch" "torchvision"
 
 # Install the master version of dask and distributed
-gpuci_logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
-pip install "git+https://github.com/dask/distributed.git" --upgrade --no-deps
-gpuci_logger "pip install git+https://github.com/dask/dask.git --upgrade --no-deps"
-pip install "git+https://github.com/dask/dask.git" --upgrade --no-deps
+gpuci_logger "pip install git+https://github.com/dask/distributed.git@master --upgrade --no-deps"
+pip install "git+https://github.com/dask/distributed.git@master" --upgrade --no-deps
+gpuci_logger "pip install git+https://github.com/dask/dask.git@master --upgrade --no-deps"
+pip install "git+https://github.com/dask/dask.git@master" --upgrade --no-deps
 
 gpuci_logger "Check versions"
 python --version

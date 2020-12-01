@@ -84,8 +84,6 @@ UCX_TCP_TX_SEG_SIZE
 
 Size of send copy-out buffer when transmitting.  This environment variable controls the size of the buffer on the host when sending data over TCP.
 
-UCX-Py uses ``8M`` as the default value for both RX/TX.
-
 .. note::
     Users should take care to properly tune ``UCX_TCP_{RX/TX}_SEG_SIZE`` parameters when mixing TCP with other transports methods as well as when
     using TCP over UCX in isolation.  These variables will impact CUDA transfers when no NVLink or InfiniBand is available between UCX-Py processes.
