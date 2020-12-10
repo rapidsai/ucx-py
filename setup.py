@@ -91,6 +91,7 @@ setup(
     long_description=readme,
     author="NVIDIA Corporation",
     license="BSD-3-Clause",
+    license_files=["LICENSE"],
     zip_safe=False,
     classifiers=[
         "Intended Audience :: Developers",

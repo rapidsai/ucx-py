@@ -1,16 +1,11 @@
 #!/bin/bash
-# Copyright (c) 2018, NVIDIA CORPORATION.
+# Copyright (c) 2020, NVIDIA CORPORATION.
 #########################################
 # ucx-py GPU build and test script for CI #
 #########################################
 set -e
 NUMARGS=$#
 ARGS=$*
-
-# Logger function for build status output
-function logger() {
-  echo -e "\n>>>> $@\n"
-}
 
 # apt-get install libnuma libnuma-dev
 
@@ -20,8 +15,8 @@ function hasArg {
 }
 
 # Set path and build parallel level
-export PATH=/conda/bin:/usr/local/cuda/bin:$PATH
-export PARALLEL_LEVEL=4
+export PATH=/opt/conda/bin:/usr/local/cuda/bin:$PATH
+export PARALLEL_LEVEL=${PARALLEL_LEVEL:-4}
 export CUDA_REL=${CUDA_VERSION%.*}
 
 # Set home to the job's workspace
@@ -37,38 +32,41 @@ export UCX_PATH=$CONDA_PREFIX
 # SETUP - Check environment
 ################################################################################
 
-logger "Check environment..."
+gpuci_logger "Check environment"
 env
 
-logger "Check GPU usage..."
+gpuci_logger "Check GPU usage"
 nvidia-smi
 
-logger "Activate conda env..."
-source activate gdf
-conda install "cudatoolkit=${CUDA_REL}" \
+gpuci_logger "Activate conda env"
+. /opt/conda/etc/profile.d/conda.sh
+conda activate rapids
+gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "rapids-build-env=${MINOR_VERSION}"
 
 # Install pytorch to run related tests
-conda install -c pytorch "pytorch" "torchvision"
+gpuci_conda_retry install -c pytorch "pytorch" "torchvision"
 
 # Install the master version of dask and distributed
-logger "pip install git+https://github.com/dask/distributed.git --upgrade --no-deps"
-pip install "git+https://github.com/dask/distributed.git" --upgrade --no-deps
-logger "pip install git+https://github.com/dask/dask.git --upgrade --no-deps"
-pip install "git+https://github.com/dask/dask.git" --upgrade --no-deps
+gpuci_logger "pip install git+https://github.com/dask/distributed.git@master --upgrade --no-deps"
+pip install "git+https://github.com/dask/distributed.git@master" --upgrade --no-deps
+gpuci_logger "pip install git+https://github.com/dask/dask.git@master --upgrade --no-deps"
+pip install "git+https://github.com/dask/dask.git@master" --upgrade --no-deps
 
-logger "Check versions..."
+gpuci_logger "Check versions"
 python --version
 $CC --version
 $CXX --version
-conda list
+conda info
+conda config --show-sources
+conda list --show-channel-urls
 
 ################################################################################
 # BUILD - Build ucx-py
 ################################################################################
 
-logger "Build ucx-py..."
+gpuci_logger "Build ucx-py"
 cd $WORKSPACE
 python setup.py build_ext --inplace
 python -m pip install -e .
@@ -78,16 +76,16 @@ python -m pip install -e .
 ################################################################################
 
 if hasArg --skip-tests; then
-    logger "Skipping Tests..."
+    gpuci_logger "Skipping Tests"
 else
-    logger "Check GPU usage..."
+    gpuci_logger "Check GPU usage"
     nvidia-smi
 
-    logger "Check NICs"
+    gpuci_logger "Check NICs"
     awk 'END{print $1}' /etc/hosts
     cat /etc/hosts
 
-    logger "Python py.test for ucx-py..."
+    gpuci_logger "Python py.test for ucx-py"
     cd $WORKSPACE
 
     # list test directory
@@ -100,12 +98,12 @@ else
     export UCX_SOCKADDR_TLS_PRIORITY=sockcm
 
     # Test with TCP/Sockets
-    logger "TEST WITH TCP ONLY..."
+    gpuci_logger "TEST WITH TCP ONLY"
     py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
-        logger "TEST OF DASK/UCX..."
+        gpuci_logger "TEST OF DASK/UCX"
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
@@ -116,7 +114,7 @@ else
         py.test --cache-clear -m "slow" -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
     fi
 
-    logger "Run local benchmark..."
+    gpuci_logger "Run local benchmark"
     python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
 fi
