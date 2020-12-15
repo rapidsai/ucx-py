@@ -74,6 +74,8 @@ Values:
 - ``get_zcopy``
 - ``auto`` (default)
 
+.. _tcp-config:
+
 UCX_TCP_RX_SEG_SIZE
 ```````````````````
 
