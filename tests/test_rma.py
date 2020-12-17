@@ -95,9 +95,34 @@ async def test_send_recv_addr(blocking_progress_mode):
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_talk_to_self(blocking_progress_mode):
     addr = ucp.get_worker_address()
-    ep = ucp.create_one_sided_ep(addr)
+    tags = {
+        "msg_tag_send": 0,
+        "msg_tag_recv": 0,
+        "ctrl_tag_send": 1,
+        "ctrl_tag_recv": 1,
+    }
+    ep = ucp.create_one_sided_ep(addr, tags=tags)
+    print(tags)
     # use send/recv with the same tag
-    ep.wireup_tags(1, 1, 2, 2)
+    await ep.send(addr)
+    msg_size = len(memoryview(addr))
+    in_buff = bytearray(msg_size)
+    await ep.recv(in_buff)
+    assert in_buff == bytes(addr)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+async def test_no_tags(blocking_progress_mode):
+    addr = ucp.get_worker_address()
+    tags = {
+        "msg_tag_send": 0,
+        "msg_tag_recv": 0,
+        "ctrl_tag_send": 1,
+        "ctrl_tag_recv": 1,
+    }
+    ep = ucp.create_one_sided_ep(addr, tags=tags)
+    # use send/recv with the same tag
     await ep.send(addr)
     msg_size = len(memoryview(addr))
     in_buff = bytearray(msg_size)

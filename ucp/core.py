@@ -397,7 +397,11 @@ class ApplicationContext:
         return ep
 
     def create_endpoint_sync(
-        self, address, guarantee_msg_order=False, endpoint_error_handling=False
+        self,
+        address,
+        guarantee_msg_order=False,
+        endpoint_error_handling=False,
+        tags=None,
     ):
         """Create a new endpoint to a remote worker
 
@@ -427,12 +431,12 @@ class ApplicationContext:
         """
         self.continuous_ucx_progress()
         ucx_ep = self.worker.ep_create_from_address(address, endpoint_error_handling)
-
         # Since this Ep doesn't have a remote pair so there are no tags to wire up
         ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
             guarantee_msg_order=guarantee_msg_order,
+            tags=tags,
         )
 
         logger.debug("create_endpoint() client: %s" % (hex(ep._ep.handle)))
@@ -614,24 +618,26 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
+        if tag is None and self._tags is None:
+            raise UCXError("Endpoint has no tags")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
-        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._send_count,
-            hex(self.uid),
-            hex(self._tags["msg_tag_send"]),
-            nbytes,
-            type(buffer.obj),
-        )
-        logger.debug(log)
         self._send_count += 1
         if tag is None:
             tag = self._tags["msg_tag_send"]
         else:
-            tag = hash64bits(self._tags["msg_tag_send"], hash(tag))
+            tag = hash64bits(tag)
         if self._guarantee_msg_order:
             tag += self._send_count
+        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(tag),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
@@ -650,24 +656,26 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
+        if tag is None and self._tags is None:
+            raise UCXError("Endpoint has no tags")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        nbytes = buffer.nbytes
-        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._recv_count,
-            hex(self.uid),
-            hex(self._tags["msg_tag_recv"]),
-            nbytes,
-            type(buffer.obj),
-        )
-        logger.debug(log)
         self._recv_count += 1
         if tag is None:
             tag = self._tags["msg_tag_recv"]
         else:
-            tag = hash64bits(self._tags["msg_tag_recv"], hash(tag))
+            tag = hash64bits(tag)
         if self._guarantee_msg_order:
             tag += self._recv_count
+        nbytes = buffer.nbytes
+        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._recv_count,
+            hex(self.uid),
+            hex(tag),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
         ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
         self._finished_recv_count += 1
         if (
@@ -938,10 +946,14 @@ def fence():
         _get_ctx().fence()
 
 
-def create_one_sided_ep(address):
+def create_one_sided_ep(
+    address, guarantee_msg_order=False, endpoint_error_handling=False, tags=None
+):
     if not isinstance(address, Array):
         address = Array(address)
-    return _get_ctx().create_endpoint_sync(address)
+    return _get_ctx().create_endpoint_sync(
+        address, guarantee_msg_order, endpoint_error_handling, tags
+    )
 
 
 # Setting the __doc__

@@ -35,3 +35,26 @@ async def test_tag_match():
     assert m1 == msg1
     await f2
     assert m2 == msg2
+
+
+@pytest.mark.asyncio
+async def test_no_tag():
+    addr = ucp.get_worker_address()
+    # Tags default to none, so this will be an EP without tags
+    ep = ucp.create_one_sided_ep(addr)
+    with pytest.raises(
+        ucp.exceptions.UCXError,
+        match="Endpoint has no tags",
+    ):
+        await ep.send(addr)
+
+
+@pytest.mark.asyncio
+async def test_pass_tag():
+    addr = ucp.get_worker_address()
+    ep = ucp.create_one_sided_ep(addr)
+    await ep.send(addr, tag=0)
+    msg_size = len(memoryview(addr))
+    in_buff = bytearray(msg_size)
+    await ep.recv(in_buff, tag=0)
+    assert in_buff == bytes(addr)
