@@ -43,8 +43,7 @@ async def test_no_tag():
     # Tags default to none, so this will be an EP without tags
     ep = ucp.create_one_sided_ep(addr)
     with pytest.raises(
-        ucp.exceptions.UCXError,
-        match="Endpoint has no tags",
+        ucp.exceptions.UCXError, match="Endpoint has no tags",
     ):
         await ep.send(addr)
 
