@@ -235,7 +235,6 @@ class ApplicationContext:
 
     def __init__(self, config_dict={}, blocking_progress_mode=None):
         self.progress_tasks = []
-        self.progress_tasks = []
 
         # For now, a application context only has one worker
         self.context = ucx_api.UCXContext(config_dict)
