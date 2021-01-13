@@ -33,6 +33,9 @@ if not os.environ.get("UCX_RNDV_THRESH", False):
 if not os.environ.get("UCX_RNDV_SCHEME", False):
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
+if not os.environ.get("UCX_SOCKADDR_CM_ENABLE", False):
+    os.environ["UCX_SOCKADDR_CM_ENABLE"] = "n"
+
 
 # After handling of environment variable logging, add formatting to the logger
 logger = get_ucxpy_logger()
