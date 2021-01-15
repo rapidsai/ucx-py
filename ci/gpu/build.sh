@@ -48,6 +48,12 @@ gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
 # Install pytorch to run related tests
 gpuci_conda_retry install -c pytorch "pytorch" "torchvision"
 
+# https://docs.rapids.ai/maintainers/depmgmt/
+# gpuci_conda_retry remove --force rapids-build-env
+# gpuci_conda_retry install -y "your-pkg=1.0.0"
+gpuci_conda_retry remove --force rapids-build-env
+gpuci_conda_retry install "libgcc-ng=9.3.0" "libstdcxx-ng=9.3.0" "libgfortran-ng=9.3.0"
+
 # Install the master version of dask and distributed
 gpuci_logger "pip install git+https://github.com/dask/distributed.git@master --upgrade --no-deps"
 pip install "git+https://github.com/dask/distributed.git@master" --upgrade --no-deps
