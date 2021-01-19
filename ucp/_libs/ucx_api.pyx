@@ -205,7 +205,7 @@ def _ucx_context_handle_finalizer(uintptr_t handle):
     ucp_cleanup(<ucp_context_h> handle)
 
 
-ucp_features = {
+cdef dict ucp_features = {
     "UCP_FEATURE_TAG": UCP_FEATURE_TAG,
     "UCP_FEATURE_WAKEUP": UCP_FEATURE_WAKEUP,
     "UCP_FEATURE_STREAM": UCP_FEATURE_STREAM,
