@@ -534,6 +534,8 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef str msg
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
+        while ucp_request_check_status(status) == UCS_INPROGRESS:
+            worker.progress()
         ucp_request_free(status)
     elif UCS_PTR_STATUS(status) != UCS_OK:
         msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
