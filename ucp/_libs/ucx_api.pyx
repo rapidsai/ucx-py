@@ -111,7 +111,7 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
         if fflush(text_fd) != 0:
             clearerr(text_fd)
             raise IOError("fflush() failed on memory stream")
-        py_text = text.decode("ISO-8859-1")
+        py_text = text.decode(errors="ignore")
         for line in py_text.splitlines():
             k, v = line.split("=")
             k = k[4:]  # Strip "UCX_" prefix
@@ -581,7 +581,7 @@ cdef class UCXEndpoint(UCXObject):
             if fflush(text_fd) != 0:
                 clearerr(text_fd)
                 raise IOError("fflush() failed on memory stream")
-            py_text = text.decode("ISO-8859-1")
+            py_text = text.decode(errors="ignore")
         finally:
             if fclose(text_fd) != 0:
                 free(text)
