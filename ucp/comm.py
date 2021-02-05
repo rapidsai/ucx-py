@@ -46,19 +46,6 @@ def tag_send(
     )
 
 
-def stream_send(
-    ep: ucx_api.UCXEndpoint,
-    buffer: arr.Array,
-    nbytes: int,
-    name="stream_send",
-    event_loop=None,
-) -> asyncio.Future:
-
-    return _call_ucx_api(
-        event_loop, ucx_api.stream_send_nb, ep, buffer, nbytes, name=name
-    )
-
-
 def tag_recv(
     ep: ucx_api.UCXEndpoint,
     buffer: arr.Array,
@@ -77,19 +64,6 @@ def tag_recv(
         tag,
         name=name,
         ep=ep,
-    )
-
-
-def stream_recv(
-    ep: ucx_api.UCXEndpoint,
-    buffer: arr.Array,
-    nbytes: int,
-    name="stream_recv",
-    event_loop=None,
-) -> asyncio.Future:
-
-    return _call_ucx_api(
-        event_loop, ucx_api.stream_recv_nb, ep, buffer, nbytes, name=name
     )
 
 

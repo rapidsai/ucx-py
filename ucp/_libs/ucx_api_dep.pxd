@@ -174,20 +174,6 @@ cdef extern from "ucp/api/ucp.h":
                                      ucp_tag_t tag, ucp_tag_t tag_mask,
                                      ucp_tag_recv_callback_t cb)
 
-    ctypedef void (*ucp_stream_recv_callback_t)(void *request,  # noqa
-                                                ucs_status_t status,
-                                                size_t length)
-
-    ucs_status_ptr_t ucp_stream_send_nb(ucp_ep_h ep, const void *buffer,
-                                        size_t count, ucp_datatype_t datatype,
-                                        ucp_send_callback_t cb, unsigned flags)
-
-    unsigned UCP_STREAM_RECV_FLAG_WAITALL
-    ucs_status_ptr_t ucp_stream_recv_nb(ucp_ep_h ep, void *buffer,
-                                        size_t count, ucp_datatype_t datatype,
-                                        ucp_stream_recv_callback_t cb,
-                                        size_t *length, unsigned flags)
-
     void ucp_request_free(void *request)
 
     void ucp_ep_print_info(ucp_ep_h ep, FILE *stream)
