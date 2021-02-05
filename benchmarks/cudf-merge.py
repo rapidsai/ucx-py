@@ -160,7 +160,7 @@ async def worker(rank, eps, args):
     dev_id = args.devs[rank % len(args.devs)]
     cupy.cuda.runtime.setDevice(dev_id)
     rmm.reinitialize(
-        pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
+        pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size, logging=True, log_file_name="cudf-merge-rmm.log",
     )
 
     # Make cupy use RMM
