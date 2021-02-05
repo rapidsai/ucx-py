@@ -29,6 +29,8 @@ logger = logging.getLogger("ucx")
 # the instantiation of the application context to the first use of the API.
 _ctx = None
 
+_peer_fmt = "QQ?QQ"
+
 
 def _get_ctx():
     global _ctx
@@ -37,15 +39,46 @@ def _get_ctx():
     return _ctx
 
 
+def _unpack_peer_info(peer_info):
+    ret = {}
+    (
+        ret["msg_tag"],
+        ret["ctrl_tag"],
+        ret["guarantee_msg_order"],
+        ret["port"],
+        ret["checksum"],
+    ) = struct.unpack(_peer_fmt, peer_info)
+    return ret
+
+
+def _check_peer_info(peer_info, port, guarantee_msg_order):
+    expected_checksum = hash64bits(
+        peer_info["msg_tag"],
+        peer_info["ctrl_tag"],
+        peer_info["guarantee_msg_order"],
+        peer_info["port"],
+    )
+
+    if expected_checksum != peer_info["checksum"]:
+        raise RuntimeError(
+            f'Checksum invalid! {hex(expected_checksum)} != {hex(peer_info["checksum"])}'
+        )
+
+    if port != peer_info["port"]:
+        raise RuntimeError(f'Port mismatch! {port} != {peer_info["port"]}')
+
+    if peer_info["guarantee_msg_order"] != guarantee_msg_order:
+        raise ValueError("Both peers must set guarantee_msg_order identically")
+
+
 async def exchange_peer_info(
     endpoint, msg_tag, ctrl_tag, guarantee_msg_order, port, listener
 ):
     """Help function that exchange endpoint information"""
 
     # Pack peer information incl. a checksum
-    fmt = "QQ?QQ"
     my_info = struct.pack(
-        fmt,
+        _peer_fmt,
         msg_tag,
         ctrl_tag,
         guarantee_msg_order,
@@ -56,39 +89,38 @@ async def exchange_peer_info(
     my_info_arr = Array(my_info)
     peer_info_arr = Array(peer_info)
 
-    # Send/recv peer information. Notice, we force an `await` between the two
-    # streaming calls (see <https://github.com/rapidsai/ucx-py/pull/509>)
+    # Listener send its information to client on tag 0, then
+    # client send its information to listener on listener's msg_tag.
     if listener is True:
-        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
-        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
-    else:
-        await comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes)
-        await comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes)
-
-    # Unpacking and sanity check of the peer information
-    ret = {}
-    (
-        ret["msg_tag"],
-        ret["ctrl_tag"],
-        ret["guarantee_msg_order"],
-        ret["port"],
-        ret["checksum"],
-    ) = struct.unpack(fmt, peer_info)
-
-    expected_checksum = hash64bits(
-        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"], ret["port"]
-    )
-
-    if expected_checksum != ret["checksum"]:
-        raise RuntimeError(
-            f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
+        await comm.tag_send(
+            endpoint, my_info_arr, my_info_arr.nbytes, 0, name="endpoint_send_info"
         )
 
-    if port != ret["port"]:
-        raise RuntimeError(f'Port mismatch! {port} != {ret["port"]}')
+        await comm.tag_recv(
+            endpoint,
+            peer_info_arr,
+            peer_info_arr.nbytes,
+            msg_tag,
+            name="endpoint_recv_info",
+        )
 
-    if ret["guarantee_msg_order"] != guarantee_msg_order:
-        raise ValueError("Both peers must set guarantee_msg_order identically")
+        ret = _unpack_peer_info(peer_info)
+        _check_peer_info(ret, port, guarantee_msg_order)
+    else:
+        await comm.tag_recv(
+            endpoint, peer_info_arr, peer_info_arr.nbytes, 0, name="listener_recv_info"
+        )
+
+        ret = _unpack_peer_info(peer_info)
+        _check_peer_info(ret, port, guarantee_msg_order)
+
+        await comm.tag_send(
+            endpoint,
+            my_info_arr,
+            my_info_arr.nbytes,
+            ret["msg_tag"],
+            name="listener_send_info",
+        )
 
     return ret
 
