@@ -113,7 +113,7 @@ Instructions for building ucx 1.8:
     make -j install
 
 .. note::
-    If you're running on a machine without CUDA then you _must NOT_ apply the patch.
+    If you're running on a machine without CUDA then you _must NOT_ apply any of the patches above.
 
 UCX + OFED
 ~~~~~~~~~~
