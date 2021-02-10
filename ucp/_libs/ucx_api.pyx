@@ -524,7 +524,7 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
     cdef str msg
-    status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
+    status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FORCE)
     if UCS_PTR_IS_PTR(status):
         while ucp_request_check_status(status) == UCS_INPROGRESS:
             worker.progress()
