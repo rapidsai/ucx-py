@@ -19,6 +19,7 @@ from ucp._libs.topological_distance import TopologicalDistance
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
 
+UCX_110 = ucp.get_ucx_version() >= (1, 10, 0)
 TRANSFER_ITERATIONS = 5
 EP_ITERATIONS = 3
 
@@ -28,13 +29,14 @@ def get_environment_variables(cuda_device_index):
 
     env["CUDA_VISIBLE_DEVICES"] = str(cuda_device_index)
 
-    tls = env.get("UCX_TLS")
-    if tls is not None and "rc" in tls:
-        td = TopologicalDistance()
-        closest_openfabrics = td.get_cuda_distances_from_device_index(
-            cuda_device_index, "openfabrics"
-        )
-        env["UCX_NET_DEVICES"] = closest_openfabrics[0]["name"] + ":1"
+    if not UCX_110:
+        tls = env.get("UCX_TLS")
+        if tls is not None and "rc" in tls:
+            td = TopologicalDistance()
+            closest_openfabrics = td.get_cuda_distances_from_device_index(
+                cuda_device_index, "openfabrics"
+            )
+            env["UCX_NET_DEVICES"] = closest_openfabrics[0]["name"] + ":1"
 
     return env
 
@@ -45,10 +47,11 @@ def restore_environment_variables(cuda_visible_devices, ucx_net_devices):
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
 
-    if ucx_net_devices is None:
-        os.environ.pop("UCX_NET_DEVICES")
-    else:
-        os.environ["UCX_NET_DEVICES"] = ucx_net_devices
+    if not UCX_110:
+        if ucx_net_devices is None:
+            os.environ.pop("UCX_NET_DEVICES")
+        else:
+            os.environ["UCX_NET_DEVICES"] = ucx_net_devices
 
 
 async def get_ep(name, port):
@@ -61,6 +64,9 @@ def client(env, port, func, enable_rmm):
     # connect to server's listener
     # receive object for TRANSFER_ITERATIONS
     # repeat for EP_ITERATIONS
+
+    import numba.cuda
+    numba.cuda.current_context()
 
     async def read():
         await asyncio.sleep(1)
@@ -91,6 +97,9 @@ def server(env, port, func, enable_rmm, num_workers, proc_conn):
     # close listener after num_workers*EP_ITERATIONS have disconnected
 
     os.environ.update(env)
+
+    import numba.cuda
+    numba.cuda.current_context()
 
     loop = asyncio.get_event_loop()
 
