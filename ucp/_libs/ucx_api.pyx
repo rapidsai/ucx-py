@@ -111,7 +111,7 @@ cdef dict ucx_config_to_dict(ucp_config_t *config):
         if fflush(text_fd) != 0:
             clearerr(text_fd)
             raise IOError("fflush() failed on memory stream")
-        py_text = text.decode()
+        py_text = text.decode(errors="ignore")
         for line in py_text.splitlines():
             k, v = line.split("=")
             k = k[4:]  # Strip "UCX_" prefix
@@ -534,6 +534,8 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef str msg
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
+        while ucp_request_check_status(status) == UCS_INPROGRESS:
+            worker.progress()
         ucp_request_free(status)
     elif UCS_PTR_STATUS(status) != UCS_OK:
         msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
@@ -579,7 +581,7 @@ cdef class UCXEndpoint(UCXObject):
             if fflush(text_fd) != 0:
                 clearerr(text_fd)
                 raise IOError("fflush() failed on memory stream")
-            py_text = text.decode()
+            py_text = text.decode(errors="ignore")
         finally:
             if fclose(text_fd) != 0:
                 free(text)

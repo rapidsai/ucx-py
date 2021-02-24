@@ -161,7 +161,6 @@ def _worker_process(
 
     loop = asyncio.get_event_loop()
     ret = loop.run_until_complete(run())
-    loop.close()
     queue.put(ret)
 
 
