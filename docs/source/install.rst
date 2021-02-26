@@ -148,7 +148,7 @@ UCX-Py
 ::
 
     conda activate ucx
-    git clone git@github.com:rapidsai/ucx-py.git
+    git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
     python setup.py build_ext --inplace
     pip install .
