@@ -67,7 +67,13 @@ def client(listener_ports):
 
 @pytest.mark.parametrize("num_listeners", [1, 2, 4, 8])
 def test_send_recv_cu(num_listeners):
-    ports = [random.randint(13000, 15500) for n in range(num_listeners)]
+    ports = set()
+    while len(ports) != num_listeners:
+        ports = ports.union(
+            [random.randint(13000, 23000) for n in range(num_listeners)]
+        )
+        print(ports)
+    ports = list(ports)
 
     ctx = multiprocessing.get_context("spawn")
     listener_process = ctx.Process(name="listener", target=listener, args=[ports])
