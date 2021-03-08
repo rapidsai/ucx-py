@@ -1,6 +1,7 @@
 import asyncio
 import random
 import multiprocessing
+import sys
 
 import numpy as np
 import pytest
@@ -13,16 +14,18 @@ def listener(ports):
 
     async def _listener(ports):
         async def write(ep):
-            close_msg = np.empty(1, dtype=np.int64)
+            close_msg = bytearray(2)
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
 
             msgs = [ep.recv(close_msg), ep.send(msg2send), ep.recv(msg2recv)]
             await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
-            if close_msg[0] != 0:
+            close_msg = int.from_bytes(close_msg, sys.byteorder)
+
+            if close_msg != 0:
                 await ep.close()
-                listeners[close_msg[0]].close()
+                listeners[close_msg].close()
 
         listeners = {}
         for port in ports:
@@ -42,9 +45,7 @@ def client(listener_ports):
 
     async def _client(listener_ports):
         async def read(port, close):
-            close_msg = (
-                np.array(port, dtype=np.int64) if close else np.array(0, dtype=np.int64)
-            )
+            close_msg = bytearray(int(port if close else 0).to_bytes(2, sys.byteorder))
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
 
