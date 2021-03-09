@@ -242,10 +242,7 @@ cdef class UCXContext(UCXObject):
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
                                  UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT |  # noqa
-                                 UCP_FEATURE_RMA |  # noqa
-                                 UCP_FEATURE_AMO32 |  # noqa
-                                 UCP_FEATURE_AMO64)
+                                 UCP_PARAM_FIELD_REQUEST_INIT)
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
@@ -581,6 +578,8 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     cdef str msg
     status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FLUSH)
     if UCS_PTR_IS_PTR(status):
+        while ucp_request_check_status(status) == UCS_INPROGRESS:
+            worker.progress()
         ucp_request_free(status)
     elif UCS_PTR_STATUS(status) != UCS_OK:
         msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
