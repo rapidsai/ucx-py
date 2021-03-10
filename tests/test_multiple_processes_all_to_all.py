@@ -47,7 +47,7 @@ async def create_endpoint_retry(my_port, remote_port, my_task, remote_task):
             await asyncio.sleep(0.1)
 
 
-def worker(my_port, monitor_port, all_ports):
+def worker(my_port, monitor_port, all_ports, endpoints_per_worker):
     ucp.init()
 
     eps = []
@@ -133,20 +133,21 @@ def worker(my_port, monitor_port, all_ports):
             await asyncio.sleep(0.1)
 
         if PersistentEndpoints:
-            client_tasks = []
-            # Create endpoints to all other workers
-            for remote_port in all_ports:
-                if remote_port == my_port:
-                    continue
-                ep = await create_endpoint_retry(
-                    my_port, remote_port, "Worker", "Worker"
-                )
-                eps.append(ep)
-                client_tasks.append(_client(remote_port, ep))
-            await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
+            for i in range(endpoints_per_worker):
+                client_tasks = []
+                # Create endpoints to all other workers
+                for remote_port in all_ports:
+                    if remote_port == my_port:
+                        continue
+                    ep = await create_endpoint_retry(
+                        my_port, remote_port, "Worker", "Worker"
+                    )
+                    eps.append(ep)
+                    client_tasks.append(_client(remote_port, ep))
+                await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
 
             # Wait until listener_eps have all been cached
-            while len(listener_eps) != len(all_ports) - 1:
+            while len(listener_eps) != endpoints_per_worker * (len(all_ports) - 1):
                 await asyncio.sleep(0.1)
 
             # Exchange messages with other workers
@@ -293,7 +294,8 @@ def monitor(monitor_port, worker_ports):
 
 
 @pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
-def test_send_recv_cu(num_workers):
+@pytest.mark.parametrize("endpoints_per_worker", [20, 80, 320, 640])
+def test_send_recv_cu(num_workers, endpoints_per_worker):
     # One additional port for monitor
     num_ports = num_workers + 1
 
@@ -318,7 +320,9 @@ def test_send_recv_cu(num_workers):
     worker_processes = []
     for port in worker_ports:
         worker_process = ctx.Process(
-            name="worker", target=worker, args=[port, monitor_port, worker_ports]
+            name="worker",
+            target=worker,
+            args=[port, monitor_port, worker_ports, endpoints_per_worker],
         )
         worker_process.start()
         worker_processes.append(worker_process)
