@@ -17,6 +17,8 @@ OP_WORKER_COMPLETED = 2
 OP_CLUSTER_READY = 3
 OP_SHUTDOWN = 4
 
+PersistentEndpoints = False
+
 
 def generate_op_message(op, port):
     op_bytes = op.to_bytes(OP_BYTES, sys.byteorder)
@@ -30,8 +32,27 @@ def parse_op_message(msg):
     return {"op": op, "port": port}
 
 
+async def create_endpoint_retry(my_port, remote_port, my_task, remote_task):
+    while True:
+        try:
+            ep = await ucp.create_endpoint(ucp.get_address(), remote_port)
+            return ep
+        except ucp.exceptions.UCXCanceled as e:
+            print(
+                "%s[%d]->%s[%d] Failed: %s"
+                % (my_task, my_port, remote_task, remote_port, e),
+                flush=True,
+            )
+            await asyncio.sleep(0.1)
+
+
 def worker(my_port, monitor_port, all_ports):
     ucp.init()
+
+    listener_eps = []
+
+    global listener_monitor_ep
+    listener_monitor_ep = None
 
     global cluster_started
     cluster_started = False
@@ -41,7 +62,11 @@ def worker(my_port, monitor_port, all_ports):
             global cluster_started
             cluster_started = True
 
-        async def _listener(ep):
+        async def _close_endpoints():
+            for ep in listener_eps:
+                await ep.close()
+
+        async def _listener(ep, cache_ep=False):
             op_msg = generate_op_message(OP_NONE, 0)
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
@@ -51,48 +76,97 @@ def worker(my_port, monitor_port, all_ports):
 
             op = parse_op_message(op_msg)["op"]
 
+            if cache_ep and PersistentEndpoints:
+                if op == OP_NONE:
+                    listener_eps.append(ep)
+                else:
+                    global listener_monitor_ep
+                    listener_monitor_ep = ep
+
             if op == OP_SHUTDOWN:
                 await ep.close()
                 listener.close()
             if op == OP_CLUSTER_READY:
                 _register_cluster_started()
 
-        async def _client(port):
+        async def _listener_cb(ep):
+            await _listener(ep, cache_ep=True)
+
+        async def _client(port, ep=None):
             op_msg = generate_op_message(OP_NONE, 0)
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
 
-            ep = await ucp.create_endpoint(ucp.get_address(), port)
-            msgs = [ep.send(op_msg), ep.recv(msg2send), ep.send(msg2recv)]
+            if ep is None:
+                ep = await create_endpoint_retry(my_port, port, "Worker", "Worker")
+            msgs = [ep.send(op_msg), ep.recv(msg2recv), ep.send(msg2send)]
             await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
-            await asyncio.sleep(2)
-
-        async def _signal_monitor(monitor_port, my_port, op):
+        async def _signal_monitor(monitor_port, my_port, op, ep=None):
             op_msg = generate_op_message(op, my_port)
             ack_msg = bytearray(2)
 
-            ep = await ucp.create_endpoint(ucp.get_address(), monitor_port)
+            if ep is None:
+                #ep = await ucp.create_endpoint(ucp.get_address(), monitor_port)
+                ep = await create_endpoint_retry(my_port, monitor_port, "Worker", "Monitor")
             msgs = [ep.send(op_msg), ep.recv(ack_msg)]
             await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
         # Start listener
-        listener = ucp.create_listener(_listener, port=my_port)
+        listener = ucp.create_listener(_listener_cb, port=my_port)
 
         # Signal monitor that worker is listening
-        await _signal_monitor(monitor_port, my_port, op=OP_WORKER_LISTENING)
+        monitor_ep = None
+        if PersistentEndpoints:
+            monitor_ep = await create_endpoint_retry(
+                my_port, monitor_port, "Worker", "Monitor"
+            )
+            await _signal_monitor(
+                monitor_port, my_port, op=OP_WORKER_LISTENING, ep=monitor_ep
+            )
+        else:
+            await _signal_monitor(monitor_port, my_port, op=OP_WORKER_LISTENING)
 
         while not cluster_started:
             await asyncio.sleep(0.1)
 
-        # Create endpoints to all other workers
-        clients = []
-        for port in all_ports:
-            clients.append(_client(port))
-        await asyncio.gather(*clients, loop=asyncio.get_event_loop())
+        eps = []
+        if PersistentEndpoints:
+            client_tasks = []
+            # Create endpoints to all other workers
+            for remote_port in all_ports:
+                if remote_port == my_port:
+                    continue
+                ep = await create_endpoint_retry(
+                    my_port, remote_port, "Worker", "Worker"
+                )
+                eps.append(ep)
+                client_tasks.append(_client(remote_port, ep))
+            await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
+
+            # Wait until listener_eps have all been cached
+            while len(listener_eps) != len(all_ports) - 1:
+                await asyncio.sleep(0.1)
+        else:
+            # Create endpoints to all other workers
+            client_tasks = []
+            for port in all_ports:
+                if port == my_port:
+                    continue
+                client_tasks.append(_client(port))
+            await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
 
         # Signal monitor that worker is completed
-        await _signal_monitor(monitor_port, my_port, op=OP_WORKER_COMPLETED)
+        if PersistentEndpoints:
+            await _signal_monitor(
+                monitor_port, my_port, op=OP_WORKER_COMPLETED, ep=monitor_ep
+            )
+        else:
+            await _signal_monitor(monitor_port, my_port, op=OP_WORKER_COMPLETED)
+
+        # Wait for closing signal
+        if PersistentEndpoints:
+            await _listener(listener_monitor_ep)
 
         # Wait for a shutdown signal from monitor
         try:
@@ -107,6 +181,7 @@ def worker(my_port, monitor_port, all_ports):
 def monitor(monitor_port, worker_ports):
     ucp.init()
 
+    listener_eps = []
     listening_worker_ports = []
     completed_worker_ports = []
 
@@ -117,7 +192,10 @@ def monitor(monitor_port, worker_ports):
             elif op == OP_WORKER_COMPLETED:
                 completed_worker_ports.append(port)
 
-        async def _listener(ep):
+        async def _listener(ep, cache_ep=True):
+            if cache_ep and PersistentEndpoints:
+                listener_eps.append(ep)
+
             op_msg = generate_op_message(OP_NONE, 0)
             ack_msg = bytearray(int(888).to_bytes(2, sys.byteorder))
 
@@ -126,34 +204,57 @@ def monitor(monitor_port, worker_ports):
             msgs = [ep.recv(op_msg), ep.send(ack_msg)]
             await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
-            # worker_op == 0 for started, worker_op == 1 for completed
             op_msg = parse_op_message(op_msg)
             worker_op = op_msg["op"]
             worker_port = op_msg["port"]
 
             _register(worker_op, worker_port)
 
-        async def _send_op(op, port):
+        async def _listener_cb(ep):
+            await _listener(ep, cache_ep=True)
+
+        async def _send_op(op, port, ep=None):
             op_msg = generate_op_message(op, port)
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
 
-            ep = await ucp.create_endpoint(ucp.get_address(), port)
+            if ep is None:
+                ep = await create_endpoint_retry(monitor_port, port, "Monitor", "Monitor")
             msgs = [ep.send(op_msg), ep.send(msg2send), ep.recv(msg2recv)]
             await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
         # Start monitor's listener
-        listener = ucp.create_listener(_listener, port=monitor_port)
+        listener = ucp.create_listener(_listener_cb, port=monitor_port)
 
         # Wait until all workers signal they are listening
         while len(listening_worker_ports) != len(worker_ports):
             await asyncio.sleep(0.1)
 
-        # Send cluster ready message to all workers
+        # Create persistent endpoints to all workers
+        worker_eps = {}
+        if PersistentEndpoints:
+            for remote_port in worker_ports:
+                worker_eps[remote_port] = await create_endpoint_retry(
+                    monitor_port, remote_port, "Monitor", "Worker"
+                )
+
+        # Send shutdown message to all workers
         ready_signals = []
         for port in listening_worker_ports:
-            ready_signals.append(_send_op(OP_CLUSTER_READY, port))
+            if PersistentEndpoints:
+                ready_signals.append(_send_op(OP_CLUSTER_READY, port, worker_eps[port]))
+            else:
+                ready_signals.append(_send_op(OP_CLUSTER_READY, port))
         await asyncio.gather(*ready_signals, loop=asyncio.get_event_loop())
+
+        # When using persistent endpoints, we need to wait on previously
+        # created endpoints for completion signal
+        if PersistentEndpoints:
+            listener_tasks = []
+            for listener_ep in listener_eps:
+                listener_tasks.append(_listener(listener_ep))
+
+            await asyncio.gather(*listener_tasks, loop=asyncio.get_event_loop())
 
         # Wait until all workers signal completion
         while len(completed_worker_ports) != len(worker_ports):
@@ -162,7 +263,10 @@ def monitor(monitor_port, worker_ports):
         # Send shutdown message to all workers
         close = []
         for port in completed_worker_ports:
-            close.append(_send_op(OP_SHUTDOWN, port))
+            if PersistentEndpoints:
+                close.append(_send_op(OP_SHUTDOWN, port, ep=worker_eps[port]))
+            else:
+                close.append(_send_op(OP_SHUTDOWN, port))
         await asyncio.gather(*close, loop=asyncio.get_event_loop())
 
         listener.close()
