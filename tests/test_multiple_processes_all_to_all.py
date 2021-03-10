@@ -148,6 +148,18 @@ def worker(my_port, monitor_port, all_ports):
             # Wait until listener_eps have all been cached
             while len(listener_eps) != len(all_ports) - 1:
                 await asyncio.sleep(0.1)
+
+            # Exchange messages with other workers
+            for i in range(3):
+                client_tasks = []
+                listener_tasks = []
+                for ep in eps:
+                    client_tasks.append(_client(remote_port, ep))
+                for listener_ep in listener_eps:
+                    listener_tasks.append(_listener(listener_ep))
+
+                all_tasks = client_tasks + listener_tasks
+                await asyncio.gather(*all_tasks, loop=asyncio.get_event_loop())
         else:
             # Create endpoints to all other workers
             client_tasks = []
