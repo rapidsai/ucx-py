@@ -633,6 +633,7 @@ cdef class UCXListener(UCXObject):
 
     cdef public:
         uint16_t port
+        str ip
 
     def __init__(
         self,
@@ -650,7 +651,7 @@ cdef class UCXListener(UCXObject):
         cdef ucp_listener_conn_callback_t _listener_cb = (
             <ucp_listener_conn_callback_t>_listener_callback
         )
-        self.port = port
+        cdef ucp_listener_attr_t attr
         self.cb_data = {
             "cb_func": cb_func,
             "cb_args": cb_args,
@@ -662,11 +663,30 @@ cdef class UCXListener(UCXObject):
                                           <void*> self.cb_data):
             raise MemoryError("Failed allocation of ucp_ep_params_t")
 
+        DEF MAX_STR_LEN = 50
+        cdef char ip_str[MAX_STR_LEN]
+        cdef char port_str[MAX_STR_LEN]
+
         cdef ucs_status_t status = ucp_listener_create(
             worker._handle, &params, &self._handle
         )
+
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
+
+        attr.field_mask = UCP_LISTENER_ATTR_FIELD_SOCKADDR;
+        status = ucp_listener_query(self._handle, &attr);
+        if status != UCS_OK:
+            ucp_listener_destroy(self._handle)
+        assert_ucs_status(status)
+
+        c_util_sockaddr_get_ip_port_str(&attr.sockaddr,
+                                        ip_str,
+                                        port_str,
+                                        MAX_STR_LEN)
+
+        self.port = <uint16_t>int(port_str.decode(errors="ignore"))
+        self.ip = ip_str.decode(errors="ignore")
 
         self.add_handle_finalizer(
             _ucx_listener_handle_finalizer,

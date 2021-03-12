@@ -462,8 +462,13 @@ class Listener:
         return not self._b.initialized
 
     @property
+    def ip(self):
+        """The listening network IP address"""
+        return self._b.ip
+
+    @property
     def port(self):
-        """The network point listening on"""
+        """The listening network port"""
         return self._b.port
 
     def close(self):

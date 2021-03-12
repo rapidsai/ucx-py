@@ -25,3 +25,7 @@ int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
                                   ucp_err_handler_cb_t err_cb);
 
 void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param);
+
+void c_util_sockaddr_get_ip_str(const struct sockaddr_storage *sock_addr,
+                                char *ip_str, char *port_str,
+                                size_t max_str_size);
