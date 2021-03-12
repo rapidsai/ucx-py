@@ -68,22 +68,6 @@ int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
     return 0;
 }
 
-int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
-                                  ucp_conn_request_h conn_request,
-                                  ucp_err_handler_cb_t err_cb) {
-
-    param->field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
-                                UCP_EP_PARAM_FIELD_CONN_REQUEST |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLER;
-    param->flags              = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK;
-    param->err_mode           = err_cb == NULL ? UCP_ERR_HANDLING_MODE_NONE : UCP_ERR_HANDLING_MODE_PEER;
-    param->err_handler.cb     = err_cb;
-    param->err_handler.arg    = NULL;
-    param->conn_request       = conn_request;
-    return 0;
-}
-
 void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param) {
     free((void*) param->sockaddr.addr);
 }

@@ -418,10 +418,18 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        if c_util_get_ucp_ep_conn_params(
-            &params, <ucp_conn_request_h>conn_request, <ucp_err_handler_cb_t>err_cb
-        ):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS | # noqa
+                             UCP_EP_PARAM_FIELD_CONN_REQUEST | # noqa
+                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE | # noqa
+                             UCP_EP_PARAM_FIELD_ERR_HANDLER) # noqa
+        params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        params.conn_request = <ucp_conn_request_h> conn_request
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
