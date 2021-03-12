@@ -398,14 +398,24 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        if c_util_get_ucp_ep_params(
-            &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
-        ):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS |
+                             UCP_EP_PARAM_FIELD_SOCK_ADDR |
+                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+                             UCP_EP_PARAM_FIELD_ERR_HANDLER)
+        params.flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        if c_util_set_sockaddr(&params.sockaddr, ip_address.encode(), port):
+            raise MemoryError("Failed allocation of sockaddr")
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        c_util_get_ucp_ep_params_free(&params)
+        c_util_set_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
@@ -666,16 +676,18 @@ cdef class UCXListener(UCXObject):
             "cb_args": cb_args,
             "cb_kwargs": cb_kwargs,
         }
-        if c_util_get_ucp_listener_params(&params,
-                                          port,
-                                          _listener_cb,
-                                          <void*> self.cb_data):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        params.field_mask = (
+            UCP_LISTENER_PARAM_FIELD_SOCK_ADDR | UCP_LISTENER_PARAM_FIELD_CONN_HANDLER
+        )
+        params.conn_handler.cb = _listener_cb
+        params.conn_handler.arg = <void*> self.cb_data
+        if c_util_set_sockaddr(&params.sockaddr, NULL, port):
+            raise MemoryError("Failed allocation of sockaddr")
 
         cdef ucs_status_t status = ucp_listener_create(
             worker._handle, &params, &self._handle
         )
-        c_util_get_ucp_listener_params_free(&params)
+        c_util_set_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
 
         self.add_handle_finalizer(
