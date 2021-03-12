@@ -133,11 +133,14 @@ class CtrlMsg:
     @staticmethod
     def setup_ctrl_recv(ep):
         """Help function to setup the receive of the control message"""
-        log = "[Recv shutdown] ep: %s, tag: %s" % (hex(ep.uid), hex(ep._ctrl_tag_recv),)
+        log = "[Recv shutdown] ep: %s, tag: %s" % (
+            hex(ep.uid),
+            hex(ep._tags["ctrl_recv"]),
+        )
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._ctrl_tag_recv, name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
         )
 
         shutdown_fut.add_done_callback(
@@ -167,14 +170,14 @@ async def _listener_handler_coroutine(
         listener=True,
         port=port,
     )
+    tags = {
+        "msg_send": peer_info["msg_tag"],
+        "msg_recv": msg_tag,
+        "ctrl_send": peer_info["ctrl_tag"],
+        "ctrl_recv": ctrl_tag,
+    }
     ep = Endpoint(
-        endpoint=endpoint,
-        ctx=ctx,
-        msg_tag_send=peer_info["msg_tag"],
-        msg_tag_recv=msg_tag,
-        ctrl_tag_send=peer_info["ctrl_tag"],
-        ctrl_tag_recv=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order,
+        endpoint=endpoint, ctx=ctx, guarantee_msg_order=guarantee_msg_order, tags=tags
     )
 
     logger.debug(
@@ -182,10 +185,10 @@ async def _listener_handler_coroutine(
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
         % (
             hex(endpoint.handle),
-            hex(ep._msg_tag_send),
-            hex(ep._msg_tag_recv),
-            hex(ep._ctrl_tag_send),
-            hex(ep._ctrl_tag_recv),
+            hex(ep._tags["msg_send"]),
+            hex(ep._tags["msg_recv"]),
+            hex(ep._tags["ctrl_send"]),
+            hex(ep._tags["ctrl_recv"]),
         )
     )
 
@@ -363,14 +366,17 @@ class ApplicationContext:
             listener=False,
             port=port,
         )
+        tags = {
+            "msg_send": peer_info["msg_tag"],
+            "msg_recv": msg_tag,
+            "ctrl_send": peer_info["ctrl_tag"],
+            "ctrl_recv": ctrl_tag,
+        }
         ep = Endpoint(
             endpoint=ucx_ep,
             ctx=self,
-            msg_tag_send=peer_info["msg_tag"],
-            msg_tag_recv=msg_tag,
-            ctrl_tag_send=peer_info["ctrl_tag"],
-            ctrl_tag_recv=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
+            tags=tags,
         )
 
         logger.debug(
@@ -378,10 +384,10 @@ class ApplicationContext:
             "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
             % (
                 hex(ep._ep.handle),
-                hex(ep._msg_tag_send),
-                hex(ep._msg_tag_recv),
-                hex(ep._ctrl_tag_send),
-                hex(ep._ctrl_tag_recv),
+                hex(ep._tags["msg_send"]),
+                hex(ep._tags["msg_recv"]),
+                hex(ep._tags["ctrl_send"]),
+                hex(ep._tags["ctrl_recv"]),
             )
         )
 
@@ -472,28 +478,17 @@ class Endpoint:
     to create an Endpoint.
     """
 
-    def __init__(
-        self,
-        endpoint,
-        ctx,
-        msg_tag_send,
-        msg_tag_recv,
-        ctrl_tag_send,
-        ctrl_tag_recv,
-        guarantee_msg_order,
-    ):
+    def __init__(self, endpoint, ctx, guarantee_msg_order, tags=None):
         self._ep = endpoint
         self._ctx = ctx
-        self._msg_tag_send = msg_tag_send
-        self._msg_tag_recv = msg_tag_recv
-        self._ctrl_tag_send = ctrl_tag_send
-        self._ctrl_tag_recv = ctrl_tag_recv
         self._guarantee_msg_order = guarantee_msg_order
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
         self._shutting_down_peer = False  # Told peer to shutdown
         self._close_after_n_recv = None
+        self._tags = tags
+        assert tags is not None
 
     @property
     def uid(self):
@@ -536,13 +531,17 @@ class Endpoint:
             msg_arr = Array(msg)
             log = "[Send shutdown] ep: %s, tag: %s, close_after_n_recv: %d" % (
                 hex(self.uid),
-                hex(self._ctrl_tag_send),
+                hex(self._tags["ctrl_send"]),
                 self._send_count,
             )
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep, msg_arr, msg_arr.nbytes, self._ctrl_tag_send, name=log,
+                    self._ep,
+                    msg_arr,
+                    msg_arr.nbytes,
+                    self._tags["ctrl_send"],
+                    name=log,
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -577,16 +576,16 @@ class Endpoint:
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._msg_tag_send),
+            hex(self._tags["msg_send"]),
             nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
         self._send_count += 1
         if tag is None:
-            tag = self._msg_tag_send
+            tag = self._tags["msg_send"]
         else:
-            tag = hash64bits(self._msg_tag_send, hash(tag))
+            tag = hash64bits(self._tags["msg_send"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
@@ -613,16 +612,16 @@ class Endpoint:
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
-            hex(self._msg_tag_recv),
+            hex(self._tags["msg_recv"]),
             nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
         self._recv_count += 1
         if tag is None:
-            tag = self._msg_tag_recv
+            tag = self._tags["msg_recv"]
         else:
-            tag = hash64bits(self._msg_tag_recv, hash(tag))
+            tag = hash64bits(self._tags["msg_recv"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)

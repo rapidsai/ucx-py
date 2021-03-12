@@ -3,13 +3,14 @@
 # See file LICENSE for terms.
 # cython: language_level=3
 
-from libc.string cimport memset
-from libc.stdint cimport *
-from libc.stdlib cimport malloc, free
-from libc.stdio cimport FILE, stdin, stdout, stderr, printf, fflush, fclose
 from posix.stdio cimport open_memstream
 from posix.unistd cimport close
-from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
+
+from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
+from libc.stdint cimport *
+from libc.stdio cimport FILE, fclose, fflush, printf, stderr, stdin, stdout
+from libc.stdlib cimport free, malloc
+from libc.string cimport memset
 
 
 cdef extern from "src/c_util.h":
