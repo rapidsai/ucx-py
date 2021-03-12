@@ -212,7 +212,11 @@ cdef class UCXContext(UCXObject):
         dict _config
         readonly bint cuda_support
 
-    def __init__(self, config_dict):
+    def __init__(
+        self,
+        config_dict,
+        future_flags=(UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP | UCP_FEATURE_STREAM)
+    ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
@@ -224,9 +228,7 @@ cdef class UCXContext(UCXObject):
 
         # We always request UCP_FEATURE_WAKEUP even when in blocking mode
         # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
+        ucp_params.features = future_flags
 
         ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
