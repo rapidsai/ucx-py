@@ -488,7 +488,6 @@ class Endpoint:
         self._shutting_down_peer = False  # Told peer to shutdown
         self._close_after_n_recv = None
         self._tags = tags
-        assert tags is not None
 
     @property
     def uid(self):
