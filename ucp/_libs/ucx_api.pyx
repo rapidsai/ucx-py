@@ -674,8 +674,8 @@ cdef class UCXListener(UCXObject):
         c_util_get_ucp_listener_params_free(&params)
         assert_ucs_status(status)
 
-        attr.field_mask = UCP_LISTENER_ATTR_FIELD_SOCKADDR;
-        status = ucp_listener_query(self._handle, &attr);
+        attr.field_mask = UCP_LISTENER_ATTR_FIELD_SOCKADDR
+        status = ucp_listener_query(self._handle, &attr)
         if status != UCS_OK:
             ucp_listener_destroy(self._handle)
         assert_ucs_status(status)
