@@ -72,7 +72,6 @@ def test_send_recv_cu(num_listeners):
         ports = ports.union(
             [random.randint(13000, 23000) for n in range(num_listeners)]
         )
-        print(ports)
     ports = list(ports)
 
     ctx = multiprocessing.get_context("spawn")
