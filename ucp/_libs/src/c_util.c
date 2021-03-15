@@ -11,79 +11,21 @@
 #include <arpa/inet.h>
 
 
-
-int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
-                                   uint16_t port,
-                                   ucp_listener_conn_callback_t callback_func,
-                                   void *callback_args) {
-
-    /* The listener will listen on INADDR_ANY */
-    struct sockaddr_in *listen_addr = malloc(sizeof(struct sockaddr_in));
-    if(listen_addr == NULL) {
+int c_util_set_sockaddr(ucs_sock_addr_t *sockaddr, const char *ip_address, uint16_t port) {
+    struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
+    if(addr == NULL) {
         return 1;
     }
-    memset(listen_addr, 0, sizeof(struct sockaddr_in));
-    listen_addr->sin_family      = AF_INET;
-    listen_addr->sin_addr.s_addr = INADDR_ANY;
-    listen_addr->sin_port        = htons(port);
-
-    param->field_mask         = UCP_LISTENER_PARAM_FIELD_SOCK_ADDR |
-                                UCP_LISTENER_PARAM_FIELD_CONN_HANDLER;
-    param->sockaddr.addr      = (const struct sockaddr *) listen_addr;
-    param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
-    param->conn_handler.cb  = callback_func;
-    param->conn_handler.arg = callback_args;
+    memset(addr, 0, sizeof(struct sockaddr_in));
+    addr->sin_family      = AF_INET;
+    addr->sin_addr.s_addr = ip_address==NULL ? INADDR_ANY : inet_addr(ip_address);
+    addr->sin_port        = htons(port);
+    sockaddr->addr      = (const struct sockaddr *) addr;
+    sockaddr->addrlen   = sizeof(struct sockaddr_in);
     return 0;
 }
 
-void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param) {
-    free((void*) param->sockaddr.addr);
-}
 
-
-int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
-                             const char *ip_address,
-                             uint16_t port,
-                             ucp_err_handler_cb_t err_cb) {
-
-    struct sockaddr_in *connect_addr = malloc(sizeof(struct sockaddr_in));
-    if(connect_addr == NULL) {
-        return 1;
-    }
-    memset(connect_addr, 0, sizeof(struct sockaddr_in));
-    connect_addr->sin_family      = AF_INET;
-    connect_addr->sin_addr.s_addr = inet_addr(ip_address);
-    connect_addr->sin_port        = htons(port);
-
-    param->field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
-                                UCP_EP_PARAM_FIELD_SOCK_ADDR |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLER;
-    param->err_mode           = err_cb == NULL ? UCP_ERR_HANDLING_MODE_NONE : UCP_ERR_HANDLING_MODE_PEER;
-    param->flags              = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER;
-    param->err_handler.cb     = err_cb;
-    param->err_handler.arg    = NULL;
-    param->sockaddr.addr      = (const struct sockaddr *) connect_addr;
-    param->sockaddr.addrlen   = sizeof(struct sockaddr_in);
-    return 0;
-}
-
-int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
-                                  ucp_conn_request_h conn_request,
-                                  ucp_err_handler_cb_t err_cb) {
-
-    param->field_mask         = UCP_EP_PARAM_FIELD_FLAGS |
-                                UCP_EP_PARAM_FIELD_CONN_REQUEST |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                                UCP_EP_PARAM_FIELD_ERR_HANDLER;
-    param->flags              = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK;
-    param->err_mode           = err_cb == NULL ? UCP_ERR_HANDLING_MODE_NONE : UCP_ERR_HANDLING_MODE_PEER;
-    param->err_handler.cb     = err_cb;
-    param->err_handler.arg    = NULL;
-    param->conn_request       = conn_request;
-    return 0;
-}
-
-void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param) {
-    free((void*) param->sockaddr.addr);
+void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr) {
+    free((void*) sockaddr->addr);
 }
