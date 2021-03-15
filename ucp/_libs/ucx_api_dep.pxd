@@ -22,7 +22,7 @@ cdef extern from "src/c_util.h":
                             const char *ip_address,
                             uint16_t port)
 
-    void c_util_set_sockaddr_free(ucs_sock_addr_t *sockaddr)
+    void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr)
 
 
 cdef extern from "ucp/api/ucp.h":

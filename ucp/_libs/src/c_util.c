@@ -26,6 +26,6 @@ int c_util_set_sockaddr(ucs_sock_addr_t *sockaddr, const char *ip_address, uint1
 }
 
 
-void c_util_set_sockaddr_free(ucs_sock_addr_t *sockaddr) {
+void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr) {
     free((void*) sockaddr->addr);
 }

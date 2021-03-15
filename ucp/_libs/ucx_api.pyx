@@ -415,7 +415,7 @@ cdef class UCXWorker(UCXObject):
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        c_util_set_sockaddr_free(&params.sockaddr)
+        c_util_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
@@ -687,7 +687,7 @@ cdef class UCXListener(UCXObject):
         cdef ucs_status_t status = ucp_listener_create(
             worker._handle, &params, &self._handle
         )
-        c_util_set_sockaddr_free(&params.sockaddr)
+        c_util_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
 
         self.add_handle_finalizer(
