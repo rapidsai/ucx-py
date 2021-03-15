@@ -11,9 +11,6 @@ import struct
 import weakref
 from functools import partial
 from os import close as close_fd
-from random import randint
-
-import psutil
 
 from . import comm
 from ._libs import ucx_api
