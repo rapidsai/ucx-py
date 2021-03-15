@@ -38,19 +38,18 @@ def _get_ctx():
 
 
 async def exchange_peer_info(
-    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, port, listener
+    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
 ):
     """Help function that exchange endpoint information"""
 
     # Pack peer information incl. a checksum
-    fmt = "QQ?QQ"
+    fmt = "QQ?Q"
     my_info = struct.pack(
         fmt,
         msg_tag,
         ctrl_tag,
         guarantee_msg_order,
-        port,
-        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
+        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order),
     )
     peer_info = bytearray(len(my_info))
     my_info_arr = Array(my_info)
@@ -71,21 +70,17 @@ async def exchange_peer_info(
         ret["msg_tag"],
         ret["ctrl_tag"],
         ret["guarantee_msg_order"],
-        ret["port"],
         ret["checksum"],
     ) = struct.unpack(fmt, peer_info)
 
     expected_checksum = hash64bits(
-        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"], ret["port"]
+        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"]
     )
 
     if expected_checksum != ret["checksum"]:
         raise RuntimeError(
             f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
         )
-
-    if port != ret["port"]:
-        raise RuntimeError(f'Port mismatch! {port} != {ret["port"]}')
 
     if ret["guarantee_msg_order"] != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
@@ -149,26 +144,28 @@ class CtrlMsg:
 
 
 async def _listener_handler_coroutine(
-    conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
+    conn_request, ctx, func, guarantee_msg_order, endpoint_error_handling
 ):
-    # We create the Endpoint in four steps:
-    #  1) Generate unique IDs to use as tags
-    #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the an endpoint
-    seed = os.urandom(16)
-    msg_tag = hash64bits("msg_tag", seed, port)
-    ctrl_tag = hash64bits("ctrl_tag", seed, port)
-
+    # We create the Endpoint in five steps:
+    #  1) Create endpoint from conn_request
+    #  2) Generate unique IDs to use as tags
+    #  3) Exchange endpoint info such as tags
+    #  4) Setup control receive callback
+    #  5) Execute the listener's callback function
     endpoint = ctx.worker.ep_create_from_conn_request(
         conn_request, endpoint_error_handling
     )
+
+    seed = os.urandom(16)
+    msg_tag = hash64bits("msg_tag", seed, endpoint.handle)
+    ctrl_tag = hash64bits("ctrl_tag", seed, endpoint.handle)
+
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
         listener=True,
-        port=port,
     )
     tags = {
         "msg_send": peer_info["msg_tag"],
@@ -206,14 +203,13 @@ async def _listener_handler_coroutine(
 
 
 def _listener_handler(
-    conn_request, callback_func, port, ctx, guarantee_msg_order, endpoint_error_handling
+    conn_request, callback_func, ctx, guarantee_msg_order, endpoint_error_handling
 ):
     asyncio.ensure_future(
         _listener_handler_coroutine(
             conn_request,
             ctx,
             callback_func,
-            port,
             guarantee_msg_order,
             endpoint_error_handling,
         )
@@ -314,7 +310,6 @@ class ApplicationContext:
                 cb_func=_listener_handler,
                 cb_args=(
                     callback_func,
-                    port,
                     self,
                     guarantee_msg_order,
                     endpoint_error_handling,
@@ -356,15 +351,14 @@ class ApplicationContext:
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create an endpoint
         seed = os.urandom(16)
-        msg_tag = hash64bits("msg_tag", seed, port)
-        ctrl_tag = hash64bits("ctrl_tag", seed, port)
+        msg_tag = hash64bits("msg_tag", seed, ucx_ep.handle)
+        ctrl_tag = hash64bits("ctrl_tag", seed, ucx_ep.handle)
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
             listener=False,
-            port=port,
         )
         tags = {
             "msg_send": peer_info["msg_tag"],
