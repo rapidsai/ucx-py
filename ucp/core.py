@@ -284,23 +284,8 @@ class ApplicationContext:
             The new listener. When this object is deleted, the listening stops
         """
         self.continuous_ucx_progress()
-        if port in (None, 0):
-            # Get a random port number and check if it's not used yet. Doing this
-            # without relying on `socket` allows preventing UCX errors such as
-            # "none of the available transports can listen for connections", due
-            # to the socket still being in TIME_WAIT state.
-            try:
-                with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
-                    start_port, end_port = [int(i) for i in next(f).split()]
-            except FileNotFoundError:
-                start_port, end_port = (32768, 60000)
-
-            used_ports = set(conn.laddr[1] for conn in psutil.net_connections())
-            while True:
-                port = randint(start_port, end_port)
-
-                if port not in used_ports:
-                    break
+        if port is None:
+            port = 0
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
