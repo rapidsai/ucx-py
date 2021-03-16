@@ -6,6 +6,7 @@
 
 import logging
 import socket
+import warnings
 import weakref
 
 from posix.stdio cimport open_memstream
@@ -285,6 +286,12 @@ cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
     cdef ucs_status_t *cb_status = <ucs_status_t *>NULL
 
     if endpoint_error_handling:
+        if get_ucx_version() < (1, 11, 0) and "cuda_ipc" in tls:
+            warnings.warn(
+                "CUDA IPC endpoint error handling is only supported in "
+                "UCX 1.11 and above, CUDA IPC will be disabled!",
+                RuntimeWarning
+            )
         err_cb = <ucp_err_handler_cb_t>_err_cb
         cb_status = <ucs_status_t *> malloc(sizeof(ucs_status_t))
         cb_status[0] = UCS_OK
