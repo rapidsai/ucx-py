@@ -11,9 +11,6 @@ import struct
 import weakref
 from functools import partial
 from os import close as close_fd
-from random import randint
-
-import psutil
 
 from . import comm
 from ._libs import ucx_api
@@ -38,19 +35,18 @@ def _get_ctx():
 
 
 async def exchange_peer_info(
-    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, port, listener
+    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
 ):
     """Help function that exchange endpoint information"""
 
     # Pack peer information incl. a checksum
-    fmt = "QQ?QQ"
+    fmt = "QQ?Q"
     my_info = struct.pack(
         fmt,
         msg_tag,
         ctrl_tag,
         guarantee_msg_order,
-        port,
-        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order, port),
+        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order),
     )
     peer_info = bytearray(len(my_info))
     my_info_arr = Array(my_info)
@@ -71,21 +67,17 @@ async def exchange_peer_info(
         ret["msg_tag"],
         ret["ctrl_tag"],
         ret["guarantee_msg_order"],
-        ret["port"],
         ret["checksum"],
     ) = struct.unpack(fmt, peer_info)
 
     expected_checksum = hash64bits(
-        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"], ret["port"]
+        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"]
     )
 
     if expected_checksum != ret["checksum"]:
         raise RuntimeError(
             f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
         )
-
-    if port != ret["port"]:
-        raise RuntimeError(f'Port mismatch! {port} != {ret["port"]}')
 
     if ret["guarantee_msg_order"] != guarantee_msg_order:
         raise ValueError("Both peers must set guarantee_msg_order identically")
@@ -149,26 +141,28 @@ class CtrlMsg:
 
 
 async def _listener_handler_coroutine(
-    conn_request, ctx, func, port, guarantee_msg_order, endpoint_error_handling
+    conn_request, ctx, func, guarantee_msg_order, endpoint_error_handling
 ):
-    # We create the Endpoint in four steps:
-    #  1) Generate unique IDs to use as tags
-    #  2) Exchange endpoint info such as tags
-    #  3) Use the info to create the an endpoint
-    seed = os.urandom(16)
-    msg_tag = hash64bits("msg_tag", seed, port)
-    ctrl_tag = hash64bits("ctrl_tag", seed, port)
-
+    # We create the Endpoint in five steps:
+    #  1) Create endpoint from conn_request
+    #  2) Generate unique IDs to use as tags
+    #  3) Exchange endpoint info such as tags
+    #  4) Setup control receive callback
+    #  5) Execute the listener's callback function
     endpoint = ctx.worker.ep_create_from_conn_request(
         conn_request, endpoint_error_handling
     )
+
+    seed = os.urandom(16)
+    msg_tag = hash64bits("msg_tag", seed, endpoint.handle)
+    ctrl_tag = hash64bits("ctrl_tag", seed, endpoint.handle)
+
     peer_info = await exchange_peer_info(
         endpoint=endpoint,
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         guarantee_msg_order=guarantee_msg_order,
         listener=True,
-        port=port,
     )
     tags = {
         "msg_send": peer_info["msg_tag"],
@@ -206,14 +200,13 @@ async def _listener_handler_coroutine(
 
 
 def _listener_handler(
-    conn_request, callback_func, port, ctx, guarantee_msg_order, endpoint_error_handling
+    conn_request, callback_func, ctx, guarantee_msg_order, endpoint_error_handling
 ):
     asyncio.ensure_future(
         _listener_handler_coroutine(
             conn_request,
             ctx,
             callback_func,
-            port,
             guarantee_msg_order,
             endpoint_error_handling,
         )
@@ -288,23 +281,8 @@ class ApplicationContext:
             The new listener. When this object is deleted, the listening stops
         """
         self.continuous_ucx_progress()
-        if port in (None, 0):
-            # Get a random port number and check if it's not used yet. Doing this
-            # without relying on `socket` allows preventing UCX errors such as
-            # "none of the available transports can listen for connections", due
-            # to the socket still being in TIME_WAIT state.
-            try:
-                with open("/proc/sys/net/ipv4/ip_local_port_range") as f:
-                    start_port, end_port = [int(i) for i in next(f).split()]
-            except FileNotFoundError:
-                start_port, end_port = (32768, 60000)
-
-            used_ports = set(conn.laddr[1] for conn in psutil.net_connections())
-            while True:
-                port = randint(start_port, end_port)
-
-                if port not in used_ports:
-                    break
+        if port is None:
+            port = 0
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
@@ -314,7 +292,6 @@ class ApplicationContext:
                 cb_func=_listener_handler,
                 cb_args=(
                     callback_func,
-                    port,
                     self,
                     guarantee_msg_order,
                     endpoint_error_handling,
@@ -351,20 +328,19 @@ class ApplicationContext:
         ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
-        # We create the Endpoint in four steps:
+        # We create the Endpoint in three steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create an endpoint
         seed = os.urandom(16)
-        msg_tag = hash64bits("msg_tag", seed, port)
-        ctrl_tag = hash64bits("ctrl_tag", seed, port)
+        msg_tag = hash64bits("msg_tag", seed, ucx_ep.handle)
+        ctrl_tag = hash64bits("ctrl_tag", seed, ucx_ep.handle)
         peer_info = await exchange_peer_info(
             endpoint=ucx_ep,
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             guarantee_msg_order=guarantee_msg_order,
             listener=False,
-            port=port,
         )
         tags = {
             "msg_send": peer_info["msg_tag"],
@@ -462,8 +438,13 @@ class Listener:
         return not self._b.initialized
 
     @property
+    def ip(self):
+        """The listening network IP address"""
+        return self._b.ip
+
+    @property
     def port(self):
-        """The network point listening on"""
+        """The listening network port"""
         return self._b.port
 
     def close(self):

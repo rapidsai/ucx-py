@@ -13,6 +13,11 @@ from libc.stdlib cimport free, malloc
 from libc.string cimport memset
 
 
+cdef extern from "sys/socket.h":
+    ctypedef struct sockaddr_storage_t:
+        pass
+
+
 cdef extern from "src/c_util.h":
 
     ctypedef struct ucs_sock_addr_t:
@@ -23,6 +28,11 @@ cdef extern from "src/c_util.h":
                             uint16_t port)
 
     void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr)
+
+    void c_util_sockaddr_get_ip_port_str(const sockaddr_storage_t *sock_addr,
+                                         char *ip_str,
+                                         char *port_str,
+                                         size_t max_size)
 
 
 cdef extern from "ucp/api/ucp.h":
@@ -174,9 +184,16 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef ucp_listener* ucp_listener_h
 
+    int UCP_LISTENER_ATTR_FIELD_SOCKADDR
+    ctypedef struct ucp_listener_attr_t:
+        uint64_t field_mask
+        sockaddr_storage_t sockaddr
+
     ucs_status_t ucp_listener_create(ucp_worker_h worker,
                                      const ucp_listener_params_t *params,
                                      ucp_listener_h *listener_p)
+    ucs_status_t ucp_listener_query(ucp_listener_h listener,
+                                    ucp_listener_attr_t *attr)
 
     ucs_status_t ucp_ep_create(ucp_worker_h worker,
                                const ucp_ep_params_t *params,
