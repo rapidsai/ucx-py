@@ -402,10 +402,12 @@ cdef class UCXWorker(UCXObject):
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
 
-        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS |
-                             UCP_EP_PARAM_FIELD_SOCK_ADDR |
-                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                             UCP_EP_PARAM_FIELD_ERR_HANDLER)
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_SOCK_ADDR |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
         params.flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
         if err_cb == NULL:
             params.err_mode = UCP_ERR_HANDLING_MODE_NONE
@@ -422,6 +424,32 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def ep_create_from_worker_address(
+        self, UCXAddress address, bint endpoint_error_handling
+    ):
+        assert self.initialized
+        cdef ucp_ep_params_t params
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        params.address = address._address
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
     def ep_create_from_conn_request(
         self, uintptr_t conn_request, bint endpoint_error_handling
     ):
@@ -431,10 +459,12 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS | # noqa
-                             UCP_EP_PARAM_FIELD_CONN_REQUEST | # noqa
-                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE | # noqa
-                             UCP_EP_PARAM_FIELD_ERR_HANDLER) # noqa
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_CONN_REQUEST |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
         params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
         if err_cb == NULL:
             params.err_mode = UCP_ERR_HANDLING_MODE_NONE
@@ -801,11 +831,11 @@ cdef class UCXRequest:
 
     def __repr__(self):
         if self.closed():
-            return f"<UCXRequest closed>"
+            return "<UCXRequest closed>"
         else:
             return (
                 f"<UCXRequest handle={hex(self.handle)} "
-                "uid={self._uid} info={self.info}>"
+                f"uid={self._uid} info={self.info}>"
             )
 
 
