@@ -103,8 +103,6 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
     int UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
 
-    ctypedef ucp_conn_request* ucp_conn_request_h
-
     ctypedef struct ucp_ep_params_t:
         uint64_t field_mask
         const ucp_address_t *address
