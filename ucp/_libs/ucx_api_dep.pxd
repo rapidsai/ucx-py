@@ -122,10 +122,11 @@ cdef extern from "ucp/api/ucp.h":
         ucp_request_init_callback_t request_init
 
     ucs_status_t UCS_OK
-    ucs_status_t UCS_ERR_CANCELED
     ucs_status_t UCS_INPROGRESS
     ucs_status_t UCS_ERR_NO_ELEM
     ucs_status_t UCS_ERR_BUSY
+    ucs_status_t UCS_ERR_CANCELED
+    ucs_status_t UCS_ERR_CONNECTION_RESET
 
     void ucp_get_version(unsigned * major_version,
                          unsigned *minor_version,

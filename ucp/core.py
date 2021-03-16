@@ -486,7 +486,7 @@ class Endpoint:
         Notice, this functions doesn't signal the connected peer to close.
         To do that, use `Endpoint.close()`
         """
-        if self.closed():
+        if self.closed() or not self._ep.is_alive():
             return
         logger.debug("Endpoint.abort(): %s" % hex(self.uid))
         self._ep.close()
@@ -498,7 +498,7 @@ class Endpoint:
         This will attempt to flush outgoing buffers before actually
         closing the underlying UCX endpoint.
         """
-        if self.closed():
+        if self.closed() or not self._ep.is_alive():
             return
         try:
             # Making sure we only tell peer to shutdown once
@@ -550,6 +550,7 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
+        self._ep.raise_on_error()
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
@@ -586,6 +587,7 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
+        self._ep.raise_on_error()
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
