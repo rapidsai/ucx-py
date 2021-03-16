@@ -10,12 +10,12 @@ import weakref
 
 from posix.stdio cimport open_memstream
 
-from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_WRITABLE
+from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport FILE, clearerr, fclose, fflush
 from libc.stdlib cimport free
-from libc.string cimport memset
+from libc.string cimport memcpy, memset
 
 from .arr cimport Array
 from .ucx_api_dep cimport *
@@ -214,7 +214,7 @@ cdef class UCXContext(UCXObject):
 
     def __init__(
         self,
-        config_dict,
+        config_dict={},
         feature_flags=(UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP | UCP_FEATURE_STREAM)
     ):
         cdef ucp_params_t ucp_params
@@ -397,10 +397,12 @@ cdef class UCXWorker(UCXObject):
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
 
-        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS |
-                             UCP_EP_PARAM_FIELD_SOCK_ADDR |
-                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-                             UCP_EP_PARAM_FIELD_ERR_HANDLER)
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_SOCK_ADDR |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
         params.flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
         if err_cb == NULL:
             params.err_mode = UCP_ERR_HANDLING_MODE_NONE
@@ -417,6 +419,32 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
+    def ep_create_from_worker_address(
+        self, UCXAddress address, bint endpoint_error_handling
+    ):
+        assert self.initialized
+        cdef ucp_ep_params_t params
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        params.address = address._address
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
     def ep_create_from_conn_request(
         self, uintptr_t conn_request, bint endpoint_error_handling
     ):
@@ -426,10 +454,12 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        params.field_mask = (UCP_EP_PARAM_FIELD_FLAGS | # noqa
-                             UCP_EP_PARAM_FIELD_CONN_REQUEST | # noqa
-                             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE | # noqa
-                             UCP_EP_PARAM_FIELD_ERR_HANDLER) # noqa
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_CONN_REQUEST |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
         params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
         if err_cb == NULL:
             params.err_mode = UCP_ERR_HANDLING_MODE_NONE
@@ -463,52 +493,55 @@ cdef class UCXWorker(UCXObject):
         )
 
     def get_address(self):
-        return UCXAddress(self)
+        return UCXAddress.from_worker(self)
 
 
-def _ucx_address_finalizer(uintptr_t handle_as_int, uintptr_t worker_as_int):
-    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
-    cdef ucp_worker_h ucp_worker = <ucp_worker_h>worker_as_int
-    ucp_worker_release_address(ucp_worker, address)
-
-
-cdef class UCXAddress(UCXObject):
+cdef class UCXAddress:
     """Python representation of ucp_address_t"""
-    cdef ucp_address_t *_handle
+    cdef ucp_address_t *_address
     cdef Py_ssize_t _length
-    cdef worker
 
-    def __init__(self, UCXWorker worker):
+    def __cinit__(self, uintptr_t address_as_int, Py_ssize_t length):
+        address = <ucp_address_t *> address_as_int
+        # Copy address to `self._address`
+        self._address = <ucp_address_t *> malloc(length)
+        self._length = length
+        memcpy(self._address, address, length)
+
+    def __dealloc__(self):
+        free(self._address)
+
+    @classmethod
+    def from_buffer(cls, buffer):
+        buf = Array(buffer)
+        assert buf.c_contiguous
+        return UCXAddress(buf.ptr, buf.nbytes)
+
+    @classmethod
+    def from_worker(cls, UCXWorker worker):
         cdef ucs_status_t status
         cdef ucp_worker_h ucp_worker = worker._handle
+        cdef ucp_address_t *address
         cdef size_t length
-
-        status = ucp_worker_get_address(ucp_worker, &self._handle, &length)
+        status = ucp_worker_get_address(ucp_worker, &address, &length)
         assert_ucs_status(status)
-        self.worker = worker
-        self._length = <Py_ssize_t>length
-        self.add_handle_finalizer(
-            _ucx_address_finalizer,
-            int(<uintptr_t>self._handle),
-            int(<uintptr_t>worker._handle)
-        )
-        worker.add_child(self)
+        try:
+            return UCXAddress(int(<uintptr_t>address), length)
+        finally:
+            ucp_worker_release_address(ucp_worker, address)
 
     @property
     def address(self):
-        assert self.initialized
-        return <uintptr_t>self._handle
+        return <uintptr_t>self._address
 
     @property
     def length(self):
-        assert self.initialized
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        assert self.initialized
         if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
             raise BufferError("Requested writable view on readonly data")
-        buffer.buf = <void*>self._handle
+        buffer.buf = <void*>self._address
         buffer.obj = self
         buffer.len = self._length
         buffer.readonly = True
@@ -528,6 +561,12 @@ cdef class UCXAddress(UCXObject):
 
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
+
+    def __reduce__(self):
+        return (UCXAddress.from_buffer, (bytes(self),))
+
+    def __hash__(self):
+        return hash(bytes(self))
 
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
@@ -787,11 +826,11 @@ cdef class UCXRequest:
 
     def __repr__(self):
         if self.closed():
-            return f"<UCXRequest closed>"
+            return "<UCXRequest closed>"
         else:
             return (
                 f"<UCXRequest handle={hex(self.handle)} "
-                "uid={self._uid} info={self.info}>"
+                f"uid={self._uid} info={self.info}>"
             )
 
 
