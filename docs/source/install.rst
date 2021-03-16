@@ -31,7 +31,6 @@ Without GPU support:
     conda create -n ucx -c conda-forge -c rapidsai \
       ucx-proc=*=cpu ucx ucx-py python=3.7
 
-Note: These use UCX's ``v1.8.x`` branch.
 
 Source
 ------
@@ -64,8 +63,34 @@ Test Dependencies
         cupy "numba>=0.46" rmm \
         distributed
 
-UCX
-~~~
+UCX-1.9
+~~~~~~~
+
+Instructions for building ucx 1.9:
+
+::
+
+    conda activate ucx
+    git clone https://github.com/openucx/ucx
+    cd ucx
+    git checkout v1.9.x
+    # apply UCX IB registration cache patch, improves overall
+    # CUDA IB performance when using a memory pool
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/11ad7a3c1f25514df8064930f69c310be4fd55dc/recipe/cuda-alloc-rcache.patch
+    git apply cuda-alloc-rcache.patch
+    ./autogen.sh
+    mkdir build
+    cd build
+    # Performance build
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    # Debug build
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    make -j install
+
+UCX-1.8
+~~~~~~~
+
+Instructions for building ucx 1.8:
 
 ::
 
@@ -73,10 +98,10 @@ UCX
     git clone https://github.com/openucx/ucx
     cd ucx
     git checkout v1.8.x
-    # apply UCX IB registration cache patches, improves overall
+    # apply UCX IB registration cache patch, improves overall
     # CUDA IB performance when using a memory pool
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/add-page-alignment.patch
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/master/recipe/ib_registration_cache.patch
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/add-page-alignment.patch add-page-alignment.patch
+    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/ib_registration_cache.patch ib_registration_cache.patch
     git apply ib_registration_cache.patch && git apply add-page-alignment.patch
     ./autogen.sh
     mkdir build
@@ -88,7 +113,7 @@ UCX
     make -j install
 
 .. note::
-    If you're running on a machine without CUDA then you _must NOT_ apply the patches.
+    If you're running on a machine without CUDA then you _must NOT_ apply any of the patches above.
 
 UCX + OFED
 ~~~~~~~~~~
@@ -123,7 +148,7 @@ UCX-Py
 ::
 
     conda activate ucx
-    git clone git@github.com:rapidsai/ucx-py.git
+    git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
     python setup.py build_ext --inplace
     pip install .

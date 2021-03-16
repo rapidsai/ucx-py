@@ -16,7 +16,7 @@ Many containers with a shared IPC namespace
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If you wish to isolate your processes into multiple containers and
-expose one more more GPUs to each container you need to ensure they are
+expose one or more GPUs to each container you need to ensure they are
 using a shared IPC namespace.
 
 In a Docker configuration you can mark one container as having a
