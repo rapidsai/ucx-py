@@ -328,7 +328,7 @@ class ApplicationContext:
         ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
-        # We create the Endpoint in four steps:
+        # We create the Endpoint in three steps:
         #  1) Generate unique IDs to use as tags
         #  2) Exchange endpoint info such as tags
         #  3) Use the info to create an endpoint

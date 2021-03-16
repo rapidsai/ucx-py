@@ -683,10 +683,6 @@ cdef class UCXListener(UCXObject):
         if c_util_set_sockaddr(&params.sockaddr, NULL, port):
             raise MemoryError("Failed allocation of sockaddr")
 
-        DEF MAX_STR_LEN = 50
-        cdef char ip_str[MAX_STR_LEN]
-        cdef char port_str[MAX_STR_LEN]
-
         cdef ucs_status_t status = ucp_listener_create(
             worker._handle, &params, &self._handle
         )
@@ -699,6 +695,9 @@ cdef class UCXListener(UCXObject):
             ucp_listener_destroy(self._handle)
         assert_ucs_status(status)
 
+        DEF MAX_STR_LEN = 50
+        cdef char ip_str[MAX_STR_LEN]
+        cdef char port_str[MAX_STR_LEN]
         c_util_sockaddr_get_ip_port_str(&attr.sockaddr,
                                         ip_str,
                                         port_str,
