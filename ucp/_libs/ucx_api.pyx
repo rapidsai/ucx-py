@@ -590,7 +590,7 @@ def _ucx_endpoint_finalizer(
         bint endpoint_error_handling,
         worker,
         set inflight_msgs
-    ):
+):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
@@ -642,7 +642,7 @@ cdef class UCXEndpoint(UCXObject):
             uintptr_t handle,
             uintptr_t status,
             bint endpoint_error_handling
-        ):
+    ):
         """The Constructor"""
 
         assert worker.initialized
