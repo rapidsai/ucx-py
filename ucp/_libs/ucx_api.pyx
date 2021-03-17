@@ -372,6 +372,11 @@ cdef class UCXWorker(UCXObject):
 
     @nvtx_annotate("UCXPY_PROGRESS", color="blue", domain="ucxpy")
     def progress(self):
+        """Try to progress the communication layer
+
+        Warning, it is illegal to call this from a call-back function such as
+        the call-back function given to UCXListener, tag_send_nb, and tag_recv_nb.
+        """
         assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
             pass

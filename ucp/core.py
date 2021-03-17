@@ -254,10 +254,7 @@ class ApplicationContext:
         callback_func is the function or coroutine that takes one
         argument -- the Endpoint connected to the client.
 
-        In order to call ucp.reset() inside callback_func remember to
-        close the Endpoint given as an argument. It is not enough to
-
-        Also notice, the listening is closed when the returned Listener
+        Notice, the listening is closed when the returned Listener
         goes out of scope thus remember to keep a reference to the object.
 
         Parameters
@@ -792,10 +789,8 @@ def get_ucx_version():
 def progress():
     """Try to progress the communication layer
 
-    Returns
-    -------
-    bool
-        Returns True if progress was made
+    Warning, it is illegal to call this from a call-back function such as
+    the call-back function given to create_listener.
     """
     return _get_ctx().worker.progress()
 
