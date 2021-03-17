@@ -13,12 +13,12 @@ In sockets-based connections, multiple file descriptors may be open to establish
 
     ucp.exceptions.UCXError: User-defined limit was reached
 
-One possible cause for this is that the limit establish by the OS or system administrators has been reached by the user. This limit can be checked with:
+One possible cause for this is that the limit established by the OS or system administrators has been reached by the user. This limit can be checked with:
 
 ::
     $ ulimit -n
 
-If the user has permission to do so, this limit can be increased by typing the new limit after the command above. For example, to set a new limit of 1 million, the following should be executed:
+If the user has permission to do so, the file descriptor limit can be increased by typing the new limit after the command above. For example, to set a new limit of 1 million, the following should be executed:
 
 ::
 
