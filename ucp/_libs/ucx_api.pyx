@@ -699,8 +699,9 @@ cdef class UCXListener(UCXObject):
     ----------
     worker: UCXWorker
         Listening worker.
-    port: int, optional
-        An unused port number for listening
+    port: int
+        An unused port number for listening, or `0` to let UCX assign
+        an unused port.
     callback_func: callable
         A callback function that gets invoked when an incoming
         connection is accepted. The arguments are `conn_request`

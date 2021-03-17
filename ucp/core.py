@@ -247,7 +247,11 @@ class ApplicationContext:
             )
 
     def create_listener(
-        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=False
+        self,
+        callback_func,
+        port=0,
+        guarantee_msg_order=False,
+        endpoint_error_handling=False,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -263,7 +267,8 @@ class ApplicationContext:
             A callback function that gets invoked when an incoming
             connection is accepted
         port: int, optional
-            An unused port number for listening
+            An unused port number for listening, or `0` to let UCX assign
+            an unused port.
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
