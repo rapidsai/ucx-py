@@ -642,7 +642,8 @@ cdef class UCXEndpoint(UCXObject):
         worker.add_child(self)
 
     def __dealloc__(self):
-        free(<void *>self._status)
+        if <void *>self._status != NULL:
+            free(<void *>self._status)
 
     def info(self):
         assert self.initialized
@@ -676,11 +677,17 @@ cdef class UCXEndpoint(UCXObject):
         return (status, str(status_str))
 
     def is_alive(self):
+        if <void *>self._status == NULL:
+            return True
+
         status, _ = self._get_status_and_str()
 
         return status == UCS_OK
 
     def raise_on_error(self):
+        if <void *>self._status == NULL:
+            return
+
         status, status_str = self._get_status_and_str()
 
         if status == UCS_OK:
