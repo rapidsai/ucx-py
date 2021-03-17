@@ -26,6 +26,7 @@ UCX-Py is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a lo
    :hidden:
    :caption: Help & reference
 
+   os-limits
    transport-monitoring
    send-recv
    api

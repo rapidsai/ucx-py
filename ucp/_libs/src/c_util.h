@@ -7,21 +7,12 @@
 #include <sys/socket.h>
 #include <ucp/api/ucp.h>
 
+int c_util_set_sockaddr(ucs_sock_addr_t *sockaddr, const char *ip_address, uint16_t port);
 
-int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
-                                   uint16_t port,
-                                   ucp_listener_conn_callback_t callback_func,
-                                   void *callback_args);
+void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr);
 
-void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param);
-
-int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
-                             const char *ip_address,
-                             uint16_t port,
-                             ucp_err_handler_cb_t err_cb);
-
-int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
-                                  ucp_conn_request_h conn_request,
-                                  ucp_err_handler_cb_t err_cb);
-
-void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param);
+void c_util_sockaddr_get_ip_port_str(
+    const struct sockaddr_storage *sock_addr,
+    char *ip_str, char *port_str,
+    size_t max_str_size
+);

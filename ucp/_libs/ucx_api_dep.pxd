@@ -13,41 +13,26 @@ from libc.stdlib cimport free, malloc
 from libc.string cimport memset
 
 
+cdef extern from "sys/socket.h":
+    ctypedef struct sockaddr_storage_t:
+        pass
+
+
 cdef extern from "src/c_util.h":
-    ctypedef struct ucp_listener_params_t:
+
+    ctypedef struct ucs_sock_addr_t:
         pass
 
-    ctypedef struct ucp_ep:
-        pass
+    int c_util_set_sockaddr(ucs_sock_addr_t *sockaddr,
+                            const char *ip_address,
+                            uint16_t port)
 
-    ctypedef ucp_ep* ucp_ep_h
+    void c_util_sockaddr_free(ucs_sock_addr_t *sockaddr)
 
-    ctypedef struct ucp_ep_params_t:
-        pass
-
-    ctypedef struct ucp_conn_request:
-        pass
-
-    ctypedef ucp_conn_request* ucp_conn_request_h
-
-    ctypedef void(*ucp_err_handler_cb_t)(void *arg, ucp_ep_h ep, ucs_status_t status)
-
-    ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
-
-    int c_util_get_ucp_listener_params(ucp_listener_params_t *param,
-                                       uint16_t port,
-                                       ucp_listener_conn_callback_t callback_func,  # noqa
-                                       void *callback_args)
-    void c_util_get_ucp_listener_params_free(ucp_listener_params_t *param)
-
-    int c_util_get_ucp_ep_params(ucp_ep_params_t *param,
-                                 const char *ip_address,
-                                 uint16_t port,
-                                 ucp_err_handler_cb_t err_cb)
-    int c_util_get_ucp_ep_conn_params(ucp_ep_params_t *param,
-                                      ucp_conn_request_h conn_request,
-                                      ucp_err_handler_cb_t err_cb)
-    void c_util_get_ucp_ep_params_free(ucp_ep_params_t *param)
+    void c_util_sockaddr_get_ip_port_str(const sockaddr_storage_t *sock_addr,
+                                         char *ip_str,
+                                         char *port_str,
+                                         size_t max_size)
 
 
 cdef extern from "ucp/api/ucp.h":
@@ -69,6 +54,64 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef struct ucp_address_t:
         pass
+
+    ctypedef struct ucp_listener_accept_handler_t:
+        pass
+
+    ctypedef ucp_conn_request* ucp_conn_request_h
+
+    ctypedef void(*ucp_listener_conn_callback_t)(ucp_conn_request_h request, void *arg)
+
+    ctypedef struct ucp_listener_conn_handler_t:
+        ucp_listener_conn_callback_t cb
+        void *arg
+
+    int UCP_LISTENER_PARAM_FIELD_SOCK_ADDR
+    int UCP_LISTENER_PARAM_FIELD_CONN_HANDLER
+    ctypedef struct ucp_listener_params_t:
+        uint64_t field_mask
+        ucs_sock_addr_t sockaddr
+        ucp_listener_accept_handler_t accept_handler
+        ucp_listener_conn_handler_t conn_handler
+
+    ctypedef struct ucp_ep:
+        pass
+
+    ctypedef ucp_ep* ucp_ep_h
+
+    ctypedef struct ucp_conn_request:
+        pass
+
+    ctypedef enum ucp_err_handling_mode_t:
+        UCP_ERR_HANDLING_MODE_NONE
+        UCP_ERR_HANDLING_MODE_PEER
+
+    ctypedef void(*ucp_err_handler_cb_t) (void *arg, ucp_ep_h ep, ucs_status_t status)
+
+    ctypedef struct ucp_err_handler_t:
+        ucp_err_handler_cb_t cb
+        void *arg
+
+    int UCP_EP_PARAM_FIELD_REMOTE_ADDRESS
+    int UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE
+    int UCP_EP_PARAM_FIELD_ERR_HANDLER
+    int UCP_EP_PARAM_FIELD_USER_DATA
+    int UCP_EP_PARAM_FIELD_SOCK_ADDR
+    int UCP_EP_PARAM_FIELD_FLAGS
+    int UCP_EP_PARAM_FIELD_CONN_REQUEST
+
+    int UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
+    int UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
+
+    ctypedef struct ucp_ep_params_t:
+        uint64_t field_mask
+        const ucp_address_t *address
+        ucp_err_handling_mode_t err_mode
+        ucp_err_handler_t err_handler
+        void *user_data
+        unsigned flags
+        ucs_sock_addr_t sockaddr
+        ucp_conn_request_h conn_request
 
     ctypedef void(* ucp_request_init_callback_t)(void *request)
 
@@ -100,6 +143,9 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_FEATURE_TAG
     int UCP_FEATURE_WAKEUP
     int UCP_FEATURE_STREAM
+    int UCP_FEATURE_RMA
+    int UCP_FEATURE_AMO32
+    int UCP_FEATURE_AMO64
     ucs_status_t ucp_init(const ucp_params_t *params,
                           const ucp_config_t *config,
                           ucp_context_h *context_p)
@@ -136,9 +182,16 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef ucp_listener* ucp_listener_h
 
+    int UCP_LISTENER_ATTR_FIELD_SOCKADDR
+    ctypedef struct ucp_listener_attr_t:
+        uint64_t field_mask
+        sockaddr_storage_t sockaddr
+
     ucs_status_t ucp_listener_create(ucp_worker_h worker,
                                      const ucp_listener_params_t *params,
                                      ucp_listener_h *listener_p)
+    ucs_status_t ucp_listener_query(ucp_listener_h listener,
+                                    ucp_listener_attr_t *attr)
 
     ucs_status_t ucp_ep_create(ucp_worker_h worker,
                                const ucp_ep_params_t *params,
