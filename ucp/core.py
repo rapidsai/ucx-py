@@ -247,7 +247,7 @@ class ApplicationContext:
             )
 
     def create_listener(
-        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=True
+        self, callback_func, port, guarantee_msg_order, endpoint_error_handling=None
     ):
         """Create and start a listener to accept incoming connections
 
@@ -270,10 +270,15 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
-        endpoint_error_handling: boolean, optional
+        endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
             from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
 
         Returns
         -------
@@ -283,6 +288,8 @@ class ApplicationContext:
         self.continuous_ucx_progress()
         if port is None:
             port = 0
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
@@ -301,7 +308,7 @@ class ApplicationContext:
         return ret
 
     async def create_endpoint(
-        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=True
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=None
     ):
         """Create a new endpoint to a server
 
@@ -314,10 +321,15 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
-        endpoint_error_handling: boolean, optional
+        endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
             from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
 
         Returns
         -------
@@ -325,6 +337,9 @@ class ApplicationContext:
             The new endpoint
         """
         self.continuous_ucx_progress()
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
+
         ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
@@ -822,7 +837,7 @@ def get_config():
 
 
 def create_listener(
-    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=True
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=None
 ):
     return _get_ctx().create_listener(
         callback_func,
@@ -833,7 +848,7 @@ def create_listener(
 
 
 async def create_endpoint(
-    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=True
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=None
 ):
     return await _get_ctx().create_endpoint(
         ip_address,
