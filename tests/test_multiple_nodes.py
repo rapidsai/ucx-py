@@ -40,7 +40,6 @@ async def test_many_servers_many_clients(num_servers, num_clients):
     somaxconn = get_somaxconn()
 
     listeners = []
-    clients = []
 
     for _ in range(num_servers):
         listeners.append(ucp.create_listener(server_node))
@@ -48,6 +47,7 @@ async def test_many_servers_many_clients(num_servers, num_clients):
     # We ensure no more than `somaxconn` connections are submitted
     # at once. Doing otherwise can block and hang indefinitely.
     for i in range(0, num_clients * num_servers, somaxconn):
+        clients = []
         for __ in range(i, min(i + somaxconn, num_clients * num_servers)):
             clients.append(client_node(listeners[__ % num_servers].port))
         await asyncio.gather(*clients, loop=asyncio.get_event_loop())
