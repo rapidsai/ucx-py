@@ -11,7 +11,7 @@ from ucp._libs.utils_test import blocking_recv, blocking_send
 mp = mp.get_context("spawn")
 
 
-def _echo_server(queue, msg_size):
+def _echo_server(get_queue, put_queue, msg_size):
     """Server that send received message back to the client
 
     Notice, since it is illegal to call progress() in call-back functions,
@@ -41,12 +41,12 @@ def _echo_server(queue, msg_size):
         )
 
     listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
-    queue.put(listener.port)
+    put_queue.put(listener.port)
 
     while True:
         worker.progress()
         try:
-            queue.get(block=False, timeout=0.1)
+            get_queue.get(block=False, timeout=0.1)
         except QueueIsEmpty:
             continue
         else:
@@ -66,14 +66,14 @@ def _echo_client(msg_size, port):
 
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 def test_server_client(msg_size):
-    queue = mp.Queue()
-    server = mp.Process(target=_echo_server, args=(queue, msg_size))
+    put_queue, get_queue = mp.Queue(), mp.Queue()
+    server = mp.Process(target=_echo_server, args=(put_queue, get_queue, msg_size))
     server.start()
-    port = queue.get()
+    port = get_queue.get()
     client = mp.Process(target=_echo_client, args=(msg_size, port))
     client.start()
     client.join(timeout=10)
     assert not client.exitcode
-    queue.put("Finished")
+    put_queue.put("Finished")
     server.join(timeout=10)
     assert not server.exitcode
