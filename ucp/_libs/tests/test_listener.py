@@ -1,16 +1,14 @@
-from ucp._libs.ucx_api import UCXContext, UCXListener, UCXWorker
+from ucp._libs import ucx_api
 
 
 def test_listener_ip_port():
-    def _listener_handler(conn_request, callback_func):
+    ctx = ucx_api.UCXContext()
+    worker = ucx_api.UCXWorker(ctx)
+
+    def _listener_handler(conn_request):
         pass
 
-    context = UCXContext({})
-    worker = UCXWorker(context)
-
-    listener = UCXListener(
-        worker=worker, port=0, cb_func=_listener_handler, cb_args=(lambda: None,)
-    )
+    listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
 
     assert isinstance(listener.ip, str) and listener.ip
     assert (
