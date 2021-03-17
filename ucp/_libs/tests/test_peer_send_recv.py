@@ -1,60 +1,12 @@
 import multiprocessing as mp
 import os
-import pickle
-import time
 
 import pytest
 
 from ucp._libs import ucx_api
-from ucp._libs.arr import Array
+from ucp._libs.utils_test import blocking_recv, blocking_send
 
 mp = mp.get_context("spawn")
-
-
-def test_pickle_ucx_address():
-    ctx = ucx_api.UCXContext()
-    worker = ucx_api.UCXWorker(ctx)
-    org_address = worker.get_address()
-    dumped_address = pickle.dumps(org_address)
-    org_address_hash = hash(org_address)
-    org_address = bytes(org_address)
-    new_address = pickle.loads(dumped_address)
-    assert org_address_hash == hash(new_address)
-    assert bytes(org_address) == bytes(new_address)
-
-
-def blocking_handler(request, exception, finished):
-    finished[0] = True
-
-
-def blocking_send(worker, ep, msg, tag):
-    msg = Array(msg)
-    finished = [False]
-    req = ucx_api.tag_send_nb(
-        ep, msg, msg.nbytes, tag=tag, cb_func=blocking_handler, cb_args=(finished,),
-    )
-    if req is not None:
-        while not finished[0]:
-            worker.progress()
-            time.sleep(0.1)
-
-
-def blocking_recv(worker, ep, msg, tag):
-    msg = Array(msg)
-    finished = [False]
-    req = ucx_api.tag_recv_nb(
-        worker,
-        msg,
-        msg.nbytes,
-        tag=tag,
-        cb_func=blocking_handler,
-        cb_args=(finished,),
-        ep=ep,
-    )
-    if req is not None:
-        while not finished[0]:
-            worker.progress()
-            time.sleep(0.1)
 
 
 def _test_peer_communication(queue, rank, msg_size):
