@@ -429,7 +429,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         c_util_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status, endpoint_error_handling)
 
     def ep_create_from_worker_address(
         self, UCXAddress address, bint endpoint_error_handling
@@ -457,7 +457,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status, endpoint_error_handling)
 
     def ep_create_from_conn_request(
         self, uintptr_t conn_request, bint endpoint_error_handling
@@ -488,7 +488,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep, ep_status, endpoint_error_handling)
 
     cpdef ucs_status_t fence(self) except *:
         cdef ucs_status_t status = ucp_worker_fence(self._handle)
@@ -585,7 +585,12 @@ cdef class UCXAddress:
         return hash(bytes(self))
 
 
-def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
+def _ucx_endpoint_finalizer(
+        uintptr_t handle_as_int,
+        bint endpoint_error_handling,
+        worker,
+        set inflight_msgs
+    ):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
@@ -605,7 +610,12 @@ def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
     cdef str msg
-    status = ucp_ep_close_nb(handle, UCP_EP_CLOSE_MODE_FORCE)
+    close_mode = (
+        UCP_EP_CLOSE_MODE_FORCE
+        if endpoint_error_handling
+        else UCP_EP_CLOSE_MODE_FLUSH
+    )
+    status = ucp_ep_close_nb(handle, close_mode)
     if UCS_PTR_IS_PTR(status):
         while ucp_request_check_status(status) == UCS_INPROGRESS:
             worker.progress()
@@ -620,22 +630,31 @@ cdef class UCXEndpoint(UCXObject):
     cdef:
         ucp_ep_h _handle
         uintptr_t _status
+        bint _endpoint_error_handling
         set _inflight_msgs
 
     cdef readonly:
         UCXWorker worker
 
-    def __init__(self, UCXWorker worker, uintptr_t handle, uintptr_t status):
+    def __init__(
+            self,
+            UCXWorker worker,
+            uintptr_t handle,
+            uintptr_t status,
+            bint endpoint_error_handling
+        ):
         """The Constructor"""
 
         assert worker.initialized
         self.worker = worker
         self._handle = <ucp_ep_h>handle
-        self._status = <uintptr_t> status
+        self._status = <uintptr_t>status
+        self._endpoint_error_handling = endpoint_error_handling
         self._inflight_msgs = set()
         self.add_handle_finalizer(
             _ucx_endpoint_finalizer,
             int(handle),
+            endpoint_error_handling,
             worker,
             self._inflight_msgs
         )
@@ -677,7 +696,7 @@ cdef class UCXEndpoint(UCXObject):
         return (status, str(status_str))
 
     def is_alive(self):
-        if <void *>self._status == NULL:
+        if not self._endpoint_error_handling:
             return True
 
         status, _ = self._get_status_and_str()
@@ -685,7 +704,7 @@ cdef class UCXEndpoint(UCXObject):
         return status == UCS_OK
 
     def raise_on_error(self):
-        if <void *>self._status == NULL:
+        if not self._endpoint_error_handling:
             return
 
         status, status_str = self._get_status_and_str()
