@@ -688,7 +688,34 @@ def _ucx_listener_handle_finalizer(uintptr_t handle):
 
 
 cdef class UCXListener(UCXObject):
-    """Python representation of `ucp_listener_h`"""
+    """Python representation of `ucp_listener_h`
+
+    Create and start a listener to accept incoming connections.
+
+    Notice, the listening is closed when the returned Listener
+    goes out of scope thus remember to keep a reference to the object.
+
+    Parameters
+    ----------
+    worker: UCXWorker
+        Listening worker.
+    port: int, optional
+        An unused port number for listening
+    callback_func: callable
+        A callback function that gets invoked when an incoming
+        connection is accepted. The arguments are `conn_request`
+        followed by *cb_args and **cb_kwargs (if not None).
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+
+    Returns
+    -------
+    Listener: UCXListener
+        The new listener. When this object is deleted, the listening stops
+    """
+
     cdef:
         ucp_listener_h _handle
         dict cb_data
