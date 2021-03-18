@@ -17,9 +17,7 @@ from libc.stdio cimport (
     FILE,
     SEEK_END,
     SEEK_SET,
-    clearerr,
     fclose,
-    fflush,
     fread,
     fseek,
     ftell,
@@ -143,29 +141,18 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
 
 cdef dict ucx_config_to_dict(ucp_config_t *config):
     """Returns a dict of a UCX config"""
-    cdef char *text
-    cdef size_t text_len
     cdef unicode py_text, line, k, v
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    if text_fd == NULL:
-        raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
+
+    cdef FILE *text_fd = create_text_fd()
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    try:
-        if fflush(text_fd) != 0:
-            clearerr(text_fd)
-            raise IOError("fflush() failed on memory stream")
-        py_text = text.decode(errors="ignore")
-        for line in py_text.splitlines():
-            k, v = line.split("=")
-            k = k[4:]  # Strip "UCX_" prefix
-            ret[k] = v
-    finally:
-        if fclose(text_fd) != 0:
-            free(text)
-            raise IOError("fclose() failed to close memory stream")
-        else:
-            free(text)
+    py_text = decode_text_fd(text_fd)
+
+    for line in py_text.splitlines():
+        k, v = line.split("=")
+        k = k[4:]  # Strip "UCX_" prefix
+        ret[k] = v
+
     return ret
 
 
