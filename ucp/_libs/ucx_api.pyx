@@ -13,7 +13,19 @@ from posix.stdio cimport open_memstream
 from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uint16_t, uintptr_t
-from libc.stdio cimport FILE, clearerr, fclose, fflush
+from libc.stdio cimport (
+    FILE,
+    SEEK_END,
+    SEEK_SET,
+    clearerr,
+    fclose,
+    fflush,
+    fread,
+    fseek,
+    ftell,
+    rewind,
+    tmpfile,
+)
 from libc.stdlib cimport free
 from libc.string cimport memcpy, memset
 
@@ -28,6 +40,38 @@ from ..exceptions import (
     log_errors,
 )
 from ..utils import nvtx_annotate
+
+
+cdef FILE * create_text_fd():
+    cdef FILE *text_fd = tmpfile()
+    if text_fd == NULL:
+        raise IOError("tmpfile() failed")
+
+    return text_fd
+
+
+cdef unicode decode_text_fd(FILE * text_fd):
+    cdef unicode py_text
+    cdef size_t size
+    cdef char *text
+
+    rewind(text_fd)
+    fseek(text_fd, 0, SEEK_END)
+    size = ftell(text_fd)
+    rewind(text_fd)
+
+    text = <char *>malloc(sizeof(char) * (size + 1))
+
+    try:
+        if fread(text, sizeof(char), size, text_fd) != size:
+            raise IOError("fread() failed")
+        text[size] = 0
+        py_text = text.decode(errors="ignore")
+    finally:
+        free(text)
+        fclose(text_fd)
+
+    return py_text
 
 
 # Struct used as requests by UCX
