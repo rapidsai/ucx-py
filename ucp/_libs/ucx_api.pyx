@@ -674,27 +674,10 @@ cdef class UCXEndpoint(UCXObject):
 
     def info(self):
         assert self.initialized
-        # Making `ucp_ep_print_info()` write into a memstream,
-        # convert it to a Python string, clean up, and return string.
-        cdef char *text
-        cdef size_t text_len
-        cdef unicode py_text
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        if text_fd == NULL:
-            raise IOError("open_memstream() returned NULL")
+
+        cdef FILE *text_fd = create_text_fd()
         ucp_ep_print_info(self._handle, text_fd)
-        try:
-            if fflush(text_fd) != 0:
-                clearerr(text_fd)
-                raise IOError("fflush() failed on memory stream")
-            py_text = text.decode(errors="ignore")
-        finally:
-            if fclose(text_fd) != 0:
-                free(text)
-                raise IOError("fclose() failed to close memory stream")
-            else:
-                free(text)
-        return py_text
+        return decode_text_fd(text_fd)
 
     @property
     def handle(self):
