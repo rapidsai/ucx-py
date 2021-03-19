@@ -414,6 +414,14 @@ class ApplicationContext:
         """
         return self.context.get_config()
 
+    def ucp_context_info(self):
+        """Return low-level UCX info about this endpoint as a string"""
+        return self.context.info()
+
+    def ucp_worker_info(self):
+        """Return low-level UCX info about this endpoint as a string"""
+        return self.worker.info()
+
     def fence(self):
         return self.worker.fence()
 
@@ -851,6 +859,14 @@ def get_ucp_worker():
 
 def get_worker_address():
     return _get_ctx().get_worker_address()
+
+
+def get_ucp_context_info():
+    return _get_ctx().ucp_context_info()
+
+
+def get_ucp_worker_info():
+    return _get_ctx().ucp_worker_info()
 
 
 async def flush():

@@ -294,6 +294,13 @@ cdef class UCXContext(UCXObject):
         assert self.initialized
         return int(<uintptr_t>self._handle)
 
+    def info(self):
+        assert self.initialized
+
+        cdef FILE *text_fd = create_text_fd()
+        ucp_context_print_info(self._handle, text_fd)
+        return decode_text_fd(text_fd)
+
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     cdef str status_str = ucs_status_string(status).decode("utf-8")
@@ -530,6 +537,13 @@ cdef class UCXWorker(UCXObject):
 
     def get_address(self):
         return UCXAddress.from_worker(self)
+
+    def info(self):
+        assert self.initialized
+
+        cdef FILE *text_fd = create_text_fd()
+        ucp_worker_print_info(self._handle, text_fd)
+        return decode_text_fd(text_fd)
 
 
 cdef class UCXAddress:

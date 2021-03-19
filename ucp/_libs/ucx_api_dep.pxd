@@ -152,6 +152,8 @@ cdef extern from "ucp/api/ucp.h":
 
     void ucp_cleanup(ucp_context_h context_p)
 
+    void ucp_context_print_info(const ucp_context_h context, FILE *stream)
+
     ctypedef enum ucs_thread_mode_t:
         pass
 
@@ -176,6 +178,8 @@ cdef extern from "ucp/api/ucp.h":
                                    const ucp_worker_params_t *params,
                                    ucp_worker_h *worker_p)
     void ucp_worker_destroy(ucp_worker_h worker)
+
+    void ucp_worker_print_info(const ucp_worker_h context, FILE *stream)
 
     ctypedef struct ucp_listener:
         pass
