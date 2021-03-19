@@ -7,6 +7,7 @@ import asyncio
 import gc
 import logging
 import os
+import re
 import struct
 import weakref
 from functools import partial
@@ -867,6 +868,12 @@ def get_ucp_context_info():
 
 def get_ucp_worker_info():
     return _get_ctx().ucp_worker_info()
+
+
+def get_active_transports():
+    info = get_ucp_context_info()
+    resources = re.findall("^#.*resource.*md.*dev.*flags.*$", info, re.MULTILINE)
+    return set([r.split()[-1].split("/")[0] for r in resources])
 
 
 async def flush():
