@@ -13,7 +13,17 @@ from posix.stdio cimport open_memstream
 from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uint16_t, uintptr_t
-from libc.stdio cimport FILE, clearerr, fclose, fflush
+from libc.stdio cimport (
+    FILE,
+    SEEK_END,
+    SEEK_SET,
+    fclose,
+    fread,
+    fseek,
+    ftell,
+    rewind,
+    tmpfile,
+)
 from libc.stdlib cimport free
 from libc.string cimport memcpy, memset
 
@@ -28,6 +38,38 @@ from ..exceptions import (
     log_errors,
 )
 from ..utils import nvtx_annotate
+
+
+cdef FILE * create_text_fd():
+    cdef FILE *text_fd = tmpfile()
+    if text_fd == NULL:
+        raise IOError("tmpfile() failed")
+
+    return text_fd
+
+
+cdef unicode decode_text_fd(FILE * text_fd):
+    cdef unicode py_text
+    cdef size_t size
+    cdef char *text
+
+    rewind(text_fd)
+    fseek(text_fd, 0, SEEK_END)
+    size = ftell(text_fd)
+    rewind(text_fd)
+
+    text = <char *>malloc(sizeof(char) * (size + 1))
+
+    try:
+        if fread(text, sizeof(char), size, text_fd) != size:
+            raise IOError("fread() failed")
+        text[size] = 0
+        py_text = text.decode(errors="ignore")
+    finally:
+        free(text)
+        fclose(text_fd)
+
+    return py_text
 
 
 # Struct used as requests by UCX
@@ -99,29 +141,18 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
 
 cdef dict ucx_config_to_dict(ucp_config_t *config):
     """Returns a dict of a UCX config"""
-    cdef char *text
-    cdef size_t text_len
     cdef unicode py_text, line, k, v
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    if text_fd == NULL:
-        raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
+
+    cdef FILE *text_fd = create_text_fd()
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    try:
-        if fflush(text_fd) != 0:
-            clearerr(text_fd)
-            raise IOError("fflush() failed on memory stream")
-        py_text = text.decode(errors="ignore")
-        for line in py_text.splitlines():
-            k, v = line.split("=")
-            k = k[4:]  # Strip "UCX_" prefix
-            ret[k] = v
-    finally:
-        if fclose(text_fd) != 0:
-            free(text)
-            raise IOError("fclose() failed to close memory stream")
-        else:
-            free(text)
+    py_text = decode_text_fd(text_fd)
+
+    for line in py_text.splitlines():
+        k, v = line.split("=")
+        k = k[4:]  # Strip "UCX_" prefix
+        ret[k] = v
+
     return ret
 
 
@@ -630,27 +661,10 @@ cdef class UCXEndpoint(UCXObject):
 
     def info(self):
         assert self.initialized
-        # Making `ucp_ep_print_info()` write into a memstream,
-        # convert it to a Python string, clean up, and return string.
-        cdef char *text
-        cdef size_t text_len
-        cdef unicode py_text
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        if text_fd == NULL:
-            raise IOError("open_memstream() returned NULL")
+
+        cdef FILE *text_fd = create_text_fd()
         ucp_ep_print_info(self._handle, text_fd)
-        try:
-            if fflush(text_fd) != 0:
-                clearerr(text_fd)
-                raise IOError("fflush() failed on memory stream")
-            py_text = text.decode(errors="ignore")
-        finally:
-            if fclose(text_fd) != 0:
-                free(text)
-                raise IOError("fclose() failed to close memory stream")
-            else:
-                free(text)
-        return py_text
+        return decode_text_fd(text_fd)
 
     @property
     def handle(self):
