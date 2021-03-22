@@ -4,6 +4,8 @@
 
 # cython: language_level=3
 
+import enum
+import functools
 import logging
 import socket
 import weakref
@@ -236,21 +238,42 @@ def _ucx_context_handle_finalizer(uintptr_t handle):
     ucp_cleanup(<ucp_context_h> handle)
 
 
+class Feature(enum.Enum):
+    """Enum of the UCP_FEATURE_* constants"""
+    TAG = UCP_FEATURE_TAG
+    RMA = UCP_FEATURE_RMA
+    AMO32 = UCP_FEATURE_AMO32
+    AMO64 = UCP_FEATURE_AMO64
+    WAKEUP = UCP_FEATURE_WAKEUP
+    STREAM = UCP_FEATURE_STREAM
+    AM = UCP_FEATURE_AM
+
+
 cdef class UCXContext(UCXObject):
-    """Python representation of `ucp_context_h`"""
+    """Python representation of `ucp_context_h`
+
+    Parameters
+    ----------
+    config_dict: Mapping[str, str]
+        UCX options such as "MEMTYPE_CACHE=n" and "SEG_SIZE=3M"
+    feature_flags: Iterable[Feature]
+        Tuple of UCX feature flags
+    """
     cdef:
         ucp_context_h _handle
         dict _config
+        tuple _feature_flags
         readonly bint cuda_support
 
     def __init__(
         self,
         config_dict={},
-        feature_flags=(UCP_FEATURE_TAG | UCP_FEATURE_WAKEUP | UCP_FEATURE_STREAM)
+        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM)
     ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+        self._feature_flags = tuple(feature_flags)
 
         memset(&ucp_params, 0, sizeof(ucp_params))
         ucp_params.field_mask = (
@@ -258,7 +281,9 @@ cdef class UCXContext(UCXObject):
             UCP_PARAM_FIELD_REQUEST_SIZE |
             UCP_PARAM_FIELD_REQUEST_INIT
         )
-        ucp_params.features = feature_flags
+        ucp_params.features = functools.reduce(
+            lambda x, y: x | y.value, feature_flags, 0
+        )
         ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
             <ucp_request_init_callback_t>ucx_py_request_reset
@@ -1023,6 +1048,8 @@ def tag_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "tag_send_nb"
+    if Feature.TAG not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.TAG`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
@@ -1162,6 +1189,8 @@ def tag_recv_nb(
         name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    if Feature.TAG not in worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.TAG`")
     cdef bint cuda_support
     if buffer.cuda:
         if ep is None:
@@ -1248,6 +1277,8 @@ def stream_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "stream_send_nb"
+    if Feature.STREAM not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.STREAM`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
@@ -1369,6 +1400,8 @@ def stream_recv_nb(
         name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    if Feature.STREAM not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.STREAM`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "

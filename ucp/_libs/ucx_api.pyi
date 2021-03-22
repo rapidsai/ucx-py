@@ -1,12 +1,24 @@
-from typing import Callable, Iterable, Mapping
+import enum
+from typing import Callable, Iterable, Mapping, Union
 
 def get_current_options() -> None: ...
 
 class UCXObject:
     def close(self) -> None: ...
 
+class Feature(enum.Enum):
+    TAG: int
+    RMA: int
+    AMO32: int
+    AMO64: int
+    WAKEUP: int
+    STREAM: int
+    AM: int
+
 class UCXContext(UCXObject):
-    def __init__(self, config_dict: Mapping = ..., feature_flags: Iterable = ...): ...
+    def __init__(
+        self, config_dict: Mapping = ..., feature_flags: Iterable[Feature] = ...
+    ): ...
 
 class UCXAddress:
     @classmethod
@@ -68,4 +80,22 @@ def tag_recv_nb(
     cb_kwargs: dict = None,
     name: str = None,
     ep: UCXEndpoint = None,
+): ...
+def stream_send_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: tuple = None,
+    cb_kwargs: dict = None,
+    name: str = None,
+): ...
+def stream_recv_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: tuple = None,
+    cb_kwargs: dict = None,
+    name: str = None,
 ): ...
