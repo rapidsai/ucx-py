@@ -45,6 +45,7 @@ def test_check_transport(transports):
             )
 
         active_transports = ucp.get_active_transports()
-        for at in active_transports:
-            assert any([at.startswith(t) for t in transports_list])
-            assert all([not at.startswith(t) for t in inactive_transports])
+        for t in transports_list:
+            assert any([at.startswith(t) for at in active_transports])
+        for it in inactive_transports:
+            assert any([not at.startswith(it) for at in active_transports])
