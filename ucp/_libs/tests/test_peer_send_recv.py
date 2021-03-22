@@ -10,7 +10,7 @@ mp = mp.get_context("spawn")
 
 
 def _test_peer_communication(queue, rank, msg_size):
-    ctx = ucx_api.UCXContext()
+    ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     queue.put((rank, worker.get_address()))
     right_rank, right_address = queue.get()

@@ -17,7 +17,7 @@ def _echo_server(get_queue, put_queue, msg_size):
     Notice, since it is illegal to call progress() in call-back functions,
     we use a "chain" of call-back functions.
     """
-    ctx = ucx_api.UCXContext()
+    ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
 
     def _send_handle(request, exception, msg):
@@ -54,7 +54,7 @@ def _echo_server(get_queue, put_queue, msg_size):
 
 
 def _echo_client(msg_size, port):
-    ctx = ucx_api.UCXContext()
+    ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = worker.ep_create("localhost", port, endpoint_error_handling=True)
     send_msg = bytes(os.urandom(msg_size))

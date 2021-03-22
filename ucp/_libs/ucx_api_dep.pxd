@@ -146,6 +146,7 @@ cdef extern from "ucp/api/ucp.h":
     int UCP_FEATURE_RMA
     int UCP_FEATURE_AMO32
     int UCP_FEATURE_AMO64
+    int UCP_FEATURE_AM
     ucs_status_t ucp_init(const ucp_params_t *params,
                           const ucp_config_t *config,
                           ucp_context_h *context_p)

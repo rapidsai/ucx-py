@@ -1,12 +1,24 @@
-from typing import Callable, Iterable, Mapping
+import enum
+from typing import Callable, Iterable, Mapping, Optional
 
 def get_current_options() -> None: ...
 
 class UCXObject:
     def close(self) -> None: ...
 
+class Feature(enum.Enum):
+    TAG: int
+    RMA: int
+    AMO32: int
+    AMO64: int
+    WAKEUP: int
+    STREAM: int
+    AM: int
+
 class UCXContext(UCXObject):
-    def __init__(self, config_dict: Mapping = ..., feature_flags: Iterable = ...): ...
+    def __init__(
+        self, config_dict: Mapping = ..., feature_flags: Iterable[Feature] = ...
+    ): ...
 
 class UCXAddress:
     @classmethod
@@ -39,8 +51,8 @@ class UCXListener(UCXObject):
         worker: UCXWorker,
         port: int,
         cb_func: Callable,
-        cb_args: tuple = None,
-        cb_kwargs: dict = None,
+        cb_args: Optional[tuple] = ...,
+        cb_kwargs: dict = ...,
     ): ...
 
 class UCXEndpoint(UCXObject):
@@ -54,9 +66,9 @@ def tag_send_nb(
     nbytes: int,
     tag: int,
     cb_func: Callable,
-    cb_args: tuple = None,
-    cb_kwargs: dict = None,
-    name: str = None,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
 ): ...
 def tag_recv_nb(
     worker: UCXWorker,
@@ -64,8 +76,26 @@ def tag_recv_nb(
     nbytes: int,
     tag: int,
     cb_func: Callable,
-    cb_args: tuple = None,
-    cb_kwargs: dict = None,
-    name: str = None,
-    ep: UCXEndpoint = None,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+    ep: Optional[UCXEndpoint] = ...,
+): ...
+def stream_send_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+): ...
+def stream_recv_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
 ): ...
