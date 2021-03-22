@@ -4,6 +4,13 @@ from utils import captured_logger
 import ucp
 
 
+@pytest.fixture(autouse=True)
+def reset():
+    ucp.reset()
+    yield
+    ucp.reset()
+
+
 def test_context_info():
     info = ucp.get_ucp_context_info()
     assert isinstance(info, str)
@@ -30,7 +37,6 @@ def test_check_transport(transports):
 
     # ucp.init will capture warnings when transport is unavailable
     with captured_logger(root, level=logging.WARN) as foreign_log:
-        ucp.reset()
         options = {"TLS": transports}
         ucp.init(options)
         if len(foreign_log.getvalue()) > 0:
