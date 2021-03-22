@@ -21,14 +21,11 @@ def test_worker_info():
 
 
 @pytest.mark.parametrize(
-    "transports",
-    ["posix", "tcp", "posix,tcp"],
+    "transports", ["posix", "tcp", "posix,tcp"],
 )
 def test_check_transport(transports):
     transports_list = transports.split(",")
-    inactive_transports = list(
-        set(["posix", "tcp"]) - set(transports_list)
-    )
+    inactive_transports = list(set(["posix", "tcp"]) - set(transports_list))
 
     ucp.reset()
     options = {"TLS": transports}
