@@ -1,5 +1,4 @@
 import pytest
-from utils import captured_logger
 
 import ucp
 
@@ -23,29 +22,20 @@ def test_worker_info():
 
 @pytest.mark.parametrize(
     "transports",
-    ["tcp", "tcp,rc", "tcp,cuda_copy", "tcp,cuda_copy,cuda_ipc", "rc,cuda_copy"],
+    ["posix", "tcp", "posix,tcp"],
 )
 def test_check_transport(transports):
-    import logging
-
-    root = logging.getLogger("ucx")
-
     transports_list = transports.split(",")
     inactive_transports = list(
-        set(["cuda_copy", "cuda_ipc", "rc", "tcp"]) - set(transports_list)
+        set(["posix", "tcp"]) - set(transports_list)
     )
 
-    # ucp.init will capture warnings when transport is unavailable
-    with captured_logger(root, level=logging.WARN) as foreign_log:
-        options = {"TLS": transports}
-        ucp.init(options)
-        if len(foreign_log.getvalue()) > 0:
-            pytest.skip(
-                reason="One or more transports from '%s' not available" % transports
-            )
+    ucp.reset()
+    options = {"TLS": transports}
+    ucp.init(options)
 
-        active_transports = ucp.get_active_transports()
-        for t in transports_list:
-            assert any([at.startswith(t) for at in active_transports])
-        for it in inactive_transports:
-            assert any([not at.startswith(it) for at in active_transports])
+    active_transports = ucp.get_active_transports()
+    for t in transports_list:
+        assert any([at.startswith(t) for at in active_transports])
+    for it in inactive_transports:
+        assert any([not at.startswith(it) for at in active_transports])
