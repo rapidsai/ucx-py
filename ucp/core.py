@@ -503,7 +503,7 @@ class Endpoint:
 
     def closed(self):
         """Is this endpoint closed?"""
-        return self._ep is None or not self._ep.initialized
+        return self._ep is None or not self._ep.initialized or not self._ep.is_alive()
 
     def abort(self):
         """Close the communication immediately and abruptly.
