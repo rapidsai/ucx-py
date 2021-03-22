@@ -18,7 +18,7 @@ def handle_exception(loop, context):
 
 # Let's make sure that UCX gets time to cancel
 # progress tasks before closing the event loop.
-@pytest.yield_fixture()
+@pytest.fixture()
 def event_loop(scope="function"):
     loop = asyncio.new_event_loop()
     loop.set_exception_handler(handle_exception)
