@@ -685,10 +685,16 @@ cdef class UCXEndpoint(UCXObject):
 
     @classmethod
     def ep_create(
-        cls, UCXWorker worker, str ip_address, uint16_t port, bint endpoint_error_handling
+            cls,
+            UCXWorker worker,
+            str ip_address,
+            uint16_t port,
+            bint endpoint_error_handling
     ):
         assert worker.initialized
-        cdef ucp_ep_params_t *params = <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        cdef ucp_ep_params_t *params = (
+            <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        )
         ip_address = socket.gethostbyname(ip_address)
 
         params.field_mask = (
@@ -713,7 +719,9 @@ cdef class UCXEndpoint(UCXObject):
         cls, UCXWorker worker, UCXAddress address, bint endpoint_error_handling
     ):
         assert worker.initialized
-        cdef ucp_ep_params_t *params = <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        cdef ucp_ep_params_t *params = (
+            <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        )
         params.field_mask = (
             UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
             UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
@@ -728,8 +736,9 @@ cdef class UCXEndpoint(UCXObject):
         cls, UCXWorker worker, uintptr_t conn_request, bint endpoint_error_handling
     ):
         assert worker.initialized
-
-        cdef ucp_ep_params_t *params = <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        cdef ucp_ep_params_t *params = (
+            <ucp_ep_params_t *>malloc(sizeof(ucp_ep_params_t))
+        )
         params.field_mask = (
             UCP_EP_PARAM_FIELD_FLAGS |
             UCP_EP_PARAM_FIELD_CONN_REQUEST |
