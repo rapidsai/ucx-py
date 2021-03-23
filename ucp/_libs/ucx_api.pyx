@@ -330,8 +330,23 @@ cdef class UCXContext(UCXObject):
 
 
 cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
-    cdef ucs_status_t *ep_status = <ucs_status_t *> arg
+    cdef UCXEndpoint ucx_ep = <UCXEndpoint> arg
+    assert ucx_ep.worker.initialized
+
+    cdef ucs_status_t *ep_status = <ucs_status_t *> <uintptr_t>ucx_ep._status
     ep_status[0] = status
+
+    # Cancel all inflight messages
+    cdef UCXRequest req
+    cdef dict req_info
+    cdef str name
+    for req in list(ucx_ep._inflight_msgs):
+        assert not req.closed()
+        req_info = <dict>req._handle.info
+        name = req_info["name"]
+        logger.debug("Future cancelling: %s" % name)
+        # Notice, `request_cancel()` evoke the send/recv callback functions
+        ucx_ep.worker.request_cancel(req)
 
     cdef str status_str = ucs_status_string(status).decode("utf-8")
     cdef str msg = (
@@ -644,7 +659,7 @@ cdef class UCXEndpoint(UCXObject):
         else:
             params.err_mode = UCP_ERR_HANDLING_MODE_PEER
         params.err_handler.cb = err_cb
-        params.err_handler.arg = <void *>ep_status
+        params.err_handler.arg = <void *>self
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(worker._handle, params, &ucp_ep)
