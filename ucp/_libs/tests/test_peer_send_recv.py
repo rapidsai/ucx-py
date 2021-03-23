@@ -16,11 +16,11 @@ def _test_peer_communication(queue, rank, msg_size):
     right_rank, right_address = queue.get()
     left_rank, left_address = queue.get()
 
-    right_ep = worker.ep_create_from_worker_address(
-        right_address, endpoint_error_handling=False
+    right_ep = ucx_api.UCXEndpoint.ep_create_from_worker_address(
+        worker, right_address, endpoint_error_handling=False
     )
-    left_ep = worker.ep_create_from_worker_address(
-        left_address, endpoint_error_handling=False
+    left_ep = ucx_api.UCXEndpoint.ep_create_from_worker_address(
+        worker, left_address, endpoint_error_handling=False
     )
     recv_msg = bytearray(msg_size)
     if rank == 0:

@@ -150,8 +150,8 @@ async def _listener_handler_coroutine(
     #  3) Exchange endpoint info such as tags
     #  4) Setup control receive callback
     #  5) Execute the listener's callback function
-    endpoint = ctx.worker.ep_create_from_conn_request(
-        conn_request, endpoint_error_handling
+    endpoint = ucx_api.UCXEndpoint.ep_create_from_conn_request(
+        ctx.worker, conn_request, endpoint_error_handling
     )
 
     seed = os.urandom(16)
@@ -343,7 +343,7 @@ class ApplicationContext:
         if endpoint_error_handling is None:
             endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
-        ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
+        ucx_ep = ucx_api.UCXEndpoint.ep_create(self.worker, ip_address, port, endpoint_error_handling)
         self.worker.progress()
 
         # We create the Endpoint in three steps:
