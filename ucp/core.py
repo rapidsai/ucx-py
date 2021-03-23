@@ -343,7 +343,9 @@ class ApplicationContext:
         if endpoint_error_handling is None:
             endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
-        ucx_ep = ucx_api.UCXEndpoint.ep_create(self.worker, ip_address, port, endpoint_error_handling)
+        ucx_ep = ucx_api.UCXEndpoint.ep_create(
+            self.worker, ip_address, port, endpoint_error_handling
+        )
         self.worker.progress()
 
         # We create the Endpoint in three steps:
@@ -595,7 +597,16 @@ class Endpoint:
             tag = hash64bits(self._tags["msg_send"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+
+        try:
+            return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+        except UCXCanceled as e:
+            # If self._ep has already been closed and destroyed, we reraise the
+            # UCXCanceled exception.
+            if self._ep is None:
+                raise e
+
+            self._ep.raise_on_error()
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None):
@@ -632,7 +643,17 @@ class Endpoint:
             tag = hash64bits(self._tags["msg_recv"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+
+        try:
+            ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+        except UCXCanceled as e:
+            # If self._ep has already been closed and destroyed, we reraise the
+            # UCXCanceled exception.
+            if self._ep is None:
+                raise e
+
+            self._ep.raise_on_error()
+
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
