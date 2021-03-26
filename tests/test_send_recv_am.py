@@ -28,6 +28,7 @@ def event_loop(scope="function"):
 def simple_server():
     async def server(ep):
         pass
+
     return server
 
 
@@ -41,7 +42,10 @@ async def test_send_recv_bytes(size, blocking_progress_mode):
 
     listener = ucp.create_listener(simple_server())
     num_clients = 2
-    clients = [await ucp.create_endpoint(ucp.get_address(), listener.port) for i in range(num_clients)]
+    clients = [
+        await ucp.create_endpoint(ucp.get_address(), listener.port)
+        for i in range(num_clients)
+    ]
     for c in clients:
         await c.am_send(msg)
     for c in clients:

@@ -429,9 +429,13 @@ cdef ucs_status_t _am_recv_callback(
             UCP_OP_ATTR_FIELD_USER_DATA |
             UCP_OP_ATTR_FLAG_NO_IMM_CMPL
         )
-        request_param.cb.recv_am = <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
+        request_param.cb.recv_am = (
+            <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
+        )
         request_param.user_data = <void *>buf
-        status = ucp_am_recv_data_nbx(worker._handle, data, buf_ptr, length, &request_param)
+        status = ucp_am_recv_data_nbx(
+            worker._handle, data, buf_ptr, length, &request_param
+        )
 
         if UCS_PTR_IS_ERR(status):
             ucx_status_msg = (

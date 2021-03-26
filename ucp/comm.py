@@ -54,9 +54,7 @@ def am_send(
     event_loop=None,
 ) -> asyncio.Future:
 
-    return _call_ucx_api(
-        event_loop, ucx_api.am_send_nbx, ep, buffer, nbytes, name=name
-    )
+    return _call_ucx_api(event_loop, ucx_api.am_send_nbx, ep, buffer, nbytes, name=name)
 
 
 def stream_send(

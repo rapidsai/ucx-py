@@ -324,7 +324,11 @@ cdef extern from "ucp/api/ucp.h":
 
     ctypedef ucs_status_t(*ucp_am_recv_data_nbx_callback_t)(void *request,
                                                             ucs_status_t status,
-                                                            size_t length, void *used_data)
+                                                            size_t length,
+                                                            void *used_data)
+
+    ctypedef void (*ucp_send_nbx_callback_t)(void *request, ucs_status_t status,
+                                             void *user_data)  # noqa
 
     ctypedef union _ucp_request_param_cb_t:
         ucp_send_nbx_callback_t send
@@ -335,9 +339,6 @@ cdef extern from "ucp/api/ucp.h":
     ctypedef union _ucp_request_param_recv_info_t:
         size_t *length
         # ucp_tag_recv_info_t *tag_info
-
-    ctypedef void (*ucp_send_nbx_callback_t)(void *request, ucs_status_t status,
-                                             void *user_data)  # noqa
 
     ucs_status_ptr_t ucp_am_send_nbx(ucp_ep_h ep, unsigned id,
                                      const void *header, size_t header_length,
@@ -372,7 +373,6 @@ cdef extern from "ucp/api/ucp.h":
         ucs_memory_type_t memory_type
         _ucp_request_param_recv_info_t recv_info
 
-
     ctypedef struct ucp_am_recv_param_t:
         uint64_t recv_attr
         ucp_ep_h reply_ep
@@ -393,7 +393,7 @@ cdef extern from "ucp/api/ucp.h":
         void *arg
 
     ucs_status_t ucp_worker_set_am_recv_handler(ucp_worker_h worker,
-                                                 const ucp_am_handler_param_t *param)
+                                                const ucp_am_handler_param_t *param)
 
 cdef extern from "sys/epoll.h":
 
