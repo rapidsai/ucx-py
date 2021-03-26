@@ -581,6 +581,32 @@ class Endpoint:
             tag += self._send_count
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
+    @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
+    async def am_send(self, buffer):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(self._tags["msg_send"]),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+        self._send_count += 1
+        return await comm.am_send(self._ep, buffer, nbytes, name=log)
+
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None):
         """Receive from connected peer into `buffer`.

@@ -46,6 +46,19 @@ def tag_send(
     )
 
 
+def am_send(
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="am_send",
+    event_loop=None,
+) -> asyncio.Future:
+
+    return _call_ucx_api(
+        event_loop, ucx_api.am_send_nbx, ep, buffer, nbytes, name=name
+    )
+
+
 def stream_send(
     ep: ucx_api.UCXEndpoint,
     buffer: arr.Array,
