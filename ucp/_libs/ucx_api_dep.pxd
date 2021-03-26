@@ -35,6 +35,17 @@ cdef extern from "src/c_util.h":
                                          size_t max_size)
 
 
+cdef extern from "ucs/memory/memory_type.h":
+    cdef enum ucs_memory_type_t:
+        UCS_MEMORY_TYPE_HOST
+        UCS_MEMORY_TYPE_CUDA
+        UCS_MEMORY_TYPE_CUDA_MANAGED
+        UCS_MEMORY_TYPE_ROCM
+        UCS_MEMORY_TYPE_ROCM_MANAGED
+        UCS_MEMORY_TYPE_LAST
+        UCS_MEMORY_TYPE_UNKNOWN = UCS_MEMORY_TYPE_LAST
+
+
 cdef extern from "ucp/api/ucp.h":
     ctypedef struct ucp_context:
         pass
@@ -292,6 +303,97 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_ptr_t ucp_ep_flush_nb(ucp_ep_h ep,
                                      unsigned flags,
                                      ucp_send_callback_t cb)
+
+    unsigned UCP_AM_SEND_FLAG_REPLY
+    unsigned UCP_AM_SEND_FLAG_EAGER
+    unsigned UCP_AM_SEND_FLAG_RNDV
+
+    unsigned UCP_AM_RECV_ATTR_FIELD_REPLY_EP
+    unsigned UCP_AM_RECV_ATTR_FIELD_TOTAL_LENGTH
+    unsigned UCP_AM_RECV_ATTR_FIELD_FRAG_OFFSET
+    unsigned UCP_AM_RECV_ATTR_FIELD_MSG_CONTEXT
+    unsigned UCP_AM_RECV_ATTR_FLAG_DATA
+    unsigned UCP_AM_RECV_ATTR_FLAG_RNDV
+    unsigned UCP_AM_RECV_ATTR_FLAG_FIRST
+    unsigned UCP_AM_RECV_ATTR_FLAG_ONLY
+
+    unsigned UCP_AM_HANDLER_PARAM_FIELD_ID
+    unsigned UCP_AM_HANDLER_PARAM_FIELD_FLAGS
+    unsigned UCP_AM_HANDLER_PARAM_FIELD_CB
+    unsigned UCP_AM_HANDLER_PARAM_FIELD_ARG
+
+    ctypedef ucs_status_t(*ucp_am_recv_data_nbx_callback_t)(void *request,
+                                                            ucs_status_t status,
+                                                            size_t length, void *used_data)
+
+    ctypedef union _ucp_request_param_cb_t:
+        ucp_send_nbx_callback_t send
+        # ucp_tag_recv_nbx_callback_t recv
+        # ucp_stream_recv_nbx_callback_t recv_stream
+        ucp_am_recv_data_nbx_callback_t recv_am
+
+    ctypedef union _ucp_request_param_recv_info_t:
+        size_t *length
+        # ucp_tag_recv_info_t *tag_info
+
+    ctypedef void (*ucp_send_nbx_callback_t)(void *request, ucs_status_t status,
+                                             void *user_data)  # noqa
+
+    ucs_status_ptr_t ucp_am_send_nbx(ucp_ep_h ep, unsigned id,
+                                     const void *header, size_t header_length,
+                                     const void *buffer, size_t count,
+                                     const ucp_request_param_t *param)
+
+    ucs_status_ptr_t ucp_am_recv_data_nbx(ucp_worker_h worker, void *data_desc,
+                                          void *buffer, size_t count,
+                                          const ucp_request_param_t *param)
+
+    int UCP_OP_ATTR_FIELD_REQUEST
+    int UCP_OP_ATTR_FIELD_CALLBACK
+    int UCP_OP_ATTR_FIELD_USER_DATA
+    int UCP_OP_ATTR_FIELD_DATATYPE
+    int UCP_OP_ATTR_FIELD_FLAGS
+    int UCP_OP_ATTR_FIELD_REPLY_BUFFER
+    int UCP_OP_ATTR_FIELD_MEMORY_TYPE
+    int UCP_OP_ATTR_FIELD_RECV_INFO
+
+    int UCP_OP_ATTR_FLAG_NO_IMM_CMPL
+    int UCP_OP_ATTR_FLAG_FAST_CMPL
+    int UCP_OP_ATTR_FLAG_FORCE_IMM_CMPL
+
+    ctypedef struct ucp_request_param_t:
+        uint32_t op_attr_mask
+        uint32_t flags
+        void *request
+        _ucp_request_param_cb_t cb
+        ucp_datatype_t datatype
+        void *user_data
+        void *reply_buffer
+        ucs_memory_type_t memory_type
+        _ucp_request_param_recv_info_t recv_info
+
+
+    ctypedef struct ucp_am_recv_param_t:
+        uint64_t recv_attr
+        ucp_ep_h reply_ep
+        size_t total_length
+        size_t frag_offset
+        void **msg_context
+
+    ctypedef ucs_status_t(*ucp_am_recv_callback_t)(void *arg, const void *header,
+                                                   size_t header_length,
+                                                   void *data, size_t length,
+                                                   const ucp_am_recv_param_t *param)
+
+    ctypedef struct ucp_am_handler_param_t:
+        uint64_t field_mask
+        unsigned id
+        uint32_t flags
+        ucp_am_recv_callback_t cb
+        void *arg
+
+    ucs_status_t ucp_worker_set_am_recv_handler(ucp_worker_h worker,
+                                                 const ucp_am_handler_param_t *param)
 
 cdef extern from "sys/epoll.h":
 
