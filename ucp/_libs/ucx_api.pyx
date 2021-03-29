@@ -477,6 +477,7 @@ cdef class UCXWorker(UCXObject):
 
         cdef int AM_MSG_ID = 0
         if Feature.AM in context._feature_flags:
+            self._am_msgs = {}
             am_handler_param.field_mask = (
                 UCP_AM_HANDLER_PARAM_FIELD_ID |
                 UCP_AM_HANDLER_PARAM_FIELD_CB |
