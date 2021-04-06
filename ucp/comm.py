@@ -91,6 +91,24 @@ def tag_recv(
     )
 
 
+def am_recv(
+    ep: ucx_api.UCXEndpoint,
+    buffer: arr.Array,
+    nbytes: int,
+    name="am_recv",
+    event_loop=None,
+) -> asyncio.Future:
+
+    return _call_ucx_api(
+        event_loop,
+        ucx_api.am_recv_nb,
+        ep,
+        buffer,
+        nbytes,
+        name=name,
+    )
+
+
 def stream_recv(
     ep: ucx_api.UCXEndpoint,
     buffer: arr.Array,

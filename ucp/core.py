@@ -650,6 +650,38 @@ class Endpoint:
             self.abort()
         return ret
 
+    @nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
+    async def am_recv(self, buffer):
+        """Receive from connected peer into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer
+            is smaller than nbytes or read-only.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[Recv #%03d] ep: %s, nbytes: %d, type: %s" % (
+            self._recv_count,
+            hex(self.uid),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+        self._recv_count += 1
+        ret = await comm.am_recv(self._ep, buffer, nbytes, name=log)
+        self._finished_recv_count += 1
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
+            self.abort()
+        return ret
+
     def cuda_support(self):
         """Return whether UCX is configured with CUDA support or not"""
         return self._ctx.context.cuda_support

@@ -484,7 +484,10 @@ cdef ucs_status_t _am_recv_callback(
 
             cb_func(req, exception, *cb_args, **cb_kwargs)
         else:
-            logger.debug("am eager copying %d bytes with ep %s" % (hex(ep_as_int), ))
+            logger.debug("am eager copying %d bytes with ep %s" % (
+                length,
+                hex(ep_as_int)
+            ))
             memcpy(buf_ptr, data, length)
             am_msgs[ep_as_int].append(buf)
         return UCS_OK
@@ -1794,9 +1797,8 @@ def am_recv_nb(
         recv_obj = am_msgs[ep_as_int].pop(0)
         req = None
         exception = recv_obj if issubclass(type(recv_obj), (Exception, )) else None
-        logger.debug("AM recv ready: ep %s exception %s" % (hex(ep_as_int), exception))
         cb_func(req, exception, *cb_args, **cb_kwargs)
-        logger.debug("AM recv ready: ep %s buf %s" % (hex(ep_as_int), recv_obj))
+        logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
         return
     else:
         if ep_as_int not in worker._am_recv_wait:
