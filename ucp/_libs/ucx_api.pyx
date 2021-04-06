@@ -405,24 +405,26 @@ cdef ucs_status_t _am_recv_callback(
 ):
     cdef UCXWorker worker = <UCXWorker>arg
     cdef dict am_msgs = worker._am_msgs
+    cdef dict am_recv_wait = worker._am_recv_wait
     assert worker.initialized
     assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
     assert Feature.AM in worker._context._feature_flags
 
     cdef ucp_ep_h ep = param.reply_ep
-    cdef int ep_as_int = int(<uintptr_t>ep)
+    cdef unsigned long ep_as_int = int(<uintptr_t>ep)
     if ep_as_int not in am_msgs:
-        am_msgs[ep_as_int] = []
+        am_msgs[ep_as_int] = list()
 
     is_rndv = param.recv_attr & UCP_AM_RECV_ATTR_FLAG_RNDV
 
     import numpy as np
     buf = np.ndarray(length, dtype=np.uint8)
     cdef void *buf_ptr = <void *><uintptr_t>buf.__array_interface__["data"][0]
-    am_msgs[ep_as_int].append(buf)
 
     cdef ucp_request_param_t request_param
     cdef ucs_status_ptr_t status
+    cdef str ucx_status_msg, msg
+    cdef UCXRequest req
     if is_rndv:
         request_param.op_attr_mask = (
             UCP_OP_ATTR_FIELD_CALLBACK |
@@ -437,19 +439,54 @@ cdef ucs_status_t _am_recv_callback(
             worker._handle, data, buf_ptr, length, &request_param
         )
 
+        logger.debug("am rndv: ep %s len %s" % (hex(int(ep_as_int)), length))
+
         if UCS_PTR_IS_ERR(status):
             ucx_status_msg = (
                 ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
             )
             msg = "<_am_recv_callback>: %s" % (ucx_status_msg)
-            logger.info("_am_recv_callback error: %s" % msg, flush=True)
+            logger.info("_am_recv_callback error: %s" % msg)
+            am_msgs[ep_as_int].append(UCXError(msg))
+            return UCS_PTR_STATUS(status)
 
-        logger.debug("am rndv: ep %s len %s" % (hex(int(<uintptr_t>ep)), length))
         return UCS_OK
 
     else:
-        memcpy(buf_ptr, data, length)
-        logger.debug("am eager: ep %s buf %s" % (hex(int(<uintptr_t>ep)), buf))
+        if (
+            am_recv_wait is not None and
+            ep_as_int in am_recv_wait and
+            len(am_recv_wait[ep_as_int]) > 0
+        ):
+            req = None
+            exception = None
+
+            recv_wait = am_recv_wait[ep_as_int].pop(0)
+            buffer = recv_wait["buffer"]
+            cb_func = recv_wait["cb_func"]
+            cb_args = recv_wait["cb_args"]
+            cb_kwargs = recv_wait["cb_kwargs"]
+
+            if buffer.nbytes != length:
+                msg = (
+                    "<_am_recv_callback>: length mismatch: "
+                    "%d (got) != %d (expected)" % (
+                        length, buffer.nbytes
+                    )
+                )
+                exception = UCXMsgTruncated(msg)
+            else:
+                logger.debug("am eager recv_wait copying %d bytes with ep %s" % (
+                    length,
+                    hex(ep_as_int)
+                ))
+                memcpy(<void *><uintptr_t>recv_wait["buffer"].ptr, data, length)
+
+            cb_func(req, exception, *cb_args, **cb_kwargs)
+        else:
+            logger.debug("am eager copying %d bytes with ep %s" % (hex(ep_as_int), ))
+            memcpy(buf_ptr, data, length)
+            am_msgs[ep_as_int].append(buf)
         return UCS_OK
 
 
@@ -460,6 +497,7 @@ cdef class UCXWorker(UCXObject):
         UCXContext _context
         set _inflight_msgs
         dict _am_msgs
+        dict _am_recv_wait
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
@@ -477,7 +515,8 @@ cdef class UCXWorker(UCXObject):
 
         cdef int AM_MSG_ID = 0
         if Feature.AM in context._feature_flags:
-            self._am_msgs = {}
+            self._am_msgs = dict()
+            self._am_recv_wait = dict()
             am_handler_param.field_mask = (
                 UCP_AM_HANDLER_PARAM_FIELD_ID |
                 UCP_AM_HANDLER_PARAM_FIELD_CB |
@@ -1670,3 +1709,105 @@ def am_send_nbx(
     return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
+
+
+def am_recv_nb(
+    UCXEndpoint ep,
+    Array buffer,
+    size_t nbytes,
+    cb_func,
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None,
+):
+    """ This routine receives a message on a worker with the active message API.
+
+    The routine is a non-blocking and therefore returns immediately. The receive
+    operation is considered completed when the message is delivered to the buffer.
+    If there is a pending received buffer for the endpoint, the call will return
+    immediately with `True`. Otherwise, in order to notify the application about
+    completion of the receive operation the UCP library will invoke the call-back
+    function when the received message is in the receive buffer and ready for
+    application access. If the receive operation cannot be stated the routine
+    raise an exception.
+
+    Note
+    ----
+    This routine cannot return None. It always returns `True`, a request handle or
+    raises an exception.
+
+    Parameters
+    ----------
+    worker: UCXWorker
+        The worker that is used for the receive operation
+    ep: UCXEndpoint
+        The endpoint that is used for the receive operation. Received active
+        messages are always targeted at a specific endpoint, therefore it
+        s imperative to specify the correct one here.
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    """
+    worker = ep.worker
+
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = "am_recv_nb"
+    if buffer.readonly:
+        raise ValueError("writing to readonly buffer!")
+    if Feature.AM not in worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.AM`")
+    cdef bint cuda_support
+    if buffer.cuda:
+        if ep is None:
+            cuda_support = <bint>worker._context.cuda_support
+        else:
+            cuda_support = <bint>ep.worker._context.cuda_support
+        if not cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
+
+    am_msgs = worker._am_msgs
+    ep_as_int = int(<uintptr_t>ep._handle)
+    if am_msgs is not None and ep_as_int in am_msgs and len(am_msgs[ep_as_int]) > 0:
+        recv_obj = am_msgs[ep_as_int].pop(0)
+        req = None
+        exception = recv_obj if issubclass(type(recv_obj), (Exception, )) else None
+        logger.debug("AM recv ready: ep %s exception %s" % (hex(ep_as_int), exception))
+        cb_func(req, exception, *cb_args, **cb_kwargs)
+        logger.debug("AM recv ready: ep %s buf %s" % (hex(ep_as_int), recv_obj))
+        return
+    else:
+        if ep_as_int not in worker._am_recv_wait:
+            worker._am_recv_wait[ep_as_int] = list()
+        worker._am_recv_wait[ep_as_int].append(
+            {
+                "buffer": buffer,
+                "cb_func": cb_func,
+                "cb_args": cb_args,
+                "cb_kwargs": cb_kwargs
+            }
+        )
+        logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
+        return True
