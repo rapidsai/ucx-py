@@ -32,6 +32,15 @@ def _call_ucx_api(event_loop, func, *args, **kwargs):
     return ret
 
 
+def _am_cb_func(recv_obj, exception, event_loop, future):
+    if event_loop.is_closed() or future.done():
+        return
+    if exception is not None:
+        future.set_exception(exception)
+    else:
+        future.set_result(recv_obj)
+
+
 def tag_send(
     ep: ucx_api.UCXEndpoint,
     buffer: arr.Array,
@@ -93,20 +102,21 @@ def tag_recv(
 
 def am_recv(
     ep: ucx_api.UCXEndpoint,
-    buffer: arr.Array,
-    nbytes: int,
     name="am_recv",
     event_loop=None,
 ) -> asyncio.Future:
 
-    return _call_ucx_api(
-        event_loop,
-        ucx_api.am_recv_nb,
+    event_loop = event_loop if event_loop else asyncio.get_event_loop()
+    ret = event_loop.create_future()
+    # All the comm functions takes the call-back function and its arguments
+    cb_args = (event_loop, ret)
+    ucx_api.am_recv_nb(
         ep,
-        buffer,
-        nbytes,
-        name=name,
+        cb_func=_am_cb_func,
+        cb_args=cb_args,
+        name=name
     )
+    return ret
 
 
 def stream_recv(
