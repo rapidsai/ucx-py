@@ -684,7 +684,7 @@ cdef class UCXEndpoint(UCXObject):
             free(<void *>self._status)
 
     @classmethod
-    def ep_create(
+    def create(
             cls,
             UCXWorker worker,
             str ip_address,
@@ -715,7 +715,7 @@ cdef class UCXEndpoint(UCXObject):
         return ret
 
     @classmethod
-    def ep_create_from_worker_address(
+    def create_from_worker_address(
         cls, UCXWorker worker, UCXAddress address, bint endpoint_error_handling
     ):
         assert worker.initialized
@@ -732,7 +732,7 @@ cdef class UCXEndpoint(UCXObject):
         return cls(worker, <uintptr_t>params, endpoint_error_handling)
 
     @classmethod
-    def ep_create_from_conn_request(
+    def create_from_conn_request(
         cls, UCXWorker worker, uintptr_t conn_request, bint endpoint_error_handling
     ):
         assert worker.initialized

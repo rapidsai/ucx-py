@@ -46,7 +46,7 @@ def test_feature_flags_mismatch(feature_flag):
     ctx = ucx_api.UCXContext(feature_flags=(feature_flag,))
     worker = ucx_api.UCXWorker(ctx)
     addr = worker.get_address()
-    ep = ucx_api.UCXEndpoint.ep_create_from_worker_address(
+    ep = ucx_api.UCXEndpoint.create_from_worker_address(
         worker, addr, endpoint_error_handling=False
     )
     msg = Array(bytearray(10))

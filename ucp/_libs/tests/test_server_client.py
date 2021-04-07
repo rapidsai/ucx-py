@@ -32,7 +32,7 @@ def _echo_server(get_queue, put_queue, msg_size, endpoint_error_handling):
         )
 
     def _listener_handler(conn_request):
-        ep = ucx_api.UCXEndpoint.ep_create_from_conn_request(
+        ep = ucx_api.UCXEndpoint.create_from_conn_request(
             worker, conn_request, endpoint_error_handling=endpoint_error_handling,
         )
         msg = Array(bytearray(msg_size))
@@ -56,7 +56,7 @@ def _echo_server(get_queue, put_queue, msg_size, endpoint_error_handling):
 def _echo_client(msg_size, port, endpoint_error_handling):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
-    ep = ucx_api.UCXEndpoint.ep_create(
+    ep = ucx_api.UCXEndpoint.create(
         worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
     )
     send_msg = bytes(os.urandom(msg_size))
