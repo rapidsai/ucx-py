@@ -9,7 +9,7 @@ msg_sizes = [2 ** i for i in range(0, 25, 4)]
 
 def handle_exception(loop, context):
     msg = context.get("exception", context["message"])
-    print("handle_exception: %s" % msg)
+    print("handle_exception: %s" % msg, flush=True)
 
 
 # Let's make sure that UCX gets time to cancel
@@ -25,9 +25,9 @@ def event_loop(scope="function"):
     loop.close()
 
 
-def simple_server():
+def simple_server(size, recv):
     async def server(ep):
-        pass
+        recv.append(await ep.am_recv())
 
     return server
 
@@ -35,19 +35,28 @@ def simple_server():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
-async def test_send_recv_bytes(size, blocking_progress_mode):
+@pytest.mark.parametrize("recv_wait", [True, False])
+async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
     ucp.init(blocking_progress_mode=blocking_progress_mode)
 
     msg = bytearray(b"m" * size)
 
-    listener = ucp.create_listener(simple_server())
-    num_clients = 2
+    recv = []
+    listener = ucp.create_listener(simple_server(size, recv))
+    num_clients = 1
     clients = [
         await ucp.create_endpoint(ucp.get_address(), listener.port)
         for i in range(num_clients)
     ]
     for c in clients:
+        if recv_wait:
+            # By sleeping here we ensure that the listener's
+            # ep.am_recv call will have to wait, rather than return
+            # immediately as receive data is already available.
+            await asyncio.sleep(1)
         await c.am_send(msg)
     for c in clients:
         await c.close()
     listener.close()
+
+    assert recv[0] == msg
