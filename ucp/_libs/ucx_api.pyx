@@ -395,7 +395,6 @@ IF CY_UCP_AM_SUPPORTED:
 
         ucp_request_free(request)
 
-
     cdef ucs_status_t _am_recv_callback(
         void *arg,
         const void *header,
@@ -442,7 +441,10 @@ IF CY_UCP_AM_SUPPORTED:
 
                 cb_func(buf, exception, *cb_args, **cb_kwargs)
             else:
-                logger.debug("am %s pushing to pool in ep %s" % (recv_type, hex(ep_as_int)))
+                logger.debug("am %s pushing to pool in ep %s" % (
+                    recv_type,
+                    hex(ep_as_int)
+                ))
                 if exception is not None:
                     am_recv_pool[ep_as_int].append(exception)
                 else:
@@ -1604,7 +1606,6 @@ IF CY_UCP_AM_SUPPORTED:
             finally:
                 req.close()
 
-
     def am_send_nbx(
         UCXEndpoint ep,
         Array buffer,
@@ -1622,14 +1623,14 @@ IF CY_UCP_AM_SUPPORTED:
         considered completed when it is safe to reuse the source buffer. If the send
         operation is completed immediately the routine return None and the call-back
         function **is not invoked**. If the operation is not completed immediately
-        and no exception raised then the UCP library will schedule to invoke the call-back
-        whenever the send operation will be completed. In other words, the completion
-        of a message can be signaled by the return code or the call-back.
+        and no exception raised then the UCP library will schedule to invoke the
+        call-back whenever the send operation will be completed. In other words, the
+        completion of a message can be signaled by the return code or the call-back.
 
         Note
         ----
-        The user should not modify any part of the buffer after this operation is called,
-        until the operation completes.
+        The user should not modify any part of the buffer after this operation is
+        called, until the operation completes.
 
         Parameters
         ----------
@@ -1691,7 +1692,6 @@ IF CY_UCP_AM_SUPPORTED:
         return _handle_status(
             status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
         )
-
 
     def am_recv_nb(
         UCXEndpoint ep,

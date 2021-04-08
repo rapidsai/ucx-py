@@ -44,7 +44,10 @@ def simple_server(size, recv):
 @pytest.mark.parametrize("recv_wait", [True, False])
 async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
     rndv_thresh = 8192
-    ucp.init(options={"RNDV_THRESH": str(rndv_thresh)}, blocking_progress_mode=blocking_progress_mode)
+    ucp.init(
+        options={"RNDV_THRESH": str(rndv_thresh)},
+        blocking_progress_mode=blocking_progress_mode,
+    )
 
     msg = bytearray(b"m" * size)
 
