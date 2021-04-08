@@ -6,6 +6,7 @@
 from __future__ import absolute_import, print_function
 
 import os
+import re
 from distutils.sysconfig import get_config_var, get_python_inc
 
 from setuptools import find_packages, setup
@@ -15,6 +16,7 @@ import versioneer
 
 try:
     from Cython.Distutils.build_ext import new_build_ext as build_ext
+    from Cython.Build import cythonize
 except ImportError:
     from setuptools.command.build_ext import build_ext
 
@@ -28,40 +30,60 @@ libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
 extra_compile_args = ["-std=c99"]
 
 
-ext_modules = [
-    Extension(
-        "ucp._libs.ucx_api",
-        sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
-        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
-        include_dirs=include_dirs,
-        library_dirs=library_dirs,
-        libraries=libraries,
-        extra_compile_args=extra_compile_args,
-    ),
-    Extension(
-        "ucp._libs.arr",
-        sources=["ucp/_libs/arr.pyx"],
-        include_dirs=include_dirs,
-        library_dirs=library_dirs,
-        libraries=libraries,
-        extra_compile_args=extra_compile_args,
-    ),
-    Extension(
-        "ucp._libs.topological_distance",
-        sources=[
-            "ucp/_libs/topological_distance.pyx",
-            "ucp/_libs/src/topological_distance.c",
-        ],
-        depends=[
-            "ucp/_libs/src/topological_distance.h",
-            "ucp/_libs/topological_distance_dep.pxd",
-        ],
-        include_dirs=include_dirs,
-        library_dirs=library_dirs,
-        libraries=libraries,
-        extra_compile_args=extra_compile_args,
-    ),
-]
+def get_ucp_version():
+    with open(include_dirs[0] + "/ucp/api/ucp_version.h") as f:
+        ftext = f.read()
+        major = re.findall("^#define.*UCP_API_MAJOR.*", ftext, re.MULTILINE)
+        minor = re.findall("^#define.*UCP_API_MINOR.*", ftext, re.MULTILINE)
+
+        major = int(major[0].split()[-1])
+        minor = int(minor[0].split()[-1])
+
+        return (major, minor)
+
+
+_am_supported = 1 if (get_ucp_version() >= (1, 11)) else 0
+
+
+ext_modules = cythonize(
+    [
+        Extension(
+            "ucp._libs.ucx_api",
+            sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
+            depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries,
+            extra_compile_args=extra_compile_args,
+        ),
+        Extension(
+            "ucp._libs.arr",
+            sources=["ucp/_libs/arr.pyx"],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries,
+            extra_compile_args=extra_compile_args,
+        ),
+        Extension(
+            "ucp._libs.topological_distance",
+            sources=[
+                "ucp/_libs/topological_distance.pyx",
+                "ucp/_libs/src/topological_distance.c",
+            ],
+            depends=[
+                "ucp/_libs/src/topological_distance.h",
+                "ucp/_libs/topological_distance_dep.pxd",
+            ],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries,
+            extra_compile_args=extra_compile_args,
+        ),
+    ],
+    compile_time_env={
+        "CY_UCP_AM_SUPPORTED": _am_supported,
+    },
+)
 
 cmdclass = dict()
 cmdclass.update(versioneer.get_cmdclass())

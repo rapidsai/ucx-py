@@ -32,6 +32,9 @@ def simple_server(size, recv):
     return server
 
 
+@pytest.mark.skipif(
+    not ucp.core.is_am_supported(), reason="AM only supported in UCX >= 1.11"
+)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
