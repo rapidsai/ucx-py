@@ -268,7 +268,7 @@ cdef class UCXContext(UCXObject):
     def __init__(
         self,
         config_dict={},
-        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM)
+        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM, Feature.RMA)
     ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
@@ -325,6 +325,160 @@ cdef class UCXContext(UCXObject):
         cdef FILE *text_fd = create_text_fd()
         ucp_context_print_info(self._handle, text_fd)
         return decode_text_fd(text_fd)
+
+    def map(self, mem):
+        return UCXMemoryHandle.map(self, mem)
+
+    def alloc(self, size):
+        return UCXMemoryHandle.alloc(self, size)
+
+
+cdef class PackedRemoteKey:
+    cdef void *_key
+    cdef Py_ssize_t _length
+
+    def __cinit__(self, uintptr_t packed_key_as_int, Py_ssize_t length):
+        key = <void *> packed_key_as_int
+        self._key = malloc(length)
+        self._length = length
+        memcpy(self._key, key, length)
+
+    @classmethod
+    def from_buffer(cls, buffer):
+        buf = Array(buffer)
+        assert buf.c_contiguous
+        return PackedRemoteKey(buf.ptr, buf.nbytes)
+
+    @classmethod
+    def from_memh(self, UCXMemoryHandle mem):
+        cdef void *key
+        cdef size_t len
+        cdef ucs_status_t status
+        status = ucp_rkey_pack(mem._context._handle, mem._memh, &key, &len)
+        assert_ucs_status(status)
+        return PackedRemoteKey(<uintptr_t>key, len)
+
+    def __dealloc__(self):
+        ucp_rkey_buffer_release(self._key)
+
+    @property
+    def key(self):
+        return int(<uintptr_t><void*>self._key)
+
+    @property
+    def length(self):
+        return int(self._length)
+
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
+            raise BufferError("Requested writable view on readonly data")
+        buffer.buf = <void*>self._key
+        buffer.obj = self
+        buffer.len = self._length
+        buffer.readonly = True
+        buffer.itemsize = 1
+        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
+            buffer.format = b"B"
+        else:
+            buffer.format = NULL
+        buffer.ndim = 1
+        if (flags & PyBUF_ND) == PyBUF_ND:
+            buffer.shape = &self._length
+        else:
+            buffer.shape = NULL
+        buffer.strides = NULL
+        buffer.suboffsets = NULL
+        buffer.internal = NULL
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        pass
+
+    def __reduce__(self):
+        return (PackedRemoteKey.from_buffer, (bytes(self),))
+
+    def __hash__(self):
+        return hash(bytes(self))
+
+
+def _ucx_mem_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+    assert ctx.initialized
+    cdef ucp_mem_h handle = <ucp_mem_h>handle_as_int
+    cdef ucs_status_t status
+    status = ucp_mem_unmap(ctx._handle, handle)
+    assert_ucs_status(status)
+
+
+cdef class UCXMemoryHandle(UCXObject):
+    cdef ucp_mem_h _memh
+    cdef UCXContext _context
+    cdef uint64_t r_address
+    cdef size_t _length
+
+    def __cinit__(self, UCXContext ctx, uintptr_t par):
+        cdef ucs_status_t status
+        cdef ucp_context_h ctx_handle = <ucp_context_h><uintptr_t>ctx.handle
+        cdef ucp_mem_map_params_t *params = <ucp_mem_map_params_t *>par
+        self._context = ctx
+        status = ucp_mem_map(ctx_handle, params, &self._memh)
+        assert_ucs_status(status)
+        self._populate_metadata()
+        self.add_handle_finalizer(
+            _ucx_mem_handle_finalizer,
+            int(<uintptr_t>self.memh),
+            self._context
+        )
+        ctx.add_child(self)
+
+    @classmethod
+    def alloc(cls, ctx, size):
+        cdef ucp_mem_map_params_t params
+        cdef ucs_status_t status
+
+        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_FLAGS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        params.length = <size_t>size
+        params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
+
+        return UCXMemoryHandle(ctx, <uintptr_t>&params)
+
+    @classmethod
+    def map(cls, ctx, mem):
+        cdef ucp_mem_map_params_t params
+        cdef ucs_status_t status
+
+        buff = Array(mem)
+
+        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        params.address = <void*>buff.ptr
+        params.length = buff.nbytes
+
+        return UCXMemoryHandle(ctx, <uintptr_t>&params)
+
+    def pack_rkey(self):
+        return PackedRemoteKey.from_memh(self)
+
+    @property
+    def memh(self):
+        return <uintptr_t>self._memh
+
+    #Done as a separate function because some day I plan on making this loaded lazily
+    #I believe this reports the actual registered space, rather than what was requested.
+    def _populate_metadata(self):
+        cdef ucs_status_t status
+        cdef ucp_mem_attr_t attr
+
+        attr.field_mask = UCP_MEM_ATTR_FIELD_ADDRESS | UCP_MEM_ATTR_FIELD_LENGTH
+        status = ucp_mem_query(self._memh, &attr)
+        assert_ucs_status(status)
+        self.r_address = <uintptr_t>attr.address
+        self._length = attr.length
+
+    @property
+    def address(self):
+        return self.r_address
+
+    @property
+    def length(self):
+        return self._length
 
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):

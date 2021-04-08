@@ -326,3 +326,46 @@ cdef extern from "sys/epoll.h":
     int epoll_create(int size)
     int epoll_ctl(int epfd, int op, int fd, epoll_event *event)
     int epoll_wait(int epfd, epoll_event *events, int maxevents, int timeout)
+
+    ctypedef struct ucp_address_t:
+        pass
+
+    ctypedef struct ucp_rkey_h:
+        pass
+
+    int UCP_MEM_MAP_NONBLOCK
+    int UCP_MEM_MAP_ALLOCATE
+    int UCP_MEM_MAP_FIXED
+
+    ctypedef struct ucp_mem_h:
+        pass
+
+    ctypedef struct ucp_mem_attr_t:
+        uint64_t field_mask
+        void *address
+        size_t length
+
+    int UCP_MEM_MAP_PARAM_FIELD_LENGTH
+    int UCP_MEM_MAP_PARAM_FIELD_ADDRESS
+    int UCP_MEM_MAP_PARAM_FIELD_FLAGS
+    int UCP_MEM_ATTR_FIELD_ADDRESS
+    int UCP_MEM_ATTR_FIELD_LENGTH
+
+    ctypedef struct ucp_mem_map_params_t:
+        uint64_t field_mask
+        void    *address
+        size_t   length
+        unsigned flags
+
+    ucs_status_t ucp_mem_map(ucp_context_h context, const ucp_mem_map_params_t *params,
+                             ucp_mem_h *memh_p)
+    ucs_status_t ucp_mem_unmap(ucp_context_h context, ucp_mem_h memh)
+    ucs_status_t ucp_mem_query(const ucp_mem_h memh, ucp_mem_attr_t *attr)
+
+    ucs_status_t ucp_rkey_pack(ucp_context_h context, ucp_mem_h memh,
+                               void **rkey_buffer_p, size_t *size_p)
+    ucs_status_t ucp_ep_rkey_unpack(ucp_ep_h ep, const void *rkey_buffer,
+                                    ucp_rkey_h *rkey_p)
+    void ucp_rkey_buffer_release(void *rkey_buffer)
+    ucs_status_t ucp_rkey_ptr(ucp_rkey_h rkey, uint64_t raddr, void **addr_p)
+    void ucp_rkey_destroy(ucp_rkey_h rkey)
