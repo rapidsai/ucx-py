@@ -15,8 +15,8 @@ from setuptools.extension import Extension
 import versioneer
 
 try:
-    from Cython.Distutils.build_ext import new_build_ext as build_ext
     from Cython.Build import cythonize
+    from Cython.Distutils.build_ext import new_build_ext as build_ext
 except ImportError:
     from setuptools.command.build_ext import build_ext
 
