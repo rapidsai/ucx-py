@@ -80,7 +80,7 @@ ext_modules = cythonize(
             extra_compile_args=extra_compile_args,
         ),
     ],
-    compile_time_env={"CY_UCP_AM_SUPPORTED": _am_supported, },
+    compile_time_env={"CY_UCP_AM_SUPPORTED": _am_supported,},
 )
 
 cmdclass = dict()
