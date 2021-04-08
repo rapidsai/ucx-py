@@ -1615,17 +1615,17 @@ IF CY_UCP_AM_SUPPORTED:
         dict cb_kwargs=None,
         str name=None
     ):
-        """ This routine sends a message to a destination endpoint
+        """ This routine sends a message to an endpoint using the active message API
 
-        Each message is associated with a tag value that is used for message matching
-        on the receiver. The routine is non-blocking and therefore returns immediately,
-        however the actual send operation may be delayed. The send operation is
-        considered completed when it is safe to reuse the source buffer. If the send
-        operation is completed immediately the routine return None and the call-back
-        function **is not invoked**. If the operation is not completed immediately
-        and no exception raised then the UCP library will schedule to invoke the
-        call-back whenever the send operation will be completed. In other words, the
-        completion of a message can be signaled by the return code or the call-back.
+        Each message is sent to an endpoint that is the message's sole recipient.
+        The routine is non-blocking and therefore returns immediately, however the
+        actual send operation may be delayed. The send operation is considered
+        completed when it is safe to reuse the source buffer. If the send operation
+        is completed immediately the routine returns None and the call-back function
+        **is not invoked**. If the operation is not completed immediately and no
+        exception raised then the UCP library will schedule to invoke the call-back
+        whenever the send operation will be completed. In other words, the completion
+        of a message can be signaled by the return code or the call-back.
 
         Note
         ----
@@ -1702,28 +1702,14 @@ IF CY_UCP_AM_SUPPORTED:
     ):
         """ This routine receives a message on a worker with the active message API.
 
-        The routine is a non-blocking and therefore returns immediately. The receive
-        operation is considered completed when the message is delivered to the buffer.
-        If there is a pending received buffer for the endpoint, the call will return
-        immediately with `True`. Otherwise, in order to notify the application about
-        completion of the receive operation the UCP library will invoke the call-back
-        function when the received message is in the receive buffer and ready for
-        application access. If the receive operation cannot be stated the routine
-        raise an exception.
-
-        Note
-        ----
-        This routine cannot return None. It always returns `True`, a request handle or
-        raises an exception.
+        TODO
 
         Parameters
         ----------
-        worker: UCXWorker
-            The worker that is used for the receive operation
         ep: UCXEndpoint
             The endpoint that is used for the receive operation. Received active
-            messages are always targeted at a specific endpoint, therefore it
-            s imperative to specify the correct one here.
+            messages are always targeted at a specific endpoint, therefore it is
+            imperative to specify the correct one here.
         cb_func: callable
             The call-back function, which must accept `request` and `exception` as the
             first two arguments.
