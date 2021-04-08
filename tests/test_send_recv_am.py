@@ -27,7 +27,10 @@ def event_loop(scope="function"):
 
 def simple_server(size, recv):
     async def server(ep):
-        recv.append(await ep.am_recv())
+        try:
+            recv.append(await ep.am_recv())
+        except ucp.exceptions.UCXError:
+            recv.append("error")
 
     return server
 
@@ -40,7 +43,8 @@ def simple_server(size, recv):
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 @pytest.mark.parametrize("recv_wait", [True, False])
 async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
-    ucp.init(blocking_progress_mode=blocking_progress_mode)
+    rndv_thresh = 8192
+    ucp.init(options={"RNDV_THRESH": str(rndv_thresh)}, blocking_progress_mode=blocking_progress_mode)
 
     msg = bytearray(b"m" * size)
 
@@ -62,4 +66,7 @@ async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
         await c.close()
     listener.close()
 
-    assert recv[0] == msg
+    if size < rndv_thresh:
+        assert recv[0] == msg
+    else:
+        assert recv[0] == "error"

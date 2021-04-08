@@ -407,6 +407,7 @@ IF CY_UCP_AM_SUPPORTED:
         cdef UCXWorker worker = <UCXWorker>arg
         cdef dict am_recv_pool = worker._am_recv_pool
         cdef dict am_recv_wait = worker._am_recv_wait
+
         assert worker.initialized
         assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
         assert Feature.AM in worker._context._feature_flags
@@ -422,64 +423,46 @@ IF CY_UCP_AM_SUPPORTED:
         cdef char[:] buf_view = buf
         cdef void *buf_ptr = <void *><uintptr_t>&buf_view[0]
 
-        cdef ucp_request_param_t request_param
-        cdef ucs_status_ptr_t status
-        cdef str ucx_status_msg, msg
-        cdef UCXRequest req
-        if is_rndv:
-            request_param.op_attr_mask = (
-                UCP_OP_ATTR_FIELD_CALLBACK |
-                UCP_OP_ATTR_FIELD_USER_DATA |
-                UCP_OP_ATTR_FLAG_NO_IMM_CMPL
-            )
-            request_param.cb.recv_am = (
-                <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
-            )
-            request_param.user_data = <void *>buf
-            status = ucp_am_recv_data_nbx(
-                worker._handle, data, buf_ptr, length, &request_param
-            )
-
-            logger.debug("am rndv: ep %s len %s" % (hex(int(ep_as_int)), length))
-
-            if UCS_PTR_IS_ERR(status):
-                ucx_status_msg = (
-                    ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
-                )
-                msg = "<_am_recv_callback>: %s" % (ucx_status_msg)
-                logger.info("_am_recv_callback error: %s" % msg)
-                am_recv_pool[ep_as_int].append(UCXError(msg))
-                return UCS_PTR_STATUS(status)
-
-            return UCS_OK
-
-        else:
-            logger.debug("am eager copying %d bytes with ep %s" % (
-                length,
-                hex(ep_as_int)
-            ))
-            memcpy(buf_ptr, data, length)
+        def _push_result(buf, exception, recv_type):
             if (
                 am_recv_wait is not None and
                 ep_as_int in am_recv_wait and
                 len(am_recv_wait[ep_as_int]) > 0
             ):
-                exception = None
-
                 recv_wait = am_recv_wait[ep_as_int].pop(0)
                 cb_func = recv_wait["cb_func"]
                 cb_args = recv_wait["cb_args"]
                 cb_kwargs = recv_wait["cb_kwargs"]
 
-                logger.debug("am eager awaiting in ep %s cb_func %s" % (
+                logger.debug("am %s awaiting in ep %s cb_func %s" % (
+                    recv_type,
                     hex(ep_as_int),
                     cb_func
                 ))
 
                 cb_func(buf, exception, *cb_args, **cb_kwargs)
             else:
-                logger.debug("am eager pushing to pool in ep %s" % (hex(ep_as_int)))
-                am_recv_pool[ep_as_int].append(buf)
+                logger.debug("am %s pushing to pool in ep %s" % (recv_type, hex(ep_as_int)))
+                if exception is not None:
+                    am_recv_pool[ep_as_int].append(exception)
+                else:
+                    am_recv_pool[ep_as_int].append(buf)
+
+        cdef ucp_request_param_t request_param
+        cdef ucs_status_ptr_t status
+        cdef str ucx_status_msg, msg
+        cdef UCXRequest req
+        if is_rndv:
+            exception = UCXError("AM rendezvous receive not supported yet")
+            _push_result(None, exception, "eager")
+            return UCS_OK
+        else:
+            logger.debug("am eager copying %d bytes with ep %s" % (
+                length,
+                hex(ep_as_int)
+            ))
+            memcpy(buf_ptr, data, length)
+            _push_result(buf, None, "eager")
             return UCS_OK
 
 
