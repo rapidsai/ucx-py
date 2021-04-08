@@ -656,10 +656,7 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        log = "[Recv AM #%03d] ep: %s" % (
-            self._recv_count,
-            hex(self.uid),
-        )
+        log = "[Recv AM #%03d] ep: %s" % (self._recv_count, hex(self.uid),)
         logger.debug(log)
         self._recv_count += 1
         ret = await comm.am_recv(self._ep, name=log)

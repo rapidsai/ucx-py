@@ -101,21 +101,14 @@ def tag_recv(
 
 
 def am_recv(
-    ep: ucx_api.UCXEndpoint,
-    name="am_recv",
-    event_loop=None,
+    ep: ucx_api.UCXEndpoint, name="am_recv", event_loop=None,
 ) -> asyncio.Future:
 
     event_loop = event_loop if event_loop else asyncio.get_event_loop()
     ret = event_loop.create_future()
     # All the comm functions takes the call-back function and its arguments
     cb_args = (event_loop, ret)
-    ucx_api.am_recv_nb(
-        ep,
-        cb_func=_am_cb_func,
-        cb_args=cb_args,
-        name=name
-    )
+    ucx_api.am_recv_nb(ep, cb_func=_am_cb_func, cb_args=cb_args, name=name)
     return ret
 
 
