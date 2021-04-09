@@ -1,7 +1,8 @@
-import pytest
 import array
 import io
 import mmap
+
+import pytest
 
 import ucp._libs.ucx_api as ucx_api
 

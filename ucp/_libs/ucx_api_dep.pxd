@@ -353,8 +353,8 @@ cdef extern from "sys/epoll.h":
 
     ctypedef struct ucp_mem_map_params_t:
         uint64_t field_mask
-        void    *address
-        size_t   length
+        void *address
+        size_t length
         unsigned flags
 
     ucs_status_t ucp_mem_map(ucp_context_h context, const ucp_mem_map_params_t *params,

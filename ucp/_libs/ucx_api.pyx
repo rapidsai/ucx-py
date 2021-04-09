@@ -434,7 +434,10 @@ cdef class UCXMemoryHandle(UCXObject):
         cdef ucp_mem_map_params_t params
         cdef ucs_status_t status
 
-        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_FLAGS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        params.field_mask = (
+            UCP_MEM_MAP_PARAM_FIELD_FLAGS |
+            UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        )
         params.length = <size_t>size
         params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
 
@@ -447,7 +450,10 @@ cdef class UCXMemoryHandle(UCXObject):
 
         buff = Array(mem)
 
-        params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS | UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        params.field_mask = (
+            UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
+            UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        )
         params.address = <void*>buff.ptr
         params.length = buff.nbytes
 
@@ -460,13 +466,16 @@ cdef class UCXMemoryHandle(UCXObject):
     def memh(self):
         return <uintptr_t>self._memh
 
-    #Done as a separate function because some day I plan on making this loaded lazily
-    #I believe this reports the actual registered space, rather than what was requested.
+    # Done as a separate function because some day I plan on making this loaded lazily
+    # I believe this reports the actual registered space, rather than what was requested
     def _populate_metadata(self):
         cdef ucs_status_t status
         cdef ucp_mem_attr_t attr
 
-        attr.field_mask = UCP_MEM_ATTR_FIELD_ADDRESS | UCP_MEM_ATTR_FIELD_LENGTH
+        attr.field_mask = (
+            UCP_MEM_ATTR_FIELD_ADDRESS |
+            UCP_MEM_ATTR_FIELD_LENGTH
+        )
         status = ucp_mem_query(self._memh, &attr)
         assert_ucs_status(status)
         self.r_address = <uintptr_t>attr.address
