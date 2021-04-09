@@ -379,6 +379,14 @@ IF CY_UCP_AM_SUPPORTED:
         size_t length,
         void *user_data
     ):
+        cdef bytearray buf
+        cdef UCXRequest req
+        cdef dict req_info
+        cdef str name, ucx_status_msg, msg
+        cdef set inflight_msgs
+        cdef tuple cb_args
+        cdef dict cb_kwargs
+
         logger.debug(
             "_am_recv_completed_callback status %d len %d buf %s" % (
                 status, length, hex(int(<uintptr_t>user_data))
@@ -391,9 +399,45 @@ IF CY_UCP_AM_SUPPORTED:
             status_msg = ucs_status_string(status).decode("utf-8")
             logger.info("AM RNDV receive failed with %d: %s" % (status, status_msg))
 
-        logger.debug("am rndv completed: buf %s" % (hex(int(<uintptr_t>user_data))))
+        logger.debug("am rndv completed: user_data %s" % (hex(int(<uintptr_t>user_data))))
 
-        ucp_request_free(request)
+        buf = <bytearray>user_data
+
+        with log_errors():
+            req = UCXRequest(<uintptr_t><void*> request)
+            assert not req.closed()
+            req_info = <dict>req._handle.info
+            req_info["status"] = "finished"
+
+            if "cb_func" not in req_info:
+                # This callback function was called before _am_recv_callback() returned
+                return
+
+            exception = None
+            if status == UCS_ERR_CANCELED:
+                name = req_info["name"]
+                msg = "<%s>: " % name
+                exception = UCXCanceled(msg)
+            elif status != UCS_OK:
+                name = req_info["name"]
+                ucx_status_msg = ucs_status_string(status).decode("utf-8")
+                msg = "<%s>: %s" % (name, ucx_status_msg)
+                exception = UCXError(msg)
+            try:
+                inflight_msgs = req_info["inflight_msgs"]
+                inflight_msgs.discard(req)
+                cb_func = req_info["cb_func"]
+                if cb_func is not None:
+                    cb_args = req_info["cb_args"]
+                    if cb_args is None:
+                        cb_args = ()
+                    cb_kwargs = req_info["cb_kwargs"]
+                    if cb_kwargs is None:
+                        cb_kwargs = {}
+                    cb_func(buf, exception, **cb_kwargs)
+            finally:
+                req.close()
+
 
     cdef ucs_status_t _am_recv_callback(
         void *arg,
@@ -406,7 +450,7 @@ IF CY_UCP_AM_SUPPORTED:
         cdef UCXWorker worker = <UCXWorker>arg
         cdef dict am_recv_pool = worker._am_recv_pool
         cdef dict am_recv_wait = worker._am_recv_wait
-
+        cdef set inflight_msgs = worker._inflight_msgs
         assert worker.initialized
         assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
         assert Feature.AM in worker._context._feature_flags
@@ -441,10 +485,7 @@ IF CY_UCP_AM_SUPPORTED:
 
                 cb_func(buf, exception, *cb_args, **cb_kwargs)
             else:
-                logger.debug("am %s pushing to pool in ep %s" % (
-                    recv_type,
-                    hex(ep_as_int)
-                ))
+                logger.debug("am %s pushing to pool in ep %s" % (recv_type, hex(ep_as_int)))
                 if exception is not None:
                     am_recv_pool[ep_as_int].append(exception)
                 else:
@@ -454,10 +495,57 @@ IF CY_UCP_AM_SUPPORTED:
         cdef ucs_status_ptr_t status
         cdef str ucx_status_msg, msg
         cdef UCXRequest req
+        cdef dict req_info
         if is_rndv:
-            exception = UCXError("AM rendezvous receive not supported yet")
-            _push_result(None, exception, "eager")
-            return UCS_OK
+            request_param.op_attr_mask = (
+                UCP_OP_ATTR_FIELD_CALLBACK |
+                UCP_OP_ATTR_FIELD_USER_DATA |
+                UCP_OP_ATTR_FLAG_NO_IMM_CMPL
+            )
+            request_param.cb.recv_am = (
+                <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
+            )
+            request_param.user_data = <void *>buf
+            status = ucp_am_recv_data_nbx(
+                worker._handle, data, buf_ptr, length, &request_param
+            )
+
+            logger.debug("am rndv: ep %s len %s" % (hex(int(ep_as_int)), length))
+
+            if UCS_PTR_STATUS(status) == UCS_OK:
+                _push_result(buf, None, "rndv")
+                return UCS_OK
+            elif UCS_PTR_IS_ERR(status):
+                ucx_status_msg = (
+                    ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+                )
+                msg = "<_am_recv_callback>: %s" % (ucx_status_msg)
+                logger.info("_am_recv_callback error: %s" % msg)
+                _push_result(None, UCXError(msg), "rndv")
+                return UCS_PTR_STATUS(status)
+
+            req = UCXRequest(<uintptr_t><void*> status)
+            assert not req.closed()
+            req_info = <dict>req._handle.info
+            if req_info["status"] == "finished":
+                try:
+                    # The callback function has already handled the request
+                    received = req_info.get("received", None)
+                    _push_result(buf, None, "rndv")
+                    return UCS_OK
+                finally:
+                    req.close()
+                    ucp_request_free(status)
+            else:
+                req_info["cb_func"] = _push_result
+                req_info["cb_args"] = (buf, )
+                req_info["cb_kwargs"] = {"recv_type": "rndv"}
+                req_info["expected_receive"] = 0
+                req_info["name"] = "am_recv"
+                inflight_msgs.add(req)
+                req_info["inflight_msgs"] = inflight_msgs
+                return UCS_OK
+
         else:
             logger.debug("am eager copying %d bytes with ep %s" % (
                 length,
