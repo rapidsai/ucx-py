@@ -1,10 +1,49 @@
 import asyncio
+from functools import partial
 
+import numpy as np
 import pytest
 
 import ucp
 
 msg_sizes = [2 ** i for i in range(0, 25, 4)]
+
+
+def get_data():
+    ret = [
+        {
+            "allocator": bytearray,
+            "generator": lambda n: bytearray(b"m" * n),
+            "validator": lambda recv, exp: np.testing.assert_equal(recv, exp),
+            "memory_type": "host",
+        },
+        {
+            "allocator": partial(np.ones, dtype=np.uint8),
+            "generator": partial(np.arange, dtype=np.int64),
+            "validator": lambda recv, exp: np.testing.assert_equal(
+                recv.view(np.int64), exp
+            ),
+            "memory_type": "host",
+        },
+    ]
+
+    try:
+        import cupy as cp
+
+        ret.append(
+            {
+                "allocator": partial(cp.ones, dtype=np.uint8),
+                "generator": partial(cp.arange, dtype=np.int64),
+                "validator": lambda recv, exp: cp.testing.assert_array_equal(
+                    recv.view(np.int64), exp
+                ),
+                "memory_type": "cuda",
+            }
+        )
+    except ImportError:
+        pass
+
+    return ret
 
 
 def handle_exception(loop, context):
@@ -39,14 +78,16 @@ def simple_server(size, recv):
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 @pytest.mark.parametrize("recv_wait", [True, False])
-async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
+@pytest.mark.parametrize("data", get_data())
+async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait, data):
     rndv_thresh = 8192
     ucp.init(
         options={"RNDV_THRESH": str(rndv_thresh)},
         blocking_progress_mode=blocking_progress_mode,
     )
 
-    msg = bytearray(b"m" * size)
+    ucp.register_am_allocator(data["allocator"], data["memory_type"])
+    msg = data["generator"](size)
 
     recv = []
     listener = ucp.create_listener(simple_server(size, recv))
@@ -66,4 +107,11 @@ async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
         await c.close()
     listener.close()
 
-    assert recv[0] == msg
+    if data["memory_type"] == "cuda" and msg.nbytes < rndv_thresh:
+        # Eager messages are always received on the host, if no host
+        # allocator is registered UCX-Py defaults to `bytearray`.
+        print(type(recv[0]))
+        print(type(msg))
+        assert recv[0] == bytearray(msg.get())
+    else:
+        data["validator"](recv[0], msg)
