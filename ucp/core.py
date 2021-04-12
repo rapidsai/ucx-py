@@ -139,7 +139,7 @@ class CtrlMsg:
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log
         )
 
         shutdown_fut.add_done_callback(
@@ -438,6 +438,15 @@ class ApplicationContext:
     def get_worker_address(self):
         return self.worker.get_address()
 
+    def register_am_allocator(self, allocator, allocator_type):
+        if allocator_type == "host":
+            allocator_type = ucx_api.AllocatorType.HOST
+        elif allocator_type == "cuda":
+            allocator_type = ucx_api.AllocatorType.CUDA
+        else:
+            allocator_type = ucx_api.AllocatorType.UNSUPPORTED
+        self.worker.register_am_allocator(allocator, allocator_type)
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -534,11 +543,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep,
-                    msg_arr,
-                    msg_arr.nbytes,
-                    self._tags["ctrl_send"],
-                    name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._tags["ctrl_send"], name=log
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -662,7 +667,7 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        log = "[Recv AM #%03d] ep: %s" % (self._recv_count, hex(self.uid),)
+        log = "[Recv AM #%03d] ep: %s" % (self._recv_count, hex(self.uid))
         logger.debug(log)
         self._recv_count += 1
         ret = await comm.am_recv(self._ep, name=log)
@@ -876,6 +881,10 @@ def get_config():
         return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
+
+
+def register_am_allocator(allocator, allocator_type):
+    return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
 def create_listener(

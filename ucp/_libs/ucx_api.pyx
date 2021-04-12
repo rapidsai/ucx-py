@@ -249,6 +249,12 @@ class Feature(enum.Enum):
     AM = UCP_FEATURE_AM
 
 
+class AllocatorType(enum.Enum):
+    HOST = 0
+    CUDA = 1
+    UNSUPPORTED = 99
+
+
 cdef class UCXContext(UCXObject):
     """Python representation of `ucp_context_h`
 
@@ -395,14 +401,6 @@ IF CY_UCP_AM_SUPPORTED:
 
         assert user_data != NULL
 
-        if status != UCS_OK:
-            status_msg = ucs_status_string(status).decode("utf-8")
-            logger.info("AM RNDV receive failed with %d: %s" % (status, status_msg))
-
-        logger.debug("am rndv completed: user_data %s" % (hex(int(<uintptr_t>user_data))))
-
-        buf = <bytearray>user_data
-
         with log_errors():
             req = UCXRequest(<uintptr_t><void*> request)
             assert not req.closed()
@@ -434,10 +432,9 @@ IF CY_UCP_AM_SUPPORTED:
                     cb_kwargs = req_info["cb_kwargs"]
                     if cb_kwargs is None:
                         cb_kwargs = {}
-                    cb_func(buf, exception, **cb_kwargs)
+                    cb_func(cb_args[0], exception, **cb_kwargs)
             finally:
                 req.close()
-
 
     cdef ucs_status_t _am_recv_callback(
         void *arg,
@@ -462,9 +459,11 @@ IF CY_UCP_AM_SUPPORTED:
 
         is_rndv = param.recv_attr & UCP_AM_RECV_ATTR_FLAG_RNDV
 
-        cdef bytearray buf = bytearray(length)
-        cdef char[:] buf_view = buf
-        cdef void *buf_ptr = <void *><uintptr_t>&buf_view[0]
+        cdef object buf
+        cdef char[:] buf_view
+        cdef void *buf_ptr
+        cdef unsigned long cai_ptr
+        cdef int allocator_type = (<int *>header)[0]
 
         def _push_result(buf, exception, recv_type):
             if (
@@ -485,7 +484,10 @@ IF CY_UCP_AM_SUPPORTED:
 
                 cb_func(buf, exception, *cb_args, **cb_kwargs)
             else:
-                logger.debug("am %s pushing to pool in ep %s" % (recv_type, hex(ep_as_int)))
+                logger.debug("am %s pushing to pool in ep %s" % (
+                    recv_type,
+                    hex(ep_as_int)
+                ))
                 if exception is not None:
                     am_recv_pool[ep_as_int].append(exception)
                 else:
@@ -505,6 +507,23 @@ IF CY_UCP_AM_SUPPORTED:
             request_param.cb.recv_am = (
                 <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
             )
+
+            if allocator_type == UCS_MEMORY_TYPE_HOST:
+                buf = worker._am_host_allocator(length)
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+            elif allocator_type == UCS_MEMORY_TYPE_CUDA:
+                buf = worker._am_cuda_allocator(length)
+                cai_ptr = buf.__cuda_array_interface__["data"][0]
+                buf_ptr = <void *><uintptr_t>cai_ptr
+            else:
+                logger.debug("Unsupported memory type")
+                buf = worker._am_host_allocator(length)
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+                _push_result(None, UCXError("Unsupported memory type"), "rndv")
+                return UCS_OK
+
             request_param.user_data = <void *>buf
             status = ucp_am_recv_data_nbx(
                 worker._handle, data, buf_ptr, length, &request_param
@@ -535,7 +554,6 @@ IF CY_UCP_AM_SUPPORTED:
                     return UCS_OK
                 finally:
                     req.close()
-                    ucp_request_free(status)
             else:
                 req_info["cb_func"] = _push_result
                 req_info["cb_args"] = (buf, )
@@ -551,7 +569,12 @@ IF CY_UCP_AM_SUPPORTED:
                 length,
                 hex(ep_as_int)
             ))
+
+            buf = worker._am_host_allocator(length)
+            buf_view = buf
+            buf_ptr = <void *><uintptr_t>&buf_view[0]
             memcpy(buf_ptr, data, length)
+
             _push_result(buf, None, "eager")
             return UCS_OK
 
@@ -565,6 +588,8 @@ cdef class UCXWorker(UCXObject):
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
+            object _am_host_allocator
+            object _am_cuda_allocator
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
@@ -588,6 +613,8 @@ cdef class UCXWorker(UCXObject):
             if Feature.AM in context._feature_flags:
                 self._am_recv_pool = dict()
                 self._am_recv_wait = dict()
+                self._am_host_allocator = bytearray
+                self._am_cuda_allocator = None
                 am_handler_param.field_mask = (
                     UCP_AM_HANDLER_PARAM_FIELD_ID |
                     UCP_AM_HANDLER_PARAM_FIELD_CB |
@@ -605,6 +632,15 @@ cdef class UCXWorker(UCXObject):
             self._inflight_msgs
         )
         context.add_child(self)
+
+    IF CY_UCP_AM_SUPPORTED:
+        def register_am_allocator(self, object allocator, allocator_type):
+            if allocator_type is AllocatorType.HOST:
+                self._am_host_allocator = allocator
+            elif allocator_type is AllocatorType.CUDA:
+                self._am_cuda_allocator = allocator
+            else:
+                raise UCXError("Allocator type not supported")
 
     def init_blocking_progress_mode(self):
         assert self.initialized
@@ -1768,11 +1804,23 @@ IF CY_UCP_AM_SUPPORTED:
         params.flags = UCP_AM_SEND_FLAG_REPLY
         params.user_data = <void*>buffer.ptr
 
+        cdef int *header = <int *>malloc(sizeof(int))
+        if buffer.cuda:
+            header[0] = UCS_MEMORY_TYPE_CUDA
+        else:
+            header[0] = UCS_MEMORY_TYPE_HOST
+
+        def cb_wrapper(header_as_int, cb_func, *cb_args, **cb_kwargs):
+            free(<void *><uintptr_t>header_as_int)
+            cb_func(*cb_args, **cb_kwargs)
+
+        cb_func = functools.partial(cb_wrapper, int(<uintptr_t>header), cb_func)
+
         cdef ucs_status_ptr_t status = ucp_am_send_nbx(
             ep._handle,
             0,
-            NULL,
-            0,
+            <void *>header,
+            sizeof(int),
             <void*>buffer.ptr,
             nbytes,
             &params,
