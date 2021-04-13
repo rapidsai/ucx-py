@@ -571,9 +571,10 @@ IF CY_UCP_AM_SUPPORTED:
             ))
 
             buf = worker._am_host_allocator(length)
-            buf_view = buf
-            buf_ptr = <void *><uintptr_t>&buf_view[0]
-            memcpy(buf_ptr, data, length)
+            if length > 0:
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+                memcpy(buf_ptr, data, length)
 
             _push_result(buf, None, "eager")
             return UCS_OK
