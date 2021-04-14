@@ -467,7 +467,6 @@ IF CY_UCP_AM_SUPPORTED:
 
         def _push_result(buf, exception, recv_type):
             if (
-                am_recv_wait is not None and
                 ep_as_int in am_recv_wait and
                 len(am_recv_wait[ep_as_int]) > 0
             ):
@@ -1731,50 +1730,52 @@ IF CY_UCP_AM_SUPPORTED:
             finally:
                 req.close()
 
-    def am_send_nbx(
-        UCXEndpoint ep,
-        Array buffer,
-        size_t nbytes,
-        cb_func,
-        tuple cb_args=None,
-        dict cb_kwargs=None,
-        str name=None
-    ):
-        """ This routine sends a message to an endpoint using the active message API
 
-        Each message is sent to an endpoint that is the message's sole recipient.
-        The routine is non-blocking and therefore returns immediately, however the
-        actual send operation may be delayed. The send operation is considered
-        completed when it is safe to reuse the source buffer. If the send operation
-        is completed immediately the routine returns None and the call-back function
-        **is not invoked**. If the operation is not completed immediately and no
-        exception raised then the UCP library will schedule to invoke the call-back
-        whenever the send operation will be completed. In other words, the completion
-        of a message can be signaled by the return code or the call-back.
+def am_send_nbx(
+    UCXEndpoint ep,
+    Array buffer,
+    size_t nbytes,
+    cb_func,
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
+):
+    """ This routine sends a message to an endpoint using the active message API
 
-        Note
-        ----
-        The user should not modify any part of the buffer after this operation is
-        called, until the operation completes.
+    Each message is sent to an endpoint that is the message's sole recipient.
+    The routine is non-blocking and therefore returns immediately, however the
+    actual send operation may be delayed. The send operation is considered
+    completed when it is safe to reuse the source buffer. If the send operation
+    is completed immediately the routine returns None and the call-back function
+    **is not invoked**. If the operation is not completed immediately and no
+    exception raised then the UCP library will schedule to invoke the call-back
+    whenever the send operation will be completed. In other words, the completion
+    of a message can be signaled by the return code or the call-back.
 
-        Parameters
-        ----------
-        ep: UCXEndpoint
-            The destination endpoint
-        buffer: Array
-            An ``Array`` wrapping a user-provided array-like object
-        nbytes: int
-            Size of the buffer to use. Must be equal or less than the size of buffer
-        cb_func: callable
-            The call-back function, which must accept `request` and `exception` as the
-            first two arguments.
-        cb_args: tuple, optional
-            Extra arguments to the call-back function
-        cb_kwargs: dict, optional
-            Extra keyword arguments to the call-back function
-        name: str, optional
-            Descriptive name of the operation
-        """
+    Note
+    ----
+    The user should not modify any part of the buffer after this operation is
+    called, until the operation completes.
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The destination endpoint
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    """
+    IF CY_UCP_AM_SUPPORTED:
         if cb_args is None:
             cb_args = ()
         if cb_kwargs is None:
@@ -1829,34 +1830,39 @@ IF CY_UCP_AM_SUPPORTED:
         return _handle_status(
             status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
         )
+    ELSE:
+        raise RuntimeError("UCX-Py needs to be built against and running with "
+                           "UCX >= 1.11 to support am_send_nbx.")
 
-    def am_recv_nb(
-        UCXEndpoint ep,
-        cb_func,
-        tuple cb_args=None,
-        dict cb_kwargs=None,
-        str name=None,
-    ):
-        """ This routine receives a message on a worker with the active message API.
 
-        TODO
+def am_recv_nb(
+    UCXEndpoint ep,
+    cb_func,
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None,
+):
+    """ This routine receives a message on a worker with the active message API.
 
-        Parameters
-        ----------
-        ep: UCXEndpoint
-            The endpoint that is used for the receive operation. Received active
-            messages are always targeted at a specific endpoint, therefore it is
-            imperative to specify the correct one here.
-        cb_func: callable
-            The call-back function, which must accept `request` and `exception` as the
-            first two arguments.
-        cb_args: tuple, optional
-            Extra arguments to the call-back function
-        cb_kwargs: dict, optional
-            Extra keyword arguments to the call-back function
-        name: str, optional
-            Descriptive name of the operation
-        """
+    TODO
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The endpoint that is used for the receive operation. Received active
+        messages are always targeted at a specific endpoint, therefore it is
+        imperative to specify the correct one here.
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    """
+    IF CY_UCP_AM_SUPPORTED:
         worker = ep.worker
 
         if cb_args is None:
@@ -1872,12 +1878,11 @@ IF CY_UCP_AM_SUPPORTED:
         am_recv_pool = worker._am_recv_pool
         ep_as_int = int(<uintptr_t>ep._handle)
         if (
-            am_recv_pool is not None and
             ep_as_int in am_recv_pool and
             len(am_recv_pool[ep_as_int]) > 0
         ):
             recv_obj = am_recv_pool[ep_as_int].pop(0)
-            exception = recv_obj if issubclass(type(recv_obj), (Exception, )) else None
+            exception = recv_obj if isinstance(type(recv_obj), (Exception, )) else None
             cb_func(recv_obj, exception, *cb_args, **cb_kwargs)
             logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
         else:
@@ -1891,3 +1896,6 @@ IF CY_UCP_AM_SUPPORTED:
                 }
             )
             logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
+    ELSE:
+        raise RuntimeError("UCX-Py needs to be built against and running with "
+                           "UCX >= 1.11 to support am_recv_nb.")

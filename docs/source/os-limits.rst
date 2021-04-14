@@ -16,6 +16,7 @@ In sockets-based connections, multiple file descriptors may be open to establish
 One possible cause for this is that the limit established by the OS or system administrators has been reached by the user. This limit can be checked with:
 
 ::
+
     $ ulimit -n
 
 If the user has permission to do so, the file descriptor limit can be increased by typing the new limit after the command above. For example, to set a new limit of 1 million, the following should be executed:
@@ -39,9 +40,11 @@ UCX respects the operating system's limit of socket listen() backlog, known in u
 To check for the current limit, the user can execute the following command:
 
 ::
+
     $ sysctl net.core.somaxconn
 
 For most Linux distros, the default limit is 128. To increase that limit to 65535 for example, the user may run the following (require root or sudo permissions):
 
 ::
+
     $ sudo sysctl -w net.core.somaxconn=128
