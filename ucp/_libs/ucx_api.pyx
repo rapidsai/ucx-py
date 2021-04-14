@@ -402,7 +402,6 @@ IF CY_UCP_AM_SUPPORTED:
 
         def _push_result(buf, exception, recv_type):
             if (
-                am_recv_wait is not None and
                 ep_as_int in am_recv_wait and
                 len(am_recv_wait[ep_as_int]) > 0
             ):
@@ -1720,7 +1719,6 @@ def am_recv_nb(
         am_recv_pool = worker._am_recv_pool
         ep_as_int = int(<uintptr_t>ep._handle)
         if (
-            am_recv_pool is not None and
             ep_as_int in am_recv_pool and
             len(am_recv_pool[ep_as_int]) > 0
         ):
