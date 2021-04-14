@@ -1723,7 +1723,7 @@ def am_recv_nb(
             len(am_recv_pool[ep_as_int]) > 0
         ):
             recv_obj = am_recv_pool[ep_as_int].pop(0)
-            exception = recv_obj if issubclass(type(recv_obj), (Exception, )) else None
+            exception = recv_obj if isinstance(type(recv_obj), (Exception, )) else None
             cb_func(recv_obj, exception, *cb_args, **cb_kwargs)
             logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
         else:
