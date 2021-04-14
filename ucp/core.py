@@ -139,7 +139,7 @@ class CtrlMsg:
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log
         )
 
         shutdown_fut.add_done_callback(
@@ -534,11 +534,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep,
-                    msg_arr,
-                    msg_arr.nbytes,
-                    self._tags["ctrl_send"],
-                    name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._tags["ctrl_send"], name=log
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -602,7 +598,7 @@ class Endpoint:
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
-        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
             hex(self._tags["msg_send"]),
@@ -662,7 +658,7 @@ class Endpoint:
         """
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        log = "[Recv AM #%03d] ep: %s" % (self._recv_count, hex(self.uid),)
+        log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
         logger.debug(log)
         self._recv_count += 1
         ret = await comm.am_recv(self._ep, name=log)
