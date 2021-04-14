@@ -373,28 +373,6 @@ def _ucx_worker_handle_finalizer(
 
 
 IF CY_UCP_AM_SUPPORTED:
-    cdef void _am_recv_completed_callback(
-        void *request,
-        ucs_status_t status,
-        size_t length,
-        void *user_data
-    ):
-        logger.debug(
-            "_am_recv_completed_callback status %d len %d buf %s" % (
-                status, length, hex(int(<uintptr_t>user_data))
-            )
-        )
-
-        assert user_data != NULL
-
-        if status != UCS_OK:
-            status_msg = ucs_status_string(status).decode("utf-8")
-            logger.info("AM RNDV receive failed with %d: %s" % (status, status_msg))
-
-        logger.debug("am rndv completed: buf %s" % (hex(int(<uintptr_t>user_data))))
-
-        ucp_request_free(request)
-
     cdef ucs_status_t _am_recv_callback(
         void *arg,
         const void *header,
