@@ -35,6 +35,12 @@ def _get_ctx():
     return _ctx
 
 
+def is_am_supported():
+    return all(
+        hasattr(ucx_api, attr) for attr in ["am_send_nbx", "am_recv_nb"]
+    ) and get_ucx_version() >= (1, 11, 0)
+
+
 async def exchange_peer_info(
     endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
 ):
@@ -133,7 +139,7 @@ class CtrlMsg:
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log
         )
 
         shutdown_fut.add_done_callback(
@@ -528,11 +534,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep,
-                    msg_arr,
-                    msg_arr.nbytes,
-                    self._tags["ctrl_send"],
-                    name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._tags["ctrl_send"], name=log
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -581,6 +583,32 @@ class Endpoint:
             tag += self._send_count
         return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
 
+    @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
+    async def am_send(self, buffer):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(self._tags["msg_send"]),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+        self._send_count += 1
+        return await comm.am_send(self._ep, buffer, nbytes, name=log)
+
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None):
         """Receive from connected peer into `buffer`.
@@ -616,6 +644,24 @@ class Endpoint:
         if self._guarantee_msg_order:
             tag += self._recv_count
         ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+        self._finished_recv_count += 1
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
+            self.abort()
+        return ret
+
+    @nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
+    async def am_recv(self):
+        """Receive from connected peer.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
+        logger.debug(log)
+        self._recv_count += 1
+        ret = await comm.am_recv(self._ep, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
