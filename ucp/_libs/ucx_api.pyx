@@ -268,7 +268,13 @@ cdef class UCXContext(UCXObject):
     def __init__(
         self,
         config_dict={},
-        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM, Feature.AM, Feature.RMA)
+        feature_flags=(
+            Feature.TAG,
+            Feature.WAKEUP,
+            Feature.STREAM,
+            Feature.AM,
+            Feature.RMA
+        )
     ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
