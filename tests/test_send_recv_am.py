@@ -29,8 +29,8 @@ def simple_server(size, recv):
     async def server(ep):
         try:
             recv.append(await ep.am_recv())
-        except ucp.exceptions.UCXError:
-            recv.append("error")
+        except ucp.exceptions.UCXError as e:
+            recv.append(e)
 
     return server
 
@@ -72,4 +72,5 @@ async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait):
     if size < rndv_thresh:
         assert recv[0] == msg
     else:
-        assert recv[0] == "error"
+        with pytest.raises(ucp.exceptions.UCXError):
+            raise recv[0]
