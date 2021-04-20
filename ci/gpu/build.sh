@@ -45,14 +45,11 @@ gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
               "rapids-build-env=${MINOR_VERSION}"
 
-# Install pytorch to run related tests
-gpuci_conda_retry install -c pytorch "pytorch" "torchvision"
-
-# Install the master version of dask and distributed
-gpuci_logger "pip install git+https://github.com/dask/distributed.git@master --upgrade --no-deps"
-pip install "git+https://github.com/dask/distributed.git@master" --upgrade --no-deps
-gpuci_logger "pip install git+https://github.com/dask/dask.git@master --upgrade --no-deps"
-pip install "git+https://github.com/dask/dask.git@master" --upgrade --no-deps
+# Install the main version of dask and distributed
+gpuci_logger "pip install git+https://github.com/dask/distributed.git@main --upgrade --no-deps"
+pip install "git+https://github.com/dask/distributed.git@main" --upgrade --no-deps
+gpuci_logger "pip install git+https://github.com/dask/dask.git@main --upgrade --no-deps"
+pip install "git+https://github.com/dask/dask.git@main" --upgrade --no-deps
 
 gpuci_logger "Check versions"
 python --version
@@ -100,6 +97,7 @@ else
     # Test with TCP/Sockets
     gpuci_logger "TEST WITH TCP ONLY"
     py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
+    py.test --cache-clear -vs ucp/_libs/tests
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
@@ -107,7 +105,6 @@ else
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_torch as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`

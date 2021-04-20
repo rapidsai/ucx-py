@@ -53,7 +53,7 @@ class EndpointReuse:
         for ep in existing_endpoints:
             if not ep.ep.closed():
                 ep.refcount += 1
-                my_ep_ids.append(ep.ep._msg_tag_recv)
+                my_ep_ids.append(ep.ep._tags["msg_recv"])
 
         await ep_new.send_obj(pickle.dumps((my_ep_ids, tag)))
         reuse_ep_id = pickle.loads(await ep_new.recv_obj())
@@ -70,8 +70,8 @@ class EndpointReuse:
             await ep_new.close()
         else:
             reuse_ep = EPHandle(ep_new)
-            assert ep_new._msg_tag_send not in cls.existing_endpoints
-            cls.existing_endpoints[ep_new._msg_tag_send] = reuse_ep
+            assert ep_new._tags["msg_send"] not in cls.existing_endpoints
+            cls.existing_endpoints[ep_new._tags["msg_send"]] = reuse_ep
         return cls(reuse_ep, tag)
 
     @classmethod
@@ -86,13 +86,13 @@ class EndpointReuse:
 
             if existing_ep:
                 existing_ep.refcount += 1
-                await ep_new.send_obj(pickle.dumps(existing_ep.ep._msg_tag_recv))
+                await ep_new.send_obj(pickle.dumps(existing_ep.ep._tags["msg_recv"]))
                 await ep_new.close()
             else:
                 await ep_new.send_obj(pickle.dumps(None))
                 existing_ep = EPHandle(ep_new)
-                assert ep_new._msg_tag_send not in cls.existing_endpoints
-                cls.existing_endpoints[ep_new._msg_tag_send] = existing_ep
+                assert ep_new._tags["msg_send"] not in cls.existing_endpoints
+                cls.existing_endpoints[ep_new._tags["msg_send"]] = existing_ep
 
             await cb_coroutine(cls(existing_ep, tag))
 

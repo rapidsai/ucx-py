@@ -4,18 +4,30 @@
 
 # cython: language_level=3
 
+import enum
+import functools
 import logging
 import socket
 import weakref
 
 from posix.stdio cimport open_memstream
 
-from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_WRITABLE
+from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uint16_t, uintptr_t
-from libc.stdio cimport FILE, clearerr, fclose, fflush
+from libc.stdio cimport (
+    FILE,
+    SEEK_END,
+    SEEK_SET,
+    fclose,
+    fread,
+    fseek,
+    ftell,
+    rewind,
+    tmpfile,
+)
 from libc.stdlib cimport free
-from libc.string cimport memset
+from libc.string cimport memcpy, memset
 
 from .arr cimport Array
 from .ucx_api_dep cimport *
@@ -28,6 +40,38 @@ from ..exceptions import (
     log_errors,
 )
 from ..utils import nvtx_annotate
+
+
+cdef FILE * create_text_fd():
+    cdef FILE *text_fd = tmpfile()
+    if text_fd == NULL:
+        raise IOError("tmpfile() failed")
+
+    return text_fd
+
+
+cdef unicode decode_text_fd(FILE * text_fd):
+    cdef unicode py_text
+    cdef size_t size
+    cdef char *text
+
+    rewind(text_fd)
+    fseek(text_fd, 0, SEEK_END)
+    size = ftell(text_fd)
+    rewind(text_fd)
+
+    text = <char *>malloc(sizeof(char) * (size + 1))
+
+    try:
+        if fread(text, sizeof(char), size, text_fd) != size:
+            raise IOError("fread() failed")
+        text[size] = 0
+        py_text = text.decode(errors="ignore")
+    finally:
+        free(text)
+        fclose(text_fd)
+
+    return py_text
 
 
 # Struct used as requests by UCX
@@ -99,29 +143,18 @@ cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
 
 cdef dict ucx_config_to_dict(ucp_config_t *config):
     """Returns a dict of a UCX config"""
-    cdef char *text
-    cdef size_t text_len
     cdef unicode py_text, line, k, v
-    cdef FILE *text_fd = open_memstream(&text, &text_len)
-    if text_fd == NULL:
-        raise IOError("open_memstream() returned NULL")
     cdef dict ret = {}
+
+    cdef FILE *text_fd = create_text_fd()
     ucp_config_print(config, text_fd, NULL, UCS_CONFIG_PRINT_CONFIG)
-    try:
-        if fflush(text_fd) != 0:
-            clearerr(text_fd)
-            raise IOError("fflush() failed on memory stream")
-        py_text = text.decode(errors="ignore")
-        for line in py_text.splitlines():
-            k, v = line.split("=")
-            k = k[4:]  # Strip "UCX_" prefix
-            ret[k] = v
-    finally:
-        if fclose(text_fd) != 0:
-            free(text)
-            raise IOError("fclose() failed to close memory stream")
-        else:
-            free(text)
+    py_text = decode_text_fd(text_fd)
+
+    for line in py_text.splitlines():
+        k, v = line.split("=")
+        k = k[4:]  # Strip "UCX_" prefix
+        ret[k] = v
+
     return ret
 
 
@@ -205,29 +238,52 @@ def _ucx_context_handle_finalizer(uintptr_t handle):
     ucp_cleanup(<ucp_context_h> handle)
 
 
+class Feature(enum.Enum):
+    """Enum of the UCP_FEATURE_* constants"""
+    TAG = UCP_FEATURE_TAG
+    RMA = UCP_FEATURE_RMA
+    AMO32 = UCP_FEATURE_AMO32
+    AMO64 = UCP_FEATURE_AMO64
+    WAKEUP = UCP_FEATURE_WAKEUP
+    STREAM = UCP_FEATURE_STREAM
+    AM = UCP_FEATURE_AM
+
+
 cdef class UCXContext(UCXObject):
-    """Python representation of `ucp_context_h`"""
+    """Python representation of `ucp_context_h`
+
+    Parameters
+    ----------
+    config_dict: Mapping[str, str]
+        UCX options such as "MEMTYPE_CACHE=n" and "SEG_SIZE=3M"
+    feature_flags: Iterable[Feature]
+        Tuple of UCX feature flags
+    """
     cdef:
         ucp_context_h _handle
         dict _config
+        tuple _feature_flags
         readonly bint cuda_support
 
-    def __init__(self, config_dict):
+    def __init__(
+        self,
+        config_dict={},
+        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM, Feature.AM)
+    ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+        self._feature_flags = tuple(feature_flags)
 
         memset(&ucp_params, 0, sizeof(ucp_params))
-        ucp_params.field_mask = (UCP_PARAM_FIELD_FEATURES |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_SIZE |  # noqa
-                                 UCP_PARAM_FIELD_REQUEST_INIT)
-
-        # We always request UCP_FEATURE_WAKEUP even when in blocking mode
-        # See <https://github.com/rapidsai/ucx-py/pull/377>
-        ucp_params.features = (UCP_FEATURE_TAG |  # noqa
-                               UCP_FEATURE_WAKEUP |  # noqa
-                               UCP_FEATURE_STREAM)
-
+        ucp_params.field_mask = (
+            UCP_PARAM_FIELD_FEATURES |
+            UCP_PARAM_FIELD_REQUEST_SIZE |
+            UCP_PARAM_FIELD_REQUEST_INIT
+        )
+        ucp_params.features = functools.reduce(
+            lambda x, y: x | y.value, feature_flags, 0
+        )
         ucp_params.request_size = sizeof(ucx_py_request)
         ucp_params.request_init = (
             <ucp_request_init_callback_t>ucx_py_request_reset
@@ -262,6 +318,13 @@ cdef class UCXContext(UCXObject):
     def handle(self):
         assert self.initialized
         return int(<uintptr_t>self._handle)
+
+    def info(self):
+        assert self.initialized
+
+        cdef FILE *text_fd = create_text_fd()
+        ucp_context_print_info(self._handle, text_fd)
+        return decode_text_fd(text_fd)
 
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
@@ -309,17 +372,97 @@ def _ucx_worker_handle_finalizer(
     ucp_worker_destroy(handle)
 
 
+IF CY_UCP_AM_SUPPORTED:
+    cdef ucs_status_t _am_recv_callback(
+        void *arg,
+        const void *header,
+        size_t header_length,
+        void *data,
+        size_t length,
+        const ucp_am_recv_param_t *param
+    ):
+        cdef UCXWorker worker = <UCXWorker>arg
+        cdef dict am_recv_pool = worker._am_recv_pool
+        cdef dict am_recv_wait = worker._am_recv_wait
+
+        assert worker.initialized
+        assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
+        assert Feature.AM in worker._context._feature_flags
+
+        cdef ucp_ep_h ep = param.reply_ep
+        cdef unsigned long ep_as_int = int(<uintptr_t>ep)
+        if ep_as_int not in am_recv_pool:
+            am_recv_pool[ep_as_int] = list()
+
+        is_rndv = param.recv_attr & UCP_AM_RECV_ATTR_FLAG_RNDV
+
+        cdef bytearray buf = bytearray(length)
+        cdef char[:] buf_view = buf
+        cdef void *buf_ptr = <void *><uintptr_t>&buf_view[0]
+
+        def _push_result(buf, exception, recv_type):
+            if (
+                ep_as_int in am_recv_wait and
+                len(am_recv_wait[ep_as_int]) > 0
+            ):
+                recv_wait = am_recv_wait[ep_as_int].pop(0)
+                cb_func = recv_wait["cb_func"]
+                cb_args = recv_wait["cb_args"]
+                cb_kwargs = recv_wait["cb_kwargs"]
+
+                logger.debug("am %s awaiting in ep %s cb_func %s" % (
+                    recv_type,
+                    hex(ep_as_int),
+                    cb_func
+                ))
+
+                cb_func(buf, exception, *cb_args, **cb_kwargs)
+            else:
+                logger.debug("am %s pushing to pool in ep %s" % (
+                    recv_type,
+                    hex(ep_as_int)
+                ))
+                if exception is not None:
+                    am_recv_pool[ep_as_int].append(exception)
+                else:
+                    am_recv_pool[ep_as_int].append(buf)
+
+        cdef ucp_request_param_t request_param
+        cdef ucs_status_ptr_t status
+        cdef str ucx_status_msg, msg
+        cdef UCXRequest req
+        if is_rndv:
+            exception = UCXError("AM rendezvous receive not supported yet")
+            _push_result(None, exception, "eager")
+            return UCS_OK
+        else:
+            logger.debug("am eager copying %d bytes with ep %s" % (
+                length,
+                hex(ep_as_int)
+            ))
+            memcpy(buf_ptr, data, length)
+            _push_result(buf, None, "eager")
+            return UCS_OK
+
+
 cdef class UCXWorker(UCXObject):
     """Python representation of `ucp_worker_h`"""
     cdef:
         ucp_worker_h _handle
         UCXContext _context
         set _inflight_msgs
+        IF CY_UCP_AM_SUPPORTED:
+            dict _am_recv_pool
+            dict _am_recv_wait
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+
+        IF CY_UCP_AM_SUPPORTED:
+            cdef ucp_am_handler_param_t am_handler_param
+
         assert context.initialized
         self._context = context
         memset(&worker_params, 0, sizeof(worker_params))
@@ -328,6 +471,21 @@ cdef class UCXWorker(UCXObject):
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
         self._inflight_msgs = set()
+
+        IF CY_UCP_AM_SUPPORTED:
+            cdef int AM_MSG_ID = 0
+            if Feature.AM in context._feature_flags:
+                self._am_recv_pool = dict()
+                self._am_recv_wait = dict()
+                am_handler_param.field_mask = (
+                    UCP_AM_HANDLER_PARAM_FIELD_ID |
+                    UCP_AM_HANDLER_PARAM_FIELD_CB |
+                    UCP_AM_HANDLER_PARAM_FIELD_ARG
+                )
+                am_handler_param.id = AM_MSG_ID
+                am_handler_param.cb = _am_recv_callback
+                am_handler_param.arg = <void *>self
+                status = ucp_worker_set_am_recv_handler(self._handle, &am_handler_param)
 
         self.add_handle_finalizer(
             _ucx_worker_handle_finalizer,
@@ -372,6 +530,11 @@ cdef class UCXWorker(UCXObject):
 
     @nvtx_annotate("UCXPY_PROGRESS", color="blue", domain="ucxpy")
     def progress(self):
+        """Try to progress the communication layer
+
+        Warning, it is illegal to call this from a call-back function such as
+        the call-back function given to UCXListener, tag_send_nb, and tag_recv_nb.
+        """
         assert self.initialized
         while ucp_worker_progress(self._handle) != 0:
             pass
@@ -396,14 +559,52 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        if c_util_get_ucp_ep_params(
-            &params, ip_address.encode(), port, <ucp_err_handler_cb_t>err_cb
-        ):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_SOCK_ADDR |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
+        params.flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        if c_util_set_sockaddr(&params.sockaddr, ip_address.encode(), port):
+            raise MemoryError("Failed allocation of sockaddr")
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        c_util_get_ucp_ep_params_free(&params)
+        c_util_sockaddr_free(&params.sockaddr)
+        assert_ucs_status(status)
+        return UCXEndpoint(self, <uintptr_t>ucp_ep)
+
+    def ep_create_from_worker_address(
+        self, UCXAddress address, bint endpoint_error_handling
+    ):
+        assert self.initialized
+        cdef ucp_ep_params_t params
+        cdef ucp_err_handler_cb_t err_cb = (
+            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
+        )
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        params.address = address._address
+
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
         assert_ucs_status(status)
         return UCXEndpoint(self, <uintptr_t>ucp_ep)
 
@@ -416,10 +617,20 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_err_handler_cb_t err_cb = (
             _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
         )
-        if c_util_get_ucp_ep_conn_params(
-            &params, <ucp_conn_request_h>conn_request, <ucp_err_handler_cb_t>err_cb
-        ):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        params.field_mask = (
+            UCP_EP_PARAM_FIELD_FLAGS |
+            UCP_EP_PARAM_FIELD_CONN_REQUEST |
+            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
+            UCP_EP_PARAM_FIELD_ERR_HANDLER
+        )
+        params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
+        if err_cb == NULL:
+            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+        else:
+            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+        params.err_handler.cb = err_cb
+        params.err_handler.arg = NULL
+        params.conn_request = <ucp_conn_request_h> conn_request
 
         cdef ucp_ep_h ucp_ep
         cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
@@ -445,52 +656,62 @@ cdef class UCXWorker(UCXObject):
         )
 
     def get_address(self):
-        return UCXAddress(self)
+        return UCXAddress.from_worker(self)
+
+    def info(self):
+        assert self.initialized
+
+        cdef FILE *text_fd = create_text_fd()
+        ucp_worker_print_info(self._handle, text_fd)
+        return decode_text_fd(text_fd)
 
 
-def _ucx_address_finalizer(uintptr_t handle_as_int, uintptr_t worker_as_int):
-    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
-    cdef ucp_worker_h ucp_worker = <ucp_worker_h>worker_as_int
-    ucp_worker_release_address(ucp_worker, address)
-
-
-cdef class UCXAddress(UCXObject):
+cdef class UCXAddress:
     """Python representation of ucp_address_t"""
-    cdef ucp_address_t *_handle
+    cdef ucp_address_t *_address
     cdef Py_ssize_t _length
-    cdef worker
 
-    def __init__(self, UCXWorker worker):
+    def __cinit__(self, uintptr_t address_as_int, Py_ssize_t length):
+        address = <ucp_address_t *> address_as_int
+        # Copy address to `self._address`
+        self._address = <ucp_address_t *> malloc(length)
+        self._length = length
+        memcpy(self._address, address, length)
+
+    def __dealloc__(self):
+        free(self._address)
+
+    @classmethod
+    def from_buffer(cls, buffer):
+        buf = Array(buffer)
+        assert buf.c_contiguous
+        return UCXAddress(buf.ptr, buf.nbytes)
+
+    @classmethod
+    def from_worker(cls, UCXWorker worker):
         cdef ucs_status_t status
         cdef ucp_worker_h ucp_worker = worker._handle
+        cdef ucp_address_t *address
         cdef size_t length
-
-        status = ucp_worker_get_address(ucp_worker, &self._handle, &length)
+        status = ucp_worker_get_address(ucp_worker, &address, &length)
         assert_ucs_status(status)
-        self.worker = worker
-        self._length = <Py_ssize_t>length
-        self.add_handle_finalizer(
-            _ucx_address_finalizer,
-            int(<uintptr_t>self._handle),
-            int(<uintptr_t>worker._handle)
-        )
-        worker.add_child(self)
+        try:
+            return UCXAddress(int(<uintptr_t>address), length)
+        finally:
+            ucp_worker_release_address(ucp_worker, address)
 
     @property
     def address(self):
-        assert self.initialized
-        return <uintptr_t>self._handle
+        return <uintptr_t>self._address
 
     @property
     def length(self):
-        assert self.initialized
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        assert self.initialized
         if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
             raise BufferError("Requested writable view on readonly data")
-        buffer.buf = <void*>self._handle
+        buffer.buf = <void*>self._address
         buffer.obj = self
         buffer.len = self._length
         buffer.readonly = True
@@ -510,6 +731,12 @@ cdef class UCXAddress(UCXObject):
 
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
+
+    def __reduce__(self):
+        return (UCXAddress.from_buffer, (bytes(self),))
+
+    def __hash__(self):
+        return hash(bytes(self))
 
 
 def _ucx_endpoint_finalizer(uintptr_t handle_as_int, worker, set inflight_msgs):
@@ -568,27 +795,10 @@ cdef class UCXEndpoint(UCXObject):
 
     def info(self):
         assert self.initialized
-        # Making `ucp_ep_print_info()` write into a memstream,
-        # convert it to a Python string, clean up, and return string.
-        cdef char *text
-        cdef size_t text_len
-        cdef unicode py_text
-        cdef FILE *text_fd = open_memstream(&text, &text_len)
-        if text_fd == NULL:
-            raise IOError("open_memstream() returned NULL")
+
+        cdef FILE *text_fd = create_text_fd()
         ucp_ep_print_info(self._handle, text_fd)
-        try:
-            if fflush(text_fd) != 0:
-                clearerr(text_fd)
-                raise IOError("fflush() failed on memory stream")
-            py_text = text.decode(errors="ignore")
-        finally:
-            if fclose(text_fd) != 0:
-                free(text)
-                raise IOError("fclose() failed to close memory stream")
-            else:
-                free(text)
-        return py_text
+        return decode_text_fd(text_fd)
 
     @property
     def handle(self):
@@ -626,13 +836,42 @@ def _ucx_listener_handle_finalizer(uintptr_t handle):
 
 
 cdef class UCXListener(UCXObject):
-    """Python representation of `ucp_listener_h`"""
+    """Python representation of `ucp_listener_h`
+
+    Create and start a listener to accept incoming connections.
+
+    Notice, the listening is closed when the returned Listener
+    goes out of scope thus remember to keep a reference to the object.
+
+    Parameters
+    ----------
+    worker: UCXWorker
+        Listening worker.
+    port: int
+        An unused port number for listening, or `0` to let UCX assign
+        an unused port.
+    callback_func: callable
+        A callback function that gets invoked when an incoming
+        connection is accepted. The arguments are `conn_request`
+        followed by *cb_args and **cb_kwargs (if not None).
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+
+    Returns
+    -------
+    Listener: UCXListener
+        The new listener. When this object is deleted, the listening stops
+    """
+
     cdef:
         ucp_listener_h _handle
         dict cb_data
 
     cdef public:
         uint16_t port
+        str ip
 
     def __init__(
         self,
@@ -650,23 +889,42 @@ cdef class UCXListener(UCXObject):
         cdef ucp_listener_conn_callback_t _listener_cb = (
             <ucp_listener_conn_callback_t>_listener_callback
         )
-        self.port = port
+        cdef ucp_listener_attr_t attr
         self.cb_data = {
             "cb_func": cb_func,
             "cb_args": cb_args,
             "cb_kwargs": cb_kwargs,
         }
-        if c_util_get_ucp_listener_params(&params,
-                                          port,
-                                          _listener_cb,
-                                          <void*> self.cb_data):
-            raise MemoryError("Failed allocation of ucp_ep_params_t")
+        params.field_mask = (
+            UCP_LISTENER_PARAM_FIELD_SOCK_ADDR | UCP_LISTENER_PARAM_FIELD_CONN_HANDLER
+        )
+        params.conn_handler.cb = _listener_cb
+        params.conn_handler.arg = <void*> self.cb_data
+        if c_util_set_sockaddr(&params.sockaddr, NULL, port):
+            raise MemoryError("Failed allocation of sockaddr")
 
         cdef ucs_status_t status = ucp_listener_create(
             worker._handle, &params, &self._handle
         )
-        c_util_get_ucp_listener_params_free(&params)
+        c_util_sockaddr_free(&params.sockaddr)
         assert_ucs_status(status)
+
+        attr.field_mask = UCP_LISTENER_ATTR_FIELD_SOCKADDR
+        status = ucp_listener_query(self._handle, &attr)
+        if status != UCS_OK:
+            ucp_listener_destroy(self._handle)
+        assert_ucs_status(status)
+
+        DEF MAX_STR_LEN = 50
+        cdef char ip_str[MAX_STR_LEN]
+        cdef char port_str[MAX_STR_LEN]
+        c_util_sockaddr_get_ip_port_str(&attr.sockaddr,
+                                        ip_str,
+                                        port_str,
+                                        MAX_STR_LEN)
+
+        self.port = <uint16_t>int(port_str.decode(errors="ignore"))
+        self.ip = ip_str.decode(errors="ignore")
 
         self.add_handle_finalizer(
             _ucx_listener_handle_finalizer,
@@ -749,11 +1007,11 @@ cdef class UCXRequest:
 
     def __repr__(self):
         if self.closed():
-            return f"<UCXRequest closed>"
+            return "<UCXRequest closed>"
         else:
             return (
                 f"<UCXRequest handle={hex(self.handle)} "
-                "uid={self._uid} info={self.info}>"
+                f"uid={self._uid} info={self.info}>"
             )
 
 
@@ -899,6 +1157,8 @@ def tag_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "tag_send_nb"
+    if Feature.TAG not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.TAG`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
@@ -1038,6 +1298,8 @@ def tag_recv_nb(
         name = "tag_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    if Feature.TAG not in worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.TAG`")
     cdef bint cuda_support
     if buffer.cuda:
         if ep is None:
@@ -1124,6 +1386,8 @@ def stream_send_nb(
         cb_kwargs = {}
     if name is None:
         name = "stream_send_nb"
+    if Feature.STREAM not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.STREAM`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
@@ -1245,6 +1509,8 @@ def stream_recv_nb(
         name = "stream_recv_nb"
     if buffer.readonly:
         raise ValueError("writing to readonly buffer!")
+    if Feature.STREAM not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.STREAM`")
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
@@ -1272,3 +1538,205 @@ def stream_recv_nb(
     return _handle_status(
         status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
     )
+
+
+IF CY_UCP_AM_SUPPORTED:
+    cdef void _send_nbx_callback(void *request, ucs_status_t status, void *user_data):
+        cdef UCXRequest req
+        cdef dict req_info
+        cdef str name, ucx_status_msg, msg
+        cdef set inflight_msgs
+        cdef tuple cb_args
+        cdef dict cb_kwargs
+        with log_errors():
+            req = UCXRequest(<uintptr_t><void*> request)
+            assert not req.closed()
+            req_info = <dict>req._handle.info
+            req_info["status"] = "finished"
+
+            if "cb_func" not in req_info:
+                # This callback function was called before ucp_tag_send_nb() returned
+                return
+
+            exception = None
+            if status == UCS_ERR_CANCELED:
+                name = req_info["name"]
+                msg = "<%s>: " % name
+                exception = UCXCanceled(msg)
+            elif status != UCS_OK:
+                name = req_info["name"]
+                ucx_status_msg = ucs_status_string(status).decode("utf-8")
+                msg = "<%s>: %s" % (name, ucx_status_msg)
+                exception = UCXError(msg)
+            try:
+                inflight_msgs = req_info["inflight_msgs"]
+                inflight_msgs.discard(req)
+                cb_func = req_info["cb_func"]
+                if cb_func is not None:
+                    cb_args = req_info["cb_args"]
+                    if cb_args is None:
+                        cb_args = ()
+                    cb_kwargs = req_info["cb_kwargs"]
+                    if cb_kwargs is None:
+                        cb_kwargs = {}
+                    cb_func(req, exception, *cb_args, **cb_kwargs)
+            finally:
+                req.close()
+
+
+def am_send_nbx(
+    UCXEndpoint ep,
+    Array buffer,
+    size_t nbytes,
+    cb_func,
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None
+):
+    """ This routine sends a message to an endpoint using the active message API
+
+    Each message is sent to an endpoint that is the message's sole recipient.
+    The routine is non-blocking and therefore returns immediately, however the
+    actual send operation may be delayed. The send operation is considered
+    completed when it is safe to reuse the source buffer. If the send operation
+    is completed immediately the routine returns None and the call-back function
+    **is not invoked**. If the operation is not completed immediately and no
+    exception raised then the UCP library will schedule to invoke the call-back
+    whenever the send operation will be completed. In other words, the completion
+    of a message can be signaled by the return code or the call-back.
+
+    Note
+    ----
+    The user should not modify any part of the buffer after this operation is
+    called, until the operation completes.
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The destination endpoint
+    buffer: Array
+        An ``Array`` wrapping a user-provided array-like object
+    nbytes: int
+        Size of the buffer to use. Must be equal or less than the size of buffer
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    """
+    IF CY_UCP_AM_SUPPORTED:
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
+        if name is None:
+            name = "am_send_nb"
+        if Feature.AM not in ep.worker._context._feature_flags:
+            raise ValueError("UCXContext must be created with `Feature.AM`")
+        if buffer.cuda and not ep.worker._context.cuda_support:
+            raise ValueError(
+                "UCX is not configured with CUDA support, please add "
+                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+                "variable and that the ucx-proc=*=gpu package is "
+                "installed. See "
+                "https://ucx-py.readthedocs.io/en/latest/install.html for "
+                "more information."
+            )
+        if not buffer._contiguous():
+            raise ValueError("Array must be C or F contiguous")
+
+        cdef ucp_request_param_t params
+        params.op_attr_mask = (
+            UCP_OP_ATTR_FIELD_CALLBACK |
+            UCP_OP_ATTR_FIELD_USER_DATA |
+            UCP_OP_ATTR_FIELD_FLAGS
+        )
+        params.cb.send = <ucp_send_nbx_callback_t>_send_nbx_callback
+        params.flags = UCP_AM_SEND_FLAG_REPLY
+        params.user_data = <void*>buffer.ptr
+
+        cdef ucs_status_ptr_t status = ucp_am_send_nbx(
+            ep._handle,
+            0,
+            NULL,
+            0,
+            <void*>buffer.ptr,
+            nbytes,
+            &params,
+        )
+        return _handle_status(
+            status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
+        )
+    ELSE:
+        raise RuntimeError("UCX-Py needs to be built against and running with "
+                           "UCX >= 1.11 to support am_send_nbx.")
+
+
+def am_recv_nb(
+    UCXEndpoint ep,
+    cb_func,
+    tuple cb_args=None,
+    dict cb_kwargs=None,
+    str name=None,
+):
+    """ This routine receives a message on a worker with the active message API.
+
+    TODO
+
+    Parameters
+    ----------
+    ep: UCXEndpoint
+        The endpoint that is used for the receive operation. Received active
+        messages are always targeted at a specific endpoint, therefore it is
+        imperative to specify the correct one here.
+    cb_func: callable
+        The call-back function, which must accept `request` and `exception` as the
+        first two arguments.
+    cb_args: tuple, optional
+        Extra arguments to the call-back function
+    cb_kwargs: dict, optional
+        Extra keyword arguments to the call-back function
+    name: str, optional
+        Descriptive name of the operation
+    """
+    IF CY_UCP_AM_SUPPORTED:
+        worker = ep.worker
+
+        if cb_args is None:
+            cb_args = ()
+        if cb_kwargs is None:
+            cb_kwargs = {}
+        if name is None:
+            name = "am_recv_nb"
+        if Feature.AM not in worker._context._feature_flags:
+            raise ValueError("UCXContext must be created with `Feature.AM`")
+        cdef bint cuda_support
+
+        am_recv_pool = worker._am_recv_pool
+        ep_as_int = int(<uintptr_t>ep._handle)
+        if (
+            ep_as_int in am_recv_pool and
+            len(am_recv_pool[ep_as_int]) > 0
+        ):
+            recv_obj = am_recv_pool[ep_as_int].pop(0)
+            exception = recv_obj if isinstance(type(recv_obj), (Exception, )) else None
+            cb_func(recv_obj, exception, *cb_args, **cb_kwargs)
+            logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
+        else:
+            if ep_as_int not in worker._am_recv_wait:
+                worker._am_recv_wait[ep_as_int] = list()
+            worker._am_recv_wait[ep_as_int].append(
+                {
+                    "cb_func": cb_func,
+                    "cb_args": cb_args,
+                    "cb_kwargs": cb_kwargs
+                }
+            )
+            logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
+    ELSE:
+        raise RuntimeError("UCX-Py needs to be built against and running with "
+                           "UCX >= 1.11 to support am_recv_nb.")

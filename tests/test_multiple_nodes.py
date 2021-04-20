@@ -6,6 +6,11 @@ import pytest
 import ucp
 
 
+def get_somaxconn():
+    with open("/proc/sys/net/core/somaxconn", "r") as f:
+        return int(f.readline())
+
+
 async def hello(ep):
     msg2send = np.arange(10)
     msg2recv = np.empty_like(msg2send)
@@ -29,33 +34,20 @@ async def client_node(port):
 
 
 @pytest.mark.asyncio
-async def test_multiple_nodes():
-    lf1 = ucp.create_listener(server_node)
-    lf2 = ucp.create_listener(server_node)
-    assert lf1.port != lf2.port
+@pytest.mark.parametrize("num_servers", [1, 2, 4])
+@pytest.mark.parametrize("num_clients", [10, 50, 100])
+async def test_many_servers_many_clients(num_servers, num_clients):
+    somaxconn = get_somaxconn()
 
-    nodes = []
-    for _ in range(10):
-        nodes.append(client_node(lf1.port))
-        nodes.append(client_node(lf2.port))
-    await asyncio.gather(*nodes, loop=asyncio.get_event_loop())
+    listeners = []
 
+    for _ in range(num_servers):
+        listeners.append(ucp.create_listener(server_node))
 
-@pytest.mark.asyncio
-async def test_one_server_many_clients():
-    lf = ucp.create_listener(server_node)
-    clients = []
-    for _ in range(100):
-        clients.append(client_node(lf.port))
-    await asyncio.gather(*clients, loop=asyncio.get_event_loop())
-
-
-@pytest.mark.asyncio
-async def test_two_servers_many_clients():
-    lf1 = ucp.create_listener(server_node)
-    lf2 = ucp.create_listener(server_node)
-    clients = []
-    for _ in range(100):
-        clients.append(client_node(lf1.port))
-        clients.append(client_node(lf2.port))
-    await asyncio.gather(*clients, loop=asyncio.get_event_loop())
+    # We ensure no more than `somaxconn` connections are submitted
+    # at once. Doing otherwise can block and hang indefinitely.
+    for i in range(0, num_clients * num_servers, somaxconn):
+        clients = []
+        for __ in range(i, min(i + somaxconn, num_clients * num_servers)):
+            clients.append(client_node(listeners[__ % num_servers].port))
+        await asyncio.gather(*clients, loop=asyncio.get_event_loop())
