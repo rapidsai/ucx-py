@@ -14,6 +14,12 @@ from posix.stdio cimport open_memstream
 
 from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
+from cython cimport (
+    boundscheck,
+    initializedcheck,
+    nonecheck,
+    wraparound,
+)
 from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport (
     FILE,
@@ -252,7 +258,7 @@ class Feature(enum.Enum):
 class AllocatorType(enum.Enum):
     HOST = 0
     CUDA = 1
-    UNSUPPORTED = 99
+    UNSUPPORTED = -1
 
 
 cdef class UCXContext(UCXObject):
@@ -436,6 +442,10 @@ IF CY_UCP_AM_SUPPORTED:
             finally:
                 req.close()
 
+    @boundscheck(False)
+    @initializedcheck(False)
+    @nonecheck(False)
+    @wraparound(False)
     cdef ucs_status_t _am_recv_callback(
         void *arg,
         const void *header,
