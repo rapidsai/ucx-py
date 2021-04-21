@@ -340,6 +340,11 @@ cdef class UCXContext(UCXObject):
 
 
 cdef class PackedRemoteKey:
+    """ A packed remote key. This key is suitable for sending to remote nodes to setup
+        remote access to local memory. Users should not instance this class directly and
+        should use the from_buffer() and from_mem_handle() class methods or the
+        pack_rkey() method on the UCXMemoryHandle class
+    """
     cdef void *_key
     cdef Py_ssize_t _length
 
@@ -351,21 +356,38 @@ cdef class PackedRemoteKey:
 
     @classmethod
     def from_buffer(cls, buffer):
+        """ Wrap a received buffer in a PackedRemoteKey to turn magic buffers into a
+            python class suitable for unpacking on an EP
+
+        Parameters
+        ----------
+        buffer:
+            Python buffer to be wrapped
+        """
         buf = Array(buffer)
         assert buf.c_contiguous
         return PackedRemoteKey(buf.ptr, buf.nbytes)
 
     @classmethod
-    def from_memh(self, UCXMemoryHandle mem):
+    def from_mem_handle(self, UCXMemoryHandle mem):
+        """ Create a new packed remote key from a given UCXMemoryHandle class
+
+            Parameters
+            ----------
+            mem: UCXMemoryHandle
+                The memory handle to be packed in an rkey for sending
+        """
         cdef void *key
         cdef size_t len
         cdef ucs_status_t status
-        status = ucp_rkey_pack(mem._context._handle, mem._memh, &key, &len)
+        status = ucp_rkey_pack(mem._context._handle, mem._mem_handle, &key, &len)
+        packed_key = PackedRemoteKey(<uintptr_t>key, len)
+        ucp_rkey_buffer_release(key)
         assert_ucs_status(status)
         return PackedRemoteKey(<uintptr_t>key, len)
 
     def __dealloc__(self):
-        ucp_rkey_buffer_release(self._key)
+        free(self._key)
 
     @property
     def key(self):
@@ -415,7 +437,10 @@ def _ucx_mem_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
 
 
 cdef class UCXMemoryHandle(UCXObject):
-    cdef ucp_mem_h _memh
+    """ Python representation for ucp_mem_h type. Users should not instance this class
+        directly and instead use either the map or the alloc class methods
+    """
+    cdef ucp_mem_h _mem_handle
     cdef UCXContext _context
     cdef uint64_t r_address
     cdef size_t _length
@@ -425,18 +450,29 @@ cdef class UCXMemoryHandle(UCXObject):
         cdef ucp_context_h ctx_handle = <ucp_context_h><uintptr_t>ctx.handle
         cdef ucp_mem_map_params_t *params = <ucp_mem_map_params_t *>par
         self._context = ctx
-        status = ucp_mem_map(ctx_handle, params, &self._memh)
+        status = ucp_mem_map(ctx_handle, params, &self._mem_handle)
         assert_ucs_status(status)
         self._populate_metadata()
         self.add_handle_finalizer(
             _ucx_mem_handle_finalizer,
-            int(<uintptr_t>self.memh),
+            int(<uintptr_t>self._mem_handle),
             self._context
         )
         ctx.add_child(self)
 
     @classmethod
     def alloc(cls, ctx, size):
+        """ Allocate a new pool of registered memory. This memory can be used for
+            RMA and AMO operations. This memory should no be accessed from outside these
+            operations.
+
+            Parameters
+            ----------
+            ctx: UCXContext
+                The UCX context that this memory should be registered to
+            size: int
+                Minimum amount of memory to allocate
+            """
         cdef ucp_mem_map_params_t params
         cdef ucs_status_t status
 
@@ -451,6 +487,17 @@ cdef class UCXMemoryHandle(UCXObject):
 
     @classmethod
     def map(cls, ctx, mem):
+        """ Register an existing memory object to UCX for use in RMA and AMO operations
+            It is not safe to access this memory from outside UCX while operations are
+            outstanding
+
+        Parameters
+        ----------
+        ctx: UCXContext
+            The UCX context that this memory should be registered to
+        mem: buffer
+            The memory object to be registered
+        """
         cdef ucp_mem_map_params_t params
         cdef ucs_status_t status
 
@@ -466,11 +513,14 @@ cdef class UCXMemoryHandle(UCXObject):
         return UCXMemoryHandle(ctx, <uintptr_t>&params)
 
     def pack_rkey(self):
-        return PackedRemoteKey.from_memh(self)
+        """ Returns an UCXRKey object that represents a packed key. This key is what
+            allows the UCX API to associate this memory with an EP.
+        """
+        return PackedRemoteKey.from_mem_handle(self)
 
     @property
-    def memh(self):
-        return <uintptr_t>self._memh
+    def mem_handle(self):
+        return <uintptr_t>self._mem_handle
 
     # Done as a separate function because some day I plan on making this loaded lazily
     # I believe this reports the actual registered space, rather than what was requested
@@ -482,17 +532,19 @@ cdef class UCXMemoryHandle(UCXObject):
             UCP_MEM_ATTR_FIELD_ADDRESS |
             UCP_MEM_ATTR_FIELD_LENGTH
         )
-        status = ucp_mem_query(self._memh, &attr)
+        status = ucp_mem_query(self._mem_handle, &attr)
         assert_ucs_status(status)
         self.r_address = <uintptr_t>attr.address
         self._length = attr.length
 
     @property
     def address(self):
+        """ Get base address for the memory registration """
         return self.r_address
 
     @property
     def length(self):
+        """ Get length of registered memory """
         return self._length
 
 
