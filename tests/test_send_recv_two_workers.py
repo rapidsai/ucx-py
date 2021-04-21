@@ -32,6 +32,11 @@ async def get_ep(name, port):
     return ep
 
 
+def register_am_allocators():
+    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
+    ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+
+
 def client(port, func, comm_api):
     # wait for server to come up
     # receive cudf object
@@ -42,8 +47,7 @@ def client(port, func, comm_api):
     ucp.init()
 
     if comm_api == "am":
-        ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
-        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+        register_am_allocators()
 
     # must create context before importing
     # cudf/cupy/etc
@@ -95,8 +99,7 @@ def server(port, func, comm_api):
     ucp.init()
 
     if comm_api == "am":
-        ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
-        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+        register_am_allocators()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
