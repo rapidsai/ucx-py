@@ -14,12 +14,7 @@ from posix.stdio cimport open_memstream
 
 from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
-from cython cimport (
-    boundscheck,
-    initializedcheck,
-    nonecheck,
-    wraparound,
-)
+from cython cimport boundscheck, initializedcheck, nonecheck, wraparound
 from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport (
     FILE,
