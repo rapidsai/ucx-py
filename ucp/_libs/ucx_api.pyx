@@ -92,6 +92,29 @@ cdef void ucx_py_request_reset(void* request):
 # Counter used as UCXRequest UIDs
 cdef unsigned int _ucx_py_request_counter = 0
 
+# Helper function for the python buffer protocol to handle UCX's opaque memory objects
+cdef get_ucx_object(Py_buffer *buffer, int flags,
+                    void *ucx_data, Py_ssize_t length, obj):
+    if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
+        raise BufferError("Requested writable view on readonly data")
+    buffer.buf = ucx_data
+    buffer.obj = obj
+    buffer.len = length
+    buffer.readonly = True
+    buffer.itemsize = 1
+    if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
+        buffer.format = b"B"
+    else:
+        buffer.format = NULL
+    buffer.ndim = 1
+    if (flags & PyBUF_ND) == PyBUF_ND:
+        buffer.shape = &buffer.len
+    else:
+        buffer.shape = NULL
+    buffer.strides = NULL
+    buffer.suboffsets = NULL
+    buffer.internal = NULL
+
 
 logger = logging.getLogger("ucx")
 
@@ -398,25 +421,7 @@ cdef class PackedRemoteKey:
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
-            raise BufferError("Requested writable view on readonly data")
-        buffer.buf = <void*>self._key
-        buffer.obj = self
-        buffer.len = self._length
-        buffer.readonly = True
-        buffer.itemsize = 1
-        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
-            buffer.format = b"B"
-        else:
-            buffer.format = NULL
-        buffer.ndim = 1
-        if (flags & PyBUF_ND) == PyBUF_ND:
-            buffer.shape = &self._length
-        else:
-            buffer.shape = NULL
-        buffer.strides = NULL
-        buffer.suboffsets = NULL
-        buffer.internal = NULL
+        get_ucx_object(buffer, flags, <void*>self._key, self._length, self)
 
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
@@ -930,25 +935,7 @@ cdef class UCXAddress:
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
-            raise BufferError("Requested writable view on readonly data")
-        buffer.buf = <void*>self._address
-        buffer.obj = self
-        buffer.len = self._length
-        buffer.readonly = True
-        buffer.itemsize = 1
-        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
-            buffer.format = b"B"
-        else:
-            buffer.format = NULL
-        buffer.ndim = 1
-        if (flags & PyBUF_ND) == PyBUF_ND:
-            buffer.shape = &self._length
-        else:
-            buffer.shape = NULL
-        buffer.strides = NULL
-        buffer.suboffsets = NULL
-        buffer.internal = NULL
+        get_ucx_object(buffer, flags, <void*>self._address, self._length, self)
 
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
