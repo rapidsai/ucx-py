@@ -645,6 +645,27 @@ cdef class UCXWorker(UCXObject):
 
     IF CY_UCP_AM_SUPPORTED:
         def register_am_allocator(self, object allocator, allocator_type):
+            """Register an allocator for received Active Messages.
+
+            The allocator registered by this function is always called by the
+            active message receive callback when an incoming message is
+            available. The appropriate allocator is called depending on the
+            whether the message received is a host message or CUDA message.
+            Note that CUDA messages can only be received via rendezvous, all
+            eager messages are received on a host object.
+
+            By default, the host allocator is `bytearray`. There is no default
+            CUDA allocator and one must always be registered if CUDA is used.
+
+            Parameters
+            ----------
+            allocator: callable
+                An allocation function accepting exactly one argument, the
+                size of the message receives.
+            allocator_type: AllocatorType
+                The type of allocator, currently supports AllocatorType.HOST
+                and AllocatorType.CUDA.
+            """
             if allocator_type is AllocatorType.HOST:
                 self._am_host_allocator = allocator
             elif allocator_type is AllocatorType.CUDA:
@@ -1850,20 +1871,33 @@ def am_recv_nb(
     cb_func,
     tuple cb_args=None,
     dict cb_kwargs=None,
-    str name=None,
+    str name="am_recv_nb",
 ):
-    """ This routine receives a message on a worker with the active message API.
+    """ This function receives a message on a worker with the active message API.
 
-    TODO
+    The receive operation is considered completed when the callback function is
+    called, where the received object will be delivered. If a message has already
+    been received or an exception raised by the active message callback, that
+    object is ready for consumption and the `cb_func` is called by this function.
+    When no object has already been received, `cb_func` will be called by the
+    active message callback when the receive operation completes, delivering the
+    message or exception to the callback function.
+    The received object is always allocated by the allocator function registered
+    with `UCXWorker.register_am_allocator`, using the appropriate allocator
+    depending on whether it is a host or CUDA buffer.
+
+    Note
+    ----
+    This routing always returns `None`.
 
     Parameters
     ----------
     ep: UCXEndpoint
         The endpoint that is used for the receive operation. Received active
         messages are always targeted at a specific endpoint, therefore it is
-        imperative to specify the correct one here.
+        imperative to specify the correct endpoint here.
     cb_func: callable
-        The call-back function, which must accept `request` and `exception` as the
+        The call-back function, which must accept `recv_obj` and `exception` as the
         first two arguments.
     cb_args: tuple, optional
         Extra arguments to the call-back function
@@ -1879,8 +1913,6 @@ def am_recv_nb(
             cb_args = ()
         if cb_kwargs is None:
             cb_kwargs = {}
-        if name is None:
-            name = "am_recv_nb"
         if Feature.AM not in worker._context._feature_flags:
             raise ValueError("UCXContext must be created with `Feature.AM`")
         cdef bint cuda_support
