@@ -1039,6 +1039,38 @@ cdef class UCXEndpoint(UCXObject):
             status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
         )
 
+    def unpack_rkey(self, rkey):
+        return UCXRkey(self, rkey)
+
+
+def _ucx_remote_mem_finalizer_post_flush(req, exception, UCXRkey rkey):
+    assert exception is None
+    cdef ucp_rkey_h rkey_handle = <ucp_rkey_h><uintptr_t>rkey._handle
+    ucp_rkey_destroy(rkey_handle)
+
+
+def _ucx_rkey_finalizer(rkey, ep):
+    ep.flush(_ucx_remote_mem_finalizer_post_flush, (rkey,))
+
+
+cdef class UCXRkey(UCXObject):
+    cdef ucp_rkey_h _handle
+    cdef UCXEndpoint ep
+
+    def __init__(self, UCXEndpoint ep, PackedRemoteKey rkey):
+        cdef ucs_status_t status
+        rkey_arr = Array(rkey)
+        cdef const void *key_data = <const void *><const uintptr_t>rkey_arr.ptr
+        status = ucp_ep_rkey_unpack(ep._handle, key_data, &self._handle)
+        assert_ucs_status(status)
+        self.ep = ep
+        self.add_handle_finalizer(
+            _ucx_rkey_finalizer,
+            self,
+            ep
+        )
+        ep.add_child(self)
+
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
     """Callback function used by UCXListener"""

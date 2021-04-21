@@ -51,3 +51,13 @@ def test_ctx_map(buffer):
     mem = ctx.map(buffer)
     rkey = mem.pack_rkey()
     assert rkey is not None
+
+
+def test_rkey_unpack():
+    ctx = ucx_api.UCXContext({})
+    mem = ucx_api.UCXMemoryHandle.alloc(ctx, 1024)
+    packed_rkey = mem.pack_rkey()
+    worker = ucx_api.UCXWorker(ctx)
+    ep = worker.ep_create_from_worker_address(worker.get_address(), ctx)
+    rkey = ep.unpack_rkey(packed_rkey)
+    assert rkey is not None
