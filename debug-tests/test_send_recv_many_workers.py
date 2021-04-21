@@ -66,6 +66,7 @@ def client(env, port, func, enable_rmm):
     # repeat for EP_ITERATIONS
 
     import numba.cuda
+
     numba.cuda.current_context()
 
     async def read():
@@ -99,6 +100,7 @@ def server(env, port, func, enable_rmm, num_workers, proc_conn):
     os.environ.update(env)
 
     import numba.cuda
+
     numba.cuda.current_context()
 
     loop = asyncio.get_event_loop()
