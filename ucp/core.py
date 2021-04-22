@@ -35,12 +35,6 @@ def _get_ctx():
     return _ctx
 
 
-def is_am_supported():
-    return all(
-        hasattr(ucx_api, attr) for attr in ["am_send_nbx", "am_recv_nb"]
-    ) and get_ucx_version() >= (1, 11, 0)
-
-
 async def exchange_peer_info(
     endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
 ):
@@ -437,6 +431,35 @@ class ApplicationContext:
 
     def get_worker_address(self):
         return self.worker.get_address()
+
+    def register_am_allocator(self, allocator, allocator_type):
+        """Register an allocator for received Active Messages.
+
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
+
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
+
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: str
+            The type of allocator, currently supports "host" and "cuda".
+        """
+        if allocator_type == "host":
+            allocator_type = ucx_api.AllocatorType.HOST
+        elif allocator_type == "cuda":
+            allocator_type = ucx_api.AllocatorType.CUDA
+        else:
+            allocator_type = ucx_api.AllocatorType.UNSUPPORTED
+        self.worker.register_am_allocator(allocator, allocator_type)
 
 
 class Listener:
@@ -872,6 +895,10 @@ def get_config():
         return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
+
+
+def register_am_allocator(allocator, allocator_type):
+    return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
 def create_listener(

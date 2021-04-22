@@ -14,6 +14,7 @@ from posix.stdio cimport open_memstream
 
 from cpython.buffer cimport PyBUF_FORMAT, PyBUF_ND, PyBUF_READ, PyBUF_WRITABLE
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
+from cython cimport boundscheck, initializedcheck, nonecheck, wraparound
 from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport (
     FILE,
@@ -199,6 +200,13 @@ def get_ucx_version():
     return (a, b, c)
 
 
+def is_am_supported():
+    IF CY_UCP_AM_SUPPORTED:
+        return get_ucx_version() >= (1, 11, 0)
+    ELSE:
+        return False
+
+
 def _handle_finalizer_wrapper(
     children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs
 ):
@@ -270,6 +278,12 @@ class Feature(enum.Enum):
     WAKEUP = UCP_FEATURE_WAKEUP
     STREAM = UCP_FEATURE_STREAM
     AM = UCP_FEATURE_AM
+
+
+class AllocatorType(enum.Enum):
+    HOST = 0
+    CUDA = 1
+    UNSUPPORTED = -1
 
 
 cdef class UCXContext(UCXObject):
@@ -599,6 +613,69 @@ def _ucx_worker_handle_finalizer(
 
 
 IF CY_UCP_AM_SUPPORTED:
+    cdef void _am_recv_completed_callback(
+        void *request,
+        ucs_status_t status,
+        size_t length,
+        void *user_data
+    ):
+        cdef bytearray buf
+        cdef UCXRequest req
+        cdef dict req_info
+        cdef str name, ucx_status_msg, msg
+        cdef set inflight_msgs
+        cdef tuple cb_args
+        cdef dict cb_kwargs
+
+        with log_errors():
+            req = UCXRequest(<uintptr_t><void*> request)
+            assert not req.closed()
+
+            req_info = <dict>req._handle.info
+            req_info["status"] = "finished"
+
+            if "cb_func" not in req_info:
+                logger.debug(
+                    "_am_recv_completed_callback() called before "
+                    "_am_recv_callback() returned"
+                )
+                return
+            else:
+                cb_args = req_info["cb_args"]
+                logger.debug(
+                    "_am_recv_completed_callback status %d len %d buf %s" % (
+                        status, length, hex(int(<uintptr_t><void *>cb_args[0]))
+                    )
+                )
+
+            exception = None
+            if status == UCS_ERR_CANCELED:
+                name = req_info["name"]
+                msg = "<%s>: " % name
+                exception = UCXCanceled(msg)
+            elif status != UCS_OK:
+                name = req_info["name"]
+                ucx_status_msg = ucs_status_string(status).decode("utf-8")
+                msg = "<%s>: %s" % (name, ucx_status_msg)
+                exception = UCXError(msg)
+            try:
+                inflight_msgs = req_info["inflight_msgs"]
+                inflight_msgs.discard(req)
+                cb_func = req_info["cb_func"]
+                if cb_func is not None:
+                    if cb_args is None:
+                        cb_args = ()
+                    cb_kwargs = req_info["cb_kwargs"]
+                    if cb_kwargs is None:
+                        cb_kwargs = {}
+                    cb_func(cb_args[0], exception, **cb_kwargs)
+            finally:
+                req.close()
+
+    @boundscheck(False)
+    @initializedcheck(False)
+    @nonecheck(False)
+    @wraparound(False)
     cdef ucs_status_t _am_recv_callback(
         void *arg,
         const void *header,
@@ -610,7 +687,7 @@ IF CY_UCP_AM_SUPPORTED:
         cdef UCXWorker worker = <UCXWorker>arg
         cdef dict am_recv_pool = worker._am_recv_pool
         cdef dict am_recv_wait = worker._am_recv_wait
-
+        cdef set inflight_msgs = worker._inflight_msgs
         assert worker.initialized
         assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
         assert Feature.AM in worker._context._feature_flags
@@ -622,9 +699,11 @@ IF CY_UCP_AM_SUPPORTED:
 
         is_rndv = param.recv_attr & UCP_AM_RECV_ATTR_FLAG_RNDV
 
-        cdef bytearray buf = bytearray(length)
-        cdef char[:] buf_view = buf
-        cdef void *buf_ptr = <void *><uintptr_t>&buf_view[0]
+        cdef object buf
+        cdef char[:] buf_view
+        cdef void *buf_ptr
+        cdef unsigned long cai_ptr
+        cdef int allocator_type = (<int *>header)[0]
 
         def _push_result(buf, exception, recv_type):
             if (
@@ -657,16 +736,84 @@ IF CY_UCP_AM_SUPPORTED:
         cdef ucs_status_ptr_t status
         cdef str ucx_status_msg, msg
         cdef UCXRequest req
+        cdef dict req_info
         if is_rndv:
-            exception = UCXError("AM rendezvous receive not supported yet")
-            _push_result(None, exception, "eager")
-            return UCS_OK
+            request_param.op_attr_mask = (
+                UCP_OP_ATTR_FIELD_CALLBACK |
+                UCP_OP_ATTR_FIELD_USER_DATA |
+                UCP_OP_ATTR_FLAG_NO_IMM_CMPL
+            )
+            request_param.cb.recv_am = (
+                <ucp_am_recv_data_nbx_callback_t>_am_recv_completed_callback
+            )
+
+            if allocator_type == UCS_MEMORY_TYPE_HOST:
+                buf = worker._am_host_allocator(length)
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+            elif allocator_type == UCS_MEMORY_TYPE_CUDA:
+                buf = worker._am_cuda_allocator(length)
+                cai_ptr = buf.__cuda_array_interface__["data"][0]
+                buf_ptr = <void *><uintptr_t>cai_ptr
+            else:
+                logger.debug("Unsupported memory type")
+                buf = worker._am_host_allocator(length)
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+                _push_result(None, UCXError("Unsupported memory type"), "rndv")
+                return UCS_OK
+
+            status = ucp_am_recv_data_nbx(
+                worker._handle, data, buf_ptr, length, &request_param
+            )
+
+            logger.debug("am rndv: ep %s len %s" % (hex(int(ep_as_int)), length))
+
+            if UCS_PTR_STATUS(status) == UCS_OK:
+                _push_result(buf, None, "rndv")
+                return UCS_OK
+            elif UCS_PTR_IS_ERR(status):
+                ucx_status_msg = (
+                    ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
+                )
+                msg = "<_am_recv_callback>: %s" % (ucx_status_msg)
+                logger.info("_am_recv_callback error: %s" % msg)
+                _push_result(None, UCXError(msg), "rndv")
+                return UCS_PTR_STATUS(status)
+
+            req = UCXRequest(<uintptr_t><void*> status)
+            assert not req.closed()
+            req_info = <dict>req._handle.info
+            if req_info["status"] == "finished":
+                try:
+                    # The callback function has already handled the request
+                    received = req_info.get("received", None)
+                    _push_result(buf, None, "rndv")
+                    return UCS_OK
+                finally:
+                    req.close()
+            else:
+                req_info["cb_func"] = _push_result
+                req_info["cb_args"] = (buf, )
+                req_info["cb_kwargs"] = {"recv_type": "rndv"}
+                req_info["expected_receive"] = 0
+                req_info["name"] = "am_recv"
+                inflight_msgs.add(req)
+                req_info["inflight_msgs"] = inflight_msgs
+                return UCS_OK
+
         else:
             logger.debug("am eager copying %d bytes with ep %s" % (
                 length,
                 hex(ep_as_int)
             ))
-            memcpy(buf_ptr, data, length)
+
+            buf = worker._am_host_allocator(length)
+            if length > 0:
+                buf_view = buf
+                buf_ptr = <void *><uintptr_t>&buf_view[0]
+                memcpy(buf_ptr, data, length)
+
             _push_result(buf, None, "eager")
             return UCS_OK
 
@@ -680,6 +827,8 @@ cdef class UCXWorker(UCXObject):
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
+            object _am_host_allocator
+            object _am_cuda_allocator
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
@@ -703,6 +852,8 @@ cdef class UCXWorker(UCXObject):
             if Feature.AM in context._feature_flags:
                 self._am_recv_pool = dict()
                 self._am_recv_wait = dict()
+                self._am_host_allocator = bytearray
+                self._am_cuda_allocator = None
                 am_handler_param.field_mask = (
                     UCP_AM_HANDLER_PARAM_FIELD_ID |
                     UCP_AM_HANDLER_PARAM_FIELD_CB |
@@ -720,6 +871,39 @@ cdef class UCXWorker(UCXObject):
             self._inflight_msgs
         )
         context.add_child(self)
+
+    def register_am_allocator(self, object allocator, allocator_type):
+        """Register an allocator for received Active Messages.
+
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
+
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
+
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: AllocatorType
+            The type of allocator, currently supports AllocatorType.HOST
+            and AllocatorType.CUDA.
+        """
+        if is_am_supported():
+            if allocator_type is AllocatorType.HOST:
+                self._am_host_allocator = allocator
+            elif allocator_type is AllocatorType.CUDA:
+                self._am_cuda_allocator = allocator
+            else:
+                raise UCXError("Allocator type not supported")
+        else:
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_send_nbx.")
 
     def init_blocking_progress_mode(self):
         assert self.initialized
@@ -1899,11 +2083,23 @@ def am_send_nbx(
         params.flags = UCP_AM_SEND_FLAG_REPLY
         params.user_data = <void*>buffer.ptr
 
+        cdef int *header = <int *>malloc(sizeof(int))
+        if buffer.cuda:
+            header[0] = UCS_MEMORY_TYPE_CUDA
+        else:
+            header[0] = UCS_MEMORY_TYPE_HOST
+
+        def cb_wrapper(header_as_int, cb_func, *cb_args, **cb_kwargs):
+            free(<void *><uintptr_t>header_as_int)
+            cb_func(*cb_args, **cb_kwargs)
+
+        cb_func = functools.partial(cb_wrapper, int(<uintptr_t>header), cb_func)
+
         cdef ucs_status_ptr_t status = ucp_am_send_nbx(
             ep._handle,
             0,
-            NULL,
-            0,
+            <void *>header,
+            sizeof(int),
             <void*>buffer.ptr,
             nbytes,
             &params,
@@ -1912,8 +2108,9 @@ def am_send_nbx(
             status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
         )
     ELSE:
-        raise RuntimeError("UCX-Py needs to be built against and running with "
-                           "UCX >= 1.11 to support am_send_nbx.")
+        if is_am_supported():
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_recv_nb.")
 
 
 def am_recv_nb(
@@ -1921,20 +2118,33 @@ def am_recv_nb(
     cb_func,
     tuple cb_args=None,
     dict cb_kwargs=None,
-    str name=None,
+    str name="am_recv_nb",
 ):
-    """ This routine receives a message on a worker with the active message API.
+    """ This function receives a message on a worker with the active message API.
 
-    TODO
+    The receive operation is considered completed when the callback function is
+    called, where the received object will be delivered. If a message has already
+    been received or an exception raised by the active message callback, that
+    object is ready for consumption and the `cb_func` is called by this function.
+    When no object has already been received, `cb_func` will be called by the
+    active message callback when the receive operation completes, delivering the
+    message or exception to the callback function.
+    The received object is always allocated by the allocator function registered
+    with `UCXWorker.register_am_allocator`, using the appropriate allocator
+    depending on whether it is a host or CUDA buffer.
+
+    Note
+    ----
+    This routing always returns `None`.
 
     Parameters
     ----------
     ep: UCXEndpoint
         The endpoint that is used for the receive operation. Received active
         messages are always targeted at a specific endpoint, therefore it is
-        imperative to specify the correct one here.
+        imperative to specify the correct endpoint here.
     cb_func: callable
-        The call-back function, which must accept `request` and `exception` as the
+        The call-back function, which must accept `recv_obj` and `exception` as the
         first two arguments.
     cb_args: tuple, optional
         Extra arguments to the call-back function
@@ -1950,8 +2160,6 @@ def am_recv_nb(
             cb_args = ()
         if cb_kwargs is None:
             cb_kwargs = {}
-        if name is None:
-            name = "am_recv_nb"
         if Feature.AM not in worker._context._feature_flags:
             raise ValueError("UCXContext must be created with `Feature.AM`")
         cdef bint cuda_support
@@ -1978,5 +2186,6 @@ def am_recv_nb(
             )
             logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
     ELSE:
-        raise RuntimeError("UCX-Py needs to be built against and running with "
-                           "UCX >= 1.11 to support am_recv_nb.")
+        if is_am_supported():
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_recv_nb.")
