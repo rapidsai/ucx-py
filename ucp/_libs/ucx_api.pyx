@@ -1812,6 +1812,10 @@ def am_send_nbx(
     name: str, optional
         Descriptive name of the operation
     """
+    cdef ucp_request_param_t params
+    cdef int *header
+    cdef ucs_status_ptr_t status
+
     if is_am_supported():
         if cb_args is None:
             cb_args = ()
@@ -1833,7 +1837,6 @@ def am_send_nbx(
         if not buffer._contiguous():
             raise ValueError("Array must be C or F contiguous")
 
-        cdef ucp_request_param_t params
         params.op_attr_mask = (
             UCP_OP_ATTR_FIELD_CALLBACK |
             UCP_OP_ATTR_FIELD_USER_DATA |
@@ -1843,7 +1846,7 @@ def am_send_nbx(
         params.flags = UCP_AM_SEND_FLAG_REPLY
         params.user_data = <void*>buffer.ptr
 
-        cdef int *header = <int *>malloc(sizeof(int))
+        header = <int *>malloc(sizeof(int))
         if buffer.cuda:
             header[0] = UCS_MEMORY_TYPE_CUDA
         else:
@@ -1855,7 +1858,7 @@ def am_send_nbx(
 
         cb_func = functools.partial(cb_wrapper, int(<uintptr_t>header), cb_func)
 
-        cdef ucs_status_ptr_t status = ucp_am_send_nbx(
+        status = ucp_am_send_nbx(
             ep._handle,
             0,
             <void *>header,
@@ -1921,7 +1924,6 @@ def am_recv_nb(
             cb_kwargs = {}
         if Feature.AM not in worker._context._feature_flags:
             raise ValueError("UCXContext must be created with `Feature.AM`")
-        cdef bint cuda_support
 
         am_recv_pool = worker._am_recv_pool
         ep_as_int = int(<uintptr_t>ep._handle)
