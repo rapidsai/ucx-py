@@ -92,6 +92,29 @@ cdef void ucx_py_request_reset(void* request):
 # Counter used as UCXRequest UIDs
 cdef unsigned int _ucx_py_request_counter = 0
 
+# Helper function for the python buffer protocol to handle UCX's opaque memory objects
+cdef get_ucx_object(Py_buffer *buffer, int flags,
+                    void *ucx_data, Py_ssize_t length, obj):
+    if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
+        raise BufferError("Requested writable view on readonly data")
+    buffer.buf = ucx_data
+    buffer.obj = obj
+    buffer.len = length
+    buffer.readonly = True
+    buffer.itemsize = 1
+    if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
+        buffer.format = b"B"
+    else:
+        buffer.format = NULL
+    buffer.ndim = 1
+    if (flags & PyBUF_ND) == PyBUF_ND:
+        buffer.shape = &buffer.len
+    else:
+        buffer.shape = NULL
+    buffer.strides = NULL
+    buffer.suboffsets = NULL
+    buffer.internal = NULL
+
 
 logger = logging.getLogger("ucx")
 
@@ -268,7 +291,13 @@ cdef class UCXContext(UCXObject):
     def __init__(
         self,
         config_dict={},
-        feature_flags=(Feature.TAG, Feature.WAKEUP, Feature.STREAM, Feature.AM)
+        feature_flags=(
+            Feature.TAG,
+            Feature.WAKEUP,
+            Feature.STREAM,
+            Feature.AM,
+            Feature.RMA
+        )
     ):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
@@ -325,6 +354,203 @@ cdef class UCXContext(UCXObject):
         cdef FILE *text_fd = create_text_fd()
         ucp_context_print_info(self._handle, text_fd)
         return decode_text_fd(text_fd)
+
+    def map(self, mem):
+        return UCXMemoryHandle.map(self, mem)
+
+    def alloc(self, size):
+        return UCXMemoryHandle.alloc(self, size)
+
+
+cdef class PackedRemoteKey:
+    """ A packed remote key. This key is suitable for sending to remote nodes to setup
+        remote access to local memory. Users should not instance this class directly and
+        should use the from_buffer() and from_mem_handle() class methods or the
+        pack_rkey() method on the UCXMemoryHandle class
+    """
+    cdef void *_key
+    cdef Py_ssize_t _length
+
+    def __cinit__(self, uintptr_t packed_key_as_int, Py_ssize_t length):
+        key = <void *> packed_key_as_int
+        self._key = malloc(length)
+        self._length = length
+        memcpy(self._key, key, length)
+
+    @classmethod
+    def from_buffer(cls, buffer):
+        """ Wrap a received buffer in a PackedRemoteKey to turn magic buffers into a
+            python class suitable for unpacking on an EP
+
+        Parameters
+        ----------
+        buffer:
+            Python buffer to be wrapped
+        """
+        buf = Array(buffer)
+        assert buf.c_contiguous
+        return PackedRemoteKey(buf.ptr, buf.nbytes)
+
+    @classmethod
+    def from_mem_handle(self, UCXMemoryHandle mem):
+        """ Create a new packed remote key from a given UCXMemoryHandle class
+
+            Parameters
+            ----------
+            mem: UCXMemoryHandle
+                The memory handle to be packed in an rkey for sending
+        """
+        cdef void *key
+        cdef size_t len
+        cdef ucs_status_t status
+        status = ucp_rkey_pack(mem._context._handle, mem._mem_handle, &key, &len)
+        packed_key = PackedRemoteKey(<uintptr_t>key, len)
+        ucp_rkey_buffer_release(key)
+        assert_ucs_status(status)
+        return PackedRemoteKey(<uintptr_t>key, len)
+
+    def __dealloc__(self):
+        free(self._key)
+
+    @property
+    def key(self):
+        return int(<uintptr_t><void*>self._key)
+
+    @property
+    def length(self):
+        return int(self._length)
+
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        get_ucx_object(buffer, flags, <void*>self._key, self._length, self)
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        pass
+
+    def __reduce__(self):
+        return (PackedRemoteKey.from_buffer, (bytes(self),))
+
+    def __hash__(self):
+        return hash(bytes(self))
+
+
+def _ucx_mem_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
+    assert ctx.initialized
+    cdef ucp_mem_h handle = <ucp_mem_h>handle_as_int
+    cdef ucs_status_t status
+    status = ucp_mem_unmap(ctx._handle, handle)
+    assert_ucs_status(status)
+
+
+cdef class UCXMemoryHandle(UCXObject):
+    """ Python representation for ucp_mem_h type. Users should not instance this class
+        directly and instead use either the map or the alloc class methods
+    """
+    cdef ucp_mem_h _mem_handle
+    cdef UCXContext _context
+    cdef uint64_t r_address
+    cdef size_t _length
+
+    def __cinit__(self, UCXContext ctx, uintptr_t par):
+        cdef ucs_status_t status
+        cdef ucp_context_h ctx_handle = <ucp_context_h><uintptr_t>ctx.handle
+        cdef ucp_mem_map_params_t *params = <ucp_mem_map_params_t *>par
+        self._context = ctx
+        status = ucp_mem_map(ctx_handle, params, &self._mem_handle)
+        assert_ucs_status(status)
+        self._populate_metadata()
+        self.add_handle_finalizer(
+            _ucx_mem_handle_finalizer,
+            int(<uintptr_t>self._mem_handle),
+            self._context
+        )
+        ctx.add_child(self)
+
+    @classmethod
+    def alloc(cls, ctx, size):
+        """ Allocate a new pool of registered memory. This memory can be used for
+            RMA and AMO operations. This memory should not be accessed from outside
+            these operations.
+
+            Parameters
+            ----------
+            ctx: UCXContext
+                The UCX context that this memory should be registered to
+            size: int
+                Minimum amount of memory to allocate
+            """
+        cdef ucp_mem_map_params_t params
+        cdef ucs_status_t status
+
+        params.field_mask = (
+            UCP_MEM_MAP_PARAM_FIELD_FLAGS |
+            UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        )
+        params.length = <size_t>size
+        params.flags = UCP_MEM_MAP_NONBLOCK | UCP_MEM_MAP_ALLOCATE
+
+        return UCXMemoryHandle(ctx, <uintptr_t>&params)
+
+    @classmethod
+    def map(cls, ctx, mem):
+        """ Register an existing memory object to UCX for use in RMA and AMO operations
+            It is not safe to access this memory from outside UCX while operations are
+            outstanding
+
+        Parameters
+        ----------
+        ctx: UCXContext
+            The UCX context that this memory should be registered to
+        mem: buffer
+            The memory object to be registered
+        """
+        cdef ucp_mem_map_params_t params
+        cdef ucs_status_t status
+
+        buff = Array(mem)
+
+        params.field_mask = (
+            UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
+            UCP_MEM_MAP_PARAM_FIELD_LENGTH
+        )
+        params.address = <void*>buff.ptr
+        params.length = buff.nbytes
+
+        return UCXMemoryHandle(ctx, <uintptr_t>&params)
+
+    def pack_rkey(self):
+        """ Returns an UCXRKey object that represents a packed key. This key is what
+            allows the UCX API to associate this memory with an EP.
+        """
+        return PackedRemoteKey.from_mem_handle(self)
+
+    @property
+    def mem_handle(self):
+        return <uintptr_t>self._mem_handle
+
+    # Done as a separate function because some day I plan on making this loaded lazily
+    # I believe this reports the actual registered space, rather than what was requested
+    def _populate_metadata(self):
+        cdef ucs_status_t status
+        cdef ucp_mem_attr_t attr
+
+        attr.field_mask = (
+            UCP_MEM_ATTR_FIELD_ADDRESS |
+            UCP_MEM_ATTR_FIELD_LENGTH
+        )
+        status = ucp_mem_query(self._mem_handle, &attr)
+        assert_ucs_status(status)
+        self.r_address = <uintptr_t>attr.address
+        self._length = attr.length
+
+    @property
+    def address(self):
+        """ Get base address for the memory registration """
+        return self.r_address
+
+    @property
+    def length(self):
+        """ Get length of registered memory """
+        return self._length
 
 
 cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
@@ -709,25 +935,7 @@ cdef class UCXAddress:
         return int(self._length)
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        if (flags & PyBUF_WRITABLE) == PyBUF_WRITABLE:
-            raise BufferError("Requested writable view on readonly data")
-        buffer.buf = <void*>self._address
-        buffer.obj = self
-        buffer.len = self._length
-        buffer.readonly = True
-        buffer.itemsize = 1
-        if (flags & PyBUF_FORMAT) == PyBUF_FORMAT:
-            buffer.format = b"B"
-        else:
-            buffer.format = NULL
-        buffer.ndim = 1
-        if (flags & PyBUF_ND) == PyBUF_ND:
-            buffer.shape = &self._length
-        else:
-            buffer.shape = NULL
-        buffer.strides = NULL
-        buffer.suboffsets = NULL
-        buffer.internal = NULL
+        get_ucx_object(buffer, flags, <void*>self._address, self._length, self)
 
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
@@ -817,6 +1025,38 @@ cdef class UCXEndpoint(UCXObject):
         return _handle_status(
             status, 0, cb_func, cb_args, cb_kwargs, 'flush', self._inflight_msgs
         )
+
+    def unpack_rkey(self, rkey):
+        return UCXRkey(self, rkey)
+
+
+def _ucx_remote_mem_finalizer_post_flush(req, exception, UCXRkey rkey):
+    assert exception is None
+    cdef ucp_rkey_h rkey_handle = <ucp_rkey_h><uintptr_t>rkey._handle
+    ucp_rkey_destroy(rkey_handle)
+
+
+def _ucx_rkey_finalizer(rkey, ep):
+    ep.flush(_ucx_remote_mem_finalizer_post_flush, (rkey,))
+
+
+cdef class UCXRkey(UCXObject):
+    cdef ucp_rkey_h _handle
+    cdef UCXEndpoint ep
+
+    def __init__(self, UCXEndpoint ep, PackedRemoteKey rkey):
+        cdef ucs_status_t status
+        rkey_arr = Array(rkey)
+        cdef const void *key_data = <const void *><const uintptr_t>rkey_arr.ptr
+        status = ucp_ep_rkey_unpack(ep._handle, key_data, &self._handle)
+        assert_ucs_status(status)
+        self.ep = ep
+        self.add_handle_finalizer(
+            _ucx_rkey_finalizer,
+            self,
+            ep
+        )
+        ep.add_child(self)
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
