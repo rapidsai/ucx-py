@@ -651,8 +651,8 @@ cdef class UCXWorker(UCXObject):
 
         The allocator registered by this function is always called by the
         active message receive callback when an incoming message is
-        available. The appropriate allocator is called depending on the
-        whether the message received is a host message or CUDA message.
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
         Note that CUDA messages can only be received via rendezvous, all
         eager messages are received on a host object.
 

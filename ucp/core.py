@@ -433,6 +433,26 @@ class ApplicationContext:
         return self.worker.get_address()
 
     def register_am_allocator(self, allocator, allocator_type):
+        """Register an allocator for received Active Messages.
+
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
+
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
+
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: str
+            The type of allocator, currently supports "host" and "cuda".
+        """
         if allocator_type == "host":
             allocator_type = ucx_api.AllocatorType.HOST
         elif allocator_type == "cuda":
