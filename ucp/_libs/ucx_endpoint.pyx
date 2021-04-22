@@ -13,7 +13,6 @@ from .ucx_api_dep cimport *
 
 from ..exceptions import UCXError
 
-
 logger = logging.getLogger("ucx")
 
 

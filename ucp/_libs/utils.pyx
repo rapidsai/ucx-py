@@ -22,6 +22,7 @@ from .ucx_api_dep cimport *
 
 from ..exceptions import UCXConfigError, UCXError
 
+
 cdef FILE * create_text_fd():
     cdef FILE *text_fd = tmpfile()
     if text_fd == NULL:

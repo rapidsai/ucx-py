@@ -15,7 +15,6 @@ from .ucx_api_dep cimport *
 
 from ..exceptions import UCXCanceled, UCXError, UCXMsgTruncated, log_errors
 
-
 logger = logging.getLogger("ucx")
 
 

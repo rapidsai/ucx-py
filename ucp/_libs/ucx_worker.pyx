@@ -17,7 +17,6 @@ from .ucx_api_dep cimport *
 from ..exceptions import UCXCanceled, UCXError, log_errors
 from ..utils import nvtx_annotate
 
-
 logger = logging.getLogger("ucx")
 
 
