@@ -110,8 +110,6 @@ async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait, data):
     if data["memory_type"] == "cuda" and msg.nbytes < rndv_thresh:
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
-        print(type(recv[0]))
-        print(type(msg))
         assert recv[0] == bytearray(msg.get())
     else:
         data["validator"](recv[0], msg)

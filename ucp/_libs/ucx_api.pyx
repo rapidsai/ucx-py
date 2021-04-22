@@ -1812,7 +1812,7 @@ def am_send_nbx(
     name: str, optional
         Descriptive name of the operation
     """
-    if is_am_supported():
+    IF CY_UCP_AM_SUPPORTED:
         if cb_args is None:
             cb_args = ()
         if cb_kwargs is None:
@@ -1867,9 +1867,10 @@ def am_send_nbx(
         return _handle_status(
             status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
         )
-    else:
-        raise RuntimeError("UCX-Py needs to be built against and running with "
-                           "UCX >= 1.11 to support am_send_nbx.")
+    ELSE:
+        if is_am_supported():
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_recv_nb.")
 
 
 def am_recv_nb(
@@ -1912,7 +1913,7 @@ def am_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    if is_am_supported():
+    IF CY_UCP_AM_SUPPORTED:
         worker = ep.worker
 
         if cb_args is None:
@@ -1944,6 +1945,7 @@ def am_recv_nb(
                 }
             )
             logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
-    else:
-        raise RuntimeError("UCX-Py needs to be built against and running with "
-                           "UCX >= 1.11 to support am_recv_nb.")
+    ELSE:
+        if is_am_supported():
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_recv_nb.")
