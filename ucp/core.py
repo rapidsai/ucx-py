@@ -35,12 +35,6 @@ def _get_ctx():
     return _ctx
 
 
-def is_am_supported():
-    return all(
-        hasattr(ucx_api, attr) for attr in ["am_send_nbx", "am_recv_nb"]
-    ) and get_ucx_version() >= (1, 11, 0)
-
-
 async def exchange_peer_info(
     endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
 ):

@@ -177,6 +177,13 @@ def get_ucx_version():
     return (a, b, c)
 
 
+def is_am_supported():
+    IF CY_UCP_AM_SUPPORTED:
+        return get_ucx_version() >= (1, 11, 0)
+    ELSE:
+        return False
+
+
 def _handle_finalizer_wrapper(
     children, handle_finalizer, handle_as_int, *extra_args, **extra_kargs
 ):
@@ -409,7 +416,8 @@ IF CY_UCP_AM_SUPPORTED:
             req_info["status"] = "finished"
 
             if "cb_func" not in req_info:
-                # This callback function was called before _am_recv_callback() returned
+                # This callback function was called before
+                # _am_recv_completed_callback() returned
                 return
 
             exception = None
@@ -638,35 +646,38 @@ cdef class UCXWorker(UCXObject):
         )
         context.add_child(self)
 
-    IF CY_UCP_AM_SUPPORTED:
-        def register_am_allocator(self, object allocator, allocator_type):
-            """Register an allocator for received Active Messages.
+    def register_am_allocator(self, object allocator, allocator_type):
+        """Register an allocator for received Active Messages.
 
-            The allocator registered by this function is always called by the
-            active message receive callback when an incoming message is
-            available. The appropriate allocator is called depending on the
-            whether the message received is a host message or CUDA message.
-            Note that CUDA messages can only be received via rendezvous, all
-            eager messages are received on a host object.
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on the
+        whether the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
 
-            By default, the host allocator is `bytearray`. There is no default
-            CUDA allocator and one must always be registered if CUDA is used.
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
 
-            Parameters
-            ----------
-            allocator: callable
-                An allocation function accepting exactly one argument, the
-                size of the message receives.
-            allocator_type: AllocatorType
-                The type of allocator, currently supports AllocatorType.HOST
-                and AllocatorType.CUDA.
-            """
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: AllocatorType
+            The type of allocator, currently supports AllocatorType.HOST
+            and AllocatorType.CUDA.
+        """
+        if is_am_supported():
             if allocator_type is AllocatorType.HOST:
                 self._am_host_allocator = allocator
             elif allocator_type is AllocatorType.CUDA:
                 self._am_cuda_allocator = allocator
             else:
                 raise UCXError("Allocator type not supported")
+        else:
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support am_send_nbx.")
 
     def init_blocking_progress_mode(self):
         assert self.initialized
@@ -1801,7 +1812,7 @@ def am_send_nbx(
     name: str, optional
         Descriptive name of the operation
     """
-    IF CY_UCP_AM_SUPPORTED:
+    if is_am_supported():
         if cb_args is None:
             cb_args = ()
         if cb_kwargs is None:
@@ -1856,7 +1867,7 @@ def am_send_nbx(
         return _handle_status(
             status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
         )
-    ELSE:
+    else:
         raise RuntimeError("UCX-Py needs to be built against and running with "
                            "UCX >= 1.11 to support am_send_nbx.")
 
@@ -1901,7 +1912,7 @@ def am_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    IF CY_UCP_AM_SUPPORTED:
+    if is_am_supported():
         worker = ep.worker
 
         if cb_args is None:
@@ -1933,6 +1944,6 @@ def am_recv_nb(
                 }
             )
             logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
-    ELSE:
+    else:
         raise RuntimeError("UCX-Py needs to be built against and running with "
                            "UCX >= 1.11 to support am_recv_nb.")
