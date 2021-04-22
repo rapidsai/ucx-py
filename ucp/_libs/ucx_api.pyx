@@ -468,8 +468,8 @@ cdef class UCXMemoryHandle(UCXObject):
     @classmethod
     def alloc(cls, ctx, size):
         """ Allocate a new pool of registered memory. This memory can be used for
-            RMA and AMO operations. This memory should not be accessed from outside these
-            operations.
+            RMA and AMO operations. This memory should not be accessed from outside
+            these operations.
 
             Parameters
             ----------
