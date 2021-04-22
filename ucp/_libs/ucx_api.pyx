@@ -401,24 +401,26 @@ IF CY_UCP_AM_SUPPORTED:
         cdef tuple cb_args
         cdef dict cb_kwargs
 
-        logger.debug(
-            "_am_recv_completed_callback status %d len %d buf %s" % (
-                status, length, hex(int(<uintptr_t>user_data))
-            )
-        )
-
-        assert user_data != NULL
-
         with log_errors():
             req = UCXRequest(<uintptr_t><void*> request)
             assert not req.closed()
+
             req_info = <dict>req._handle.info
             req_info["status"] = "finished"
 
             if "cb_func" not in req_info:
-                # This callback function was called before
-                # _am_recv_completed_callback() returned
+                logger.debug(
+                    "_am_recv_completed_callback() called before "
+                    "_am_recv_callback() returned"
+                )
                 return
+            else:
+                cb_args = req_info["cb_args"]
+                logger.debug(
+                    "_am_recv_completed_callback status %d len %d buf %s" % (
+                        status, length, hex(int(<uintptr_t><void *>cb_args[0]))
+                    )
+                )
 
             exception = None
             if status == UCS_ERR_CANCELED:
@@ -435,7 +437,6 @@ IF CY_UCP_AM_SUPPORTED:
                 inflight_msgs.discard(req)
                 cb_func = req_info["cb_func"]
                 if cb_func is not None:
-                    cb_args = req_info["cb_args"]
                     if cb_args is None:
                         cb_args = ()
                     cb_kwargs = req_info["cb_kwargs"]
@@ -536,7 +537,6 @@ IF CY_UCP_AM_SUPPORTED:
                 _push_result(None, UCXError("Unsupported memory type"), "rndv")
                 return UCS_OK
 
-            request_param.user_data = <void *>buf
             status = ucp_am_recv_data_nbx(
                 worker._handle, data, buf_ptr, length, &request_param
             )
