@@ -96,7 +96,47 @@ class UCXMemoryHandle(UCXObject):
     def map(cls, ctx: UCXContext, buffer) -> UCXMemoryHandle: ...
     def pack_rkey(self) -> PackedRemoteKey: ...
 
-# transfer.pyx
+# transfer_am.pyx
+
+def am_send_nbx(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+): ...
+def am_recv_nb(
+    ep: UCXEndpoint,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+): ...
+
+# transfer_stream.pyx
+
+def stream_send_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+): ...
+def stream_recv_nb(
+    ep: UCXEndpoint,
+    buffer,
+    nbytes: int,
+    cb_func: Callable,
+    cb_args: Optional[tuple] = ...,
+    cb_kwargs: Optional[dict] = ...,
+    name: Optional[str] = ...,
+): ...
+
+# transfer_tag.pyx
 
 def tag_send_nb(
     ep: UCXEndpoint,
@@ -118,38 +158,4 @@ def tag_recv_nb(
     cb_kwargs: Optional[dict] = ...,
     name: Optional[str] = ...,
     ep: Optional[UCXEndpoint] = ...,
-): ...
-def stream_send_nb(
-    ep: UCXEndpoint,
-    buffer,
-    nbytes: int,
-    cb_func: Callable,
-    cb_args: Optional[tuple] = ...,
-    cb_kwargs: Optional[dict] = ...,
-    name: Optional[str] = ...,
-): ...
-def stream_recv_nb(
-    ep: UCXEndpoint,
-    buffer,
-    nbytes: int,
-    cb_func: Callable,
-    cb_args: Optional[tuple] = ...,
-    cb_kwargs: Optional[dict] = ...,
-    name: Optional[str] = ...,
-): ...
-def am_send_nbx(
-    ep: UCXEndpoint,
-    buffer,
-    nbytes: int,
-    cb_func: Callable,
-    cb_args: Optional[tuple] = ...,
-    cb_kwargs: Optional[dict] = ...,
-    name: Optional[str] = ...,
-): ...
-def am_recv_nb(
-    ep: UCXEndpoint,
-    cb_func: Callable,
-    cb_args: Optional[tuple] = ...,
-    cb_kwargs: Optional[dict] = ...,
-    name: Optional[str] = ...,
 ): ...
