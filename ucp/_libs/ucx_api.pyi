@@ -20,9 +20,7 @@ class Feature(enum.Enum):
 # utils.pyx
 
 def get_current_options() -> Dict[str, str]: ...
-
 def get_ucx_version() -> Tuple[int]: ...
-
 def is_am_supported() -> bool: ...
 
 # ucx_object.pyx
@@ -110,7 +108,6 @@ def tag_send_nb(
     cb_kwargs: Optional[dict] = ...,
     name: Optional[str] = ...,
 ): ...
-
 def tag_recv_nb(
     worker: UCXWorker,
     buffer,
@@ -122,7 +119,6 @@ def tag_recv_nb(
     name: Optional[str] = ...,
     ep: Optional[UCXEndpoint] = ...,
 ): ...
-
 def stream_send_nb(
     ep: UCXEndpoint,
     buffer,
@@ -132,7 +128,6 @@ def stream_send_nb(
     cb_kwargs: Optional[dict] = ...,
     name: Optional[str] = ...,
 ): ...
-
 def stream_recv_nb(
     ep: UCXEndpoint,
     buffer,
@@ -142,7 +137,6 @@ def stream_recv_nb(
     cb_kwargs: Optional[dict] = ...,
     name: Optional[str] = ...,
 ): ...
-
 def am_send_nbx(
     ep: UCXEndpoint,
     buffer,
@@ -152,7 +146,6 @@ def am_send_nbx(
     cb_kwargs: Optional[dict] = ...,
     name: Optional[str] = ...,
 ): ...
-
 def am_recv_nb(
     ep: UCXEndpoint,
     cb_func: Callable,
