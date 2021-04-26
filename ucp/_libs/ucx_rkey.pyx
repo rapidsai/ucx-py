@@ -12,7 +12,6 @@ from .ucx_api_dep cimport *
 def _ucx_remote_mem_finalizer_post_flush(req, exception, UCXRkey rkey):
     assert exception is None
     ucp_rkey_destroy(rkey._handle)
-    ucp_rkey_destroy(rkey_handle)
 
 
 def _ucx_rkey_finalizer(rkey, ep):
