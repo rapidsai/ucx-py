@@ -11,7 +11,7 @@ from .ucx_api_dep cimport *
 
 def _ucx_mem_handle_finalizer(uintptr_t handle_as_int, UCXContext ctx):
     assert ctx.initialized
-    cdef ucp_mem_h handle = <ucp_mem_h>handle_as_int
+    cdef ucp_mem_h handle = <ucp_mem_h><void *>handle_as_int
     cdef ucs_status_t status
     status = ucp_mem_unmap(ctx._handle, handle)
     assert_ucs_status(status)
