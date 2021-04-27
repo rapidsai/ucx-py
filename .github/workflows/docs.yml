@@ -22,12 +22,18 @@ jobs:
           activate-environment: ucx_dev
           environment-file: conda/environments/builddocs_py37.yml
           auto-activate-base: false
-      - name: Check conda env
+      - name: Build documentation
         run: |
-          conda info
-          conda list
-      # - name: Build documentation
-      #   run: |
-      #     conda activate ucx_dev
-      #     cd docs
-      #     make html
+          conda activate ucx_dev
+          cd docs
+          make html
+      - name: Commit changes to docs
+        run: |
+          git clone https://github.com/charlesbluca/ucx-py.git --branch gh-pages --single-branch gh-pages
+          cp -r build/html/* gh-pages/
+          cd gh-pages
+          touch .nojekyll
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Update documentation" -a || true
