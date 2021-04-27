@@ -132,6 +132,9 @@ def _echo_client(msg_size, datatype, port):
         data["validator"](recv_data, send_data)
 
 
+@pytest.mark.skipif(
+    not ucx_api.is_am_supported(), reason="AM only supported in UCX >= 1.11"
+)
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 @pytest.mark.parametrize("datatype", get_data().keys())
 def test_server_client(msg_size, datatype):
