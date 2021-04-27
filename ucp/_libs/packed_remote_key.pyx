@@ -56,7 +56,7 @@ cdef class PackedRemoteKey:
         packed_key = PackedRemoteKey(<uintptr_t>key, len)
         ucp_rkey_buffer_release(key)
         assert_ucs_status(status)
-        return PackedRemoteKey(<uintptr_t>key, len)
+        return packed_key
 
     def __dealloc__(self):
         free(self._key)
