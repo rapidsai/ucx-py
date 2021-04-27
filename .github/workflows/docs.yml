@@ -15,9 +15,5 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           activate-environment: ucx_dev
-          environment-file: ../conda/environments/builddocs_py37.yml
+          environment-file: conda/environments/builddocs_py37.yml
           auto-activate-base: false
-      - name: Build documentation
-        uses: ammaraskar/sphinx-action@0.4
-        with:
-          docs-folder: "docs/"
