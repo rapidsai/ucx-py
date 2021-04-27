@@ -21,5 +21,6 @@ jobs:
           auto-activate-base: false
       - name: Build documentation
         run: |
+          conda activate ucx_dev
           cd docs
           make html
