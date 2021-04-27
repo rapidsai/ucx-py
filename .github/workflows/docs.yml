@@ -37,3 +37,9 @@ jobs:
           git config --local user.name "GitHub Action"
           git add .
           git commit -m "Update documentation" -a || true
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          branch: gh-pages
+          directory: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
