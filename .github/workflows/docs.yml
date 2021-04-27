@@ -6,6 +6,9 @@ jobs:
   build:
     name: Build Sphinx documentation
     runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2.3.4
@@ -19,8 +22,12 @@ jobs:
           activate-environment: ucx_dev
           environment-file: conda/environments/builddocs_py37.yml
           auto-activate-base: false
-      - name: Build documentation
+      - name: Check conda env
         run: |
-          conda activate ucx_dev
-          cd docs
-          make html
+          conda info
+          conda list
+      # - name: Build documentation
+      #   run: |
+      #     conda activate ucx_dev
+      #     cd docs
+      #     make html
