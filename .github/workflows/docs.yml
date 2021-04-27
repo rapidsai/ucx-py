@@ -1,0 +1,23 @@
+on:
+  push:
+    branches: ["gha-docs-build"]
+
+jobs:
+  build:
+    name: Build Sphinx documentation
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Install libnuma
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libnuma-dev
+      - name: Create docs environment
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: ucx_dev
+          environment-file: conda/environments/builddocs_py37.yml
+          auto-activate-base: false
+      - name: Build documentation
+        uses: ammaraskar/sphinx-action@0.4
+        with:
+          docs-folder: "docs/"
