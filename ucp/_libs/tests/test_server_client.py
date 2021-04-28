@@ -20,6 +20,10 @@ def _echo_server(get_queue, put_queue, msg_size, endpoint_error_handling):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
 
+    # A reference to listener's endpoint is stored to prevent it from going
+    # out of scope too early.
+    ep = None
+
     def _send_handle(request, exception, msg):
         # Notice, we pass `msg` to the handler in order to make sure
         # it doesn't go out of scope prematurely.
@@ -32,6 +36,7 @@ def _echo_server(get_queue, put_queue, msg_size, endpoint_error_handling):
         )
 
     def _listener_handler(conn_request):
+        global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
             worker, conn_request, endpoint_error_handling=endpoint_error_handling,
         )

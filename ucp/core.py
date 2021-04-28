@@ -133,7 +133,7 @@ class CtrlMsg:
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log
         )
 
         shutdown_fut.add_done_callback(
@@ -449,6 +449,35 @@ class ApplicationContext:
     def get_worker_address(self):
         return self.worker.get_address()
 
+    def register_am_allocator(self, allocator, allocator_type):
+        """Register an allocator for received Active Messages.
+
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
+
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
+
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: str
+            The type of allocator, currently supports "host" and "cuda".
+        """
+        if allocator_type == "host":
+            allocator_type = ucx_api.AllocatorType.HOST
+        elif allocator_type == "cuda":
+            allocator_type = ucx_api.AllocatorType.CUDA
+        else:
+            allocator_type = ucx_api.AllocatorType.UNSUPPORTED
+        self.worker.register_am_allocator(allocator, allocator_type)
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -545,11 +574,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep,
-                    msg_arr,
-                    msg_arr.nbytes,
-                    self._tags["ctrl_send"],
-                    name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._tags["ctrl_send"], name=log
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -608,6 +633,32 @@ class Endpoint:
 
             self._ep.raise_on_error()
 
+    @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
+    async def am_send(self, buffer):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(self._tags["msg_send"]),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+        self._send_count += 1
+        return await comm.am_send(self._ep, buffer, nbytes, name=log)
+
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None):
         """Receive from connected peer into `buffer`.
@@ -654,6 +705,24 @@ class Endpoint:
 
             self._ep.raise_on_error()
 
+        self._finished_recv_count += 1
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
+            self.abort()
+        return ret
+
+    @nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
+    async def am_recv(self):
+        """Receive from connected peer.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
+        logger.debug(log)
+        self._recv_count += 1
+        ret = await comm.am_recv(self._ep, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
@@ -864,6 +933,10 @@ def get_config():
         return ucx_api.get_current_options()
     else:
         return _get_ctx().get_config()
+
+
+def register_am_allocator(allocator, allocator_type):
+    return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
 def create_listener(

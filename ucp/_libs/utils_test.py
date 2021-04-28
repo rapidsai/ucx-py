@@ -40,3 +40,31 @@ def blocking_recv(worker, ep, msg, tag=0):
         while not finished[0]:
             worker.progress()
             time.sleep(0.1)
+
+
+def blocking_am_send(worker, ep, msg):
+    msg = Array(msg)
+    finished = [False]
+    req = ucx_api.am_send_nbx(
+        ep, msg, msg.nbytes, cb_func=blocking_handler, cb_args=(finished,),
+    )
+    if req is not None:
+        while not finished[0]:
+            worker.progress()
+            time.sleep(0.1)
+
+
+def blocking_am_recv_handler(recv_obj, exception, ret):
+    assert exception is None
+    ret[0] = recv_obj
+
+
+def blocking_am_recv(worker, ep):
+    ret = [None]
+    ucx_api.am_recv_nb(
+        ep, cb_func=blocking_am_recv_handler, cb_args=(ret,),
+    )
+    while ret[0] is None:
+        worker.progress()
+        time.sleep(0.1)
+    return ret[0]
