@@ -84,7 +84,7 @@ def _echo_server(get_queue, put_queue, msg_size, datatype):
             conn_request, endpoint_error_handling=True
         )
 
-        # Wakeup
+        # Wireup
         ucx_api.am_recv_nb(ep, cb_func=_recv_handle, cb_args=(ep,))
 
         # Data
@@ -115,16 +115,18 @@ def _echo_client(msg_size, datatype, port):
 
     ep = worker.ep_create("localhost", port, endpoint_error_handling=True)
 
-    send_wakeup = bytearray(b"wakeup")
+    # The wireup message is sent to ensure endpoints are connected, otherwise
+    # UCX may not perform any rendezvous transfers.
+    send_wireup = bytearray(b"wireup")
     send_data = data["generator"](msg_size)
 
-    blocking_am_send(worker, ep, send_wakeup)
+    blocking_am_send(worker, ep, send_wireup)
     blocking_am_send(worker, ep, send_data)
 
-    recv_wakeup = blocking_am_recv(worker, ep)
+    recv_wireup = blocking_am_recv(worker, ep)
     recv_data = blocking_am_recv(worker, ep)
 
-    assert recv_wakeup == send_wakeup
+    assert recv_wireup == send_wireup
     if data["memory_type"] == "cuda" and send_data.nbytes < RNDV_THRESH:
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
