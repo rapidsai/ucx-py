@@ -32,14 +32,16 @@ jobs:
           environment-file: latest/conda/environments/builddocs_py37.yml
           auto-activate-base: false
       - name: Build documentation
+        working-directory: latest/docs
+        run: make html
+      - name: Copy docs to gh-pages
         run: |
-          cd latest/docs
-          make html
-      - name: Commit changes to docs
-        run: |
-          COMMIT_SHA=$(echo "${COMMIT_SHA}" | cut -c 1-7)
           rm -rf gh-pages/*
           cp -r latest/docs/build/html/* gh-pages/
+      - name: Commit changes to docs
+        working-directory: gh-pages
+        run: |
+          COMMIT_SHA=$(echo "${COMMIT_SHA}" | cut -c 1-7)
           git config user.name "GitHub Actions"
           git config user.email "action@github.com"
           git add --all
