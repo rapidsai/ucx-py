@@ -2,7 +2,7 @@ name: UCX-Py documentation build
 
 on:
   push:
-    branches: ["gha-docs-build"]
+    branches: ["branch-0.20"]
 
 jobs:
   build:
@@ -49,9 +49,3 @@ jobs:
           git push
         env:
           COMMIT_SHA: ${{ github.sha }}
-      # - name: Push changes
-      #   uses: ad-m/github-push-action@v0.6.0
-      #   with:
-      #     branch: gh-pages
-      #     directory: gh-pages
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
