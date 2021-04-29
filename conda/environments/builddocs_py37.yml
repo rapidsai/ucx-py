@@ -1,21 +1,22 @@
 name: ucx_dev
 channels:
-- rapidsai
-- nvidia
+- quasiben
+- rapidsai-nightly
 - conda-forge
 dependencies:
 # required for building docs
+- python=3.7
 - sphinx
 - sphinx-markdown-tables
 - sphinx_rtd_theme
 - sphinxcontrib-websupport
 - nbsphinx
 - numpydoc
-- ucx-proc=*=cpu
 - recommonmark
 - pandoc=<2.0.0
 - pip
 - psutil
 - libhwloc
-- ucx
-- ucx-py
+- ucx=1.8.0dev+nonuma
+- ucx-proc=*=cpu
+- cython
