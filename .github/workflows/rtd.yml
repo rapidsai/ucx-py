@@ -15,6 +15,5 @@ jobs:
           ref: readthedocs
       - name: Merge upstream changes
         run: |
-          git fetch origin
-          git merge origin/branch-0.20
+          git merge branch-0.20
           git push
