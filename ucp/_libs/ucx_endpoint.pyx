@@ -227,7 +227,7 @@ cdef class UCXEndpoint(UCXObject):
         self.raise_on_error()
         return int(<uintptr_t>self._handle)
 
-    def flush(self, cb_func, cb_args=None, cb_kwargs=None):
+    def flush(self, cb_func, tuple cb_args=None, dict cb_kwargs=None):
         if cb_args is None:
             cb_args = ()
         if cb_kwargs is None:

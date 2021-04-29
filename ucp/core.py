@@ -834,7 +834,7 @@ class Endpoint:
         return ret
 
     async def flush(self):
-        return await comm.flush_ep(self)
+        return await comm.flush_ep(self._ep)
 
 
 # The following functions initialize and use a single ApplicationContext instance
