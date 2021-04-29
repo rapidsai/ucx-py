@@ -26,7 +26,7 @@ from ucp import __version__ as release
 version = ".".join(release.split(".")[:2])
 
 project = "ucx-py"
-copyright = "2019, NVIDIA"
+copyright = "2019-2021, NVIDIA"
 author = "NVIDIA"
 
 
