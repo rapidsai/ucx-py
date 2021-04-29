@@ -2,7 +2,7 @@ name: Update readthedocs branch
 
 on:
   push:
-    branches: ["rtd-update-workflow"]
+    branches: ["branch-0.20"]
 
 jobs:
   update:
