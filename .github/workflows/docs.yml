@@ -47,6 +47,8 @@ jobs:
           git add --all
           git commit --allow-empty -m "Update docs from ${COMMIT_SHA}"
           git push
+        env:
+          COMMIT_SHA: ${{ github.sha }}
       # - name: Push changes
       #   uses: ad-m/github-push-action@v0.6.0
       #   with:
