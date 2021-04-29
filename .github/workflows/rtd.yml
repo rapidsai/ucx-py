@@ -9,31 +9,12 @@ jobs:
     name: Update readthedocs branch
     runs-on: "ubuntu-latest"
     steps:
-      - name: Checkout latest changes
-        uses: actions/checkout@v2.3.4
-        with:
-          path: latest
       - name: Checkout readthedocs
         uses: actions/checkout@v2.3.4
         with:
           ref: readthedocs
-          path: readthedocs
-      - name: Copy latest changes to readthedocs
+      - name: Merge upstream changes
         run: |
-          rm -rf readthedocs/*
-          cp -r latest/* readthedocs/
-      - name: Use no-libnuma UCX in readthedocs
-        working-directory: readthedocs
-        run: |
-          git apply no-libnuma.patch
-      - name: Push changes to readthedocs
-        working-directory: readthedocs
-        run: |
-          COMMIT_SHA=$(echo "${COMMIT_SHA}" | cut -c 1-7)
-          git config user.name "GitHub Actions"
-          git config user.email "action@github.com"
-          git add --all
-          git commit --allow-empty -m "Update from ${COMMIT_SHA}"
+          git fetch origin
+          git merge origin/branch-0.20
           git push
-        env:
-          COMMIT_SHA: ${{ github.sha }}
