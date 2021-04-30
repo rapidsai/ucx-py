@@ -18,4 +18,3 @@ dependencies:
 - psutil
 - libhwloc
 - ucx
-- ucx-py
