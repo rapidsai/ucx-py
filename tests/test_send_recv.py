@@ -49,6 +49,7 @@ def make_echo_server(create_empty_data):
         msg = create_empty_data(msg_size[0])
         await ep.recv(msg)
         await ep.send(msg)
+        await ep.close()
 
     return echo_server
 
@@ -143,6 +144,7 @@ async def test_send_recv_error(blocking_progress_mode):
 
     async def say_hey_server(ep):
         await ep.send(bytearray(b"Hey"))
+        await ep.close()
 
     listener = ucp.create_listener(say_hey_server)
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
@@ -163,6 +165,7 @@ async def test_send_recv_obj(blocking_progress_mode):
     async def echo_obj_server(ep):
         obj = await ep.recv_obj()
         await ep.send_obj(obj)
+        await ep.close()
 
     listener = ucp.create_listener(echo_obj_server)
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
@@ -183,6 +186,7 @@ async def test_send_recv_obj_numpy(blocking_progress_mode):
     async def echo_obj_server(ep):
         obj = await ep.recv_obj(allocator=allocator)
         await ep.send_obj(obj)
+        await ep.close()
 
     listener = ucp.create_listener(echo_obj_server)
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
