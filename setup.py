@@ -9,17 +9,12 @@ import os
 import re
 from distutils.sysconfig import get_config_var, get_python_inc
 
+from Cython.Build import cythonize
+from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
 
 import versioneer
-
-try:
-    from Cython.Build import cythonize
-    from Cython.Distutils.build_ext import new_build_ext as build_ext
-except ImportError:
-    from setuptools.command.build_ext import build_ext
-
 
 with open("README.md", "r") as fh:
     readme = fh.read()
