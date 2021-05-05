@@ -67,6 +67,7 @@ def event_loop(scope="function"):
 def simple_server(size, recv):
     async def server(ep):
         recv.append(await ep.am_recv())
+        await ep.close()
 
     return server
 
