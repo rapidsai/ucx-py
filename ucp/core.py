@@ -836,6 +836,7 @@ class Endpoint:
         return ret
 
     async def flush(self):
+        logger.debug("[Flush] ep: %s" % (hex(self.uid)))
         return await comm.flush_ep(self._ep)
 
 
