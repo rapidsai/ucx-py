@@ -15,6 +15,7 @@ async def test_tag_match():
         await asyncio.sleep(1)  # Let msg1 finish
         f2 = ep.send(msg2, tag="msg2")
         await asyncio.gather(f1, f2)
+        await ep.close()
 
     lf = ucp.create_listener(server_node)
     ep = await ucp.create_endpoint(ucp.get_address(), lf.port)

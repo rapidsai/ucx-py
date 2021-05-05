@@ -128,7 +128,12 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
     recv_wireup = blocking_am_recv(worker, ep)
     recv_data = blocking_am_recv(worker, ep)
 
-    assert recv_wireup == send_wireup
+    # Cast recv_wireup to bytearray when using NumPy as a host allocator,
+    # this ensures the assertion below is correct
+    if datatype == "numpy":
+        recv_wireup = bytearray(recv_wireup)
+    assert bytearray(recv_wireup) == send_wireup
+
     if data["memory_type"] == "cuda" and send_data.nbytes < RNDV_THRESH:
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
@@ -142,7 +147,6 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 @pytest.mark.parametrize("datatype", get_data().keys())
 def test_server_client(msg_size, datatype):
-    print(datatype)
     endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 11, 0)
 
     put_queue, get_queue = mp.Queue(), mp.Queue()

@@ -90,7 +90,7 @@ cdef get_ucx_object(Py_buffer *buffer, int flags,
 
 cdef void assert_ucs_status(ucs_status_t status, str msg_context=None) except *:
     cdef str msg, ucs_status
-    if status != UCS_OK:
+    if not (status == UCS_OK or status == UCS_INPROGRESS):
         ucs_status = ucs_status_string(status).decode("utf-8")
         if msg_context is not None:
             msg = f"[{msg_context}] {ucs_status}"
