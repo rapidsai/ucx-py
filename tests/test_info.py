@@ -28,7 +28,7 @@ def test_check_transport(transports):
     inactive_transports = list(set(["posix", "tcp"]) - set(transports_list))
 
     ucp.reset()
-    options = {"TLS": transports}
+    options = {"TLS": transports, "NET_DEVICES": "all"}
     ucp.init(options)
 
     active_transports = ucp.get_active_transports()
