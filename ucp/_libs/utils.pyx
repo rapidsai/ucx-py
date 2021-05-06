@@ -88,7 +88,7 @@ cdef get_ucx_object(Py_buffer *buffer, int flags,
     buffer.internal = NULL
 
 
-# Helper function to process ucs return codes. Returns True of the status is UCS_OK to
+# Helper function to process ucs return codes. Returns True if the status is UCS_OK to
 # indicate the operation completed inline, and False if UCX is still holding user
 # resources. Raises an error if the return code is an error.
 cdef bint assert_ucs_status(ucs_status_t status, str msg_context=None) except *:
