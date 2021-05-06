@@ -1,4 +1,4 @@
-# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # This file is a copy of what is available in a Cython demo + some additions
@@ -9,17 +9,12 @@ import os
 import re
 from distutils.sysconfig import get_config_var, get_python_inc
 
+from Cython.Build import cythonize
+from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
 
 import versioneer
-
-try:
-    from Cython.Build import cythonize
-    from Cython.Distutils.build_ext import new_build_ext as build_ext
-except ImportError:
-    from setuptools.command.build_ext import build_ext
-
 
 with open("README.md", "r") as fh:
     readme = fh.read()
@@ -27,7 +22,7 @@ with open("README.md", "r") as fh:
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
-extra_compile_args = ["-std=c99"]
+extra_compile_args = ["-std=c99", "-Werror"]
 
 
 def get_ucp_version():
