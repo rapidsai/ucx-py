@@ -88,15 +88,24 @@ cdef get_ucx_object(Py_buffer *buffer, int flags,
     buffer.internal = NULL
 
 
-cdef void assert_ucs_status(ucs_status_t status, str msg_context=None) except *:
+# Helper function to process ucs return codes. Returns True if the status is UCS_OK to
+# indicate the operation completed inline, and False if UCX is still holding user
+# resources. Raises an error if the return code is an error.
+cdef bint assert_ucs_status(ucs_status_t status, str msg_context=None) except *:
     cdef str msg, ucs_status
-    if not (status == UCS_OK or status == UCS_INPROGRESS):
-        ucs_status = ucs_status_string(status).decode("utf-8")
-        if msg_context is not None:
-            msg = f"[{msg_context}] {ucs_status}"
-        else:
-            msg = ucs_status
-        raise UCXError(msg)
+
+    if status == UCS_OK:
+        return True
+    if status == UCS_INPROGRESS:
+        return False
+
+    # If the status is not OK or INPROGRESS it is an error
+    ucs_status = ucs_status_string(status).decode("utf-8")
+    if msg_context is not None:
+        msg = f"[{msg_context}] {ucs_status}"
+    else:
+        msg = ucs_status
+    raise UCXError(msg)
 
 
 cdef ucp_config_t * _read_ucx_config(dict user_options) except *:
