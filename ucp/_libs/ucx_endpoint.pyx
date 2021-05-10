@@ -74,6 +74,13 @@ def _ucx_endpoint_finalizer(
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
+    cdef ucs_status_t ep_status
+
+    if <void *>status_handle_as_int == NULL:
+        ep_status = UCS_OK
+    else:
+        ep_status = (<ucs_status_t *>status_handle_as_int)[0]
+        free(<void *>status_handle_as_int)
 
     # Cancel all inflight messages
     cdef UCXRequest req
@@ -87,17 +94,14 @@ def _ucx_endpoint_finalizer(
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
 
-    if <void *>status_handle_as_int != NULL:
-        free(<void *>status_handle_as_int)
-
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
     cdef str msg
-    close_mode = (
-        UCP_EP_CLOSE_MODE_FORCE
-        if endpoint_error_handling
-        else UCP_EP_CLOSE_MODE_FLUSH
-    )
+    cdef unsigned close_mode = UCP_EP_CLOSE_MODE_FLUSH
+    if (endpoint_error_handling and <void *>ep_status != NULL and ep_status != UCS_OK):
+        # We force close endpoint if endpoint error handling is enabled and
+        # the endpoint status is not UCS_OK
+        close_mode = UCP_EP_CLOSE_MODE_FORCE
     status = ucp_ep_close_nb(handle, close_mode)
     if UCS_PTR_IS_PTR(status):
         while ucp_request_check_status(status) == UCS_INPROGRESS:
