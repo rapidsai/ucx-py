@@ -16,6 +16,54 @@ from ..exceptions import UCXConnectionReset, UCXError
 logger = logging.getLogger("ucx")
 
 
+cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+    cdef UCXEndpoint ucx_ep = <UCXEndpoint> arg
+    assert ucx_ep.worker.initialized
+
+    cdef ucs_status_t *ep_status = <ucs_status_t *> <uintptr_t>ucx_ep._status
+    ep_status[0] = status
+
+    # Cancel all inflight messages
+    cdef UCXRequest req
+    cdef dict req_info
+    cdef str name
+    for req in list(ucx_ep._inflight_msgs):
+        assert not req.closed()
+        req_info = <dict>req._handle.info
+        name = req_info["name"]
+        logger.debug("Future cancelling: %s" % name)
+        # Notice, `request_cancel()` evoke the send/recv callback functions
+        ucx_ep.worker.request_cancel(req)
+
+    cdef str status_str = ucs_status_string(status).decode("utf-8")
+    cdef str msg = (
+        "Error callback for endpoint %s called with status %d: %s" % (
+            hex(int(<uintptr_t>ep)), status, status_str
+        )
+    )
+    logger.debug(msg)
+
+
+cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
+    str tls, bint endpoint_error_handling
+) except *:
+    cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
+    cdef ucs_status_t *cb_status = <ucs_status_t *>NULL
+
+    if endpoint_error_handling:
+        if get_ucx_version() < (1, 11, 0) and "cuda_ipc" in tls:
+            warnings.warn(
+                "CUDA IPC endpoint error handling is only supported in "
+                "UCX 1.11 and above, CUDA IPC will be disabled!",
+                RuntimeWarning
+            )
+        err_cb = <ucp_err_handler_cb_t>_err_cb
+        cb_status = <ucs_status_t *> malloc(sizeof(ucs_status_t))
+        cb_status[0] = UCS_OK
+
+    return (err_cb, <uintptr_t> cb_status)
+
+
 def _ucx_endpoint_finalizer(
         uintptr_t handle_as_int,
         bint endpoint_error_handling,
