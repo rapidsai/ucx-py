@@ -66,6 +66,7 @@ cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
 
 def _ucx_endpoint_finalizer(
         uintptr_t handle_as_int,
+        uintptr_t status_handle_as_int,
         bint endpoint_error_handling,
         worker,
         set inflight_msgs
@@ -85,6 +86,9 @@ def _ucx_endpoint_finalizer(
         logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
+
+    if <void *>status_handle_as_int != NULL:
+        free(<void *>status_handle_as_int)
 
     # Close the endpoint
     # TODO: Support UCP_EP_CLOSE_MODE_FORCE
@@ -153,15 +157,12 @@ cdef class UCXEndpoint(UCXObject):
         self.add_handle_finalizer(
             _ucx_endpoint_finalizer,
             int(<uintptr_t>ucp_ep),
+            int(<uintptr_t>ep_status),
             endpoint_error_handling,
             worker,
             self._inflight_msgs
         )
         worker.add_child(self)
-
-    def __dealloc__(self):
-        if <void *>self._status != NULL:
-            free(<void *>self._status)
 
     @classmethod
     def create(
