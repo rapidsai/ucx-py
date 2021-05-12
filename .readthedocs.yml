@@ -11,3 +11,6 @@ python:
 
 conda:
   environment: conda/environments/builddocs_py37.yml
+
+sphinx:
+  configuration: docs/source/conf.py
