@@ -1,11 +1,11 @@
 version: 2
 
 build:
-   image: latest
+  image: latest
 
 python:
-   version: 3.7
-   setup_py_install: true
+  version: 3.7
+  setup_py_install: true
 
 conda:
-   file: conda/environments/builddocs_py37.yml
+  file: conda/environments/builddocs_py37.yml
