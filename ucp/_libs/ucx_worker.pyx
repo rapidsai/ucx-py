@@ -188,6 +188,14 @@ cdef class UCXWorker(UCXObject):
         assert_ucs_status(status)
         return status
 
+    cpdef bint tag_probe(self, tag) except *:
+        cdef ucp_tag_recv_info_t info
+        cdef ucp_tag_message_h tag_message = ucp_tag_probe_nb(
+            self._handle, tag, -1, 0, &info
+        )
+
+        return tag_message != NULL
+
     def flush(self, cb_func, tuple cb_args=None, dict cb_kwargs=None):
         if cb_args is None:
             cb_args = ()

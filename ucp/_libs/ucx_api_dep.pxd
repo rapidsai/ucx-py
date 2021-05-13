@@ -245,6 +245,15 @@ cdef extern from "ucp/api/ucp.h":
                                      ucp_tag_t tag, ucp_tag_t tag_mask,
                                      ucp_tag_recv_callback_t cb)
 
+    ctypedef struct ucp_tag_message:
+        pass
+
+    ctypedef ucp_tag_message* ucp_tag_message_h
+
+    ucp_tag_message_h ucp_tag_probe_nb(ucp_worker_h worker, ucp_tag_t tag,
+                                       ucp_tag_t tag_mask, int remove,
+                                       ucp_tag_recv_info_t *info)
+
     ctypedef void (*ucp_stream_recv_callback_t)(void *request,  # noqa
                                                 ucs_status_t status,
                                                 size_t length)
