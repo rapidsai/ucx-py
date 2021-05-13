@@ -277,7 +277,6 @@ cdef class UCXEndpoint(UCXObject):
     @property
     def handle(self):
         assert self.initialized
-        self.raise_on_error()
         return int(<uintptr_t>self._handle)
 
     def flush(self, cb_func, tuple cb_args=None, dict cb_kwargs=None):

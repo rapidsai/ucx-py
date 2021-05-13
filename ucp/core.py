@@ -603,9 +603,9 @@ class Endpoint:
         tag: hashable, optional
             Set a tag that the receiver must match.
         """
+        self._ep.raise_on_error()
         if self.closed():
             raise UCXCloseError("Endpoint closed")
-        self._ep.raise_on_error()
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
@@ -675,9 +675,16 @@ class Endpoint:
             UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
             send that also sets `tag=None`.
         """
-        if self.closed():
-            raise UCXCloseError("Endpoint closed")
-        self._ep.raise_on_error()
+        if tag is None:
+            tag = self._tags["msg_recv"]
+        else:
+            tag = hash64bits(self._tags["msg_recv"], hash(tag))
+
+        if not self._ctx.worker.tag_probe(tag):
+            self._ep.raise_on_error()
+            if self.closed():
+                raise UCXCloseError("Endpoint closed")
+
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
@@ -690,10 +697,6 @@ class Endpoint:
         )
         logger.debug(log)
         self._recv_count += 1
-        if tag is None:
-            tag = self._tags["msg_recv"]
-        else:
-            tag = hash64bits(self._tags["msg_recv"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
 
