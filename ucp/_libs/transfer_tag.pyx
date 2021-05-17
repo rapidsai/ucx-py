@@ -235,7 +235,7 @@ def tag_recv_nb(
         nbytes,
         ucp_dt_make_contig(1),
         tag,
-        -1,
+        tag_mask,
         _tag_recv_cb
     )
     cdef set inflight_msgs = (
