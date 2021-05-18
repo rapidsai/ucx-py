@@ -25,10 +25,6 @@ def event_loop(scope="function"):
     loop.close()
 
 
-async def shutdown(ep):
-    await ep.close()
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("endpoint_error_handling", [False, True])
 async def test_server_shutdown(endpoint_error_handling):
@@ -39,7 +35,7 @@ async def test_server_shutdown(endpoint_error_handling):
     async def server_node(ep):
         msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await asyncio.gather(ep.recv(msg), shutdown(ep))
+            await asyncio.gather(ep.recv(msg), ep.close())
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
@@ -71,7 +67,7 @@ async def test_client_shutdown(endpoint_error_handling):
         )
         msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await asyncio.gather(ep.recv(msg), shutdown(ep))
+            await asyncio.gather(ep.recv(msg), ep.close())
 
     async def server_node(ep):
         msg = np.empty(10 ** 6)
@@ -111,11 +107,7 @@ async def test_listener_close(endpoint_error_handling):
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
     )
-    if endpoint_error_handling is True:
-        with pytest.raises(ucp.exceptions.UCXCloseError):
-            await client_node(listener)
-    else:
-        await client_node(listener)
+    await client_node(listener)
 
 
 @pytest.mark.asyncio
@@ -141,11 +133,7 @@ async def test_listener_del(endpoint_error_handling):
     await ep.recv(msg)
     assert listener.closed() is False
     del listener
-    if endpoint_error_handling is True:
-        with pytest.raises(ucp.exceptions.UCXCloseError):
-            await ep.recv(msg)
-    else:
-        await ep.recv(msg)
+    await ep.recv(msg)
 
 
 @pytest.mark.asyncio
@@ -160,77 +148,56 @@ async def test_close_after_n_recv(endpoint_error_handling):
             await ep.send(np.arange(10))
 
     async def client_node(port):
-        async def f1():
-            ep = await ucp.create_endpoint(
-                ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
-            )
-            ep.close_after_n_recv(10)
-            for _ in range(10):
-                msg = np.empty(10)
-                await ep.recv(msg)
-            assert ep.closed()
+        ep = await ucp.create_endpoint(
+            ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
+        )
+        ep.close_after_n_recv(10)
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
 
-        async def f2():
-            ep = await ucp.create_endpoint(
-                ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
-            )
-            for _ in range(5):
-                msg = np.empty(10)
-                await ep.recv(msg)
-            ep.close_after_n_recv(5)
-            for _ in range(5):
-                msg = np.empty(10)
-                await ep.recv(msg)
-            assert ep.closed()
+        ep = await ucp.create_endpoint(
+            ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
+        )
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(5)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
 
-        async def f3():
-            ep = await ucp.create_endpoint(
-                ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
-            )
-            for _ in range(5):
-                msg = np.empty(10)
-                await ep.recv(msg)
-            ep.close_after_n_recv(10, count_from_ep_creation=True)
-            for _ in range(5):
-                msg = np.empty(10)
-                await ep.recv(msg)
-            assert ep.closed()
+        ep = await ucp.create_endpoint(
+            ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
+        )
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        ep.close_after_n_recv(10, count_from_ep_creation=True)
+        for _ in range(5):
+            msg = np.empty(10)
+            await ep.recv(msg)
+        assert ep.closed()
 
-        async def f4():
-            ep = await ucp.create_endpoint(
-                ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
-            )
-            for _ in range(10):
-                msg = np.empty(10)
-                await ep.recv(msg)
+        ep = await ucp.create_endpoint(
+            ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
+        )
+        for _ in range(10):
+            msg = np.empty(10)
+            await ep.recv(msg)
 
-            with pytest.raises(
-                ucp.exceptions.UCXError,
-                match="`n` cannot be less than current recv_count",
-            ):
-                ep.close_after_n_recv(5, count_from_ep_creation=True)
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="`n` cannot be less than current recv_count",
+        ):
+            ep.close_after_n_recv(5, count_from_ep_creation=True)
 
+        ep.close_after_n_recv(1)
+        with pytest.raises(
+            ucp.exceptions.UCXError, match="close_after_n_recv has already been set to",
+        ):
             ep.close_after_n_recv(1)
-            with pytest.raises(
-                ucp.exceptions.UCXError,
-                match="close_after_n_recv has already been set to",
-            ):
-                ep.close_after_n_recv(1)
-
-        if endpoint_error_handling is True:
-            with pytest.raises(ucp.exceptions.UCXCloseError):
-                await f1()
-            with pytest.raises(ucp.exceptions.UCXCloseError):
-                await f2()
-            with pytest.raises(ucp.exceptions.UCXCloseError):
-                await f3()
-            with pytest.raises(ucp.exceptions.UCXCloseError):
-                await f4()
-        else:
-            await f1()
-            await f2()
-            await f3()
-            await f4()
 
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
