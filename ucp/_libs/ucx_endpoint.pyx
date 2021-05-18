@@ -5,6 +5,7 @@
 # cython: language_level=3
 
 import logging
+import warnings
 
 from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE

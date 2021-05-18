@@ -5,7 +5,6 @@
 # cython: language_level=3
 
 import logging
-import warnings
 
 from cython cimport boundscheck, initializedcheck, nonecheck, wraparound
 from libc.stdint cimport uintptr_t
