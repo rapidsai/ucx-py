@@ -2,6 +2,8 @@ version: 2
 
 build:
   image: latest
+  apt_packages:
+    - libnuma1
 
 python:
   version: 3.7
