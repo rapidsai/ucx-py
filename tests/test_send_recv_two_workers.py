@@ -76,7 +76,6 @@ def client(port, func, comm_api):
             await ep.am_send(close_msg)
 
         print("Shutting Down Client...")
-        await ep.close()
         return msg["data"]
 
     rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
@@ -137,6 +136,7 @@ def server(port, func, comm_api):
             recv_msg = msg.tobytes()
             assert recv_msg == close_msg
             print("Shutting Down Server...")
+            await ep.close()
             lf.close()
 
         lf = ucp.create_listener(write, port=listener_port)
