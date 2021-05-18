@@ -73,7 +73,7 @@ def _echo_client(msg_size, port, endpoint_error_handling):
 
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 def test_server_client(msg_size):
-    endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 11, 0)
+    endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 10, 0)
 
     put_queue, get_queue = mp.Queue(), mp.Queue()
     server = mp.Process(
