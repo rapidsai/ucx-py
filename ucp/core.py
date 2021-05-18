@@ -635,8 +635,6 @@ class Endpoint:
             if self._ep is None:
                 raise e
 
-            self._ep.raise_on_error()
-
     @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
     async def am_send(self, buffer):
         """Send `buffer` to connected peer.
@@ -709,8 +707,6 @@ class Endpoint:
             # UCXCanceled exception.
             if self._ep is None:
                 raise e
-
-            self._ep.raise_on_error()
 
         self._finished_recv_count += 1
         if (
