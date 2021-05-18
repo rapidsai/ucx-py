@@ -177,7 +177,6 @@ def stream_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    ep.raise_on_error()
     if cb_args is None:
         cb_args = ()
     if cb_kwargs is None:
