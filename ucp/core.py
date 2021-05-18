@@ -115,6 +115,8 @@ class CtrlMsg:
         logger.debug(log)
         ep = ep_weakref()
         if ep is None or ep.closed():
+            if ep is not None:
+                ep.abort()
             return  # The endpoint is closed
 
         opcode, close_after_n_recv = CtrlMsg.deserialize(msg)
@@ -545,10 +547,9 @@ class Endpoint:
         Notice, this functions doesn't signal the connected peer to close.
         To do that, use `Endpoint.close()`
         """
-        if self.closed() or not self._ep.is_alive():
-            return
-        logger.debug("Endpoint.abort(): %s" % hex(self.uid))
-        self._ep.close()
+        if self._ep is not None:
+            logger.debug("Endpoint.abort(): %s" % hex(self.uid))
+            self._ep.close()
         self._ep = None
         self._ctx = None
 
@@ -557,7 +558,8 @@ class Endpoint:
         This will attempt to flush outgoing buffers before actually
         closing the underlying UCX endpoint.
         """
-        if self.closed() or not self._ep.is_alive():
+        if self.closed():
+            self.abort()
             return
         try:
             # Making sure we only tell peer to shutdown once
