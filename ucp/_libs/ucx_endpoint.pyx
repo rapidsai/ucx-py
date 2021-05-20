@@ -141,8 +141,6 @@ cdef class UCXEndpoint(UCXObject):
         cdef ucs_status_t status = ucp_ep_create(worker._handle, params, &ucp_ep)
         assert_ucs_status(status)
 
-        free(<void *>params)
-
         self._handle = ucp_ep
         self._status = <uintptr_t>ep_status
         self._endpoint_error_handling = endpoint_error_handling
