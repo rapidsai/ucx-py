@@ -84,7 +84,6 @@ def _ucx_endpoint_finalizer(
         worker.request_cancel(req)
 
     # Close the endpoint
-    # TODO: Support UCP_EP_CLOSE_MODE_FORCE
     cdef str msg
     cdef unsigned close_mode = UCP_EP_CLOSE_MODE_FLUSH
     if (endpoint_error_handling and <void *>ep_status != NULL and ep_status != UCS_OK):
@@ -182,11 +181,10 @@ cdef class UCXEndpoint(UCXObject):
             raise MemoryError("Failed allocation of sockaddr")
 
         try:
-            ret = cls(worker, <uintptr_t>params, endpoint_error_handling)
+            return cls(worker, <uintptr_t>params, endpoint_error_handling)
         finally:
             c_util_sockaddr_free(&params.sockaddr)
-
-        return ret
+            free(<void *>params)
 
     @classmethod
     def create_from_worker_address(
@@ -203,7 +201,10 @@ cdef class UCXEndpoint(UCXObject):
         )
         params.address = address._address
 
-        return cls(worker, <uintptr_t>params, endpoint_error_handling)
+        try:
+            return cls(worker, <uintptr_t>params, endpoint_error_handling)
+        finally:
+            free(<void *>params)
 
     @classmethod
     def create_from_conn_request(
@@ -222,7 +223,10 @@ cdef class UCXEndpoint(UCXObject):
         params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
         params.conn_request = <ucp_conn_request_h> conn_request
 
-        return cls(worker, <uintptr_t>params, endpoint_error_handling)
+        try:
+            return cls(worker, <uintptr_t>params, endpoint_error_handling)
+        finally:
+            free(<void *>params)
 
     def info(self):
         assert self.initialized
@@ -251,7 +255,6 @@ cdef class UCXEndpoint(UCXObject):
             return
 
         status, status_str = self._get_status_and_str()
-
         if status == UCS_OK:
             return
 
