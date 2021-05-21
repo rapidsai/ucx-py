@@ -183,95 +183,18 @@ cdef class UCXWorker(UCXObject):
         # which will handle the request cleanup.
         ucp_request_cancel(self._handle, req._handle)
 
-    def ep_create(self, str ip_address, uint16_t port, bint endpoint_error_handling):
-        assert self.initialized
-        cdef ucp_ep_params_t params
-        ip_address = socket.gethostbyname(ip_address)
-        cdef ucp_err_handler_cb_t err_cb = (
-            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
-        )
-
-        params.field_mask = (
-            UCP_EP_PARAM_FIELD_FLAGS |
-            UCP_EP_PARAM_FIELD_SOCK_ADDR |
-            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-            UCP_EP_PARAM_FIELD_ERR_HANDLER
-        )
-        params.flags = UCP_EP_PARAMS_FLAGS_CLIENT_SERVER
-        if err_cb == NULL:
-            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
-        else:
-            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
-        params.err_handler.cb = err_cb
-        params.err_handler.arg = NULL
-        if c_util_set_sockaddr(&params.sockaddr, ip_address.encode(), port):
-            raise MemoryError("Failed allocation of sockaddr")
-
-        cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        c_util_sockaddr_free(&params.sockaddr)
-        assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep)
-
-    def ep_create_from_worker_address(
-        self, UCXAddress address, bint endpoint_error_handling
-    ):
-        assert self.initialized
-        cdef ucp_ep_params_t params
-        cdef ucp_err_handler_cb_t err_cb = (
-            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
-        )
-        params.field_mask = (
-            UCP_EP_PARAM_FIELD_REMOTE_ADDRESS |
-            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-            UCP_EP_PARAM_FIELD_ERR_HANDLER
-        )
-        if err_cb == NULL:
-            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
-        else:
-            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
-        params.err_handler.cb = err_cb
-        params.err_handler.arg = NULL
-        params.address = address._address
-
-        cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep)
-
-    def ep_create_from_conn_request(
-        self, uintptr_t conn_request, bint endpoint_error_handling
-    ):
-        assert self.initialized
-
-        cdef ucp_ep_params_t params
-        cdef ucp_err_handler_cb_t err_cb = (
-            _get_error_callback(self._context._config["TLS"], endpoint_error_handling)
-        )
-        params.field_mask = (
-            UCP_EP_PARAM_FIELD_FLAGS |
-            UCP_EP_PARAM_FIELD_CONN_REQUEST |
-            UCP_EP_PARAM_FIELD_ERR_HANDLING_MODE |
-            UCP_EP_PARAM_FIELD_ERR_HANDLER
-        )
-        params.flags = UCP_EP_PARAMS_FLAGS_NO_LOOPBACK
-        if err_cb == NULL:
-            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
-        else:
-            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
-        params.err_handler.cb = err_cb
-        params.err_handler.arg = NULL
-        params.conn_request = <ucp_conn_request_h> conn_request
-
-        cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(self._handle, &params, &ucp_ep)
-        assert_ucs_status(status)
-        return UCXEndpoint(self, <uintptr_t>ucp_ep)
-
     cpdef ucs_status_t fence(self) except *:
         cdef ucs_status_t status = ucp_worker_fence(self._handle)
         assert_ucs_status(status)
         return status
+
+    cpdef bint tag_probe(self, tag) except *:
+        cdef ucp_tag_recv_info_t info
+        cdef ucp_tag_message_h tag_message = ucp_tag_probe_nb(
+            self._handle, tag, -1, 0, &info
+        )
+
+        return tag_message != NULL
 
     def flush(self, cb_func, tuple cb_args=None, dict cb_kwargs=None):
         if cb_args is None:

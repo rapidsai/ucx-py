@@ -52,7 +52,7 @@ async def test_send_recv_cudf(event_loop, g):
             await self.ep.send(
                 np.array(
                     [hasattr(f, "__cuda_array_interface__") for f in frames],
-                    dtype=np.bool,
+                    dtype=bool,
                 )
             )
             await self.ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
@@ -66,7 +66,7 @@ async def test_send_recv_cudf(event_loop, g):
                 # Recv meta data
                 nframes = np.empty(1, dtype=np.uint64)
                 await self.ep.recv(nframes)
-                is_cudas = np.empty(nframes[0], dtype=np.bool)
+                is_cudas = np.empty(nframes[0], dtype=bool)
                 await self.ep.recv(is_cudas)
                 sizes = np.empty(nframes[0], dtype=np.uint64)
                 await self.ep.recv(sizes)
@@ -100,7 +100,7 @@ async def test_send_recv_cudf(event_loop, g):
                 ucx = UCX(ep)
                 self.comm = ucx
 
-            self.ucp_server = ucp.create_listener(serve_forever, port=14339)
+            self.ucp_server = ucp.create_listener(serve_forever)
 
     uu = UCXListener()
     uu.start()
