@@ -69,6 +69,9 @@ def _ucx_worker_handle_finalizer(
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
 
+    # This drains all the receive messages that were not received by the user with
+    # `tag_recv_nb`. Without this, UCX raises warnings such as below upon exit:
+    # `unexpected tag-receive descriptor ... was not matched`
     _drain_worker_tag_recv(handle)
 
     # Cancel all inflight messages
