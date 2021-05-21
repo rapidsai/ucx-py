@@ -17,31 +17,6 @@ from ..exceptions import UCXCanceled, UCXError, log_errors
 logger = logging.getLogger("ucx")
 
 
-cdef void _ib_err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
-    cdef str status_str = ucs_status_string(status).decode("utf-8")
-    cdef str msg = (
-        "Endpoint %s failed with status %d: %s" % (
-            hex(int(<uintptr_t>ep)), status, status_str
-        )
-    )
-    logger.error(msg)
-
-
-cdef ucp_err_handler_cb_t _get_error_callback(
-    str tls, bint endpoint_error_handling
-) except *:
-    cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
-    cdef str t
-    cdef list transports
-    if endpoint_error_handling:
-        transports = ["dc", "ib", "rc"]
-        for t in transports:
-            if t in tls:
-                err_cb = <ucp_err_handler_cb_t>_ib_err_cb
-                break
-    return err_cb
-
-
 IF CY_UCP_AM_SUPPORTED:
     cdef void _am_recv_completed_callback(
         void *request,
