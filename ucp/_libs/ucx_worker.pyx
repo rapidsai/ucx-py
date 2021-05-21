@@ -50,15 +50,17 @@ cdef _drain_worker_tag_recv(ucp_worker_h handle):
         status = ucp_tag_msg_recv_nb(
             handle, buf, info.length, ucp_dt_make_contig(1), message, _tag_recv_callback
         )
-        req = _handle_status(
-            status, info.length, _req_cb, (), {}, u"ucp_tag_msg_recv_nb", set()
-        )
 
-        if req is not None:
-            while _finished[0] is not True:
-                ucp_worker_progress(handle)
+        try:
+            req = _handle_status(
+                status, info.length, _req_cb, (), {}, u"ucp_tag_msg_recv_nb", set()
+            )
 
-        free(buf)
+            if req is not None:
+                while _finished[0] is not True:
+                    ucp_worker_progress(handle)
+        finally:
+            free(buf)
 
 
 def _ucx_worker_handle_finalizer(
