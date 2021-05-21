@@ -19,11 +19,55 @@ from ..utils import nvtx_annotate
 logger = logging.getLogger("ucx")
 
 
+cdef _drain_worker_tag_recv(ucp_worker_h handle):
+    cdef ucp_tag_message_h
+    cdef ucp_tag_recv_info_t info
+    cdef ucs_status_ptr_t status
+    cdef void *buf
+    cdef ucp_tag_recv_callback_t _tag_recv_cb = (
+        <ucp_tag_recv_callback_t>_tag_recv_callback
+    )
+
+    while True:
+        message = ucp_tag_probe_nb(handle, 0, 0, 1, &info)
+        if message == NULL:
+            break
+
+        logger.debug(
+            "Draining tag receive messages, worker: %s, tag: %s, length: %d" % (
+                hex(int(<uintptr_t>handle)),
+                hex(int(info.sender_tag)),
+                info.length
+            )
+        )
+
+        _finished = [False]
+
+        def _req_cb(request, exception):
+            _finished[0] = True
+
+        buf = malloc(info.length)
+        status = ucp_tag_msg_recv_nb(
+            handle, buf, info.length, ucp_dt_make_contig(1), message, _tag_recv_callback
+        )
+        req = _handle_status(
+            status, info.length, _req_cb, (), {}, u"ucp_tag_msg_recv_nb", set()
+        )
+
+        if req is not None:
+            while _finished[0] is not True:
+                ucp_worker_progress(handle)
+
+        free(buf)
+
+
 def _ucx_worker_handle_finalizer(
     uintptr_t handle_as_int, UCXContext ctx, set inflight_msgs
 ):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
+
+    _drain_worker_tag_recv(handle)
 
     # Cancel all inflight messages
     cdef UCXRequest req
