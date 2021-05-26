@@ -39,7 +39,7 @@ def register_am_allocators(args):
     if args.object_type == "cupy":
         import cupy as cp
 
-        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=np.uint8), "cuda")
+        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=cp.uint8), "cuda")
     elif args.object_type == "rmm":
         import rmm
 
@@ -53,13 +53,13 @@ def server(queue, args):
     ucp.init()
 
     if args.object_type == "numpy":
-        import numpy as np
+        import numpy as xp
     elif args.object_type == "cupy":
-        import cupy as np
+        import cupy as xp
 
-        np.cuda.runtime.setDevice(args.server_dev)
+        xp.cuda.runtime.setDevice(args.server_dev)
     else:
-        import cupy as np
+        import cupy as xp
 
         import rmm
 
@@ -69,8 +69,8 @@ def server(queue, args):
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.server_dev],
         )
-        np.cuda.runtime.setDevice(args.server_dev)
-        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
+        xp.cuda.runtime.setDevice(args.server_dev)
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     register_am_allocators(args)
 
@@ -81,9 +81,9 @@ def server(queue, args):
                 msg_recv_list = []
                 if not args.reuse_alloc:
                     for _ in range(args.n_iter):
-                        msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
+                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
                 else:
-                    t = np.zeros(args.n_bytes, dtype="u1")
+                    t = xp.zeros(args.n_bytes, dtype="u1")
                     for _ in range(args.n_iter):
                         msg_recv_list.append(t)
 
@@ -116,14 +116,16 @@ def client(queue, port, server_address, args):
 
     ucp.init()
 
-    if args.object_type == "numpy":
-        import numpy as np
-    elif args.object_type == "cupy":
-        import cupy as np
+    import numpy as np
 
-        np.cuda.runtime.setDevice(args.client_dev)
+    if args.object_type == "numpy":
+        import numpy as xp
+    elif args.object_type == "cupy":
+        import cupy as xp
+
+        xp.cuda.runtime.setDevice(args.client_dev)
     else:
-        import cupy as np
+        import cupy as xp
 
         import rmm
 
@@ -133,8 +135,8 @@ def client(queue, port, server_address, args):
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.client_dev],
         )
-        np.cuda.runtime.setDevice(args.client_dev)
-        np.cuda.set_allocator(rmm.rmm_cupy_allocator)
+        xp.cuda.runtime.setDevice(args.client_dev)
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     register_am_allocators(args)
 
@@ -142,17 +144,17 @@ def client(queue, port, server_address, args):
         ep = await ucp.create_endpoint(server_address, port)
 
         if args.enable_am:
-            msg = np.arange(args.n_bytes, dtype="u1")
+            msg = xp.arange(args.n_bytes, dtype="u1")
         else:
             msg_send_list = []
             msg_recv_list = []
             if not args.reuse_alloc:
                 for i in range(args.n_iter):
-                    msg_send_list.append(np.arange(args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
+                    msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
+                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
             else:
-                t1 = np.arange(args.n_bytes, dtype="u1")
-                t2 = np.zeros(args.n_bytes, dtype="u1")
+                t1 = xp.arange(args.n_bytes, dtype="u1")
+                t2 = xp.zeros(args.n_bytes, dtype="u1")
                 for i in range(args.n_iter):
                     msg_send_list.append(t1)
                     msg_recv_list.append(t2)
@@ -160,7 +162,7 @@ def client(queue, port, server_address, args):
             assert msg_recv_list[0].nbytes == args.n_bytes
 
         if args.cuda_profile:
-            np.cuda.profiler.start()
+            xp.cuda.profiler.start()
         times = []
         for i in range(args.n_iter):
             start = clock()
@@ -173,7 +175,7 @@ def client(queue, port, server_address, args):
             stop = clock()
             times.append(stop - start)
         if args.cuda_profile:
-            np.cuda.profiler.stop()
+            xp.cuda.profiler.stop()
         queue.put(times)
 
     loop = asyncio.get_event_loop()
@@ -183,14 +185,16 @@ def client(queue, port, server_address, args):
     assert len(times) == args.n_iter
     print("Roundtrip benchmark")
     print("--------------------------")
-    print(f"n_iter       | {args.n_iter}")
-    print(f"n_bytes      | {format_bytes(args.n_bytes)}")
-    print(f"object       | {args.object_type}")
-    print(f"reuse alloc  | {args.reuse_alloc}")
-    print(f"transfer API | {'AM' if args.enable_am else 'TAG'}")
+    print(f"n_iter          | {args.n_iter}")
+    print(f"n_bytes         | {format_bytes(args.n_bytes)}")
+    print(f"object          | {args.object_type}")
+    print(f"reuse alloc     | {args.reuse_alloc}")
+    print(f"transfer API    | {'AM' if args.enable_am else 'TAG'}")
+    print(f"UCX_TLS         | {ucp.get_config()['TLS']}")
+    print(f"UCX_NET_DEVICES | {ucp.get_config()['NET_DEVICES']}")
     print("==========================")
     if args.object_type == "numpy":
-        print("Device(s)    | CPU-only")
+        print("Device(s)       | CPU-only")
         s_aff = (
             args.server_cpu_affinity
             if args.server_cpu_affinity >= 0
@@ -201,13 +205,14 @@ def client(queue, port, server_address, args):
             if args.client_cpu_affinity >= 0
             else "affinity not set"
         )
-        print(f"Server CPU   | {s_aff}")
-        print(f"Client CPU   | {c_aff}")
+        print(f"Server CPU      | {s_aff}")
+        print(f"Client CPU      | {c_aff}")
     else:
-        print(f"Device(s)    | {args.server_dev}, {args.client_dev}")
-    print(
-        f"Average      | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
-    )
+        print(f"Device(s)       | {args.server_dev}, {args.client_dev}")
+    avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
+    med = format_bytes(2 * args.n_bytes / np.median(times))
+    print(f"Average         | {avg}/s")
+    print(f"Median          | {med}/s")
     print("--------------------------")
     print("Iterations")
     print("--------------------------")
