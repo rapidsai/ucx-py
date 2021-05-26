@@ -31,6 +31,21 @@ import ucp
 mp = mp.get_context("spawn")
 
 
+def register_am_allocators(args):
+    import numpy as np
+
+    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
+
+    if args.object_type == "cupy":
+        import cupy as cp
+
+        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=np.uint8), "cuda")
+    elif args.object_type == "rmm":
+        import rmm
+
+        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+
+
 def server(queue, args):
     if args.server_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.server_cpu_affinity])
@@ -57,22 +72,30 @@ def server(queue, args):
         np.cuda.runtime.setDevice(args.server_dev)
         np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
+    register_am_allocators(args)
+
     async def run():
         async def server_handler(ep):
 
-            msg_recv_list = []
-            if not args.reuse_alloc:
-                for _ in range(args.n_iter):
-                    msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
-            else:
-                t = np.zeros(args.n_bytes, dtype="u1")
-                for _ in range(args.n_iter):
-                    msg_recv_list.append(t)
+            if not args.enable_am:
+                msg_recv_list = []
+                if not args.reuse_alloc:
+                    for _ in range(args.n_iter):
+                        msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
+                else:
+                    t = np.zeros(args.n_bytes, dtype="u1")
+                    for _ in range(args.n_iter):
+                        msg_recv_list.append(t)
 
-            assert msg_recv_list[0].nbytes == args.n_bytes
+                assert msg_recv_list[0].nbytes == args.n_bytes
+
             for i in range(args.n_iter):
-                await ep.recv(msg_recv_list[i])
-                await ep.send(msg_recv_list[i])
+                if args.enable_am is True:
+                    recv = await ep.am_recv()
+                    await ep.am_send(recv)
+                else:
+                    await ep.recv(msg_recv_list[i])
+                    await ep.send(msg_recv_list[i])
             await ep.close()
             lf.close()
 
@@ -113,30 +136,40 @@ def client(queue, port, server_address, args):
         np.cuda.runtime.setDevice(args.client_dev)
         np.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
+    register_am_allocators(args)
+
     async def run():
         ep = await ucp.create_endpoint(server_address, port)
 
-        msg_send_list = []
-        msg_recv_list = []
-        if not args.reuse_alloc:
-            for i in range(args.n_iter):
-                msg_send_list.append(np.arange(args.n_bytes, dtype="u1"))
-                msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
+        if args.enable_am:
+            msg = np.arange(args.n_bytes, dtype="u1")
         else:
-            t1 = np.arange(args.n_bytes, dtype="u1")
-            t2 = np.zeros(args.n_bytes, dtype="u1")
-            for i in range(args.n_iter):
-                msg_send_list.append(t1)
-                msg_recv_list.append(t2)
-        assert msg_send_list[0].nbytes == args.n_bytes
-        assert msg_recv_list[0].nbytes == args.n_bytes
+            msg_send_list = []
+            msg_recv_list = []
+            if not args.reuse_alloc:
+                for i in range(args.n_iter):
+                    msg_send_list.append(np.arange(args.n_bytes, dtype="u1"))
+                    msg_recv_list.append(np.zeros(args.n_bytes, dtype="u1"))
+            else:
+                t1 = np.arange(args.n_bytes, dtype="u1")
+                t2 = np.zeros(args.n_bytes, dtype="u1")
+                for i in range(args.n_iter):
+                    msg_send_list.append(t1)
+                    msg_recv_list.append(t2)
+            assert msg_send_list[0].nbytes == args.n_bytes
+            assert msg_recv_list[0].nbytes == args.n_bytes
+
         if args.cuda_profile:
             np.cuda.profiler.start()
         times = []
         for i in range(args.n_iter):
             start = clock()
-            await ep.send(msg_send_list[i])
-            await ep.recv(msg_recv_list[i])
+            if args.enable_am:
+                await ep.am_send(msg)
+                await ep.am_recv()
+            else:
+                await ep.send(msg_send_list[i])
+                await ep.recv(msg_recv_list[i])
             stop = clock()
             times.append(stop - start)
         if args.cuda_profile:
@@ -150,13 +183,14 @@ def client(queue, port, server_address, args):
     assert len(times) == args.n_iter
     print("Roundtrip benchmark")
     print("--------------------------")
-    print(f"n_iter      | {args.n_iter}")
-    print(f"n_bytes     | {format_bytes(args.n_bytes)}")
-    print(f"object      | {args.object_type}")
-    print(f"reuse alloc | {args.reuse_alloc}")
+    print(f"n_iter       | {args.n_iter}")
+    print(f"n_bytes      | {format_bytes(args.n_bytes)}")
+    print(f"object       | {args.object_type}")
+    print(f"reuse alloc  | {args.reuse_alloc}")
+    print(f"transfer API | {'AM' if args.enable_am else 'TAG'}")
     print("==========================")
     if args.object_type == "numpy":
-        print("Device(s)   | CPU-only")
+        print("Device(s)    | CPU-only")
         s_aff = (
             args.server_cpu_affinity
             if args.server_cpu_affinity >= 0
@@ -167,12 +201,12 @@ def client(queue, port, server_address, args):
             if args.client_cpu_affinity >= 0
             else "affinity not set"
         )
-        print(f"Server CPU  | {s_aff}")
-        print(f"Client CPU  | {c_aff}")
+        print(f"Server CPU   | {s_aff}")
+        print(f"Client CPU   | {c_aff}")
     else:
-        print(f"Device(s)   | {args.server_dev}, {args.client_dev}")
+        print(f"Device(s)    | {args.server_dev}, {args.client_dev}")
     print(
-        f"Average     | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
+        f"Average      | {format_bytes(2 * args.n_iter * args.n_bytes / sum(times))}/s"
     )
     print("--------------------------")
     print("Iterations")
@@ -288,6 +322,12 @@ def parse_args():
         help="Connect to soliatry server process (to be user with --server-only)",
     )
     parser.add_argument("-p", "--port", default=None, help="server port.", type=int)
+    parser.add_argument(
+        "--enable-am",
+        default=False,
+        action="store_true",
+        help="Use Active Message API instead of TAG for transfers",
+    )
 
     args = parser.parse_args()
     if args.cuda_profile and args.object_type == "numpy":
