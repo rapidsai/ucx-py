@@ -53,8 +53,6 @@ def server(queue, args):
     if args.server_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.server_cpu_affinity])
 
-    ucp.init()
-
     if args.object_type == "numpy":
         import numpy as xp
     elif args.object_type == "cupy":
@@ -74,6 +72,8 @@ def server(queue, args):
         )
         xp.cuda.runtime.setDevice(args.server_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
+    ucp.init()
 
     register_am_allocators(args)
 
@@ -117,8 +117,6 @@ def client(queue, port, server_address, args):
     if args.client_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.client_cpu_affinity])
 
-    ucp.init()
-
     import numpy as np
 
     if args.object_type == "numpy":
@@ -140,6 +138,8 @@ def client(queue, port, server_address, args):
         )
         xp.cuda.runtime.setDevice(args.client_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
+    ucp.init()
 
     register_am_allocators(args)
 
