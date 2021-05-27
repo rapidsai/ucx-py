@@ -99,7 +99,7 @@ def server(queue, args):
             await ep.close()
             lf.close()
 
-        lf = ucp.create_listener(server_handler)
+        lf = ucp.create_listener(server_handler, port=args.port)
         queue.put(lf.port)
 
         while not lf.closed():
@@ -324,9 +324,16 @@ def parse_args():
         "--client-only",
         default=False,
         action="store_true",
-        help="Connect to soliatry server process (to be user with --server-only)",
+        help="Connect to solitary server process (to be user with --server-only)",
     )
-    parser.add_argument("-p", "--port", default=None, help="server port.", type=int)
+    parser.add_argument(
+        "-p",
+        "--port",
+        default=None,
+        help="The port the server will bind to, if not specified, UCX will bind "
+        "to a random port. Must be specified when --client-only is used.",
+        type=int,
+    )
     parser.add_argument(
         "--enable-am",
         default=False,
@@ -356,9 +363,9 @@ def main():
         p1 = mp.Process(target=server, args=(q1, args))
         p1.start()
         port = q1.get()
+        print(f"Server Running at {server_address}:{port}")
     else:
         port = args.port
-    print(f"Server Running at {server_address}:{port}")
 
     if not args.server_only or args.client_only:
         # client process
