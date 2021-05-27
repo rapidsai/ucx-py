@@ -32,6 +32,9 @@ mp = mp.get_context("spawn")
 
 
 def register_am_allocators(args):
+    if not args.enable_am:
+        return
+
     import numpy as np
 
     ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
