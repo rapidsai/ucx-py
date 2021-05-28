@@ -49,7 +49,7 @@ def get_data():
     return ret
 
 
-def _echo_server(get_queue, put_queue, msg_size, datatype):
+def _echo_server(get_queue, put_queue, msg_size, datatype, endpoint_error_handling):
     """Server that send received message back to the client
 
     Notice, since it is illegal to call progress() in call-back functions,
@@ -80,8 +80,8 @@ def _echo_server(get_queue, put_queue, msg_size, datatype):
 
     def _listener_handler(conn_request):
         global ep
-        ep = worker.ep_create_from_conn_request(
-            conn_request, endpoint_error_handling=True
+        ep = ucx_api.UCXEndpoint.create_from_conn_request(
+            worker, conn_request, endpoint_error_handling=endpoint_error_handling,
         )
 
         # Wireup
@@ -103,7 +103,7 @@ def _echo_server(get_queue, put_queue, msg_size, datatype):
             break
 
 
-def _echo_client(msg_size, datatype, port):
+def _echo_client(msg_size, datatype, port, endpoint_error_handling):
     data = get_data()[datatype]
 
     ctx = ucx_api.UCXContext(
@@ -113,7 +113,9 @@ def _echo_client(msg_size, datatype, port):
     worker = ucx_api.UCXWorker(ctx)
     worker.register_am_allocator(data["allocator"], data["memory_type"])
 
-    ep = worker.ep_create("localhost", port, endpoint_error_handling=True)
+    ep = ucx_api.UCXEndpoint.create(
+        worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
+    )
 
     # The wireup message is sent to ensure endpoints are connected, otherwise
     # UCX may not perform any rendezvous transfers.
@@ -145,13 +147,18 @@ def _echo_client(msg_size, datatype, port):
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 @pytest.mark.parametrize("datatype", get_data().keys())
 def test_server_client(msg_size, datatype):
+    endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 10, 0)
+
     put_queue, get_queue = mp.Queue(), mp.Queue()
     server = mp.Process(
-        target=_echo_server, args=(put_queue, get_queue, msg_size, datatype)
+        target=_echo_server,
+        args=(put_queue, get_queue, msg_size, datatype, endpoint_error_handling),
     )
     server.start()
     port = get_queue.get()
-    client = mp.Process(target=_echo_client, args=(msg_size, datatype, port))
+    client = mp.Process(
+        target=_echo_client, args=(msg_size, datatype, port, endpoint_error_handling)
+    )
     client.start()
     client.join(timeout=10)
     assert not client.exitcode

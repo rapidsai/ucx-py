@@ -133,10 +133,11 @@ cdef extern from "ucp/api/ucp.h":
         ucp_request_init_callback_t request_init
 
     ucs_status_t UCS_OK
-    ucs_status_t UCS_ERR_CANCELED
     ucs_status_t UCS_INPROGRESS
     ucs_status_t UCS_ERR_NO_ELEM
     ucs_status_t UCS_ERR_BUSY
+    ucs_status_t UCS_ERR_CANCELED
+    ucs_status_t UCS_ERR_CONNECTION_RESET
 
     void ucp_get_version(unsigned * major_version,
                          unsigned *minor_version,
@@ -243,6 +244,20 @@ cdef extern from "ucp/api/ucp.h":
                                      size_t count, ucp_datatype_t datatype,
                                      ucp_tag_t tag, ucp_tag_t tag_mask,
                                      ucp_tag_recv_callback_t cb)
+
+    ctypedef struct ucp_tag_message:
+        pass
+
+    ctypedef ucp_tag_message* ucp_tag_message_h
+
+    ucp_tag_message_h ucp_tag_probe_nb(ucp_worker_h worker, ucp_tag_t tag,
+                                       ucp_tag_t tag_mask, int remove,
+                                       ucp_tag_recv_info_t *info)
+
+    ucs_status_ptr_t ucp_tag_msg_recv_nb(ucp_worker_h worker, void *buffer,
+                                         size_t count, ucp_datatype_t datatype,
+                                         ucp_tag_message_h message,
+                                         ucp_tag_recv_callback_t cb)
 
     ctypedef void (*ucp_stream_recv_callback_t)(void *request,  # noqa
                                                 ucs_status_t status,

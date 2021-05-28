@@ -58,6 +58,8 @@ def test_rkey_unpack():
     mem = ucx_api.UCXMemoryHandle.alloc(ctx, 1024)
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
-    ep = worker.ep_create_from_worker_address(worker.get_address(), ctx)
+    ep = ucx_api.UCXEndpoint.create_from_worker_address(
+        worker, worker.get_address(), endpoint_error_handling=False
+    )
     rkey = ep.unpack_rkey(packed_rkey)
     assert rkey is not None

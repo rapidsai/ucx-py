@@ -41,5 +41,9 @@ class UCXCanceled(UCXBaseException):
     pass
 
 
+class UCXConnectionReset(UCXBaseException):
+    pass
+
+
 class UCXMsgTruncated(UCXBaseException):
     pass

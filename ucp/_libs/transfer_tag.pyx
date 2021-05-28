@@ -59,6 +59,7 @@ def tag_send_nb(
     name: str, optional
         Descriptive name of the operation
     """
+    ep.raise_on_error()
     if cb_args is None:
         cb_args = ()
     if cb_kwargs is None:
@@ -234,7 +235,7 @@ def tag_recv_nb(
         nbytes,
         ucp_dt_make_contig(1),
         tag,
-        -1,
+        tag_mask,
         _tag_recv_cb
     )
     cdef set inflight_msgs = (
