@@ -360,6 +360,10 @@ def main():
     # if you are the client, only start the `client process`
     # otherwise, start everything
 
+    if args.enable_am and not ucp._libs.ucx_api.is_am_supported():
+        print("AM only supported in UCX >= 1.11")
+        return
+
     if not args.client_only:
         # server process
         q1 = mp.Queue()
