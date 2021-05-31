@@ -26,6 +26,7 @@ export HOME=$WORKSPACE
 cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
+export RAPIDS_VERSION="21.06"
 export UCX_PATH=$CONDA_PREFIX
 
 ################################################################################
@@ -42,8 +43,8 @@ gpuci_logger "Activate conda env"
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
 gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
-              "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
-              "rapids-build-env=${MINOR_VERSION}"
+              "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
+              "rapids-build-env=${RAPIDS_VERSION}"
 
 # Install the main version of dask and distributed
 gpuci_logger "pip install git+https://github.com/dask/distributed.git@main --upgrade --no-deps"
