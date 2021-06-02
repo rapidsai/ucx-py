@@ -98,7 +98,9 @@ def server(queue, args):
 
     def _listener_handler(conn_request):
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True
+            worker,
+            conn_request,
+            endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
         )
 
         if not args.enable_am:
@@ -166,7 +168,10 @@ def client(queue, port, server_address, args):
     worker = ucx_api.UCXWorker(ctx)
     register_am_allocators(args, worker)
     ep = ucx_api.UCXEndpoint.create(
-        worker, server_address, port, endpoint_error_handling=True
+        worker,
+        server_address,
+        port,
+        endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
     )
 
     if args.enable_am:
