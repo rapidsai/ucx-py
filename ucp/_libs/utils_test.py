@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import time
 
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
@@ -21,7 +20,6 @@ def blocking_send(worker, ep, msg, tag=0):
     if req is not None:
         while not finished[0]:
             worker.progress()
-            time.sleep(0.1)
 
 
 def blocking_recv(worker, ep, msg, tag=0):
@@ -39,7 +37,6 @@ def blocking_recv(worker, ep, msg, tag=0):
     if req is not None:
         while not finished[0]:
             worker.progress()
-            time.sleep(0.1)
 
 
 def blocking_am_send(worker, ep, msg):
@@ -51,7 +48,6 @@ def blocking_am_send(worker, ep, msg):
     if req is not None:
         while not finished[0]:
             worker.progress()
-            time.sleep(0.1)
 
 
 def blocking_am_recv_handler(recv_obj, exception, ret):
@@ -66,5 +62,4 @@ def blocking_am_recv(worker, ep):
     )
     while ret[0] is None:
         worker.progress()
-        time.sleep(0.1)
     return ret[0]
