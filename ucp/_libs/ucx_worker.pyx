@@ -64,15 +64,17 @@ cdef _drain_worker_tag_recv(ucp_worker_h handle):
 
 
 def _ucx_worker_handle_finalizer(
-    uintptr_t handle_as_int, UCXContext ctx, set inflight_msgs
+    uintptr_t handle_as_int, UCXContext ctx, set inflight_msgs, bint tag_support
 ):
     assert ctx.initialized
     cdef ucp_worker_h handle = <ucp_worker_h>handle_as_int
 
     # This drains all the receive messages that were not received by the user with
-    # `tag_recv_nb`. Without this, UCX raises warnings such as below upon exit:
+    # `tag_recv_nb` when UCP_FEATURE_TAG is enabled. Without this, UCX raises
+    # warnings such as below upon exit:
     # `unexpected tag-receive descriptor ... was not matched`
-    _drain_worker_tag_recv(handle)
+    if tag_support:
+        _drain_worker_tag_recv(handle)
 
     # Cancel all inflight messages
     cdef UCXRequest req
@@ -104,6 +106,7 @@ cdef class UCXWorker(UCXObject):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
         cdef ucs_status_t status
+        cdef bint tag_enabled
 
         IF CY_UCP_AM_SUPPORTED:
             cdef ucp_am_handler_param_t am_handler_param
@@ -134,11 +137,14 @@ cdef class UCXWorker(UCXObject):
                 am_handler_param.arg = <void *>self
                 status = ucp_worker_set_am_recv_handler(self._handle, &am_handler_param)
 
+        tag_enabled = Feature.TAG in context._feature_flags
+
         self.add_handle_finalizer(
             _ucx_worker_handle_finalizer,
             int(<uintptr_t>self._handle),
             self._context,
-            self._inflight_msgs
+            self._inflight_msgs,
+            tag_enabled,
         )
         context.add_child(self)
 
