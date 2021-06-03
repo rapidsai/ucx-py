@@ -1,12 +1,12 @@
 """
 Benchmark send receive on one machine (UCX < 1.10):
 UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm python \
-    local-send-recv.py --server-dev 2 --client-dev 1 \
+    send-recv-core.py --server-dev 2 --client-dev 1 \
     --object_type rmm --reuse-alloc --n-bytes 1GB
 
 
 Benchmark send receive on one machine (UCX >= 1.10):
-UCX_TLS=tcp,cuda_copy,cuda_ipc python local-send-recv.py \
+UCX_TLS=tcp,cuda_copy,cuda_ipc python send-recv-core.py \
         --server-dev 2 --client-dev 1 --object_type rmm \
         --reuse-alloc --n-bytes 1GB
 
@@ -14,13 +14,13 @@ UCX_TLS=tcp,cuda_copy,cuda_ipc python local-send-recv.py \
 Benchmark send receive on two machines (IB testing, UCX < 1.10):
 # server process
 UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py \
+    UCX_SOCKADDR_TLS_PRIORITY=sockcm python send-recv-core.py \
     --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
     --n-bytes 1GB --server-only --port 13337 --n-iter 100
 
 # client process
 UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python local-send-recv.py \
+    UCX_SOCKADDR_TLS_PRIORITY=sockcm python send-recv-core.py \
     --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
     --n-bytes 1GB --client-only --server-address SERVER_IP --port 13337 \
     --n-iter 100
@@ -28,45 +28,59 @@ UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
 
 Benchmark send receive on two machines (IB testing, UCX >= 1.10):
 # server process
-UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python local-send-recv.py \
+UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python send-recv-core.py \
         --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
         --n-bytes 1GB --server-only --port 13337 --n-iter 100
 
 # client process
-UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python local-send-recv.py \
+UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python send-recv-core.py \
         --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
         --n-bytes 1GB --client-only --server-address SERVER_IP --port 13337 \
         --n-iter 100
 """
 import argparse
-import asyncio
 import multiprocessing as mp
 import os
+from threading import Lock
 from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
 
 import ucp
+from ucp._libs import ucx_api
+from ucp._libs.arr import Array
+from ucp._libs.utils_test import (
+    blocking_am_recv,
+    blocking_am_send,
+    blocking_recv,
+    blocking_send,
+)
 
 mp = mp.get_context("spawn")
 
 
-def register_am_allocators(args):
+def register_am_allocators(args, worker):
     if not args.enable_am:
         return
 
     import numpy as np
 
-    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
+    worker.register_am_allocator(
+        lambda n: np.empty(n, dtype=np.uint8), ucx_api.AllocatorType.HOST
+    )
 
     if args.object_type == "cupy":
         import cupy as cp
 
-        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=cp.uint8), "cuda")
+        worker.register_am_allocator(
+            lambda n: cp.empty(n, dtype=cp.uint8), ucx_api.AllocatorType.CUDA
+        )
     elif args.object_type == "rmm":
         import rmm
 
-        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+        worker.register_am_allocator(
+            lambda n: rmm.DeviceBuffer(size=n), ucx_api.AllocatorType.CUDA
+        )
 
 
 def server(queue, args):
@@ -93,44 +107,82 @@ def server(queue, args):
         xp.cuda.runtime.setDevice(args.server_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
+    ctx = ucx_api.UCXContext(
+        feature_flags=(
+            ucx_api.Feature.AM if args.enable_am is True else ucx_api.Feature.TAG,
+        )
+    )
+    worker = ucx_api.UCXWorker(ctx)
 
-    register_am_allocators(args)
+    register_am_allocators(args, worker)
 
-    async def run():
-        async def server_handler(ep):
+    # A reference to listener's endpoint is stored to prevent it from going
+    # out of scope too early.
+    ep = None
 
-            if not args.enable_am:
-                msg_recv_list = []
-                if not args.reuse_alloc:
-                    for _ in range(args.n_iter):
-                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-                else:
-                    t = xp.zeros(args.n_bytes, dtype="u1")
-                    for _ in range(args.n_iter):
-                        msg_recv_list.append(t)
+    finished_lock = Lock()
+    finished = [0]
 
-                assert msg_recv_list[0].nbytes == args.n_bytes
+    def _send_handle(request, exception, msg):
+        # Notice, we pass `msg` to the handler in order to make sure
+        # it doesn't go out of scope prematurely.
+        assert exception is None
 
-            for i in range(args.n_iter):
-                if args.enable_am is True:
-                    recv = await ep.am_recv()
-                    await ep.am_send(recv)
-                else:
-                    await ep.recv(msg_recv_list[i])
-                    await ep.send(msg_recv_list[i])
-            await ep.close()
-            lf.close()
+        with finished_lock:
+            finished[0] += 1
 
-        lf = ucp.create_listener(server_handler, port=args.port)
-        queue.put(lf.port)
+    def _tag_recv_handle(request, exception, ep, msg):
+        assert exception is None
+        ucx_api.tag_send_nb(
+            ep, msg, msg.nbytes, tag=0, cb_func=_send_handle, cb_args=(msg,)
+        )
 
-        while not lf.closed():
-            await asyncio.sleep(0.5)
+    def _am_recv_handle(recv_obj, exception, ep):
+        assert exception is None
+        msg = Array(recv_obj)
+        ucx_api.am_send_nbx(ep, msg, msg.nbytes, cb_func=_send_handle, cb_args=(msg,))
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run())
-    loop.close()
+    def _listener_handler(conn_request):
+        global ep
+        ep = ucx_api.UCXEndpoint.create_from_conn_request(
+            worker,
+            conn_request,
+            endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
+        )
+
+        if not args.enable_am:
+            msg_recv_list = []
+            if not args.reuse_alloc:
+                for _ in range(args.n_iter):
+                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
+            else:
+                t = xp.zeros(args.n_bytes, dtype="u1")
+                for _ in range(args.n_iter):
+                    msg_recv_list.append(t)
+
+            assert msg_recv_list[0].nbytes == args.n_bytes
+
+        for i in range(args.n_iter):
+            if args.enable_am is True:
+                ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
+            else:
+                msg = Array(msg_recv_list[i])
+                ucx_api.tag_recv_nb(
+                    worker,
+                    msg,
+                    msg.nbytes,
+                    tag=0,
+                    cb_func=_tag_recv_handle,
+                    cb_args=(ep, msg),
+                )
+
+    listener = ucx_api.UCXListener(
+        worker=worker, port=args.port or 0, cb_func=_listener_handler
+    )
+    queue.put(listener.port)
+
+    while finished[0] != args.n_iter:
+        worker.progress()
 
 
 def client(queue, port, server_address, args):
@@ -159,52 +211,54 @@ def client(queue, port, server_address, args):
         xp.cuda.runtime.setDevice(args.client_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
+    ctx = ucx_api.UCXContext(
+        feature_flags=(
+            ucx_api.Feature.AM if args.enable_am is True else ucx_api.Feature.TAG,
+        )
+    )
+    worker = ucx_api.UCXWorker(ctx)
+    register_am_allocators(args, worker)
+    ep = ucx_api.UCXEndpoint.create(
+        worker,
+        server_address,
+        port,
+        endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
+    )
 
-    register_am_allocators(args)
-
-    async def run():
-        ep = await ucp.create_endpoint(server_address, port)
-
-        if args.enable_am:
-            msg = xp.arange(args.n_bytes, dtype="u1")
+    if args.enable_am:
+        msg = xp.arange(args.n_bytes, dtype="u1")
+    else:
+        msg_send_list = []
+        msg_recv_list = []
+        if not args.reuse_alloc:
+            for i in range(args.n_iter):
+                msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
+                msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
         else:
-            msg_send_list = []
-            msg_recv_list = []
-            if not args.reuse_alloc:
-                for i in range(args.n_iter):
-                    msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-            else:
-                t1 = xp.arange(args.n_bytes, dtype="u1")
-                t2 = xp.zeros(args.n_bytes, dtype="u1")
-                for i in range(args.n_iter):
-                    msg_send_list.append(t1)
-                    msg_recv_list.append(t2)
-            assert msg_send_list[0].nbytes == args.n_bytes
-            assert msg_recv_list[0].nbytes == args.n_bytes
+            t1 = xp.arange(args.n_bytes, dtype="u1")
+            t2 = xp.zeros(args.n_bytes, dtype="u1")
+            for i in range(args.n_iter):
+                msg_send_list.append(t1)
+                msg_recv_list.append(t2)
+        assert msg_send_list[0].nbytes == args.n_bytes
+        assert msg_recv_list[0].nbytes == args.n_bytes
 
-        if args.cuda_profile:
-            xp.cuda.profiler.start()
-        times = []
-        for i in range(args.n_iter):
-            start = clock()
-            if args.enable_am:
-                await ep.am_send(msg)
-                await ep.am_recv()
-            else:
-                await ep.send(msg_send_list[i])
-                await ep.recv(msg_recv_list[i])
-            stop = clock()
-            times.append(stop - start)
-        if args.cuda_profile:
-            xp.cuda.profiler.stop()
-        queue.put(times)
+    if args.cuda_profile:
+        xp.cuda.profiler.start()
+    times = []
+    for i in range(args.n_iter):
+        start = clock()
+        if args.enable_am:
+            blocking_am_send(worker, ep, msg)
+            blocking_am_recv(worker, ep)
+        else:
+            blocking_send(worker, ep, msg_send_list[i])
+            blocking_recv(worker, ep, msg_recv_list[i])
+        stop = clock()
+        times.append(stop - start)
+    if args.cuda_profile:
+        xp.cuda.profiler.stop()
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run())
-    loop.close()
-    times = queue.get()
     assert len(times) == args.n_iter
     print("Roundtrip benchmark")
     print("--------------------------")
