@@ -41,12 +41,14 @@ UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python local-send-recv-core.py \
 import argparse
 import multiprocessing as mp
 import os
+from threading import Lock
 from time import perf_counter as clock
 
 from distributed.utils import format_bytes, parse_bytes
 
 import ucp
 from ucp._libs import ucx_api
+from ucp._libs.arr import Array
 from ucp._libs.utils_test import (
     blocking_am_recv,
     blocking_am_send,
@@ -114,9 +116,34 @@ def server(queue, args):
 
     register_am_allocators(args, worker)
 
-    finished = [False]
+    # A reference to listener's endpoint is stored to prevent it from going
+    # out of scope too early.
+    ep = None
+
+    finished_lock = Lock()
+    finished = [0]
+
+    def _send_handle(request, exception, msg):
+        # Notice, we pass `msg` to the handler in order to make sure
+        # it doesn't go out of scope prematurely.
+        assert exception is None
+
+        with finished_lock:
+            finished[0] += 1
+
+    def _tag_recv_handle(request, exception, ep, msg):
+        assert exception is None
+        ucx_api.tag_send_nb(
+            ep, msg, msg.nbytes, tag=0, cb_func=_send_handle, cb_args=(msg,)
+        )
+
+    def _am_recv_handle(recv_obj, exception, ep):
+        assert exception is None
+        msg = Array(recv_obj)
+        ucx_api.am_send_nbx(ep, msg, msg.nbytes, cb_func=_send_handle, cb_args=(msg,))
 
     def _listener_handler(conn_request):
+        global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
             worker,
             conn_request,
@@ -137,20 +164,24 @@ def server(queue, args):
 
         for i in range(args.n_iter):
             if args.enable_am is True:
-                recv = blocking_am_recv(worker, ep)
-                blocking_am_send(worker, ep, recv)
+                ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
             else:
-                blocking_recv(worker, ep, msg_recv_list[i])
-                blocking_send(worker, ep, msg_recv_list[i])
-
-        finished[0] = True
+                msg = Array(msg_recv_list[i])
+                ucx_api.tag_recv_nb(
+                    worker,
+                    msg,
+                    msg.nbytes,
+                    tag=0,
+                    cb_func=_tag_recv_handle,
+                    cb_args=(ep, msg),
+                )
 
     listener = ucx_api.UCXListener(
         worker=worker, port=args.port or 0, cb_func=_listener_handler
     )
     queue.put(listener.port)
 
-    while finished[0] is False:
+    while finished[0] != args.n_iter:
         worker.progress()
 
 
