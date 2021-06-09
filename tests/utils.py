@@ -113,3 +113,28 @@ async def recv(ep):
 
     msg = await from_frames(frames)
     return frames, msg
+
+
+async def am_send(ep, frames):
+    await ep.am_send(np.array([len(frames)], dtype=np.uint64))
+    # Send frames
+    for frame in frames:
+        await ep.am_send(frame)
+
+
+async def am_recv(ep):
+    try:
+        # Recv meta data
+        nframes = (await ep.am_recv()).view(np.uint64)
+    except (ucp.exceptions.UCXCanceled, ucp.exceptions.UCXCloseError) as e:
+        msg = "SOMETHING TERRIBLE HAS HAPPENED IN THE TEST"
+        raise e(msg)
+
+    # Recv frames
+    frames = []
+    for _ in range(nframes[0]):
+        frame = await ep.am_recv()
+        frames.append(frame)
+
+    msg = await from_frames(frames)
+    return frames, msg

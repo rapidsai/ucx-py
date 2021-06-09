@@ -26,6 +26,7 @@ export HOME=$WORKSPACE
 cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
+export RAPIDS_VERSION="21.06"
 export UCX_PATH=$CONDA_PREFIX
 
 ################################################################################
@@ -42,11 +43,8 @@ gpuci_logger "Activate conda env"
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
 gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
-              "cudf=${MINOR_VERSION}" "dask-cudf=${MINOR_VERSION}" \
-              "rapids-build-env=${MINOR_VERSION}"
-
-# Install pytorch to run related tests
-gpuci_conda_retry install -c pytorch "pytorch" "torchvision"
+              "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
+              "rapids-build-env=${RAPIDS_VERSION}"
 
 # Install the main version of dask and distributed
 gpuci_logger "pip install git+https://github.com/dask/distributed.git@main --upgrade --no-deps"
@@ -108,7 +106,6 @@ else
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_torch as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
         py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
@@ -116,6 +113,7 @@ else
     fi
 
     gpuci_logger "Run local benchmark"
-    python benchmarks/local-send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python benchmarks/send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python benchmarks/send-recv-core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
 fi

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
 # Copyright (c) 2020       UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
@@ -115,6 +115,8 @@ class CtrlMsg:
         logger.debug(log)
         ep = ep_weakref()
         if ep is None or ep.closed():
+            if ep is not None:
+                ep.abort()
             return  # The endpoint is closed
 
         opcode, close_after_n_recv = CtrlMsg.deserialize(msg)
@@ -133,7 +135,7 @@ class CtrlMsg:
         msg = bytearray(CtrlMsg.nbytes)
         msg_arr = Array(msg)
         shutdown_fut = comm.tag_recv(
-            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log,
+            ep._ep, msg_arr, msg_arr.nbytes, ep._tags["ctrl_recv"], name=log
         )
 
         shutdown_fut.add_done_callback(
@@ -150,8 +152,8 @@ async def _listener_handler_coroutine(
     #  3) Exchange endpoint info such as tags
     #  4) Setup control receive callback
     #  5) Execute the listener's callback function
-    endpoint = ctx.worker.ep_create_from_conn_request(
-        conn_request, endpoint_error_handling
+    endpoint = ucx_api.UCXEndpoint.create_from_conn_request(
+        ctx.worker, conn_request, endpoint_error_handling
     )
 
     seed = os.urandom(16)
@@ -176,10 +178,11 @@ async def _listener_handler_coroutine(
     )
 
     logger.debug(
-        "_listener_handler() server: %s, msg-tag-send: %s, "
+        "_listener_handler() server: %s, error handling: %s, msg-tag-send: %s, "
         "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
         % (
             hex(endpoint.handle),
+            endpoint_error_handling,
             hex(ep._tags["msg_send"]),
             hex(ep._tags["msg_recv"]),
             hex(ep._tags["ctrl_send"]),
@@ -252,7 +255,7 @@ class ApplicationContext:
         callback_func,
         port=0,
         guarantee_msg_order=False,
-        endpoint_error_handling=False,
+        endpoint_error_handling=None,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -273,10 +276,15 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
-        endpoint_error_handling: boolean, optional
+        endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
             from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
 
         Returns
         -------
@@ -286,6 +294,8 @@ class ApplicationContext:
         self.continuous_ucx_progress()
         if port is None:
             port = 0
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
@@ -304,7 +314,7 @@ class ApplicationContext:
         return ret
 
     async def create_endpoint(
-        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=False
+        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=None
     ):
         """Create a new endpoint to a server
 
@@ -317,10 +327,15 @@ class ApplicationContext:
         guarantee_msg_order: boolean, optional
             Whether to guarantee message order or not. Remember, both peers
             of the endpoint must set guarantee_msg_order to the same value.
-        endpoint_error_handling: boolean, optional
+        endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
             from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
 
         Returns
         -------
@@ -328,7 +343,12 @@ class ApplicationContext:
             The new endpoint
         """
         self.continuous_ucx_progress()
-        ucx_ep = self.worker.ep_create(ip_address, port, endpoint_error_handling)
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
+
+        ucx_ep = ucx_api.UCXEndpoint.create(
+            self.worker, ip_address, port, endpoint_error_handling
+        )
         self.worker.progress()
 
         # We create the Endpoint in three steps:
@@ -359,10 +379,11 @@ class ApplicationContext:
         )
 
         logger.debug(
-            "create_endpoint() client: %s, msg-tag-send: %s, "
+            "create_endpoint() client: %s, error handling: %s, msg-tag-send: %s, "
             "msg-tag-recv: %s, ctrl-tag-send: %s, ctrl-tag-recv: %s"
             % (
                 hex(ep._ep.handle),
+                endpoint_error_handling,
                 hex(ep._tags["msg_send"]),
                 hex(ep._tags["msg_recv"]),
                 hex(ep._tags["ctrl_send"]),
@@ -432,6 +453,35 @@ class ApplicationContext:
     def get_worker_address(self):
         return self.worker.get_address()
 
+    def register_am_allocator(self, allocator, allocator_type):
+        """Register an allocator for received Active Messages.
+
+        The allocator registered by this function is always called by the
+        active message receive callback when an incoming message is
+        available. The appropriate allocator is called depending on whether
+        the message received is a host message or CUDA message.
+        Note that CUDA messages can only be received via rendezvous, all
+        eager messages are received on a host object.
+
+        By default, the host allocator is `bytearray`. There is no default
+        CUDA allocator and one must always be registered if CUDA is used.
+
+        Parameters
+        ----------
+        allocator: callable
+            An allocation function accepting exactly one argument, the
+            size of the message receives.
+        allocator_type: str
+            The type of allocator, currently supports "host" and "cuda".
+        """
+        if allocator_type == "host":
+            allocator_type = ucx_api.AllocatorType.HOST
+        elif allocator_type == "cuda":
+            allocator_type = ucx_api.AllocatorType.CUDA
+        else:
+            allocator_type = ucx_api.AllocatorType.UNSUPPORTED
+        self.worker.register_am_allocator(allocator, allocator_type)
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -488,7 +538,7 @@ class Endpoint:
 
     def closed(self):
         """Is this endpoint closed?"""
-        return self._ep is None or not self._ep.initialized
+        return self._ep is None or not self._ep.initialized or not self._ep.is_alive()
 
     def abort(self):
         """Close the communication immediately and abruptly.
@@ -497,10 +547,9 @@ class Endpoint:
         Notice, this functions doesn't signal the connected peer to close.
         To do that, use `Endpoint.close()`
         """
-        if self.closed():
-            return
-        logger.debug("Endpoint.abort(): %s" % hex(self.uid))
-        self._ep.close()
+        if self._ep is not None:
+            logger.debug("Endpoint.abort(): %s" % hex(self.uid))
+            self._ep.close()
         self._ep = None
         self._ctx = None
 
@@ -510,6 +559,7 @@ class Endpoint:
         closing the underlying UCX endpoint.
         """
         if self.closed():
+            self.abort()
             return
         try:
             # Making sure we only tell peer to shutdown once
@@ -528,11 +578,7 @@ class Endpoint:
             logger.debug(log)
             try:
                 await comm.tag_send(
-                    self._ep,
-                    msg_arr,
-                    msg_arr.nbytes,
-                    self._tags["ctrl_send"],
-                    name=log,
+                    self._ep, msg_arr, msg_arr.nbytes, self._tags["ctrl_send"], name=log
                 )
             # The peer might already be shutting down thus we can ignore any send errors
             except UCXError as e:
@@ -559,6 +605,7 @@ class Endpoint:
         tag: hashable, optional
             Set a tag that the receiver must match.
         """
+        self._ep.raise_on_error()
         if self.closed():
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
@@ -579,7 +626,40 @@ class Endpoint:
             tag = hash64bits(self._tags["msg_send"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._send_count
-        return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+
+        try:
+            return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+        except UCXCanceled as e:
+            # If self._ep has already been closed and destroyed, we reraise the
+            # UCXCanceled exception.
+            if self._ep is None:
+                raise e
+
+    @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
+    async def am_send(self, buffer):
+        """Send `buffer` to connected peer.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to send. Raise ValueError if buffer is smaller
+            than nbytes.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+            self._send_count,
+            hex(self.uid),
+            hex(self._tags["msg_send"]),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+        self._send_count += 1
+        return await comm.am_send(self._ep, buffer, nbytes, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None):
@@ -595,8 +675,16 @@ class Endpoint:
             UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
             send that also sets `tag=None`.
         """
-        if self.closed():
-            raise UCXCloseError("Endpoint closed")
+        if tag is None:
+            tag = self._tags["msg_recv"]
+        else:
+            tag = hash64bits(self._tags["msg_recv"], hash(tag))
+
+        if not self._ctx.worker.tag_probe(tag):
+            self._ep.raise_on_error()
+            if self.closed():
+                raise UCXCloseError("Endpoint closed")
+
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
@@ -609,13 +697,35 @@ class Endpoint:
         )
         logger.debug(log)
         self._recv_count += 1
-        if tag is None:
-            tag = self._tags["msg_recv"]
-        else:
-            tag = hash64bits(self._tags["msg_recv"], hash(tag))
         if self._guarantee_msg_order:
             tag += self._recv_count
-        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+
+        try:
+            ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+        except UCXCanceled as e:
+            # If self._ep has already been closed and destroyed, we reraise the
+            # UCXCanceled exception.
+            if self._ep is None:
+                raise e
+
+        self._finished_recv_count += 1
+        if (
+            self._close_after_n_recv is not None
+            and self._finished_recv_count >= self._close_after_n_recv
+        ):
+            self.abort()
+        return ret
+
+    @nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
+    async def am_recv(self):
+        """Receive from connected peer.
+        """
+        if self.closed():
+            raise UCXCloseError("Endpoint closed")
+        log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
+        logger.debug(log)
+        self._recv_count += 1
+        ret = await comm.am_recv(self._ep, name=log)
         self._finished_recv_count += 1
         if (
             self._close_after_n_recv is not None
@@ -727,7 +837,8 @@ class Endpoint:
         return ret
 
     async def flush(self):
-        return await comm.flush_ep(self)
+        logger.debug("[Flush] ep: %s" % (hex(self.uid)))
+        return await comm.flush_ep(self._ep)
 
 
 # The following functions initialize and use a single ApplicationContext instance
@@ -828,8 +939,12 @@ def get_config():
         return _get_ctx().get_config()
 
 
+def register_am_allocator(allocator, allocator_type):
+    return _get_ctx().register_am_allocator(allocator, allocator_type)
+
+
 def create_listener(
-    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=False
+    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=None
 ):
     return _get_ctx().create_listener(
         callback_func,
@@ -840,7 +955,7 @@ def create_listener(
 
 
 async def create_endpoint(
-    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=False
+    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=None
 ):
     return await _get_ctx().create_endpoint(
         ip_address,
