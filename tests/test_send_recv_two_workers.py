@@ -6,7 +6,7 @@ import random
 import cloudpickle
 import numpy as np
 import pytest
-from utils import get_cuda_devices, get_num_gpus, recv, send
+from utils import am_recv, am_send, get_cuda_devices, get_num_gpus, recv, send
 
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
@@ -32,7 +32,12 @@ async def get_ep(name, port):
     return ep
 
 
-def client(port, func):
+def register_am_allocators():
+    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
+    ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+
+
+def client(port, func, comm_api):
     # wait for server to come up
     # receive cudf object
     # deserialize
@@ -40,6 +45,9 @@ def client(port, func):
     # send receipt
 
     ucp.init()
+
+    if comm_api == "am":
+        register_am_allocators()
 
     # must create context before importing
     # cudf/cupy/etc
@@ -52,13 +60,20 @@ def client(port, func):
 
         cupy.cuda.set_allocator(None)
         for i in range(ITERATIONS):
-            frames, msg = await recv(ep)
+            if comm_api == "tag":
+                frames, msg = await recv(ep)
+            else:
+                frames, msg = await am_recv(ep)
 
         close_msg = b"shutdown listener"
-        close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
 
-        await ep.send(close_msg_size)
-        await ep.send(close_msg)
+        if comm_api == "tag":
+            close_msg_size = np.array([len(close_msg)], dtype=np.uint64)
+
+            await ep.send(close_msg_size)
+            await ep.send(close_msg)
+        else:
+            await ep.am_send(close_msg)
 
         print("Shutting Down Client...")
         return msg["data"]
@@ -77,11 +92,14 @@ def client(port, func):
         cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
-def server(port, func):
+def server(port, func, comm_api):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
     ucp.init()
+
+    if comm_api == "am":
+        register_am_allocators()
 
     async def f(listener_port):
         # coroutine shows up when the client asks
@@ -98,15 +116,23 @@ def server(port, func):
             frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
             for i in range(ITERATIONS):
                 # Send meta data
-                await send(ep, frames)
+                if comm_api == "tag":
+                    await send(ep, frames)
+                else:
+                    await am_send(ep, frames)
 
             print("CONFIRM RECEIPT")
             close_msg = b"shutdown listener"
-            msg_size = np.empty(1, dtype=np.uint64)
-            await ep.recv(msg_size)
 
-            msg = np.empty(msg_size[0], dtype=np.uint8)
-            await ep.recv(msg)
+            if comm_api == "tag":
+                msg_size = np.empty(1, dtype=np.uint64)
+                await ep.recv(msg_size)
+
+                msg = np.empty(msg_size[0], dtype=np.uint8)
+                await ep.recv(msg)
+            else:
+                msg = await ep.am_recv()
+
             recv_msg = msg.tobytes()
             assert recv_msg == close_msg
             print("Shutting Down Server...")
@@ -163,7 +189,11 @@ def cupy_obj():
 @pytest.mark.parametrize(
     "cuda_obj_generator", [dataframe, empty_dataframe, series, cupy_obj]
 )
-def test_send_recv_cu(cuda_obj_generator):
+@pytest.mark.parametrize("comm_api", ["tag", "am"])
+def test_send_recv_cu(cuda_obj_generator, comm_api):
+    if comm_api == "am" and not ucp._libs.ucx_api.is_am_supported():
+        pytest.skip("AM only supported in UCX >= 1.11")
+
     base_env = os.environ
     env_client = base_env.copy()
     # grab first two devices
@@ -181,8 +211,12 @@ def test_send_recv_cu(cuda_obj_generator):
 
     func = cloudpickle.dumps(cuda_obj_generator)
     ctx = multiprocessing.get_context("spawn")
-    server_process = ctx.Process(name="server", target=server, args=[port, func])
-    client_process = ctx.Process(name="client", target=client, args=[port, func])
+    server_process = ctx.Process(
+        name="server", target=server, args=[port, func, comm_api]
+    )
+    client_process = ctx.Process(
+        name="client", target=client, args=[port, func, comm_api]
+    )
 
     server_process.start()
     # cudf will ping the driver for validity of device

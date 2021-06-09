@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
@@ -73,15 +73,16 @@ cdef inline Py_ssize_t[::1] new_Py_ssize_t_array(Py_ssize_t n):
 
 @auto_pickle(False)
 cdef class Array:
-    """
-    An efficient wrapper for host and device array-like objects
-    """
+    """ An efficient wrapper for host and device array-like objects
 
+    Parameters
+    ----------
+    obj: Object exposing the buffer protocol or __cuda_array_interface__
+        A host and device array-like object
+    """
     def __cinit__(self, obj):
-
         cdef dict iface = getattr(obj, "__cuda_array_interface__", None)
         self.cuda = (iface is not None)
-
         cdef const Py_buffer* pybuf
         cdef str typestr
         cdef tuple data, shape, strides
@@ -91,7 +92,6 @@ cdef class Array:
                 raise NotImplementedError("mask attribute not supported")
 
             self.obj = obj
-
             data = iface["data"]
             self.ptr, self.readonly = data
 

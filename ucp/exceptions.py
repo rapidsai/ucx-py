@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 import contextlib
@@ -38,6 +38,10 @@ class UCXCloseError(UCXBaseException):
 
 
 class UCXCanceled(UCXBaseException):
+    pass
+
+
+class UCXConnectionReset(UCXBaseException):
     pass
 
 

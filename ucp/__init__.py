@@ -1,4 +1,4 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 """UCX-Py: Python bindings for UCX <www.openucx.org>"""
@@ -20,7 +20,7 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
     logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
-if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ:
+if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
     logger.debug(
         "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "
         "which is required to connect multiple nodes"

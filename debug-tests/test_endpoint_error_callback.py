@@ -3,10 +3,8 @@
 # UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm \
 # py.test --cache-clear tests/debug-tests/test_endpoint_error_callback.py
 import asyncio
-import logging
 import multiprocessing
 import os
-import queue
 import random
 import signal
 import sys
@@ -19,28 +17,8 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
-from ucp.utils import get_ucxpy_logger
 
 cupy = pytest.importorskip("cupy")
-
-UCX_TLS = os.environ.get("UCX_TLS")
-rc_enabled = UCX_TLS is not None and "rc" in UCX_TLS
-
-
-def get_log_queue_handler():
-    handler = logging.StreamHandler()
-
-    log_queue = queue.Queue(-1)  # no limit on size
-    queue_handler = logging.handlers.QueueHandler(log_queue)
-    listener = logging.handlers.QueueListener(log_queue, handler)
-
-    ucxpy_logger = get_ucxpy_logger()
-    ucxpy_logger.addHandler(queue_handler)
-
-    formatter = logging.Formatter("%(message)s")
-    handler.setFormatter(formatter)
-
-    return log_queue, listener
 
 
 async def get_ep(name, port, endpoint_error_handling):
@@ -53,7 +31,7 @@ async def get_ep(name, port, endpoint_error_handling):
 
 def client(port, func, endpoint_error_handling):
     # wait for server to come up
-    # receive object
+    # receive cupy object
     # process suicides
 
     ucp.init()
@@ -69,7 +47,7 @@ def client(port, func, endpoint_error_handling):
 
         cupy.cuda.set_allocator(None)
 
-        frames, msg = recv(ep)
+        frames, msg = await recv(ep)
 
         # Client process suicides to force an "Endpoint timeout"
         # on the server
@@ -80,19 +58,21 @@ def client(port, func, endpoint_error_handling):
 
 def server(port, func, endpoint_error_handling):
     # create listener receiver
-    # add queue logger
-    # write cudf object
+    # send cupy object
+    # receive cupy object and raise flag on timeout
     # terminates ep/listener
-    # checks that "Endpoint timeout" was logged
+    # checks that "Endpoint timeout" was flagged and return process status accordingly
     ucp.init()
 
-    log_queue, log_listener = get_log_queue_handler()
-    log_listener.start()
+    global ep_failure_occurred
+    ep_failure_occurred = False
 
     async def f(listener_port):
         # coroutine shows up when the client asks
         # to connect
         async def write(ep):
+            global ep_failure_occurred
+
             import cupy
 
             cupy.cuda.set_allocator(None)
@@ -110,6 +90,17 @@ def server(port, func, endpoint_error_handling):
                 # Avoids process hanging on "Endpoint timeout"
                 pass
 
+            if endpoint_error_handling is True:
+                try:
+                    frames, msg = await recv(ep)
+                except ucp.exceptions.UCXError:
+                    ep_failure_occurred = True
+            else:
+                try:
+                    frames, msg = await asyncio.wait_for(recv(ep), 3)
+                except asyncio.TimeoutError:
+                    ep_failure_occurred = True
+
             print("Shutting Down Server...")
             await ep.close()
             lf.close()
@@ -123,18 +114,12 @@ def server(port, func, endpoint_error_handling):
         except ucp.UCXCloseError:
             pass
 
-    log_listener.stop()
-
     asyncio.get_event_loop().run_until_complete(f(port))
 
-    # Check log for the expected "Endpoint timeout" and exits with
-    # status -80 if encountered, 0 otherwise. The process will exit
-    # with status -6 when endpoint_error_callback=False.
-    while not log_queue.empty():
-        log = log_queue.get()
-        if "Endpoint timeout" in log.getMessage():
-            sys.exit(-80)
-    sys.exit(0)
+    if ep_failure_occurred:
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
 
 def cupy_obj():
@@ -147,9 +132,14 @@ def cupy_obj():
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
-@pytest.mark.skipif(not rc_enabled, reason="Transport `rc` is not enabled")
 @pytest.mark.parametrize("endpoint_error_handling", [True, False])
 def test_send_recv_cu(endpoint_error_handling):
+    if endpoint_error_handling is True and ucp.get_ucx_version() < (1, 11, 0):
+        pytest.skip(
+            "Endpoint error handling support for all transports is only available "
+            "in UCX >= 1.11.0"
+        )
+
     base_env = os.environ
     env_client = base_env.copy()
     # grab first two devices
@@ -185,8 +175,5 @@ def test_send_recv_cu(endpoint_error_handling):
     client_process.join()
 
     print("server_process.exitcode:", server_process.exitcode)
-    if endpoint_error_handling:
-        assert server_process.exitcode == -80 or server_process.exitcode == 256 - 80
-    else:
-        assert server_process.exitcode == -6
-    assert client_process.exitcode == 1
+    assert server_process.exitcode == 0
+    assert client_process.exitcode == -9
