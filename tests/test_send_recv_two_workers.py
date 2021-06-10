@@ -183,6 +183,7 @@ def cupy_obj():
     return cupy.arange(size)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
