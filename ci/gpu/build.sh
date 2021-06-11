@@ -105,7 +105,7 @@ else
         # Clone Distributed to avoid pytest cleanup fixture errors
         # See https://github.com/dask/distributed/issues/4902
         gpuci_logger "Clone Distributed"
-        git clone https://github.com/dask/distributed@main
+        git clone git+https://github.com/dask/distributed@main
 
         gpuci_logger "Run Distributed Tests"
         py.test --cache-clear -vs distributed/distributed/protocol/tests/test_cupy.py
