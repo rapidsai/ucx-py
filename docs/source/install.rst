@@ -142,7 +142,7 @@ Building UCX 1.9 or 1.11 as shown previously should automatically include IB/RDM
     --enable-mt \
     --with-rdmacm \
     --with-verbs \
-    CPPFLAGS="-I/$CUDA_HOME/include"
+    CPPFLAGS="-I$CUDA_HOME/include"
 
 
 UCX-Py
