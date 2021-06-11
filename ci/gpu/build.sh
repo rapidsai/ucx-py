@@ -113,7 +113,7 @@ else
         py.test --cache-clear -vs distributed/distributed/protocol/tests/test_rmm.py
         py.test --cache-clear -vs distributed/distributed/protocol/tests/test_collection_cuda.py
         py.test --cache-clear -vs distributed/distributed/comm/tests/test_ucx.py
-        py.test --cache-clear -vs distributed/distributed/comm/tests/test_nanny.py
+        py.test --cache-clear -vs distributed/distributed/tests/test_nanny.py
         py.test --cache-clear -vs --runslow distributed/distributed/comm/tests/test_ucx.py
     fi
 
