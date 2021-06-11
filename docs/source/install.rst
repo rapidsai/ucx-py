@@ -63,6 +63,27 @@ Test Dependencies
         cupy "numba>=0.46" rmm \
         distributed
 
+
+UCX-1.11 (Development)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Instructions for building UCX 1.11 (current development version):
+
+::
+
+    conda activate ucx
+    git clone https://github.com/openucx/ucx
+    cd ucx
+    git checkout v1.11.x
+    ./autogen.sh
+    mkdir build
+    cd build
+    # Performance build
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    # Debug build
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    make -j install
+
 UCX-1.9
 ~~~~~~~
 
@@ -82,34 +103,9 @@ Instructions for building ucx 1.9:
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
     # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
-    make -j install
-
-UCX-1.8
-~~~~~~~
-
-Instructions for building ucx 1.8:
-
-::
-
-    conda activate ucx
-    git clone https://github.com/openucx/ucx
-    cd ucx
-    git checkout v1.8.x
-    # apply UCX IB registration cache patch, improves overall
-    # CUDA IB performance when using a memory pool
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/add-page-alignment.patch add-page-alignment.patch
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/ib_registration_cache.patch ib_registration_cache.patch
-    git apply ib_registration_cache.patch && git apply add-page-alignment.patch
-    ./autogen.sh
-    mkdir build
-    cd build
-    # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
-    # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
     make -j install
 
 .. note::
