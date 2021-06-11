@@ -55,6 +55,20 @@ This is a UCX CUDA Memory optimization which enables/disables a remote endpoint 
 
 Values: n/y
 
+UCX_MAX_RNDV_RAILS
+``````````````````
+
+Limitting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
+
+Values: Int (UCX default: 2)
+
+UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES
+`````````````````````````````````
+
+By defining ``UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES=cuda``, UCX enables registration cache based on a buffer's base address, thus preventing multiple time-consuming registrations for the same buffer. This is particularly useful when using a CUDA memory pool, thus requiring a single registration between two ends for the entire pool, providing considerable performance gains, especially when using InfiniBand.
+
+Requires UCX 1.11 and above.
+
 UCX_RNDV_THRESH
 ```````````````
 
