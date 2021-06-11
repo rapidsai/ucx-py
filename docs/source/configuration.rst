@@ -46,21 +46,21 @@ UCX_MEMTYPE_CACHE
 
 This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-Py defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
-Values: n/y
+Values: ``n``/``y``
 
 UCX_CUDA_IPC_CACHE
 ``````````````````
 
 This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-Py defaults this value to ``y``
 
-Values: n/y
+Values: ``n``/``y``
 
 UCX_MAX_RNDV_RAILS
 ``````````````````
 
 Limitting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
 
-Values: Int (UCX default: 2)
+Values: Int (UCX default: ``2``)
 
 UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES
 `````````````````````````````````
@@ -74,7 +74,7 @@ UCX_RNDV_THRESH
 
 This is a configurable parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLink enabled, UCX can deliver messages either through TCP or NVLink.  Sending GPU buffers over TCP is costly as it triggers a device-to-host on the sender side, and then host-to-device transfer on the receiver side --  we want to avoid these kinds of transfers when NVLink is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESH=8192``
 
-Values: Int (UCX-Py default : 8192)
+Values: Int (UCX-Py default: ``8192``)
 
 
 UCX_RNDV_SCHEME
