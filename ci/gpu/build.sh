@@ -96,14 +96,19 @@ function run_tests() {
 
         # Test downstream packages, which requires Python v3.7
         if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
-            gpuci_logger "TEST OF DASK/UCX"
-            py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
-            py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
-            py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
-            py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
-            py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
-            py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
-            py.test --cache-clear -m "slow" -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+            # Clone Distributed to avoid pytest cleanup fixture errors
+            # See https://github.com/dask/distributed/issues/4902
+            gpuci_logger "Clone Distributed"
+            git clone https://github.com/dask/distributed
+
+            gpuci_logger "Run Distributed Tests"
+            py.test --cache-clear -vs distributed/distributed/protocol/tests/test_cupy.py
+            py.test --cache-clear -vs distributed/distributed/protocol/tests/test_numba.py
+            py.test --cache-clear -vs distributed/distributed/protocol/tests/test_rmm.py
+            py.test --cache-clear -vs distributed/distributed/protocol/tests/test_collection_cuda.py
+            py.test --cache-clear -vs distributed/distributed/comm/tests/test_ucx.py
+            py.test --cache-clear -vs distributed/distributed/tests/test_nanny.py
+            py.test --cache-clear -vs --runslow distributed/distributed/comm/tests/test_ucx.py
         fi
 
         gpuci_logger "Run local benchmark"
