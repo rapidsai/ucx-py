@@ -135,6 +135,7 @@ if hasArg --skip-tests; then
     gpuci_logger "Skipping Tests"
 else
     run_tests 0
+fi
 
 
 ################################################################################
@@ -165,3 +166,4 @@ if hasArg --skip-tests; then
     gpuci_logger "Skipping Tests"
 else
     run_tests 1
+fi
