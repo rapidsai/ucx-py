@@ -6,8 +6,8 @@ Prerequisites
 
 UCX depends on the following system libraries being present:
 
-* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`
-* For MOFED 5.x support: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`
+* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
+* For MOFED 5.x support: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
 * For system topology identification: ``libnuma`` (``numactl`` on Enterprise Linux)
 
 Please install the packages above with your Linux system's package manager.
