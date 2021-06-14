@@ -61,27 +61,20 @@ conda config --show-sources
 conda list --show-channel-urls
 
 ################################################################################
-# BUILD - Build ucx-py
-################################################################################
-
-gpuci_logger "Build ucx-py"
-cd $WORKSPACE
-python setup.py build_ext --inplace
-python -m pip install -e .
-
-################################################################################
 # TEST - Run py.tests for ucx-py
 ################################################################################
+function run_tests() {
+    UCX111=$1
 
-if hasArg --skip-tests; then
-    gpuci_logger "Skipping Tests"
-else
     gpuci_logger "Check GPU usage"
     nvidia-smi
 
     gpuci_logger "Check NICs"
     awk 'END{print $1}' /etc/hosts
     cat /etc/hosts
+
+    gpuci_logger "UCX Version and Build Configuration"
+    ucx_info -v
 
     gpuci_logger "Python py.test for ucx-py"
     cd $WORKSPACE
@@ -91,9 +84,12 @@ else
 
     # Setting UCX options
     export UCXPY_IFNAME=eth0
-    export UCX_MEMTYPE_CACHE=n
-    export UCX_TLS=tcp,cuda_copy,sockcm
-    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+
+    if [ "$UCX111" == "1"]; then
+        export UCX_TLS=tcp,cuda_copy
+    else
+        export UCX_TLS=tcp,cuda_copy,sockcm
+    fi
 
     # Test with TCP/Sockets
     gpuci_logger "TEST WITH TCP ONLY"
@@ -121,4 +117,53 @@ else
     python benchmarks/send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/send-recv-core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
+}
+
+################################################################################
+# BUILD - Build UCX-Py and run tests
+################################################################################
+
+gpuci_logger "UCX Version and Build Information"
+ucx_info -v
+
+gpuci_logger "Build UCX-Py"
+cd $WORKSPACE
+python setup.py build_ext --inplace
+python -m pip install -e .
+
+if hasArg --skip-tests; then
+    gpuci_logger "Skipping Tests"
+else
+    run_tests 0
+fi
+
+
+################################################################################
+# BUILD - Build UCX master, UCX-Py and run tests
+################################################################################
+
+gpuci_logger "Build UCX master"
+cd $WORKSPACE
+git clone https://github.com/openucx/ucx
+cd ucx
+git checkout v1.11.x
+./autogen.sh
+mkdir build
+cd build
+../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
+make -j install
+
+gpuci_logger "UCX Version and Build Information"
+ucx_info -v
+
+gpuci_logger "Build UCX-Py"
+cd $WORKSPACE
+git clean -ffdx
+python setup.py build_ext --inplace
+python -m pip install -e .
+
+if hasArg --skip-tests; then
+    gpuci_logger "Skipping Tests"
+else
+    run_tests 1
 fi
