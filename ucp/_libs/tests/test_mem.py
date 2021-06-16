@@ -4,7 +4,7 @@ import mmap
 
 import pytest
 
-from ucp._libs import ucx_api as ucx_api
+from ucp._libs import ucx_api
 
 builtin_buffers = [
     b"",

@@ -98,7 +98,7 @@ def test_ucxio(msg_size):
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
-    uio = ucx_api.UcxIO(ep, mem.address, msg_size, rkey)
+    uio = ucx_api.UCXIO(mem.address, msg_size, rkey)
     send_msg = bytes(os.urandom(msg_size))
     uio.write(send_msg)
     uio.seek(0)
