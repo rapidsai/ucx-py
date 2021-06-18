@@ -20,7 +20,7 @@ def _rma_setup(worker, address, prkey, base, msg_size):
 
 
 def _test_peer_communication_rma(queue, rank, msg_size):
-    ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.RMA,))
+    ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.RMA, ucx_api.Feature.TAG))
     worker = ucx_api.UCXWorker(ctx)
     self_address = worker.get_address()
     mem_handle = ctx.alloc(msg_size)
@@ -53,6 +53,16 @@ def _test_peer_communication_rma(queue, rank, msg_size):
     blocking_flush(worker)
     assert left_msg == bytes(repeat(left_rank, msg_size))
     assert right_msg == bytes(repeat(right_rank, msg_size))
+
+    # We use the blocking tag send/recv as a barrier implementation
+    recv_msg = bytearray(8)
+    if rank == 0:
+        send_msg = bytes(os.urandom(8))
+        blocking_send(worker, right_ep, send_msg, right_rank)
+        blocking_recv(worker, left_ep, recv_msg, rank)
+    else:
+        blocking_recv(worker, left_ep, recv_msg, rank)
+        blocking_send(worker, right_ep, recv_msg, right_rank)
 
 
 def _test_peer_communication_tag(queue, rank, msg_size):
