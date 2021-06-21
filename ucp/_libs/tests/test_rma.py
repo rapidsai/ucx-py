@@ -129,7 +129,7 @@ def test_force_requests():
         # normal desktop PCs, will never have their transports exhausted. So
         # we have a break to make sure this test still completes
         if counter > 10000:
-            return
+            pytest.xfail("Could not generate a request")
 
     blocking_flush(worker)
     while worker.progress():

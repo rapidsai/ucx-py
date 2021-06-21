@@ -45,7 +45,7 @@ def _test_peer_communication_rma(queue, rank, msg_size):
     right_mem.get_nbi(right_msg)
 
     left_ep, left_mem = _rma_setup(
-        worker, right_address, right_prkey, right_base, msg_size
+        worker, left_address, left_prkey, left_base, msg_size
     )
     left_msg = bytearray(msg_size)
     left_mem.get_nbi(left_msg)
