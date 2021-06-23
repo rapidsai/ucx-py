@@ -14,8 +14,6 @@ class UCXIO(RawIOBase):
 
         Parameters
         ----------
-        ep: UCXEndpoint
-            A UCXEndpoint that will be used to drive the RMA operations
         dest: int
             A 64 bit number that represents the remote address that will be written to
             and read from.
