@@ -44,7 +44,7 @@ import os
 from threading import Lock
 from time import perf_counter as clock
 
-from distributed.utils import format_bytes, parse_bytes
+from dask.utils import format_bytes, parse_bytes
 
 import ucp
 from ucp._libs import ucx_api
