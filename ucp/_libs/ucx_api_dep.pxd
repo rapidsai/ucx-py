@@ -484,3 +484,13 @@ cdef extern from "sys/epoll.h":
     void ucp_rkey_buffer_release(void *rkey_buffer)
     ucs_status_t ucp_rkey_ptr(ucp_rkey_h rkey, uint64_t raddr, void **addr_p)
     void ucp_rkey_destroy(ucp_rkey_h rkey)
+    ucs_status_t ucp_put_nbi(ucp_ep_h ep, const void *buffer, size_t length,
+                             uint64_t remote_addr, ucp_rkey_h rkey)
+    ucs_status_t ucp_get_nbi(ucp_ep_h ep, void *buffer, size_t length,
+                             uint64_t remote_addr, ucp_rkey_h rkey)
+    ucs_status_ptr_t ucp_put_nb(ucp_ep_h ep, const void *buffer, size_t length,
+                                uint64_t remote_addr, ucp_rkey_h rkey,
+                                ucp_send_callback_t cb)
+    ucs_status_ptr_t ucp_get_nb(ucp_ep_h ep, void *buffer, size_t length,
+                                uint64_t remote_addr, ucp_rkey_h rkey,
+                                ucp_send_callback_t cb)

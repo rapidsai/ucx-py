@@ -35,3 +35,7 @@ cdef class UCXRkey(UCXObject):
             ep
         )
         ep.add_child(self)
+
+    @property
+    def ep(self):
+        return self.ep

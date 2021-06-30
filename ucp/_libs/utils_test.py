@@ -11,6 +11,18 @@ def blocking_handler(request, exception, finished):
     finished[0] = True
 
 
+def blocking_flush(obj):
+    finished = [False]
+    if not hasattr(obj, "progress"):
+        progress = obj.worker.progress
+    else:
+        progress = obj.progress
+    req = obj.flush(cb_func=blocking_handler, cb_args=(finished,))
+    if req is not None:
+        while not finished[0]:
+            progress()
+
+
 def blocking_send(worker, ep, msg, tag=0):
     msg = Array(msg)
     finished = [False]
