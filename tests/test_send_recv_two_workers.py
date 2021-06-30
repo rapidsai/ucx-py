@@ -12,7 +12,7 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
-import cudf.tests.utils
+import cudf.testing._utils
 
 import ucp
 
@@ -89,7 +89,7 @@ def client(port, func, comm_api):
     if isinstance(rx_cuda_obj, cupy.ndarray):
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
-        cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
+        cudf.testing._utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(port, func, comm_api):
