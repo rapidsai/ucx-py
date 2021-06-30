@@ -97,7 +97,7 @@ else
 
     # Test with TCP/Sockets
     gpuci_logger "TEST WITH TCP ONLY"
-    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
+    py.test --cache-clear -vs tests/
     py.test --cache-clear -vs ucp/_libs/tests
 
     # Test downstream packages, which requires Python v3.7
