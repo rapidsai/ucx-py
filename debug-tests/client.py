@@ -82,7 +82,7 @@ def client(env, port, func, verbose):
     # cuda_obj_generator = cloudpickle.loads(func)
     # pure_cuda_obj = cuda_obj_generator()
 
-    # from cudf.tests.utils import assert_eq
+    # from cudf.testing._utils import assert_eq
     # import cupy as cp
 
     # if isinstance(rx_cuda_obj, cp.ndarray):
