@@ -1,12 +1,19 @@
 import asyncio
 import multiprocessing
+from time import monotonic
 
 import numpy as np
 import pytest
 
+from dask.utils import format_bytes
+from distributed.utils import nbytes
+
 import ucp
 
 PersistentEndpoints = True
+GatherAsync = False
+Iterations = 3
+Size = 2 ** 25
 
 
 async def create_endpoint_retry(my_port, remote_port, my_task, remote_task):
@@ -28,6 +35,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
 
     eps = dict()
     listener_eps = set()
+    bytes_bandwidth = dict()
 
     global cluster_started
     cluster_started = False
@@ -37,26 +45,43 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
             global cluster_started
             cluster_started = True
 
-        async def _listener(ep, cache_ep=False):
-            msg2send = np.arange(10)
+        async def _listener(ep):
+            msg2send = np.arange(Size)
             msg2recv = np.empty_like(msg2send)
 
-            msgs = [ep.send(msg2send), ep.recv(msg2recv)]
-            await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+            if GatherAsync:
+                msgs = [ep.send(msg2send), ep.recv(msg2recv)] * Iterations
+                await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+            else:
+                for i in range(Iterations):
+                    msgs = [ep.send(msg2send), ep.recv(msg2recv)]
+                    await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
 
         async def _listener_cb(ep):
             if PersistentEndpoints:
                 listener_eps.add(ep)
-            await _listener(ep, cache_ep=True)
+            await _listener(ep)
 
-        async def _client(my_port, remote_port, ep=None):
-            msg2send = np.arange(10)
+        async def _client(my_port, remote_port, ep=None, cache_only=False):
+            msg2send = np.arange(Size)
             msg2recv = np.empty_like(msg2send)
+            send_recv_bytes = (nbytes(msg2send) + nbytes(msg2recv)) * Iterations
 
             if ep is None:
                 ep = await create_endpoint_retry(my_port, port, "Worker", "Worker")
-            msgs = [ep.recv(msg2recv), ep.send(msg2send)]
-            await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+
+            t = monotonic()
+            if GatherAsync:
+                msgs = [ep.recv(msg2recv), ep.send(msg2send)] * Iterations
+                await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+            else:
+                for i in range(Iterations):
+                    msgs = [ep.recv(msg2recv), ep.send(msg2send)] * Iterations
+                    await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+            if cache_only is False:
+                bytes_bandwidth[remote_port].append(
+                    (send_recv_bytes, send_recv_bytes / (monotonic() - t))
+                )
 
         # Start listener
         listener = ucp.create_listener(_listener_cb)
@@ -77,8 +102,11 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
                     ep = await create_endpoint_retry(
                         listener.port, remote_port, "Worker", "Worker"
                     )
+                    bytes_bandwidth[remote_port] = []
                     eps[(remote_port, i)] = ep
-                    client_tasks.append(_client(listener.port, remote_port, ep))
+                    client_tasks.append(
+                        _client(listener.port, remote_port, ep, cache_only=True)
+                    )
                 await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
 
             # Wait until listener_eps have all been cached
@@ -112,6 +140,22 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
 
         while signal[1] != num_workers:
             pass
+
+        for remote_port, bb in bytes_bandwidth.items():
+            total_bytes = sum(b[0] for b in bb)
+            avg_bandwidth = np.mean(list(b[1] for b in bb))
+            median_bandwidth = np.median(list(b[1] for b in bb))
+            print(
+                "[%d, %d] Transferred bytes: %s, average bandwidth: %s/s, "
+                "median bandwidth: %s/s"
+                % (
+                    listener.port,
+                    remote_port,
+                    format_bytes(total_bytes),
+                    format_bytes(avg_bandwidth),
+                    format_bytes(median_bandwidth),
+                )
+            )
 
         listener.close()
 
@@ -148,14 +192,7 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
     assert worker_process.exitcode == 0
 
 
-@pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
-@pytest.mark.parametrize("endpoints_per_worker", [20, 40])
+@pytest.mark.parametrize("num_workers", [2, 4, 8])
+@pytest.mark.parametrize("endpoints_per_worker", [1])
 def test_send_recv_cu(num_workers, endpoints_per_worker):
-    _test_send_recv_cu(num_workers, endpoints_per_worker)
-
-
-@pytest.mark.slow
-@pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
-@pytest.mark.parametrize("endpoints_per_worker", [80, 320, 640])
-def test_send_recv_cu_slow(num_workers, endpoints_per_worker):
     _test_send_recv_cu(num_workers, endpoints_per_worker)
