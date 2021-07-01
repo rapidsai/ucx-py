@@ -61,27 +61,20 @@ conda config --show-sources
 conda list --show-channel-urls
 
 ################################################################################
-# BUILD - Build ucx-py
-################################################################################
-
-gpuci_logger "Build ucx-py"
-cd $WORKSPACE
-python setup.py build_ext --inplace
-python -m pip install -e .
-
-################################################################################
 # TEST - Run py.tests for ucx-py
 ################################################################################
+function run_tests() {
+    UCX111=$1
 
-if hasArg --skip-tests; then
-    gpuci_logger "Skipping Tests"
-else
     gpuci_logger "Check GPU usage"
     nvidia-smi
 
     gpuci_logger "Check NICs"
     awk 'END{print $1}' /etc/hosts
     cat /etc/hosts
+
+    gpuci_logger "UCX Version and Build Configuration"
+    ucx_info -v
 
     gpuci_logger "Python py.test for ucx-py"
     cd $WORKSPACE
@@ -91,29 +84,86 @@ else
 
     # Setting UCX options
     export UCXPY_IFNAME=eth0
-    export UCX_MEMTYPE_CACHE=n
-    export UCX_TLS=tcp,cuda_copy,sockcm
-    export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+
+    if [ "$UCX111" == "1"]; then
+        export UCX_TLS=tcp,cuda_copy
+    else
+        export UCX_TLS=tcp,cuda_copy,sockcm
+    fi
 
     # Test with TCP/Sockets
     gpuci_logger "TEST WITH TCP ONLY"
-    py.test --cache-clear -vs --ignore-glob tests/test_send_recv_two_workers.py tests/
+    py.test --cache-clear -vs tests/
     py.test --cache-clear -vs ucp/_libs/tests
 
     # Test downstream packages, which requires Python v3.7
     if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
-        gpuci_logger "TEST OF DASK/UCX"
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_cupy as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_numba as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_rmm as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.protocol.tests.test_collection_cuda as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
-        py.test --cache-clear -vs `python -c "import distributed.tests.test_nanny as m;print(m.__file__)"`
-        py.test --cache-clear -m "slow" -vs `python -c "import distributed.comm.tests.test_ucx as m;print(m.__file__)"`
+        # Clone Distributed to avoid pytest cleanup fixture errors
+        # See https://github.com/dask/distributed/issues/4902
+        gpuci_logger "Clone Distributed"
+        git clone https://github.com/dask/distributed
+
+        gpuci_logger "Run Distributed Tests"
+        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_cupy.py
+        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_numba.py
+        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_rmm.py
+        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_collection_cuda.py
+        py.test --cache-clear -vs distributed/distributed/comm/tests/test_ucx.py
+        py.test --cache-clear -vs distributed/distributed/tests/test_nanny.py
+        py.test --cache-clear -vs --runslow distributed/distributed/comm/tests/test_ucx.py
     fi
 
     gpuci_logger "Run local benchmark"
     python benchmarks/send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/send-recv-core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
+}
+
+################################################################################
+# BUILD - Build UCX-Py and run tests
+################################################################################
+
+gpuci_logger "UCX Version and Build Information"
+ucx_info -v
+
+gpuci_logger "Build UCX-Py"
+cd $WORKSPACE
+python setup.py build_ext --inplace
+python -m pip install -e .
+
+if hasArg --skip-tests; then
+    gpuci_logger "Skipping Tests"
+else
+    run_tests 0
+fi
+
+
+################################################################################
+# BUILD - Build UCX master, UCX-Py and run tests
+################################################################################
+
+gpuci_logger "Build UCX master"
+cd $WORKSPACE
+git clone https://github.com/openucx/ucx
+cd ucx
+git checkout v1.11.x
+./autogen.sh
+mkdir build
+cd build
+../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
+make -j install
+
+gpuci_logger "UCX Version and Build Information"
+ucx_info -v
+
+gpuci_logger "Build UCX-Py"
+cd $WORKSPACE
+git clean -ffdx
+python setup.py build_ext --inplace
+python -m pip install -e .
+
+if hasArg --skip-tests; then
+    gpuci_logger "Skipping Tests"
+else
+    run_tests 1
 fi

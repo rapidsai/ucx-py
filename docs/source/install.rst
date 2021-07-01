@@ -4,17 +4,22 @@ Install
 Prerequisites
 -------------
 
-UCX depends on the following system libraries being present: ``libibcm``,
-``libibverbs``, ``librdmacm``, and ``libnuma`` (``numactl`` on Enterprise
-Linux).  Please install these with your Linux system's package manager. When
-building from source you will also need the ``*-dev`` (``*-devel`` on
+UCX depends on the following system libraries being present:
+
+* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
+* For MOFED 5.x support: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
+* For system topology identification: ``libnuma`` (``numactl`` on Enterprise Linux)
+
+Please install the packages above with your Linux system's package manager.
+When building from source you will also need the ``*-dev`` (``*-devel`` on
 Enterprise Linux) packages as well.
+
 
 Conda
 -----
 
 Some preliminary Conda packages can be installed as so. Replace
-``<CUDA version>`` with either ``10.1``, ``10.2``, or ``11.0``. These are
+``<CUDA version>`` with either ``11.0`` or ``11.2``. These are
 available both on ``rapidsai`` and ``rapidsai-nightly``.
 
 With GPU support:
@@ -53,6 +58,7 @@ Build Dependencies
         libhwloc psutil \
         "python=3.7" setuptools "cython>=0.29.14,<3.0.0a0"
 
+
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
 
@@ -62,6 +68,28 @@ Test Dependencies
         pytest pytest-asyncio \
         cupy "numba>=0.46" rmm \
         distributed
+
+
+UCX-1.11 (Development)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Instructions for building UCX 1.11 (current development version):
+
+::
+
+    conda activate ucx
+    git clone https://github.com/openucx/ucx
+    cd ucx
+    git checkout v1.11.x
+    ./autogen.sh
+    mkdir build
+    cd build
+    # Performance build
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    # Debug build
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    make -j install
+
 
 UCX-1.9
 ~~~~~~~
@@ -82,38 +110,14 @@ Instructions for building ucx 1.9:
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
     # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
-    make -j install
-
-UCX-1.8
-~~~~~~~
-
-Instructions for building ucx 1.8:
-
-::
-
-    conda activate ucx
-    git clone https://github.com/openucx/ucx
-    cd ucx
-    git checkout v1.8.x
-    # apply UCX IB registration cache patch, improves overall
-    # CUDA IB performance when using a memory pool
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/add-page-alignment.patch add-page-alignment.patch
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/bd0377fb7363fd0ddbc3d506ae3414ef6f2e2f50/recipe/ib_registration_cache.patch ib_registration_cache.patch
-    git apply ib_registration_cache.patch && git apply add-page-alignment.patch
-    ./autogen.sh
-    mkdir build
-    cd build
-    # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
-    # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I/$CUDA_HOME/include"
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
     make -j install
 
 .. note::
     If you're running on a machine without CUDA then you _must NOT_ apply any of the patches above.
+
 
 UCX + OFED
 ~~~~~~~~~~
@@ -127,8 +131,7 @@ As noted above, the UCX conda package no longer builds support for IB/RDMA.  To 
 
 If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
 
-
-To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-verbs`` build flags.  For example:
+Building UCX 1.9 or 1.11 as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
 
 ::
 
@@ -139,7 +142,7 @@ To build UCX with IB/RDMA support, include the ``--with-rdmacm`` and ``--with-ve
     --enable-mt \
     --with-rdmacm \
     --with-verbs \
-    CPPFLAGS="-I/$CUDA_HOME/include"
+    CPPFLAGS="-I$CUDA_HOME/include"
 
 
 UCX-Py

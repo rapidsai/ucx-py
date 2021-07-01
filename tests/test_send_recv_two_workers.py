@@ -12,8 +12,6 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
-import cudf.tests.utils
-
 import ucp
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
@@ -89,7 +87,9 @@ def client(port, func, comm_api):
     if isinstance(rx_cuda_obj, cupy.ndarray):
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
-        cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
+        from cudf.testing._utils import assert_eq
+
+        assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(port, func, comm_api):
@@ -183,6 +183,7 @@ def cupy_obj():
     return cupy.arange(size)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )
