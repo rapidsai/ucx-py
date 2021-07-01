@@ -26,7 +26,7 @@ async def create_endpoint_retry(my_port, remote_port, my_task, remote_task):
 def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
     ucp.init()
 
-    eps = []
+    eps = dict()
     listener_eps = set()
 
     global cluster_started
@@ -77,7 +77,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
                     ep = await create_endpoint_retry(
                         listener.port, remote_port, "Worker", "Worker"
                     )
-                    eps.append(ep)
+                    eps[(remote_port, i)] = ep
                     client_tasks.append(_client(listener.port, remote_port, ep))
                 await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
 
@@ -89,7 +89,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
             for i in range(3):
                 client_tasks = []
                 listener_tasks = []
-                for ep in eps:
+                for (remote_port, _), ep in eps.items():
                     client_tasks.append(_client(listener.port, remote_port, ep))
                 for listener_ep in listener_eps:
                     listener_tasks.append(_listener(listener_ep))
