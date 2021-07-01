@@ -125,9 +125,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
     asyncio.get_event_loop().run_until_complete(_worker())
 
 
-@pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
-@pytest.mark.parametrize("endpoints_per_worker", [20, 80, 320, 640])
-def test_send_recv_cu(num_workers, endpoints_per_worker):
+def _test_send_recv_cu(num_workers, endpoints_per_worker):
     ctx = multiprocessing.get_context("spawn")
 
     signal = ctx.Array("i", [0, 0])
@@ -148,3 +146,16 @@ def test_send_recv_cu(num_workers, endpoints_per_worker):
         worker_process.join()
 
     assert worker_process.exitcode == 0
+
+
+@pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
+@pytest.mark.parametrize("endpoints_per_worker", [20, 80])
+def test_send_recv_cu(num_workers, endpoints_per_worker):
+    _test_send_recv_cu(num_workers, endpoints_per_worker)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
+@pytest.mark.parametrize("endpoints_per_worker", [320, 640])
+def test_send_recv_cu_slow(num_workers, endpoints_per_worker):
+    _test_send_recv_cu(num_workers, endpoints_per_worker)
