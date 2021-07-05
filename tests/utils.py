@@ -1,11 +1,16 @@
 import io
 import logging
 import os
+import struct
 from contextlib import contextmanager
 
 import numpy as np
+from tornado.iostream import StreamClosedError
+from tornado.tcpclient import TCPClient
+from tornado.tcpserver import TCPServer
 
 from distributed.comm.utils import from_frames
+from distributed.protocol.utils import pack_frames_prelude, unpack_frames
 from distributed.utils import nbytes
 
 import rmm
@@ -138,3 +143,134 @@ async def am_recv(ep):
 
     msg = await from_frames(frames)
     return frames, msg
+
+
+class TornadoTCPConnection:
+    def __init__(self, stream, client=None):
+        self._client = client
+        self.stream = stream
+
+    @classmethod
+    async def connect(cls, host, port):
+        client = TCPClient()
+        stream = await client.connect(host, port, max_buffer_size=2 ** 30)
+        stream.set_nodelay(True)
+        return cls(stream, client=client)
+
+    async def send(self, frames):
+        stream = self.stream
+        if stream is None:
+            raise StreamClosedError()
+
+        frames_nbytes = [nbytes(f) for f in frames]
+        frames_nbytes_total = sum(frames_nbytes)
+
+        header = pack_frames_prelude(frames)
+        header = struct.pack("Q", nbytes(header) + frames_nbytes_total) + header
+
+        frames = [header, *frames]
+        frames_nbytes = [nbytes(header), *frames_nbytes]
+        frames_nbytes_total += frames_nbytes[0]
+
+        if frames_nbytes_total < 2 ** 17:
+            frames = [b"".join(frames)]
+            frames_nbytes = [frames_nbytes_total]
+
+        try:
+            for each_frame_nbytes, each_frame in zip(frames_nbytes, frames):
+                if each_frame_nbytes:
+                    if stream._write_buffer is None:
+                        raise StreamClosedError()
+
+                    if isinstance(each_frame, memoryview):
+                        each_frame = memoryview(each_frame).cast("B")
+
+                    stream._write_buffer.append(each_frame)
+                    stream._total_write_index += each_frame_nbytes
+
+            stream.write(b"")
+        except StreamClosedError:
+            self.stream = None
+            self._closed = True
+        except Exception() as e:
+            raise e
+
+        return frames_nbytes_total
+
+    async def recv(self):
+        stream = self.stream
+        if stream is None:
+            raise Exception("Connection closed")
+
+        fmt = "Q"
+        fmt_size = struct.calcsize(fmt)
+
+        try:
+            frames_nbytes = await stream.read_bytes(fmt_size)
+            (frames_nbytes,) = struct.unpack(fmt, frames_nbytes)
+
+            frames = bytearray(frames_nbytes)
+            n = await stream.read_into(frames)
+            assert n == frames_nbytes, (n, frames_nbytes)
+        except StreamClosedError:
+            self.stream = None
+            self._closed = True
+        except Exception as e:
+            raise e
+        else:
+            try:
+                frames = unpack_frames(frames)
+
+                msg = await from_frames(
+                    frames,
+                    deserializers=("cuda", "dask", "pickle", "error"),
+                    allow_offload=True,
+                )
+            except EOFError:
+                raise Exception("aborted stream on truncated data")
+            return msg
+
+
+class TornadoTCPServer:
+    def __init__(self, server, connections, port):
+        server.handle_stream = self._handle_stream
+        self.server = server
+        self._connections = connections
+        self._port = port
+
+    async def _handle_stream(self, stream, address):
+        self._connections.append(TornadoTCPConnection(stream))
+
+    @classmethod
+    async def start_server(cls, host, port):
+        connections = []
+
+        server = TCPServer(max_buffer_size=2 ** 30)
+
+        if port is None:
+
+            def _try_listen(server, host):
+                while True:
+                    try:
+                        import random
+
+                        port = random.randint(10000, 60000)
+                        server.listen(port, host)
+                        return port
+                    except OSError:
+                        pass
+
+            port = _try_listen(server, host)
+        else:
+            server.listen(port, host)
+
+        server.start()
+
+        return cls(server, connections, port)
+
+    def get_connections(self):
+        return self._connections
+
+    @property
+    def port(self):
+        return self._port
