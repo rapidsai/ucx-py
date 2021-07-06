@@ -20,7 +20,6 @@ from distributed.utils import nbytes
 
 import ucp
 
-PersistentEndpoints = True
 GatherAsync = False
 Iterations = 3
 Size = 2 ** 15
@@ -61,7 +60,7 @@ class BaseWorker:
         await asyncio.gather(*tasks)
 
     async def _get_messages_and_size(self):
-        msg2send = np.arange(Size)
+        msg2send = np.arange(Size, dtype=np.uint8)
         msg2recv = np.empty_like(msg2send)
 
         return (msg2send, msg2recv, nbytes(msg2send))
@@ -100,8 +99,7 @@ class BaseWorker:
         ucp.init()
 
     async def _listener_cb(self, ep):
-        if PersistentEndpoints:
-            self.connections.add(ep)
+        self.connections.add(ep)
         await self._listener(ep)
 
     async def _create_listener(self):
@@ -139,57 +137,43 @@ class BaseWorker:
 
         while self.signal[0] != self.num_workers:
             await self._sleep(0.1)
-            pass
 
-        if PersistentEndpoints:
-            for i in range(self.endpoints_per_worker):
-                client_tasks = []
-                # Create endpoints to all other workers
-                for remote_port in list(self.ports):
-                    if remote_port == self.listener.port:
-                        continue
+        for i in range(self.endpoints_per_worker):
+            client_tasks = []
+            # Create endpoints to all other workers
+            for remote_port in list(self.ports):
+                if remote_port == self.listener.port:
+                    continue
 
-                    ep = await self._create_endpoint(remote_port)
-                    self.bytes_bandwidth[remote_port] = []
-                    self.conns[(remote_port, i)] = ep
+                ep = await self._create_endpoint(remote_port)
+                self.bytes_bandwidth[remote_port] = []
+                self.conns[(remote_port, i)] = ep
 
-                    if self.transfer_to_cache:
-                        client_tasks.append(
-                            self._client(
-                                self.listener.port, remote_port, ep, cache_only=True
-                            )
-                        )
                 if self.transfer_to_cache:
-                    await self._gather(client_tasks)
-
-            # Wait until listener->ep connections have all been cached
-            while len(self.get_connections()) != self.endpoints_per_worker * (
-                self.num_workers - 1
-            ):
-                await self._sleep(0.1)
-
-            # Exchange messages with other workers
-            for i in range(3):
-                client_tasks = []
-                listener_tasks = []
-                for (remote_port, _), ep in self.conns.items():
                     client_tasks.append(
-                        self._client(self.listener.port, remote_port, ep)
+                        self._client(
+                            self.listener.port, remote_port, ep, cache_only=True
+                        )
                     )
-                for listener_ep in self.get_connections():
-                    listener_tasks.append(self._listener(listener_ep))
-
-                all_tasks = client_tasks + listener_tasks
-                await self._gather(all_tasks)
-        else:
-            for i in range(3):
-                # Create endpoints to all other workers
-                client_tasks = []
-                for port in list(self.ports):
-                    if port == self.listener.port:
-                        continue
-                    client_tasks.append(self._client(self.listener.port, port))
+            if self.transfer_to_cache:
                 await self._gather(client_tasks)
+
+        # Wait until listener->ep connections have all been cached
+        while len(self.get_connections()) != self.endpoints_per_worker * (
+            self.num_workers - 1
+        ):
+            await self._sleep(0.1)
+
+        # Exchange messages with other workers
+        client_tasks = []
+        listener_tasks = []
+        for (remote_port, _), ep in self.conns.items():
+            client_tasks.append(self._client(self.listener.port, remote_port, ep))
+        for listener_ep in self.get_connections():
+            listener_tasks.append(self._listener(listener_ep))
+
+        all_tasks = client_tasks + listener_tasks
+        await self._gather(all_tasks)
 
         with self.lock:
             self.signal[1] += 1
@@ -249,7 +233,7 @@ class TornadoWorker(BaseWorker):
         await gen.multi(tasks)
 
     async def _get_messages_and_size(self):
-        message = np.arange(Size)
+        message = np.arange(Size, dtype=np.uint8)
 
         msg = {"data": to_serialize(message)}
         frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
@@ -304,7 +288,7 @@ class AsyncioWorker(BaseWorker):
         )
 
     async def _get_messages_and_size(self):
-        message = np.arange(Size)
+        message = np.arange(Size, dtype=np.uint8)
 
         msg = {"data": to_serialize(message)}
         frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
@@ -382,8 +366,8 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
         worker_process = ctx.Process(
             name="worker",
             # target=base_worker,
-            target=asyncio_worker,
-            # target=tornado_worker,
+            # target=asyncio_worker,
+            target=tornado_worker,
             args=[signal, ports, lock, worker_num, num_workers, endpoints_per_worker],
         )
         worker_process.start()
