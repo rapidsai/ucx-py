@@ -23,7 +23,14 @@ Size = 2 ** 15
 
 class BaseWorker:
     def __init__(
-        self, signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+        self,
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        transfer_to_cache,
     ):
         self.signal = signal
         self.ports = ports
@@ -31,6 +38,10 @@ class BaseWorker:
         self.worker_num = worker_num
         self.num_workers = num_workers
         self.endpoints_per_worker = endpoints_per_worker
+
+        # UCX only effectively creates endpoints at first transfer, but this
+        # isn't necessary for tornado/asyncio.
+        self.transfer_to_cache = transfer_to_cache
 
         self.conns = dict()
         self.connections = set()
@@ -44,6 +55,12 @@ class BaseWorker:
     async def _gather(self, tasks):
         await asyncio.gather(*tasks)
 
+    async def _get_messages_and_size(self):
+        msg2send = np.arange(Size)
+        msg2recv = np.empty_like(msg2send)
+
+        return (msg2send, msg2recv, nbytes(msg2send))
+
     async def _transfer(self, ep, msg2send, msg2recv, send_first=True):
         if GatherAsync:
             msgs = [ep.send(msg2send), ep.recv(msg2recv)] * Iterations
@@ -54,15 +71,13 @@ class BaseWorker:
                 await self._gather(msgs)
 
     async def _listener(self, ep):
-        msg2send = np.arange(Size)
-        msg2recv = np.empty_like(msg2send)
+        msg2send, msg2recv, _ = await self._get_messages_and_size()
 
         await self._transfer(ep, msg2send, msg2recv)
 
     async def _client(self, my_port, remote_port, ep=None, cache_only=False):
-        msg2send = np.arange(Size)
-        msg2recv = np.empty_like(msg2send)
-        send_recv_bytes = (nbytes(msg2send) + nbytes(msg2recv)) * Iterations
+        msg2send, msg2recv, msg_size = await self._get_messages_and_size()
+        send_recv_bytes = (msg_size * 2) * Iterations
 
         if ep is None:
             ep = await self._create_endpoint(remote_port)
@@ -84,11 +99,11 @@ class BaseWorker:
             self.connections.add(ep)
         await self._listener(ep)
 
-    def _create_listener(self):
+    async def _create_listener(self):
         return ucp.create_listener(self._listener_cb)
 
     async def _create_endpoint(self, remote_port):
-        my_port = self.listener_port
+        my_port = self.listener.port
         my_task = "Worker"
         remote_task = "Worker"
 
@@ -111,12 +126,11 @@ class BaseWorker:
         self._init()
 
         # Start listener
-        listener = self._create_listener()
-        self.listener_port = listener.port
+        self.listener = await self._create_listener()
 
         with self.lock:
             self.signal[0] += 1
-            self.ports[self.worker_num] = listener.port
+            self.ports[self.worker_num] = self.listener.port
 
         while self.signal[0] != self.num_workers:
             pass
@@ -126,16 +140,21 @@ class BaseWorker:
                 client_tasks = []
                 # Create endpoints to all other workers
                 for remote_port in list(self.ports):
-                    if remote_port == listener.port:
+                    if remote_port == self.listener.port:
                         continue
 
                     ep = await self._create_endpoint(remote_port)
                     self.bytes_bandwidth[remote_port] = []
                     self.conns[(remote_port, i)] = ep
-                    client_tasks.append(
-                        self._client(listener.port, remote_port, ep, cache_only=True)
-                    )
-                await self._gather(client_tasks)
+
+                    if self.transfer_to_cache:
+                        client_tasks.append(
+                            self._client(
+                                self.listener.port, remote_port, ep, cache_only=True
+                            )
+                        )
+                if self.transfer_to_cache:
+                    await self._gather(client_tasks)
 
             # Wait until listener->ep connections have all been cached
             while len(self.get_connections()) != self.endpoints_per_worker * (
@@ -148,7 +167,9 @@ class BaseWorker:
                 client_tasks = []
                 listener_tasks = []
                 for (remote_port, _), ep in self.conns.items():
-                    client_tasks.append(self._client(listener.port, remote_port, ep))
+                    client_tasks.append(
+                        self._client(self.listener.port, remote_port, ep)
+                    )
                 for listener_ep in self.get_connections():
                     listener_tasks.append(self._listener(listener_ep))
 
@@ -159,23 +180,26 @@ class BaseWorker:
                 # Create endpoints to all other workers
                 client_tasks = []
                 for port in list(self.ports):
-                    if port == listener.port:
+                    if port == self.listener.port:
                         continue
-                    client_tasks.append(self._client(listener.port, port))
+                    client_tasks.append(self._client(self.listener.port, port))
                 await self._gather(client_tasks)
 
         with self.lock:
             self.signal[1] += 1
-            self.ports[self.worker_num] = listener.port
+            self.ports[self.worker_num] = self.listener.port
 
         while self.signal[1] != self.num_workers:
             pass
 
-        listener.close()
+        for conn in self.get_connections():
+            await conn.close()
+
+        self.listener.close()
 
         # Wait for a shutdown signal from monitor
         try:
-            while not listener.closed():
+            while not self.listener.closed():
                 await self._sleep(0.1)
         except ucp.UCXCloseError:
             pass
@@ -189,7 +213,7 @@ class BaseWorker:
                 "[%d, %d] Transferred bytes: %s, average bandwidth: %s/s, "
                 "median bandwidth: %s/s"
                 % (
-                    self.listener_port,
+                    self.listener.port,
                     remote_port,
                     format_bytes(total_bytes),
                     format_bytes(avg_bandwidth),
@@ -198,161 +222,86 @@ class BaseWorker:
             )
 
 
-def tornado_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
-    conns = dict()
-    bytes_bandwidth = dict()
+class TornadoWorker(BaseWorker):
+    def __init__(
+        self, signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+    ):
+        super().__init__(
+            signal,
+            ports,
+            lock,
+            worker_num,
+            num_workers,
+            endpoints_per_worker,
+            transfer_to_cache=False,
+        )
 
-    global cluster_started
-    cluster_started = False
+    async def _sleep(self, delay):
+        await gen.sleep(delay)
 
-    async def _worker():
-        def _register_cluster_started():
-            global cluster_started
-            cluster_started = True
+    async def _gather(self, tasks):
+        await gen.multi(tasks)
 
-        async def _get_message_size_and_frames():
-            message = np.arange(Size)
+    async def _get_messages_and_size(self):
+        message = np.arange(Size)
 
-            msg = {"data": to_serialize(message)}
-            frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
+        msg = {"data": to_serialize(message)}
+        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
 
-            return (nbytes(message), frames)
+        return (frames, None, nbytes(message))
 
-        async def _listener(conn):
-            _, frames = await _get_message_size_and_frames()
-
-            if GatherAsync:
-                msgs = [
-                    op
-                    for i in range(Iterations)
-                    for op in [conn.recv(), conn.send(frames)]
-                ]
-                await gen.multi(msgs)
-            else:
-                for i in range(Iterations):
-                    msgs = [conn.send(frames), conn.recv()]
-                    await gen.multi(msgs)
-
-                    # This seems to be faster!
-                    # await conn.send(frames)
-                    # await conn.recv()
-
-        async def _client(my_port, remote_port, conn=None):
-            message_size, frames = await _get_message_size_and_frames()
-            send_recv_bytes = (message_size * 2) * Iterations
-
-            t = monotonic()
-            if GatherAsync:
-                msgs = [
-                    op
-                    for i in range(Iterations)
-                    for op in [conn.recv(), conn.send(frames)]
-                ]
-                await gen.multi(msgs)
-            else:
-                for i in range(Iterations):
-                    msgs = [conn.recv(), conn.send(frames)]
-                    await gen.multi(msgs)
-
-                    # This seems to be faster!
-                    # await conn.recv()
-                    # await conn.send(frames)
-
-            bytes_bandwidth[remote_port].append(
-                (send_recv_bytes, send_recv_bytes / (monotonic() - t))
-            )
-
-        host = ucp.get_address(ifname="enp1s0f0")
-
-        # Start listener
-        listener = await TornadoTCPServer.start_server(host, None)
-        with lock:
-            signal[0] += 1
-            ports[worker_num] = listener.port
-
-        while signal[0] != num_workers:
-            await gen.sleep(0)
-
-        print(list(ports))
-
-        if PersistentEndpoints:
-            for i in range(endpoints_per_worker):
-                client_tasks = []
-                # Create endpoints to all other workers
-                for remote_port in list(ports):
-                    if remote_port == listener.port:
-                        continue
-                    conn = await TornadoTCPConnection.connect(host, remote_port)
-                    conns[(remote_port, i)] = conn
-                    bytes_bandwidth[remote_port] = []
-
-            # Wait until all clients connected to listener
-            while len(listener.get_connections()) != endpoints_per_worker * (
-                num_workers - 1
-            ):
-                await gen.sleep(0)
-
-            # Exchange messages with other workers
-            for i in range(3):
-                client_tasks = []
-                listener_tasks = []
-                for (remote_port, _), conn in conns.items():
-                    client_tasks.append(_client(listener.port, remote_port, conn))
-                for conn in listener.get_connections():
-                    listener_tasks.append(_listener(conn))
-
-                all_tasks = client_tasks + listener_tasks
-                await gen.multi(all_tasks)
+    async def _transfer(self, ep, msg2send, msg2recv, send_first=True):
+        if GatherAsync:
+            msgs = [
+                op for i in range(Iterations) for op in [ep.recv(), ep.send(msg2send)]
+            ]
+            await gen.multi(msgs)
         else:
-            for i in range(3):
-                # Create endpoints to all other workers
-                client_tasks = []
-                for port in list(ports):
-                    if port == listener.port:
-                        continue
-                    client_tasks.append(_client(listener.port, port))
-                await gen.multi(client_tasks)
+            for i in range(Iterations):
+                msgs = [ep.recv(), ep.send(msg2send)]
+                await gen.multi(msgs)
 
-        with lock:
-            signal[1] += 1
-            ports[worker_num] = listener.port
+                # This seems to be faster!
+                # await conn.recv()
+                # await conn.send(frames)
 
-        while signal[1] != num_workers:
-            pass
+    def _init(self):
+        return
 
-        for remote_port, bb in bytes_bandwidth.items():
-            total_bytes = sum(b[0] for b in bb)
-            avg_bandwidth = np.mean(list(b[1] for b in bb))
-            median_bandwidth = np.median(list(b[1] for b in bb))
-            print(
-                "[%d, %d] Transferred bytes: %s, average bandwidth: %s/s, "
-                "median bandwidth: %s/s"
-                % (
-                    listener.port,
-                    remote_port,
-                    format_bytes(total_bytes),
-                    format_bytes(avg_bandwidth),
-                    format_bytes(median_bandwidth),
-                )
-            )
+    async def _listener_cb(self, ep):
+        return
 
-        # listener.server.close()
-        for conn in listener.get_connections():
-            conn.stream.close()
+    async def _create_listener(self):
+        host = ucp.get_address(ifname="enp1s0f0")
+        return await TornadoTCPServer.start_server(host, None)
 
-        # Wait for a shutdown signal from monitor
-        try:
-            while not all(c.stream.closed() for c in listener.get_connections()):
-                await gen.sleep(0)
-        except ucp.UCXCloseError:
-            pass
+    async def _create_endpoint(self, remote_port):
+        host = ucp.get_address(ifname="enp1s0f0")
+        return await TornadoTCPConnection.connect(host, remote_port)
 
-    IOLoop.current().run_sync(_worker)
+    def get_connections(self):
+        return self.listener._connections
 
 
 def base_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
-    w = BaseWorker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker)
+    w = BaseWorker(
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        transfer_to_cache=True,
+    )
     asyncio.get_event_loop().run_until_complete(w.run())
+    w.get_results()
+
+
+def tornado_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
+    w = TornadoWorker(
+        signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+    )
+    IOLoop.current().run_sync(w.run)
     w.get_results()
 
 
@@ -367,9 +316,9 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
     for worker_num in range(num_workers):
         worker_process = ctx.Process(
             name="worker",
-            target=base_worker,
+            # target=base_worker,
             # target=asyncio_worker,
-            # target=tornado_worker,
+            target=tornado_worker,
             args=[signal, ports, lock, worker_num, num_workers, endpoints_per_worker],
         )
         worker_process.start()

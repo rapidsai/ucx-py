@@ -230,6 +230,13 @@ class TornadoTCPConnection:
                 raise Exception("aborted stream on truncated data")
             return msg
 
+    async def close(self):
+        self.stream.close()
+        self._closed = True
+
+    def closed(self):
+        return self._closed
+
 
 class TornadoTCPServer:
     def __init__(self, server, connections, port):
@@ -274,3 +281,10 @@ class TornadoTCPServer:
     @property
     def port(self):
         return self._port
+
+    def close(self):
+        self.server.stop()
+        self._closed = True
+
+    def closed(self):
+        return self._closed
