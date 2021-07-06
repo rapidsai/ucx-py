@@ -149,7 +149,7 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
 
 
 @pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
-@pytest.mark.parametrize("endpoints_per_worker", [20, 40])
+@pytest.mark.parametrize("endpoints_per_worker", [20])
 def test_send_recv_cu(num_workers, endpoints_per_worker):
     _test_send_recv_cu(num_workers, endpoints_per_worker)
 
