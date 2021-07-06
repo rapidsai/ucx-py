@@ -6,7 +6,12 @@ import numpy as np
 import pytest
 from tornado import gen
 from tornado.ioloop import IOLoop
-from utils import TornadoTCPConnection, TornadoTCPServer
+from utils import (
+    AsyncioCommConnection,
+    AsyncioCommServer,
+    TornadoTCPConnection,
+    TornadoTCPServer,
+)
 
 from dask.utils import format_bytes
 from distributed.comm.utils import to_frames
@@ -133,6 +138,7 @@ class BaseWorker:
             self.ports[self.worker_num] = self.listener.port
 
         while self.signal[0] != self.num_workers:
+            await self._sleep(0.1)
             pass
 
         if PersistentEndpoints:
@@ -255,11 +261,11 @@ class TornadoWorker(BaseWorker):
             msgs = [
                 op for i in range(Iterations) for op in [ep.recv(), ep.send(msg2send)]
             ]
-            await gen.multi(msgs)
+            await self._gather(msgs)
         else:
             for i in range(Iterations):
                 msgs = [ep.recv(), ep.send(msg2send)]
-                await gen.multi(msgs)
+                await self._gather(msgs)
 
                 # This seems to be faster!
                 # await conn.recv()
@@ -283,6 +289,57 @@ class TornadoWorker(BaseWorker):
         return self.listener._connections
 
 
+class AsyncioWorker(BaseWorker):
+    def __init__(
+        self, signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+    ):
+        super().__init__(
+            signal,
+            ports,
+            lock,
+            worker_num,
+            num_workers,
+            endpoints_per_worker,
+            transfer_to_cache=False,
+        )
+
+    async def _get_messages_and_size(self):
+        message = np.arange(Size)
+
+        msg = {"data": to_serialize(message)}
+        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
+
+        return (frames, None, nbytes(message))
+
+    async def _transfer(self, ep, msg2send, msg2recv, send_first=True):
+        if GatherAsync:
+            msgs = [
+                op for i in range(Iterations) for op in [ep.recv(), ep.send(msg2send)]
+            ]
+            await self._gather(msgs)
+        else:
+            for i in range(Iterations):
+                msgs = [ep.recv(), ep.send(msg2send)]
+                await self._gather(msgs)
+
+    def _init(self):
+        return
+
+    async def _listener_cb(self, ep):
+        return
+
+    async def _create_listener(self):
+        host = ucp.get_address(ifname="enp1s0f0")
+        return await AsyncioCommServer.start_server(host, None)
+
+    async def _create_endpoint(self, remote_port):
+        host = ucp.get_address(ifname="enp1s0f0")
+        return await AsyncioCommConnection.open_connection(host, remote_port)
+
+    def get_connections(self):
+        return self.listener._connections
+
+
 def base_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
     w = BaseWorker(
         signal,
@@ -292,6 +349,14 @@ def base_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_work
         num_workers,
         endpoints_per_worker,
         transfer_to_cache=True,
+    )
+    asyncio.get_event_loop().run_until_complete(w.run())
+    w.get_results()
+
+
+def asyncio_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
+    w = AsyncioWorker(
+        signal, ports, lock, worker_num, num_workers, endpoints_per_worker,
     )
     asyncio.get_event_loop().run_until_complete(w.run())
     w.get_results()
@@ -317,8 +382,8 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
         worker_process = ctx.Process(
             name="worker",
             # target=base_worker,
-            # target=asyncio_worker,
-            target=tornado_worker,
+            target=asyncio_worker,
+            # target=tornado_worker,
             args=[signal, ports, lock, worker_num, num_workers, endpoints_per_worker],
         )
         worker_process.start()

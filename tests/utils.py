@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import io
 import logging
 import os
@@ -149,6 +151,7 @@ class TornadoTCPConnection:
     def __init__(self, stream, client=None):
         self._client = client
         self.stream = stream
+        self._closed = False
 
     @classmethod
     async def connect(cls, host, port):
@@ -288,3 +291,77 @@ class TornadoTCPServer:
 
     def closed(self):
         return self._closed
+
+
+class AsyncioCommConnection:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+
+    @classmethod
+    async def open_connection(cls, host, port):
+        reader, writer = await asyncio.open_connection(host, port, limit=2 ** 30)
+        return cls(reader, writer)
+
+    async def send(self, frames):
+        nframes = len(frames)
+        self.writer.write(struct.pack("Q", nframes))
+        sizes = list(nbytes(f) for f in frames)
+        self.writer.write(struct.pack(nframes * "Q", *sizes))
+        for f in frames:
+            self.writer.write(f)
+        await self.writer.drain()
+
+    async def recv(self):
+        nframes = await self.reader.readexactly(struct.calcsize("Q"))
+        nframes = struct.unpack("Q", nframes)
+        sizes = await self.reader.readexactly(struct.calcsize(nframes[0] * "Q"))
+        sizes = struct.unpack(nframes[0] * "Q", sizes)
+        frames = []
+        for size in sizes:
+            frames.append(await self.reader.readexactly(size))
+
+        msg = await from_frames(
+            frames,
+            deserializers=("cuda", "dask", "pickle", "error"),
+            allow_offload=True,
+        )
+        return frames, msg
+
+    async def close(self):
+        self.writer.close()
+
+    def closed(self):
+        return self.writer.is_closing()
+
+
+class AsyncioCommServer:
+    def __init__(self, server, connections):
+        self.server = server
+        self._connections = connections
+        self._port = self.server.sockets[0].getsockname()[1]
+
+    @classmethod
+    async def start_server(cls, host, port):
+        def _server_callback(connections, reader, writer):
+            connections.append(AsyncioCommConnection(reader, writer))
+
+        connections = []
+
+        server = await asyncio.start_server(
+            functools.partial(_server_callback, connections), host, port, limit=2 ** 30,
+        )
+        return cls(server, connections)
+
+    def get_connections(self):
+        return self._connections
+
+    @property
+    def port(self):
+        return self._port
+
+    def close(self):
+        self.server.close()
+
+    def closed(self):
+        return not self.server.is_serving()
