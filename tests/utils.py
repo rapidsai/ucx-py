@@ -306,8 +306,10 @@ class AsyncioCommConnection:
     async def send(self, frames):
         nframes = len(frames)
         self.writer.write(struct.pack("Q", nframes))
+        # await self.writer.drain()
         sizes = list(nbytes(f) for f in frames)
         self.writer.write(struct.pack(nframes * "Q", *sizes))
+        # await self.writer.drain()
         for f in frames:
             self.writer.write(f)
         await self.writer.drain()
@@ -365,3 +367,88 @@ class AsyncioCommServer:
 
     def closed(self):
         return not self.server.is_serving()
+
+
+class UCXConnection:
+    def __init__(self, ep):
+        self.ep = ep
+
+    @classmethod
+    async def open_connection(cls, host, port):
+        ep = await ucp.create_endpoint(host, port)
+        return cls(ep)
+
+    async def send(self, frames):
+        nframes = len(frames)
+        print(f"Send nframes: {nframes}")
+        await self.ep.send(struct.pack("Q", nframes))
+
+        sizes = list(nbytes(f) for f in frames)
+        await self.ep.send(struct.pack(nframes * "Q", *sizes))
+        print(f"Send sizes: {sizes}")
+
+        for f in frames:
+            await self.ep.send(f)
+
+    async def recv(self):
+        nframes = np.empty((struct.calcsize("Q"),), dtype="u1")
+        await self.ep.recv(nframes)
+        nframes = struct.unpack("Q", nframes)
+        print(f"Recv nframes: {nframes}")
+
+        sizes = np.empty((struct.calcsize(nframes[0] * "Q"),), dtype="u1")
+        await self.ep.recv(sizes)
+        sizes = struct.unpack(nframes[0] * "Q", sizes)
+        print(f"Recv sizes: {sizes}")
+
+        frames = []
+        for size in sizes:
+            frame = np.empty((size,), dtype="u1")
+            await self.ep.recv(frame)
+            frames.append(frame)
+
+        msg = await from_frames(
+            frames,
+            deserializers=("cuda", "dask", "pickle", "error"),
+            allow_offload=True,
+        )
+        return frames, msg
+
+    async def close(self):
+        await self.ep.close()
+
+    def closed(self):
+        return self.ep.closed()
+
+
+class UCXServer:
+    def __init__(self, server, connections):
+        self.server = server
+        self._connections = connections
+
+    @classmethod
+    async def start_server(cls, host, port, listener_func):
+        async def _server_callback(connections, ep):
+            conn = UCXConnection(ep)
+            connections.append(UCXConnection(ep))
+            await listener_func(conn)
+
+        connections = []
+
+        server = ucp.create_listener(
+            functools.partial(_server_callback, connections), port,
+        )
+        return cls(server, connections)
+
+    def get_connections(self):
+        return self._connections
+
+    @property
+    def port(self):
+        return self.server.port
+
+    def close(self):
+        self.server.close()
+
+    def closed(self):
+        return self.server.closed()
