@@ -16,15 +16,13 @@ from utils import (
 )
 
 from dask.utils import format_bytes
-from distributed.comm.utils import to_frames
-from distributed.protocol import to_serialize
 from distributed.utils import nbytes
 
 import ucp
 
 GatherAsync = False
 Iterations = 3
-Size = 2 ** 10
+Size = 2 ** 20
 
 
 class BaseWorker:
@@ -61,15 +59,7 @@ class BaseWorker:
     async def _gather(self, tasks):
         await asyncio.gather(*tasks)
 
-    async def _get_messages_and_size(self):
-        message = np.arange(Size, dtype=np.uint8)
-
-        msg = {"data": to_serialize(message)}
-        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
-
-        return (frames, None, nbytes(message))
-
-    async def _transfer(self, ep, msg2send, msg2recv, send_first=True):
+    async def _transfer(self, ep, msg2send, send_first=True):
         if GatherAsync:
             msgs = [
                 op for i in range(Iterations) for op in [ep.recv(), ep.send(msg2send)]
@@ -90,19 +80,19 @@ class BaseWorker:
                         await ep.send(msg2send)
 
     async def _listener(self, ep):
-        msg2send, msg2recv, _ = await self._get_messages_and_size()
+        message = np.arange(Size, dtype=np.uint8)
 
-        await self._transfer(ep, msg2send, msg2recv)
+        await self._transfer(ep, message)
 
     async def _client(self, my_port, remote_port, ep=None, cache_only=False):
-        msg2send, msg2recv, msg_size = await self._get_messages_and_size()
-        send_recv_bytes = (msg_size * 2) * Iterations
+        message = np.arange(Size, dtype=np.uint8)
+        send_recv_bytes = (nbytes(message) * 2) * Iterations
 
         if ep is None:
             ep = await self._create_endpoint(remote_port)
 
         t = monotonic()
-        await self._transfer(ep, msg2send, msg2recv, send_first=False)
+        await self._transfer(ep, message, send_first=False)
         total_time = monotonic() - t
 
         if cache_only is False:
@@ -209,7 +199,6 @@ class BaseWorker:
 
     def get_results(self):
         for remote_port, bb in self.bytes_bandwidth.items():
-            print(bb)
             total_bytes = sum(b[0] for b in bb)
             avg_bandwidth = np.mean(list(b[1] for b in bb))
             median_bandwidth = np.median(list(b[1] for b in bb))
@@ -325,9 +314,9 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
     for worker_num in range(num_workers):
         worker_process = ctx.Process(
             name="worker",
-            target=base_worker,
+            # target=base_worker,
             # target=asyncio_worker,
-            # target=tornado_worker,
+            target=tornado_worker,
             args=[signal, ports, lock, worker_num, num_workers, endpoints_per_worker],
         )
         worker_process.start()

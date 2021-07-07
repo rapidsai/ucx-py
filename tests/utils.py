@@ -11,7 +11,8 @@ from tornado.iostream import StreamClosedError
 from tornado.tcpclient import TCPClient
 from tornado.tcpserver import TCPServer
 
-from distributed.comm.utils import from_frames
+from distributed.comm.utils import from_frames, to_frames
+from distributed.protocol import to_serialize
 from distributed.protocol.utils import pack_frames_prelude, unpack_frames
 from distributed.utils import nbytes
 
@@ -160,10 +161,13 @@ class TornadoTCPConnection:
         stream.set_nodelay(True)
         return cls(stream, client=client)
 
-    async def send(self, frames):
+    async def send(self, message):
         stream = self.stream
         if stream is None:
             raise StreamClosedError()
+
+        msg = {"data": to_serialize(message)}
+        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
 
         frames_nbytes = [nbytes(f) for f in frames]
         frames_nbytes_total = sum(frames_nbytes)
@@ -303,7 +307,10 @@ class AsyncioCommConnection:
         reader, writer = await asyncio.open_connection(host, port, limit=2 ** 30)
         return cls(reader, writer)
 
-    async def send(self, frames):
+    async def send(self, message):
+        msg = {"data": to_serialize(message)}
+        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
+
         nframes = len(frames)
         self.writer.write(struct.pack("Q", nframes))
         # await self.writer.drain()
@@ -378,7 +385,10 @@ class UCXConnection:
         ep = await ucp.create_endpoint(host, port)
         return cls(ep)
 
-    async def send(self, frames):
+    async def send(self, message):
+        msg = {"data": to_serialize(message)}
+        frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
+
         nframes = len(frames)
         print(f"Send nframes: {nframes}")
         await self.ep.send(struct.pack("Q", nframes))
