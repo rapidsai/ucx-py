@@ -37,26 +37,26 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
             global cluster_started
             cluster_started = True
 
-        async def _listener(ep, cache_ep=False):
+        async def _transfer(ep):
             msg2send = np.arange(10)
             msg2recv = np.empty_like(msg2send)
 
-            msgs = [ep.send(msg2send), ep.recv(msg2recv)]
-            await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+            msgs = [ep.recv(msg2recv), ep.send(msg2send)]
+            await asyncio.gather(*msgs)
+
+        async def _listener(ep):
+            await _transfer(ep)
 
         async def _listener_cb(ep):
             if PersistentEndpoints:
                 listener_eps.add(ep)
-            await _listener(ep, cache_ep=True)
+            await _listener(ep)
 
         async def _client(my_port, remote_port, ep=None):
-            msg2send = np.arange(10)
-            msg2recv = np.empty_like(msg2send)
-
             if ep is None:
                 ep = await create_endpoint_retry(my_port, port, "Worker", "Worker")
-            msgs = [ep.recv(msg2recv), ep.send(msg2send)]
-            await asyncio.gather(*msgs, loop=asyncio.get_event_loop())
+
+            await _transfer(ep)
 
         # Start listener
         listener = ucp.create_listener(_listener_cb)
@@ -79,7 +79,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
                     )
                     eps[(remote_port, i)] = ep
                     client_tasks.append(_client(listener.port, remote_port, ep))
-                await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
+                await asyncio.gather(*client_tasks)
 
             # Wait until listener_eps have all been cached
             while len(listener_eps) != endpoints_per_worker * (num_workers - 1):
@@ -95,7 +95,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
                     listener_tasks.append(_listener(listener_ep))
 
                 all_tasks = client_tasks + listener_tasks
-                await asyncio.gather(*all_tasks, loop=asyncio.get_event_loop())
+                await asyncio.gather(*all_tasks)
         else:
             for i in range(3):
                 # Create endpoints to all other workers
@@ -104,7 +104,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
                     if port == listener.port:
                         continue
                     client_tasks.append(_client(listener.port, port))
-                await asyncio.gather(*client_tasks, loop=asyncio.get_event_loop())
+                await asyncio.gather(*client_tasks)
 
         with lock:
             signal[1] += 1
@@ -125,7 +125,7 @@ def worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
     asyncio.get_event_loop().run_until_complete(_worker())
 
 
-def _test_send_recv_cu(num_workers, endpoints_per_worker):
+def _test_multiple_processes_all_to_all(num_workers, endpoints_per_worker):
     ctx = multiprocessing.get_context("spawn")
 
     signal = ctx.Array("i", [0, 0])
@@ -150,12 +150,12 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
 
 @pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
 @pytest.mark.parametrize("endpoints_per_worker", [20])
-def test_send_recv_cu(num_workers, endpoints_per_worker):
-    _test_send_recv_cu(num_workers, endpoints_per_worker)
+def test_multiple_processes_all_to_all(num_workers, endpoints_per_worker):
+    _test_multiple_processes_all_to_all(num_workers, endpoints_per_worker)
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("num_workers", [1, 2, 4, 8])
 @pytest.mark.parametrize("endpoints_per_worker", [80, 320, 640])
-def test_send_recv_cu_slow(num_workers, endpoints_per_worker):
-    _test_send_recv_cu(num_workers, endpoints_per_worker)
+def test_multiple_processes_all_to_all_slow(num_workers, endpoints_per_worker):
+    _test_multiple_processes_all_to_all(num_workers, endpoints_per_worker)
