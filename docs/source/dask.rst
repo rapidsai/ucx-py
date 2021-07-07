@@ -52,16 +52,34 @@ Dask-cuda can also be used when manually starting a cluster:
     # server
     # Note: --interface is an Ethernet interface
     UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
+    python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
 
 
     # worker
     UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm dask-cuda-worker ucx://{SCHEDULER_ADDR}:8786
+    dask-cuda-worker ucx://{SCHEDULER_ADDR}:8786
 
     # client
-    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python <python file>
+    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
+    python <python file>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The commands above would be modified as follows for UCX 1.10:
+
+.. code-block:: bash
+
+    # server
+    # Note: --interface is an Ethernet interface
+    UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
+
+
+    # worker
+    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    dask-cuda-worker ucx://{SCHEDULER_ADDR}:8786
+
+    # client
+    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    python <python file>
 
 
 The benefit of using ``dask-cuda-worker`` is that it will invoke N workers where N is the number of GPUs and automatically pair workers with GPUs.
@@ -76,15 +94,31 @@ Lastly, we can also manually start each worker individually (this is typically o
 
     # server
     UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
+    python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
 
     # worker
     CUDA_VISIBLE_DEVICES=0 UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm dask-worker ucx://{SCHEDULER_ADDR}:8786
+    dask-worker ucx://{SCHEDULER_ADDR}:8786
 
     # client
-    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python <python file>
+    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc \
+    python <python file>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The commands above would be modified as follows for UCX 1.10:
+
+.. code-block:: bash
+
+    # server
+    UCX_CUDA_IPC_CACHE=n UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    python -m distributed.cli.dask_scheduler --interface enp1s0f0 --protocol ucx
+
+    # worker
+    CUDA_VISIBLE_DEVICES=0 UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    dask-worker ucx://{SCHEDULER_ADDR}:8786
+
+    # client
+    UCX_CUDA_IPC_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc \
+    python <python file>
 
 Note: ``CUDA_VISIBLE_DEVICES`` controls which GPU(s) the worker has access to and ``--interface`` is an Ethernet interface
 
