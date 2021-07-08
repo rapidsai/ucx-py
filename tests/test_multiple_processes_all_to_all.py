@@ -34,17 +34,15 @@ OP_SHUTDOWN = 4
 class UCXProcess:
     def __init__(
         self,
-        signal,
-        ports,
-        lock,
         num_workers,
         endpoints_per_worker,
         monitor_port,
         transfer_to_cache,
+        shm_sync=True,
+        signal=None,
+        ports=None,
+        lock=None,
     ):
-        self.signal = signal
-        self.ports = ports
-        self.lock = lock
         self.num_workers = num_workers
         self.endpoints_per_worker = endpoints_per_worker
 
@@ -53,6 +51,11 @@ class UCXProcess:
         self.transfer_to_cache = transfer_to_cache
 
         self.monitor_port = monitor_port
+
+        self.shm_sync = shm_sync
+        self.signal = signal
+        self.ports = ports
+        self.lock = lock
 
         self.conns = dict()
         self.connections = set()
@@ -135,8 +138,11 @@ class UCXProcess:
             self.listener_address, self.monitor_port, self._monitor_listener_cb,
         )
 
-        with self.lock:
-            self.signal[0] = self.listener.port
+        if self.shm_sync:
+            with self.lock:
+                self.signal[0] = self.listener.port
+        else:
+            print(f"Monitor listening at {self.listener_address}:{self.listener.port}")
 
         # Wait for all workers to connect
         while len(self.get_connections()) != (
@@ -180,7 +186,7 @@ class UCXProcess:
             pass
 
     async def _wait_for_workers(self):
-        if self.monitor_port == 0:
+        if self.shm_sync:
             with self.lock:
                 self.ports[self.signal[0]] = self.listener.port
                 self.signal[0] += 1
@@ -200,7 +206,7 @@ class UCXProcess:
             assert len(self.worker_addresses) == self.num_workers
 
     async def _wait_for_completion(self):
-        if self.monitor_port == 0:
+        if self.shm_sync:
             with self.lock:
                 self.ports[self.signal[1]] = self.listener.port
                 self.signal[1] += 1
@@ -324,16 +330,24 @@ class UCXProcess:
 
 class TornadoProcess(UCXProcess):
     def __init__(
-        self, signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
+        self,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
+        shm_sync=True,
+        signal=None,
+        ports=None,
+        lock=None,
     ):
         super().__init__(
-            signal,
-            ports,
-            lock,
             num_workers,
             endpoints_per_worker,
             monitor_port,
             transfer_to_cache=False,
+            shm_sync=shm_sync,
+            signal=signal,
+            ports=ports,
+            lock=lock,
         )
 
     async def _sleep(self, delay):
@@ -354,16 +368,24 @@ class TornadoProcess(UCXProcess):
 
 class AsyncioProcess(UCXProcess):
     def __init__(
-        self, signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
+        self,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
+        shm_sync=True,
+        signal=None,
+        ports=None,
+        lock=None,
     ):
         super().__init__(
-            signal,
-            ports,
-            lock,
             num_workers,
             endpoints_per_worker,
             monitor_port,
             transfer_to_cache=False,
+            shm_sync=shm_sync,
+            signal=signal,
+            ports=ports,
+            lock=lock,
         )
 
     def _init(self):
@@ -377,16 +399,24 @@ class AsyncioProcess(UCXProcess):
 
 
 def ucx_process(
-    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+    shm_sync=True,
+    signal=None,
+    ports=None,
+    lock=None,
 ):
     w = UCXProcess(
-        signal,
-        ports,
-        lock,
         num_workers,
         endpoints_per_worker,
         monitor_port,
         transfer_to_cache=True,
+        shm_sync=shm_sync,
+        signal=signal,
+        ports=ports,
+        lock=lock,
     )
     run_func = w.run_monitor if is_monitor else w.run
     asyncio.get_event_loop().run_until_complete(run_func())
@@ -394,10 +424,23 @@ def ucx_process(
 
 
 def asyncio_process(
-    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+    shm_sync=True,
+    signal=None,
+    ports=None,
+    lock=None,
 ):
     w = AsyncioProcess(
-        signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
+        shm_sync=shm_sync,
+        signal=signal,
+        ports=ports,
+        lock=lock,
     )
     run_func = w.run_monitor if is_monitor else w.run
     asyncio.get_event_loop().run_until_complete(run_func())
@@ -405,10 +448,23 @@ def asyncio_process(
 
 
 def tornado_process(
-    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+    shm_sync=True,
+    signal=None,
+    ports=None,
+    lock=None,
 ):
     w = TornadoProcess(
-        signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
+        shm_sync=shm_sync,
+        signal=signal,
+        ports=ports,
+        lock=lock,
     )
     run_func = w.run_monitor if is_monitor else w.run
     IOLoop.current().run_sync(run_func)
@@ -430,7 +486,8 @@ def _test_send_recv_cu(
         monitor_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[signal, ports, lock, num_workers, endpoints_per_worker, True, 0],
+            args=[num_workers, endpoints_per_worker, True, 0],
+            kwargs={"shm_sync": True, "signal": signal, "ports": ports, "lock": lock},
         )
         monitor_process.start()
 
@@ -444,15 +501,13 @@ def _test_send_recv_cu(
         worker_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[
-                signal,
-                ports,
-                lock,
-                num_workers,
-                endpoints_per_worker,
-                False,
-                monitor_port,
-            ],
+            args=[num_workers, endpoints_per_worker, False, monitor_port],
+            kwargs={
+                "shm_sync": not enable_monitor,
+                "signal": signal,
+                "ports": ports,
+                "lock": lock,
+            },
         )
         worker_process.start()
         worker_processes.append(worker_process)
