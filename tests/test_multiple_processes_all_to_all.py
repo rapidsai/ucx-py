@@ -190,13 +190,7 @@ class BaseWorker:
         except ucp.UCXCloseError:
             pass
 
-    async def run(self):
-        self._init()
-
-        # Start listener
-        self.listener_address = ucp.get_address(ifname="enp1s0f0")
-        self.listener = await self._create_listener(self.listener_address)
-
+    async def _wait_for_workers(self):
         if self.monitor_port == 0:
             with self.lock:
                 self.signal[0] += 1
@@ -205,17 +199,32 @@ class BaseWorker:
             while self.signal[0] != self.num_workers:
                 await self._sleep(0.1)
         else:
-            monitor_ep = await self._create_endpoint(
+            self.monitor_ep = await self._create_endpoint(
                 self.listener_address, self.monitor_port
             )
-            await monitor_ep.send(
+            await self.monitor_ep.send(
                 (OP_WORKER_LISTENING, self.listener_address, self.listener.port)
             )
-            _, worker_addresses = await monitor_ep.recv()
+            _, worker_addresses = await self.monitor_ep.recv()
             assert worker_addresses["data"][0] == OP_CLUSTER_READY
-            worker_addresses = worker_addresses["data"][1]
-            assert len(worker_addresses) == self.num_workers
+            self.worker_addresses = worker_addresses["data"][1]
+            assert len(self.worker_addresses) == self.num_workers
 
+    async def _wait_for_completion(self):
+        if self.monitor_port == 0:
+            with self.lock:
+                self.signal[1] += 1
+                self.ports[self.worker_num] = self.listener.port
+
+            while self.signal[1] != self.num_workers:
+                await self._sleep(0)
+        else:
+            await self.monitor_ep.send((OP_WORKER_COMPLETED,))
+            _, shutdown = await self.monitor_ep.recv()
+            shutdown = shutdown["data"]
+            assert shutdown[0] == OP_SHUTDOWN
+
+    async def _create_all_endpoints(self):
         for i in range(self.endpoints_per_worker):
             client_tasks = []
             # Create endpoints to all other workers
@@ -235,7 +244,7 @@ class BaseWorker:
                             )
                         )
             else:
-                for worker_address in worker_addresses:
+                for worker_address in self.worker_addresses:
                     if (
                         worker_address[0] == self.listener_address
                         and worker_address[1] == self.listener.port
@@ -256,12 +265,14 @@ class BaseWorker:
             if self.transfer_to_cache:
                 await self._gather(client_tasks)
 
+    async def _wait_for_connections_cache(self):
         # Wait until listener->ep connections have all been cached
         while len(self.get_connections()) != self.endpoints_per_worker * (
             self.num_workers - 1
         ):
             await self._sleep(0.1)
 
+    async def _exchange_messages(self):
         # Exchange messages with other workers
         client_tasks = []
         listener_tasks = []
@@ -272,19 +283,7 @@ class BaseWorker:
         all_tasks = client_tasks + listener_tasks
         await self._gather(all_tasks)
 
-        if self.monitor_port == 0:
-            with self.lock:
-                self.signal[1] += 1
-                self.ports[self.worker_num] = self.listener.port
-
-            while self.signal[1] != self.num_workers:
-                await self._sleep(0)
-        else:
-            await monitor_ep.send((OP_WORKER_COMPLETED,))
-            _, shutdown = await monitor_ep.recv()
-            shutdown = shutdown["data"]
-            assert shutdown[0] == OP_SHUTDOWN
-
+    async def _close_connections_and_listener(self):
         for conn in self.get_connections():
             await conn.close()
 
@@ -296,6 +295,25 @@ class BaseWorker:
                 await self._sleep(0.1)
         except ucp.UCXCloseError:
             pass
+
+    async def run(self):
+        self._init()
+
+        # Start listener
+        self.listener_address = ucp.get_address(ifname="enp1s0f0")
+        self.listener = await self._create_listener(self.listener_address)
+
+        await self._wait_for_workers()
+
+        await self._create_all_endpoints()
+
+        await self._wait_for_connections_cache()
+
+        await self._exchange_messages()
+
+        await self._wait_for_completion()
+
+        await self._close_connections_and_listener()
 
     def get_results(self):
         for remote_port, bb in self.bytes_bandwidth.items():
