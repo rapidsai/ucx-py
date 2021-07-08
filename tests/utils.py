@@ -235,7 +235,7 @@ class TornadoTCPConnection:
                 )
             except EOFError:
                 raise Exception("aborted stream on truncated data")
-            return msg
+            return frames, msg
 
     async def close(self):
         self.stream.close()
@@ -261,7 +261,7 @@ class TornadoTCPServer:
 
         server = TCPServer(max_buffer_size=2 ** 30)
 
-        if port is None:
+        if port is None or port == 0:
 
             def _try_listen(server, host):
                 while True:
@@ -313,10 +313,8 @@ class AsyncioCommConnection:
 
         nframes = len(frames)
         self.writer.write(struct.pack("Q", nframes))
-        # await self.writer.drain()
         sizes = list(nbytes(f) for f in frames)
         self.writer.write(struct.pack(nframes * "Q", *sizes))
-        # await self.writer.drain()
         for f in frames:
             self.writer.write(f)
         await self.writer.drain()
@@ -390,12 +388,10 @@ class UCXConnection:
         frames = await to_frames(msg, serializers=("cuda", "dask", "pickle"))
 
         nframes = len(frames)
-        print(f"Send nframes: {nframes}")
         await self.ep.send(struct.pack("Q", nframes))
 
         sizes = list(nbytes(f) for f in frames)
         await self.ep.send(struct.pack(nframes * "Q", *sizes))
-        print(f"Send sizes: {sizes}")
 
         for f in frames:
             await self.ep.send(f)
@@ -404,12 +400,10 @@ class UCXConnection:
         nframes = np.empty((struct.calcsize("Q"),), dtype="u1")
         await self.ep.recv(nframes)
         nframes = struct.unpack("Q", nframes)
-        print(f"Recv nframes: {nframes}")
 
         sizes = np.empty((struct.calcsize(nframes[0] * "Q"),), dtype="u1")
         await self.ep.recv(sizes)
         sizes = struct.unpack(nframes[0] * "Q", sizes)
-        print(f"Recv sizes: {sizes}")
 
         frames = []
         for size in sizes:

@@ -20,7 +20,7 @@ from distributed.utils import nbytes
 
 import ucp
 
-GatherAsync = False
+GatherSendRecv = False
 Iterations = 3
 Size = 2 ** 20
 
@@ -31,7 +31,7 @@ OP_WORKER_COMPLETED = 3
 OP_SHUTDOWN = 4
 
 
-class BaseWorker:
+class UCXProcess:
     def __init__(
         self,
         signal,
@@ -69,24 +69,18 @@ class BaseWorker:
         await asyncio.gather(*tasks)
 
     async def _transfer(self, ep, msg2send, send_first=True):
-        if GatherAsync:
-            msgs = [
-                op for i in range(Iterations) for op in [ep.recv(), ep.send(msg2send)]
-            ]
-            await self._gather(msgs)
-        else:
-            for i in range(Iterations):
-                if False:
-                    msgs = [ep.recv(), ep.send(msg2send)]
-                    await self._gather(msgs)
+        for i in range(Iterations):
+            if GatherSendRecv:
+                msgs = [ep.recv(), ep.send(msg2send)]
+                await self._gather(msgs)
+            else:
+                # This seems to be faster!
+                if send_first:
+                    await ep.send(msg2send)
+                    await ep.recv()
                 else:
-                    # This seems to be faster!
-                    if send_first:
-                        await ep.send(msg2send)
-                        _, msg = await ep.recv()
-                    else:
-                        await ep.recv()
-                        await ep.send(msg2send)
+                    await ep.recv()
+                    await ep.send(msg2send)
 
     async def _listener(self, ep):
         message = np.arange(Size, dtype=np.uint8)
@@ -109,14 +103,11 @@ class BaseWorker:
     def _init(self):
         ucp.init()
 
-    async def _create_listener(self, host, port=None):
-        return await UCXServer.start_server(host, port, self._listener)
+    async def _create_listener(self, host, port=None, cb=None):
+        return await UCXServer.start_server(host, port, cb or self._listener)
 
-    async def _create_monitor_listener(self, host, port=None):
-        async def _cb(ep):
-            pass
-
-        return await UCXServer.start_server(host, port, _cb)
+    async def _monitor_listener_cb(self, ep):
+        pass
 
     async def _create_endpoint(self, host, port):
         my_port = self.listener.port
@@ -142,8 +133,8 @@ class BaseWorker:
         self._init()
 
         self.listener_address = ucp.get_address(ifname="enp1s0f0")
-        self.listener = await self._create_monitor_listener(
-            self.listener_address, self.monitor_port
+        self.listener = await self._create_listener(
+            self.listener_address, self.monitor_port, self._monitor_listener_cb,
         )
 
         with self.lock:
@@ -333,7 +324,7 @@ class BaseWorker:
             )
 
 
-class TornadoWorker(BaseWorker):
+class TornadoProcess(UCXProcess):
     def __init__(
         self,
         signal,
@@ -364,14 +355,14 @@ class TornadoWorker(BaseWorker):
     def _init(self):
         return
 
-    async def _create_listener(self, host, port=None):
-        return await TornadoTCPServer.start_server(host, port=None)
+    async def _create_listener(self, host, port=None, cb=None):
+        return await TornadoTCPServer.start_server(host, port=port)
 
     async def _create_endpoint(self, host, port):
         return await TornadoTCPConnection.connect(host, port)
 
 
-class AsyncioWorker(BaseWorker):
+class AsyncioProcess(UCXProcess):
     def __init__(
         self,
         signal,
@@ -396,7 +387,7 @@ class AsyncioWorker(BaseWorker):
     def _init(self):
         return
 
-    async def _create_listener(self, host, port=None):
+    async def _create_listener(self, host, port=None, cb=None):
         return await AsyncioCommServer.start_server(host, port)
 
     async def _create_endpoint(self, host, port):
@@ -404,7 +395,7 @@ class AsyncioWorker(BaseWorker):
         return await AsyncioCommConnection.open_connection(host, port)
 
 
-def base_worker(
+def ucx_process(
     signal,
     ports,
     lock,
@@ -414,7 +405,7 @@ def base_worker(
     is_monitor,
     monitor_port,
 ):
-    w = BaseWorker(
+    w = UCXProcess(
         signal,
         ports,
         lock,
@@ -429,7 +420,7 @@ def base_worker(
     w.get_results()
 
 
-def asyncio_worker(
+def asyncio_process(
     signal,
     ports,
     lock,
@@ -439,7 +430,7 @@ def asyncio_worker(
     is_monitor,
     monitor_port,
 ):
-    w = AsyncioWorker(
+    w = AsyncioProcess(
         signal,
         ports,
         lock,
@@ -453,7 +444,7 @@ def asyncio_worker(
     w.get_results()
 
 
-def tornado_worker(
+def tornado_process(
     signal,
     ports,
     lock,
@@ -463,7 +454,7 @@ def tornado_worker(
     is_monitor,
     monitor_port,
 ):
-    w = TornadoWorker(
+    w = TornadoProcess(
         signal,
         ports,
         lock,
@@ -477,24 +468,21 @@ def tornado_worker(
     w.get_results()
 
 
-def _test_send_recv_cu(num_workers, endpoints_per_worker):
+def _test_send_recv_cu(
+    num_workers, endpoints_per_worker, enable_monitor, communication
+):
     ctx = multiprocessing.get_context("spawn")
 
-    enable_monitor = False
     monitor_port = 0
 
     signal = ctx.Array("i", [0, 0])
     ports = ctx.Array("i", range(num_workers))
     lock = ctx.Lock()
 
-    comm_type = base_worker
-    # comm_type = asyncio_worker
-    # comm_type = tornado_worker
-
     if enable_monitor:
         monitor_process = ctx.Process(
             name="worker",
-            target=comm_type,
+            target=communication,
             args=[signal, ports, lock, 0, num_workers, endpoints_per_worker, True, 0],
         )
         monitor_process.start()
@@ -508,7 +496,7 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
     for worker_num in range(num_workers):
         worker_process = ctx.Process(
             name="worker",
-            target=comm_type,
+            target=communication,
             args=[
                 signal,
                 ports,
@@ -534,5 +522,9 @@ def _test_send_recv_cu(num_workers, endpoints_per_worker):
 
 @pytest.mark.parametrize("num_workers", [2, 4, 8])
 @pytest.mark.parametrize("endpoints_per_worker", [1])
-def test_send_recv_cu(num_workers, endpoints_per_worker):
-    _test_send_recv_cu(num_workers, endpoints_per_worker)
+@pytest.mark.parametrize("enable_monitor", [True, False])
+@pytest.mark.parametrize(
+    "communication", [ucx_process, asyncio_process, tornado_process]
+)
+def test_send_recv_cu(num_workers, endpoints_per_worker, enable_monitor, communication):
+    _test_send_recv_cu(num_workers, endpoints_per_worker, enable_monitor, communication)
