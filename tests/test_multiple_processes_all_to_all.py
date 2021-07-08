@@ -37,7 +37,6 @@ class UCXProcess:
         signal,
         ports,
         lock,
-        worker_num,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -46,7 +45,6 @@ class UCXProcess:
         self.signal = signal
         self.ports = ports
         self.lock = lock
-        self.worker_num = worker_num
         self.num_workers = num_workers
         self.endpoints_per_worker = endpoints_per_worker
 
@@ -184,8 +182,8 @@ class UCXProcess:
     async def _wait_for_workers(self):
         if self.monitor_port == 0:
             with self.lock:
+                self.ports[self.signal[0]] = self.listener.port
                 self.signal[0] += 1
-                self.ports[self.worker_num] = self.listener.port
 
             while self.signal[0] != self.num_workers:
                 await self._sleep(0.1)
@@ -204,8 +202,8 @@ class UCXProcess:
     async def _wait_for_completion(self):
         if self.monitor_port == 0:
             with self.lock:
+                self.ports[self.signal[1]] = self.listener.port
                 self.signal[1] += 1
-                self.ports[self.worker_num] = self.listener.port
 
             while self.signal[1] != self.num_workers:
                 await self._sleep(0)
@@ -326,20 +324,12 @@ class UCXProcess:
 
 class TornadoProcess(UCXProcess):
     def __init__(
-        self,
-        signal,
-        ports,
-        lock,
-        worker_num,
-        num_workers,
-        endpoints_per_worker,
-        monitor_port,
+        self, signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
     ):
         super().__init__(
             signal,
             ports,
             lock,
-            worker_num,
             num_workers,
             endpoints_per_worker,
             monitor_port,
@@ -364,20 +354,12 @@ class TornadoProcess(UCXProcess):
 
 class AsyncioProcess(UCXProcess):
     def __init__(
-        self,
-        signal,
-        ports,
-        lock,
-        worker_num,
-        num_workers,
-        endpoints_per_worker,
-        monitor_port,
+        self, signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
     ):
         super().__init__(
             signal,
             ports,
             lock,
-            worker_num,
             num_workers,
             endpoints_per_worker,
             monitor_port,
@@ -391,25 +373,16 @@ class AsyncioProcess(UCXProcess):
         return await AsyncioCommServer.start_server(host, port)
 
     async def _create_endpoint(self, host, port):
-        host = ucp.get_address(ifname="enp1s0f0")
         return await AsyncioCommConnection.open_connection(host, port)
 
 
 def ucx_process(
-    signal,
-    ports,
-    lock,
-    worker_num,
-    num_workers,
-    endpoints_per_worker,
-    is_monitor,
-    monitor_port,
+    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
 ):
     w = UCXProcess(
         signal,
         ports,
         lock,
-        worker_num,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -421,23 +394,10 @@ def ucx_process(
 
 
 def asyncio_process(
-    signal,
-    ports,
-    lock,
-    worker_num,
-    num_workers,
-    endpoints_per_worker,
-    is_monitor,
-    monitor_port,
+    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
 ):
     w = AsyncioProcess(
-        signal,
-        ports,
-        lock,
-        worker_num,
-        num_workers,
-        endpoints_per_worker,
-        monitor_port,
+        signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
     )
     run_func = w.run_monitor if is_monitor else w.run
     asyncio.get_event_loop().run_until_complete(run_func())
@@ -445,23 +405,10 @@ def asyncio_process(
 
 
 def tornado_process(
-    signal,
-    ports,
-    lock,
-    worker_num,
-    num_workers,
-    endpoints_per_worker,
-    is_monitor,
-    monitor_port,
+    signal, ports, lock, num_workers, endpoints_per_worker, is_monitor, monitor_port,
 ):
     w = TornadoProcess(
-        signal,
-        ports,
-        lock,
-        worker_num,
-        num_workers,
-        endpoints_per_worker,
-        monitor_port,
+        signal, ports, lock, num_workers, endpoints_per_worker, monitor_port,
     )
     run_func = w.run_monitor if is_monitor else w.run
     IOLoop.current().run_sync(run_func)
@@ -483,7 +430,7 @@ def _test_send_recv_cu(
         monitor_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[signal, ports, lock, 0, num_workers, endpoints_per_worker, True, 0],
+            args=[signal, ports, lock, num_workers, endpoints_per_worker, True, 0],
         )
         monitor_process.start()
 
@@ -501,7 +448,6 @@ def _test_send_recv_cu(
                 signal,
                 ports,
                 lock,
-                worker_num,
                 num_workers,
                 endpoints_per_worker,
                 False,
