@@ -34,6 +34,7 @@ OP_SHUTDOWN = 4
 class UCXProcess:
     def __init__(
         self,
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -43,6 +44,7 @@ class UCXProcess:
         ports=None,
         lock=None,
     ):
+        self.listener_address = listener_address
         self.num_workers = num_workers
         self.endpoints_per_worker = endpoints_per_worker
 
@@ -133,7 +135,6 @@ class UCXProcess:
     async def run_monitor(self):
         self._init()
 
-        self.listener_address = ucp.get_address(ifname="enp1s0f0")
         self.listener = await self._create_listener(
             self.listener_address, self.monitor_port, self._monitor_listener_cb,
         )
@@ -295,7 +296,6 @@ class UCXProcess:
         self._init()
 
         # Start listener
-        self.listener_address = ucp.get_address(ifname="enp1s0f0")
         self.listener = await self._create_listener(self.listener_address)
 
         await self._wait_for_workers()
@@ -331,6 +331,7 @@ class UCXProcess:
 class TornadoProcess(UCXProcess):
     def __init__(
         self,
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -340,6 +341,7 @@ class TornadoProcess(UCXProcess):
         lock=None,
     ):
         super().__init__(
+            listener_address,
             num_workers,
             endpoints_per_worker,
             monitor_port,
@@ -369,6 +371,7 @@ class TornadoProcess(UCXProcess):
 class AsyncioProcess(UCXProcess):
     def __init__(
         self,
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -378,6 +381,7 @@ class AsyncioProcess(UCXProcess):
         lock=None,
     ):
         super().__init__(
+            listener_address,
             num_workers,
             endpoints_per_worker,
             monitor_port,
@@ -399,6 +403,7 @@ class AsyncioProcess(UCXProcess):
 
 
 def ucx_process(
+    listener_address,
     num_workers,
     endpoints_per_worker,
     is_monitor,
@@ -409,6 +414,7 @@ def ucx_process(
     lock=None,
 ):
     w = UCXProcess(
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -424,6 +430,7 @@ def ucx_process(
 
 
 def asyncio_process(
+    listener_address,
     num_workers,
     endpoints_per_worker,
     is_monitor,
@@ -434,6 +441,7 @@ def asyncio_process(
     lock=None,
 ):
     w = AsyncioProcess(
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -448,6 +456,7 @@ def asyncio_process(
 
 
 def tornado_process(
+    listener_address,
     num_workers,
     endpoints_per_worker,
     is_monitor,
@@ -458,6 +467,7 @@ def tornado_process(
     lock=None,
 ):
     w = TornadoProcess(
+        listener_address,
         num_workers,
         endpoints_per_worker,
         monitor_port,
@@ -476,6 +486,7 @@ def _test_send_recv_cu(
 ):
     ctx = multiprocessing.get_context("spawn")
 
+    listener_address = ucp.get_address(ifname="enp1s0f0")
     monitor_port = 0
 
     signal = ctx.Array("i", [0, 0])
@@ -486,7 +497,7 @@ def _test_send_recv_cu(
         monitor_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[num_workers, endpoints_per_worker, True, 0],
+            args=[listener_address, num_workers, endpoints_per_worker, True, 0],
             kwargs={"shm_sync": True, "signal": signal, "ports": ports, "lock": lock},
         )
         monitor_process.start()
@@ -501,7 +512,13 @@ def _test_send_recv_cu(
         worker_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[num_workers, endpoints_per_worker, False, monitor_port],
+            args=[
+                listener_address,
+                num_workers,
+                endpoints_per_worker,
+                False,
+                monitor_port,
+            ],
             kwargs={
                 "shm_sync": not enable_monitor,
                 "signal": signal,
