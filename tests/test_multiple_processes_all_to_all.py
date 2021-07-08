@@ -24,6 +24,12 @@ GatherAsync = False
 Iterations = 3
 Size = 2 ** 20
 
+OP_NONE = 0
+OP_WORKER_LISTENING = 1
+OP_CLUSTER_READY = 2
+OP_WORKER_COMPLETED = 3
+OP_SHUTDOWN = 4
+
 
 class BaseWorker:
     def __init__(
@@ -34,6 +40,7 @@ class BaseWorker:
         worker_num,
         num_workers,
         endpoints_per_worker,
+        monitor_port,
         transfer_to_cache,
     ):
         self.signal = signal
@@ -46,6 +53,8 @@ class BaseWorker:
         # UCX only effectively creates endpoints at first transfer, but this
         # isn't necessary for tornado/asyncio.
         self.transfer_to_cache = transfer_to_cache
+
+        self.monitor_port = monitor_port
 
         self.conns = dict()
         self.connections = set()
@@ -74,7 +83,7 @@ class BaseWorker:
                     # This seems to be faster!
                     if send_first:
                         await ep.send(msg2send)
-                        await ep.recv()
+                        _, msg = await ep.recv()
                     else:
                         await ep.recv()
                         await ep.send(msg2send)
@@ -84,42 +93,44 @@ class BaseWorker:
 
         await self._transfer(ep, message)
 
-    async def _client(self, my_port, remote_port, ep=None, cache_only=False):
+    async def _client(self, my_port, worker_address, ep, cache_only=False):
         message = np.arange(Size, dtype=np.uint8)
         send_recv_bytes = (nbytes(message) * 2) * Iterations
-
-        if ep is None:
-            ep = await self._create_endpoint(remote_port)
 
         t = monotonic()
         await self._transfer(ep, message, send_first=False)
         total_time = monotonic() - t
 
         if cache_only is False:
-            self.bytes_bandwidth[remote_port].append(
+            self.bytes_bandwidth[worker_address].append(
                 (send_recv_bytes, send_recv_bytes / total_time)
             )
 
     def _init(self):
         ucp.init()
 
-    async def _create_listener(self):
-        host = ucp.get_address(ifname="enp1s0f0")
-        return await UCXServer.start_server(host, 0, self._listener)
+    async def _create_listener(self, host, port=None):
+        return await UCXServer.start_server(host, port, self._listener)
 
-    async def _create_endpoint(self, remote_port):
+    async def _create_monitor_listener(self, host, port=None):
+        async def _cb(ep):
+            pass
+
+        return await UCXServer.start_server(host, port, _cb)
+
+    async def _create_endpoint(self, host, port):
         my_port = self.listener.port
         my_task = "Worker"
         remote_task = "Worker"
 
         while True:
             try:
-                ep = await UCXConnection.open_connection(ucp.get_address(), remote_port)
+                ep = await UCXConnection.open_connection(host, port)
                 return ep
             except ucp.exceptions.UCXCanceled as e:
                 print(
                     "%s[%d]->%s[%d] Failed: %s"
-                    % (my_task, my_port, remote_task, remote_port, e),
+                    % (my_task, my_port, remote_task, port, e),
                     flush=True,
                 )
                 await self._sleep(0.1)
@@ -127,38 +138,121 @@ class BaseWorker:
     def get_connections(self):
         return self.listener._connections
 
+    async def run_monitor(self):
+        self._init()
+
+        self.listener_address = ucp.get_address(ifname="enp1s0f0")
+        self.listener = await self._create_monitor_listener(
+            self.listener_address, self.monitor_port
+        )
+
+        with self.lock:
+            self.signal[0] = self.listener.port
+
+        # Wait for all workers to connect
+        while len(self.get_connections()) != (
+            self.endpoints_per_worker * self.num_workers
+        ):
+            await self._sleep(0.1)
+
+        # Get all worker addresses
+        worker_addresses = []
+        for conn in self.get_connections():
+            _, address = await conn.recv()
+            address = address["data"]
+            assert address[0] == OP_WORKER_LISTENING
+            worker_addresses.append((address[1], address[2]))
+
+        # Send a list of all worker addresses to each worker, indicating the cluster
+        # is ready
+        for conn in self.get_connections():
+            await conn.send([OP_CLUSTER_READY, worker_addresses])
+
+        # Wait for all workers to complete
+        for conn in self.get_connections():
+            _, complete = await conn.recv()
+            complete = complete["data"]
+            assert int(complete[0]) == OP_WORKER_COMPLETED
+
+        # Signal all workers to shutdown
+        for conn in self.get_connections():
+            await conn.send((OP_SHUTDOWN,))
+
+        for conn in self.get_connections():
+            await conn.close()
+
+        self.listener.close()
+
+        # Wait for a shutdown signal from monitor
+        try:
+            while not self.listener.closed():
+                await self._sleep(0.1)
+        except ucp.UCXCloseError:
+            pass
+
     async def run(self):
         self._init()
 
         # Start listener
-        self.listener = await self._create_listener()
+        self.listener_address = ucp.get_address(ifname="enp1s0f0")
+        self.listener = await self._create_listener(self.listener_address)
 
-        with self.lock:
-            self.signal[0] += 1
-            self.ports[self.worker_num] = self.listener.port
+        if self.monitor_port == 0:
+            with self.lock:
+                self.signal[0] += 1
+                self.ports[self.worker_num] = self.listener.port
 
-        while self.signal[0] != self.num_workers:
-            await self._sleep(0.1)
+            while self.signal[0] != self.num_workers:
+                await self._sleep(0.1)
+        else:
+            monitor_ep = await self._create_endpoint(
+                self.listener_address, self.monitor_port
+            )
+            await monitor_ep.send(
+                (OP_WORKER_LISTENING, self.listener_address, self.listener.port)
+            )
+            _, worker_addresses = await monitor_ep.recv()
+            assert worker_addresses["data"][0] == OP_CLUSTER_READY
+            worker_addresses = worker_addresses["data"][1]
+            assert len(worker_addresses) == self.num_workers
 
         for i in range(self.endpoints_per_worker):
             client_tasks = []
             # Create endpoints to all other workers
-            for remote_port in list(self.ports):
-                if remote_port == self.listener.port:
-                    continue
+            if self.monitor_port == 0:
+                for remote_port in list(self.ports):
+                    if remote_port == self.listener.port:
+                        continue
 
-                ep = await self._create_endpoint(remote_port)
-                self.bytes_bandwidth[remote_port] = []
-                self.conns[(remote_port, i)] = ep
+                    ep = await self._create_endpoint(self.listener_address, remote_port)
+                    self.bytes_bandwidth[remote_port] = []
+                    self.conns[(remote_port, i)] = ep
 
-                if self.transfer_to_cache:
-                    client_tasks.append(
-                        self._client(
-                            self.listener.port, remote_port, ep, cache_only=True
+                    if self.transfer_to_cache:
+                        client_tasks.append(
+                            self._client(
+                                self.listener.port, remote_port, ep, cache_only=True
+                            )
                         )
-                    )
-                    # for listener_ep in self.get_connections():
-                    #     client_tasks.append(self._listener(listener_ep))
+            else:
+                for worker_address in worker_addresses:
+                    if (
+                        worker_address[0] == self.listener_address
+                        and worker_address[1] == self.listener.port
+                    ):
+                        continue
+
+                    ep = await self._create_endpoint(*worker_address)
+                    self.bytes_bandwidth[worker_address] = []
+                    self.conns[(worker_address, i)] = ep
+
+                    if self.transfer_to_cache:
+                        client_tasks.append(
+                            self._client(
+                                self.listener.port, worker_address, ep, cache_only=True
+                            )
+                        )
+
             if self.transfer_to_cache:
                 await self._gather(client_tasks)
 
@@ -171,19 +265,25 @@ class BaseWorker:
         # Exchange messages with other workers
         client_tasks = []
         listener_tasks = []
-        for (remote_port, _), ep in self.conns.items():
-            client_tasks.append(self._client(self.listener.port, remote_port, ep))
+        for (worker_address, _), ep in self.conns.items():
+            client_tasks.append(self._client(self.listener.port, worker_address, ep))
         for listener_ep in self.get_connections():
             listener_tasks.append(self._listener(listener_ep))
         all_tasks = client_tasks + listener_tasks
         await self._gather(all_tasks)
 
-        with self.lock:
-            self.signal[1] += 1
-            self.ports[self.worker_num] = self.listener.port
+        if self.monitor_port == 0:
+            with self.lock:
+                self.signal[1] += 1
+                self.ports[self.worker_num] = self.listener.port
 
-        while self.signal[1] != self.num_workers:
-            await self._sleep(0)
+            while self.signal[1] != self.num_workers:
+                await self._sleep(0)
+        else:
+            await monitor_ep.send((OP_WORKER_COMPLETED,))
+            _, shutdown = await monitor_ep.recv()
+            shutdown = shutdown["data"]
+            assert shutdown[0] == OP_SHUTDOWN
 
         for conn in self.get_connections():
             await conn.close()
@@ -203,7 +303,7 @@ class BaseWorker:
             avg_bandwidth = np.mean(list(b[1] for b in bb))
             median_bandwidth = np.median(list(b[1] for b in bb))
             print(
-                "[%d, %d] Transferred bytes: %s, average bandwidth: %s/s, "
+                "[%d, %s] Transferred bytes: %s, average bandwidth: %s/s, "
                 "median bandwidth: %s/s"
                 % (
                     self.listener.port,
@@ -217,7 +317,14 @@ class BaseWorker:
 
 class TornadoWorker(BaseWorker):
     def __init__(
-        self, signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+        self,
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
     ):
         super().__init__(
             signal,
@@ -226,6 +333,7 @@ class TornadoWorker(BaseWorker):
             worker_num,
             num_workers,
             endpoints_per_worker,
+            monitor_port,
             transfer_to_cache=False,
         )
 
@@ -238,18 +346,23 @@ class TornadoWorker(BaseWorker):
     def _init(self):
         return
 
-    async def _create_listener(self):
-        host = ucp.get_address(ifname="enp1s0f0")
-        return await TornadoTCPServer.start_server(host, None)
+    async def _create_listener(self, host, port=None):
+        return await TornadoTCPServer.start_server(host, port=None)
 
-    async def _create_endpoint(self, remote_port):
-        host = ucp.get_address(ifname="enp1s0f0")
-        return await TornadoTCPConnection.connect(host, remote_port)
+    async def _create_endpoint(self, host, port):
+        return await TornadoTCPConnection.connect(host, port)
 
 
 class AsyncioWorker(BaseWorker):
     def __init__(
-        self, signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+        self,
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
     ):
         super().__init__(
             signal,
@@ -258,22 +371,31 @@ class AsyncioWorker(BaseWorker):
             worker_num,
             num_workers,
             endpoints_per_worker,
+            monitor_port,
             transfer_to_cache=False,
         )
 
     def _init(self):
         return
 
-    async def _create_listener(self):
+    async def _create_listener(self, host, port=None):
+        return await AsyncioCommServer.start_server(host, port)
+
+    async def _create_endpoint(self, host, port):
         host = ucp.get_address(ifname="enp1s0f0")
-        return await AsyncioCommServer.start_server(host, None)
-
-    async def _create_endpoint(self, remote_port):
-        host = ucp.get_address(ifname="enp1s0f0")
-        return await AsyncioCommConnection.open_connection(host, remote_port)
+        return await AsyncioCommConnection.open_connection(host, port)
 
 
-def base_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
+def base_worker(
+    signal,
+    ports,
+    lock,
+    worker_num,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+):
     w = BaseWorker(
         signal,
         ports,
@@ -281,49 +403,113 @@ def base_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_work
         worker_num,
         num_workers,
         endpoints_per_worker,
+        monitor_port,
         transfer_to_cache=True,
     )
-    asyncio.get_event_loop().run_until_complete(w.run())
+    run_func = w.run_monitor if is_monitor else w.run
+    asyncio.get_event_loop().run_until_complete(run_func())
     w.get_results()
 
 
-def asyncio_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
+def asyncio_worker(
+    signal,
+    ports,
+    lock,
+    worker_num,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+):
     w = AsyncioWorker(
-        signal, ports, lock, worker_num, num_workers, endpoints_per_worker,
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
     )
-    asyncio.get_event_loop().run_until_complete(w.run())
+    run_func = w.run_monitor if is_monitor else w.run
+    asyncio.get_event_loop().run_until_complete(run_func())
     w.get_results()
 
 
-def tornado_worker(signal, ports, lock, worker_num, num_workers, endpoints_per_worker):
+def tornado_worker(
+    signal,
+    ports,
+    lock,
+    worker_num,
+    num_workers,
+    endpoints_per_worker,
+    is_monitor,
+    monitor_port,
+):
     w = TornadoWorker(
-        signal, ports, lock, worker_num, num_workers, endpoints_per_worker
+        signal,
+        ports,
+        lock,
+        worker_num,
+        num_workers,
+        endpoints_per_worker,
+        monitor_port,
     )
-    IOLoop.current().run_sync(w.run)
+    run_func = w.run_monitor if is_monitor else w.run
+    IOLoop.current().run_sync(run_func)
     w.get_results()
 
 
 def _test_send_recv_cu(num_workers, endpoints_per_worker):
     ctx = multiprocessing.get_context("spawn")
 
+    enable_monitor = False
+    monitor_port = 0
+
     signal = ctx.Array("i", [0, 0])
     ports = ctx.Array("i", range(num_workers))
     lock = ctx.Lock()
+
+    comm_type = base_worker
+    # comm_type = asyncio_worker
+    # comm_type = tornado_worker
+
+    if enable_monitor:
+        monitor_process = ctx.Process(
+            name="worker",
+            target=comm_type,
+            args=[signal, ports, lock, 0, num_workers, endpoints_per_worker, True, 0],
+        )
+        monitor_process.start()
+
+        while signal[0] == 0:
+            pass
+
+        monitor_port = signal[0]
 
     worker_processes = []
     for worker_num in range(num_workers):
         worker_process = ctx.Process(
             name="worker",
-            # target=base_worker,
-            # target=asyncio_worker,
-            target=tornado_worker,
-            args=[signal, ports, lock, worker_num, num_workers, endpoints_per_worker],
+            target=comm_type,
+            args=[
+                signal,
+                ports,
+                lock,
+                worker_num,
+                num_workers,
+                endpoints_per_worker,
+                False,
+                monitor_port,
+            ],
         )
         worker_process.start()
         worker_processes.append(worker_process)
 
     for worker_process in worker_processes:
         worker_process.join()
+
+    if enable_monitor:
+        monitor_process.join()
 
     assert worker_process.exitcode == 0
 
