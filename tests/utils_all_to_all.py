@@ -108,7 +108,7 @@ class UCXProcess:
         return await UCXServer.start_server(host, port, cb or self._listener)
 
     async def _monitor_listener_cb(self, ep):
-        pass
+        return None
 
     async def _create_endpoint(self, host, port):
         my_port = self.listener.port
@@ -129,62 +129,6 @@ class UCXProcess:
 
     def get_connections(self):
         return self.listener._connections
-
-    async def run_monitor(self):
-        self._init()
-
-        self.listener = await self._create_listener(
-            self.listener_address, self.monitor_port, self._monitor_listener_cb,
-        )
-
-        if self.shm_sync:
-            with self.lock:
-                self.signal[0] = self.listener.port
-        else:
-            print(f"Monitor listening at {self.listener_address}:{self.listener.port}")
-
-        # Wait for all workers to connect
-        while len(self.get_connections()) != self.num_workers:
-            print(
-                f"Waiting for all workers to connect, {len(self.get_connections())} "
-                f"of {self.num_workers} workers connected."
-            )
-            await self._sleep(1)
-
-        # Get all worker addresses
-        worker_addresses = []
-        for conn in self.get_connections():
-            _, address = await conn.recv()
-            address = address["data"]
-            assert address[0] == OP_WORKER_LISTENING
-            worker_addresses.append((address[1], address[2]))
-
-        # Send a list of all worker addresses to each worker, indicating the cluster
-        # is ready
-        for conn in self.get_connections():
-            await conn.send([OP_CLUSTER_READY, worker_addresses])
-
-        # Wait for all workers to complete
-        for conn in self.get_connections():
-            _, complete = await conn.recv()
-            complete = complete["data"]
-            assert int(complete[0]) == OP_WORKER_COMPLETED
-
-        # Signal all workers to shutdown
-        for conn in self.get_connections():
-            await conn.send((OP_SHUTDOWN,))
-
-        for conn in self.get_connections():
-            await conn.close()
-
-        self.listener.close()
-
-        # Wait for a shutdown signal from monitor
-        try:
-            while not self.listener.closed():
-                await self._sleep(0.1)
-        except ucp.UCXCloseError:
-            pass
 
     async def _wait_for_workers(self):
         if self.shm_sync:
@@ -292,7 +236,7 @@ class UCXProcess:
         except ucp.UCXCloseError:
             pass
 
-    async def run(self):
+    async def run_worker(self):
         self._init()
 
         # Start listener
@@ -307,6 +251,52 @@ class UCXProcess:
         await self._exchange_messages()
 
         await self._wait_for_completion()
+
+        await self._close_connections_and_listener()
+
+    async def run_monitor(self):
+        self._init()
+
+        self.listener = await self._create_listener(
+            self.listener_address, self.monitor_port, self._monitor_listener_cb,
+        )
+
+        if self.shm_sync:
+            with self.lock:
+                self.signal[0] = self.listener.port
+        else:
+            print(f"Monitor listening at {self.listener_address}:{self.listener.port}")
+
+        # Wait for all workers to connect
+        while len(self.get_connections()) != self.num_workers:
+            print(
+                f"Waiting for all workers to connect, {len(self.get_connections())} "
+                f"of {self.num_workers} workers connected."
+            )
+            await self._sleep(1)
+
+        # Get all worker addresses
+        worker_addresses = []
+        for conn in self.get_connections():
+            _, address = await conn.recv()
+            address = address["data"]
+            assert address[0] == OP_WORKER_LISTENING
+            worker_addresses.append((address[1], address[2]))
+
+        # Send a list of all worker addresses to each worker, indicating the cluster
+        # is ready
+        for conn in self.get_connections():
+            await conn.send([OP_CLUSTER_READY, worker_addresses])
+
+        # Wait for all workers to complete
+        for conn in self.get_connections():
+            _, complete = await conn.recv()
+            complete = complete["data"]
+            assert int(complete[0]) == OP_WORKER_COMPLETED
+
+        # Signal all workers to shutdown
+        for conn in self.get_connections():
+            await conn.send((OP_SHUTDOWN,))
 
         await self._close_connections_and_listener()
 
@@ -425,7 +415,7 @@ def ucx_process(
         ports=ports,
         lock=lock,
     )
-    run_func = w.run_monitor if is_monitor else w.run
+    run_func = w.run_monitor if is_monitor else w.run_worker
     asyncio.get_event_loop().run_until_complete(run_func())
     w.get_results()
 
@@ -451,7 +441,7 @@ def asyncio_process(
         ports=ports,
         lock=lock,
     )
-    run_func = w.run_monitor if is_monitor else w.run
+    run_func = w.run_monitor if is_monitor else w.run_worker
     asyncio.get_event_loop().run_until_complete(run_func())
     w.get_results()
 
@@ -477,6 +467,6 @@ def tornado_process(
         ports=ports,
         lock=lock,
     )
-    run_func = w.run_monitor if is_monitor else w.run
+    run_func = w.run_monitor if is_monitor else w.run_worker
     IOLoop.current().run_sync(run_func)
     w.get_results()
