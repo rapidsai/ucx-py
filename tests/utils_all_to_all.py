@@ -18,10 +18,6 @@ from distributed.utils import nbytes
 
 import ucp
 
-GatherSendRecv = False
-Iterations = 3
-Size = 2 ** 20
-
 OP_NONE = 0
 OP_WORKER_LISTENING = 1
 OP_CLUSTER_READY = 2
@@ -36,6 +32,9 @@ class UCXProcess:
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size,
+        iterations,
+        gather_send_recv,
         transfer_to_cache,
         shm_sync=True,
         signal=None,
@@ -45,12 +44,15 @@ class UCXProcess:
         self.listener_address = listener_address
         self.num_workers = num_workers
         self.endpoints_per_worker = endpoints_per_worker
+        self.monitor_port = monitor_port
 
         # UCX only effectively creates endpoints at first transfer, but this
         # isn't necessary for tornado/asyncio.
         self.transfer_to_cache = transfer_to_cache
 
-        self.monitor_port = monitor_port
+        self.size = size
+        self.iterations = iterations
+        self.gather_send_recv = gather_send_recv
 
         self.shm_sync = shm_sync
         self.signal = signal
@@ -70,8 +72,8 @@ class UCXProcess:
         await asyncio.gather(*tasks)
 
     async def _transfer(self, ep, msg2send, send_first=True):
-        for i in range(Iterations):
-            if GatherSendRecv:
+        for i in range(self.iterations):
+            if self.gather_send_recv:
                 msgs = [ep.recv(), ep.send(msg2send)]
                 await self._gather(msgs)
             else:
@@ -84,13 +86,13 @@ class UCXProcess:
                     await ep.send(msg2send)
 
     async def _listener(self, ep):
-        message = np.arange(Size, dtype=np.uint8)
+        message = np.arange(self.size, dtype=np.uint8)
 
         await self._transfer(ep, message)
 
     async def _client(self, my_port, worker_address, ep, cache_only=False):
-        message = np.arange(Size, dtype=np.uint8)
-        send_recv_bytes = (nbytes(message) * 2) * Iterations
+        message = np.arange(self.size, dtype=np.uint8)
+        send_recv_bytes = (nbytes(message) * 2) * self.iterations
 
         t = monotonic()
         await self._transfer(ep, message, send_first=False)
@@ -326,16 +328,22 @@ class TornadoProcess(UCXProcess):
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size,
+        iterations,
+        gather_send_recv,
         shm_sync=True,
         signal=None,
         ports=None,
         lock=None,
     ):
         super().__init__(
-            listener_address,
-            num_workers,
-            endpoints_per_worker,
-            monitor_port,
+            listener_address=listener_address,
+            num_workers=num_workers,
+            endpoints_per_worker=endpoints_per_worker,
+            monitor_port=monitor_port,
+            size=size,
+            iterations=iterations,
+            gather_send_recv=gather_send_recv,
             transfer_to_cache=False,
             shm_sync=shm_sync,
             signal=signal,
@@ -366,16 +374,22 @@ class AsyncioProcess(UCXProcess):
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size,
+        iterations,
+        gather_send_recv,
         shm_sync=True,
         signal=None,
         ports=None,
         lock=None,
     ):
         super().__init__(
-            listener_address,
-            num_workers,
-            endpoints_per_worker,
-            monitor_port,
+            listener_address=listener_address,
+            num_workers=num_workers,
+            endpoints_per_worker=endpoints_per_worker,
+            monitor_port=monitor_port,
+            size=size,
+            iterations=iterations,
+            gather_send_recv=gather_send_recv,
             transfer_to_cache=False,
             shm_sync=shm_sync,
             signal=signal,
@@ -399,6 +413,9 @@ def ucx_process(
     endpoints_per_worker,
     is_monitor,
     monitor_port,
+    size,
+    iterations,
+    gather_send_recv,
     shm_sync=True,
     signal=None,
     ports=None,
@@ -409,6 +426,9 @@ def ucx_process(
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size=size,
+        iterations=iterations,
+        gather_send_recv=gather_send_recv,
         transfer_to_cache=True,
         shm_sync=shm_sync,
         signal=signal,
@@ -426,6 +446,9 @@ def asyncio_process(
     endpoints_per_worker,
     is_monitor,
     monitor_port,
+    size,
+    iterations,
+    gather_send_recv,
     shm_sync=True,
     signal=None,
     ports=None,
@@ -436,6 +459,9 @@ def asyncio_process(
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size=size,
+        iterations=iterations,
+        gather_send_recv=gather_send_recv,
         shm_sync=shm_sync,
         signal=signal,
         ports=ports,
@@ -452,6 +478,9 @@ def tornado_process(
     endpoints_per_worker,
     is_monitor,
     monitor_port,
+    size,
+    iterations,
+    gather_send_recv,
     shm_sync=True,
     signal=None,
     ports=None,
@@ -462,6 +491,9 @@ def tornado_process(
         num_workers,
         endpoints_per_worker,
         monitor_port,
+        size=size,
+        iterations=iterations,
+        gather_send_recv=gather_send_recv,
         shm_sync=shm_sync,
         signal=signal,
         ports=ports,

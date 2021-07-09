@@ -51,6 +51,28 @@ def parse_args():
         help="Communication library to benchmark. Options are "
         "'ucx' (default), 'asyncio', 'tornado'.",
     )
+    parser.add_argument(
+        "--size",
+        default=2 ** 20,
+        type=int,
+        help="Size to be passed for data generation function",
+    )
+    parser.add_argument(
+        "--iterations",
+        default=15,
+        type=int,
+        help="Number of iterations of data transfers per worker pair. "
+        "Each iteration consists in sending and receiving the same "
+        "data amount.",
+    )
+    parser.add_argument(
+        "--gather-send-recv",
+        default=False,
+        action="store_true",
+        help="If disabled (default), send and receive operations will "
+        "be awaited individually, otherwise they are launched "
+        "simultaneously via an asyncio.gather or gen.multi operation.",
+    )
 
     args = parser.parse_args()
     if args.worker and args.monitor:
@@ -97,7 +119,16 @@ def main():
             monitor_process = ctx.Process(
                 name="worker",
                 target=communication_func,
-                args=[listener_address, num_workers, endpoints_per_worker, True, 0],
+                args=[
+                    listener_address,
+                    num_workers,
+                    endpoints_per_worker,
+                    True,
+                    0,
+                    args.size,
+                    args.iterations,
+                    args.gather_send_recv,
+                ],
                 kwargs={
                     "shm_sync": True,
                     "signal": signal,
@@ -123,6 +154,9 @@ def main():
                     endpoints_per_worker,
                     False,
                     monitor_port,
+                    args.size,
+                    args.iterations,
+                    args.gather_send_recv,
                 ],
                 kwargs={
                     "shm_sync": not args.enable_monitor,
@@ -149,6 +183,9 @@ def main():
                 endpoints_per_worker,
                 True,
                 0,
+                args.size,
+                args.iterations,
+                args.gather_send_recv,
                 shm_sync=False,
             )
         elif args.worker is True:
@@ -158,6 +195,9 @@ def main():
                 endpoints_per_worker,
                 False,
                 monitor_port,
+                args.size,
+                args.iterations,
+                args.gather_send_recv,
                 shm_sync=False,
             )
 
