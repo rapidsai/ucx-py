@@ -168,7 +168,7 @@ class UCXProcess:
         for i in range(self.endpoints_per_worker):
             client_tasks = []
             # Create endpoints to all other workers
-            if self.monitor_port == 0:
+            if self.shm_sync:
                 for remote_port in list(self.ports):
                     if remote_port == self.listener.port:
                         continue

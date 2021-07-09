@@ -91,6 +91,8 @@ def main():
         ports = ctx.Array("i", range(num_workers))
         lock = ctx.Lock()
 
+        monitor_port = 0
+
         if args.enable_monitor:
             monitor_process = ctx.Process(
                 name="worker",
@@ -135,7 +137,8 @@ def main():
         for worker_process in worker_processes:
             worker_process.join()
 
-        monitor_process.join()
+        if args.enable_monitor:
+            monitor_process.join()
 
         assert worker_process.exitcode == 0
     else:
