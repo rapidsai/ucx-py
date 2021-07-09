@@ -7,7 +7,7 @@ import ucp
 
 
 def _test_send_recv_cu(
-    num_workers, endpoints_per_worker, enable_monitor, communication
+    num_workers, endpoints_per_worker, enable_monitor, size, iterations, communication
 ):
     ctx = multiprocessing.get_context("spawn")
 
@@ -22,7 +22,16 @@ def _test_send_recv_cu(
         monitor_process = ctx.Process(
             name="worker",
             target=communication,
-            args=[listener_address, num_workers, endpoints_per_worker, True, 0],
+            args=[
+                listener_address,
+                num_workers,
+                endpoints_per_worker,
+                True,
+                0,
+                size,
+                iterations,
+                False,
+            ],
             kwargs={"shm_sync": True, "signal": signal, "ports": ports, "lock": lock},
         )
         monitor_process.start()
@@ -43,6 +52,9 @@ def _test_send_recv_cu(
                 endpoints_per_worker,
                 False,
                 monitor_port,
+                size,
+                iterations,
+                False,
             ],
             kwargs={
                 "shm_sync": not enable_monitor,
@@ -66,8 +78,19 @@ def _test_send_recv_cu(
 @pytest.mark.parametrize("num_workers", [2, 4, 8])
 @pytest.mark.parametrize("endpoints_per_worker", [1])
 @pytest.mark.parametrize("enable_monitor", [True, False])
+@pytest.mark.parametrize("size", [2 ** 20])
+@pytest.mark.parametrize("iterations", [5])
 @pytest.mark.parametrize(
     "communication", [ucx_process, asyncio_process, tornado_process]
 )
-def test_send_recv_cu(num_workers, endpoints_per_worker, enable_monitor, communication):
-    _test_send_recv_cu(num_workers, endpoints_per_worker, enable_monitor, communication)
+def test_send_recv_cu(
+    num_workers, endpoints_per_worker, enable_monitor, size, iterations, communication
+):
+    _test_send_recv_cu(
+        num_workers,
+        endpoints_per_worker,
+        enable_monitor,
+        size,
+        iterations,
+        communication,
+    )
