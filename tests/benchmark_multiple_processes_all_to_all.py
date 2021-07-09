@@ -9,9 +9,6 @@ import ucp
 def parse_args():
     parser = argparse.ArgumentParser(description="All-to-all benchmark")
     parser.add_argument(
-        "--multi-node", default=False, action="store_true",
-    )
-    parser.add_argument(
         "--monitor", default=False, action="store_true",
     )
     parser.add_argument(
@@ -77,11 +74,6 @@ def parse_args():
     args = parser.parse_args()
     if args.worker and args.monitor:
         raise RuntimeError("--monitor and --worker can't be defined together.")
-    if args.multi_node and not (args.worker or args.monitor):
-        raise RuntimeError(
-            "Either --monitor or --worker need to be defined together with "
-            "--multi-node."
-        )
     return args
 
 
@@ -106,7 +98,31 @@ def main():
             f"Communication library {args.communication_lib} not supported"
         )
 
-    if args.multi_node is False:
+    if args.monitor is True:
+        communication_func(
+            listener_address,
+            num_workers,
+            endpoints_per_worker,
+            True,
+            0,
+            args.size,
+            args.iterations,
+            args.gather_send_recv,
+            shm_sync=False,
+        )
+    elif args.worker is True:
+        communication_func(
+            listener_address,
+            num_workers,
+            endpoints_per_worker,
+            False,
+            monitor_port,
+            args.size,
+            args.iterations,
+            args.gather_send_recv,
+            shm_sync=False,
+        )
+    else:
         ctx = multiprocessing.get_context("spawn")
 
         signal = ctx.Array("i", [0, 0])
@@ -175,31 +191,6 @@ def main():
             monitor_process.join()
 
         assert worker_process.exitcode == 0
-    else:
-        if args.monitor is True:
-            communication_func(
-                listener_address,
-                num_workers,
-                endpoints_per_worker,
-                True,
-                0,
-                args.size,
-                args.iterations,
-                args.gather_send_recv,
-                shm_sync=False,
-            )
-        elif args.worker is True:
-            communication_func(
-                listener_address,
-                num_workers,
-                endpoints_per_worker,
-                False,
-                monitor_port,
-                args.size,
-                args.iterations,
-                args.gather_send_recv,
-                shm_sync=False,
-            )
 
 
 if __name__ == "__main__":
