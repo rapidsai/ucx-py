@@ -46,6 +46,14 @@ def parse_args():
         "format.",
     )
     parser.add_argument(
+        "--port",
+        default=None,
+        type=int,
+        help="Port where --monitor will listen. Only applies to --monitor "
+        "process, --worker process should still use --monitor-address to "
+        "specify the monitor address. Default: random port.",
+    )
+    parser.add_argument(
         "--num-workers",
         default=2,
         type=int,
@@ -128,7 +136,7 @@ def main():
             num_workers,
             endpoints_per_worker,
             True,
-            0,
+            args.port,
             args.size,
             args.iterations,
             args.gather_send_recv,
