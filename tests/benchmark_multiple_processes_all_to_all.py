@@ -9,50 +9,73 @@ import ucp
 def parse_args():
     parser = argparse.ArgumentParser(description="All-to-all benchmark")
     parser.add_argument(
-        "--monitor", default=False, action="store_true",
+        "--monitor",
+        default=False,
+        action="store_true",
+        help="Start a monitor process only. Requires --num-worker processes "
+        "started with --worker to connect to monitor. Default: disabled.",
     )
     parser.add_argument(
-        "--worker", default=False, action="store_true",
+        "--worker",
+        default=False,
+        action="store_true",
+        help="Start a worker process only. Requires a --monitor process "
+        "to connect to, with an address specified with --monitor-address. "
+        "Default: disabled.",
     )
     parser.add_argument(
         "--enable-monitor",
         default=False,
         action="store_true",
-        help="Use a monitor process to synchronize workers (always "
-        "enabled with --multi-node), otherwise synchronize processes "
-        "via multiprocessing shared memory.",
+        help="Use a monitor process to synchronize workers when in single-node "
+        "mode (when neither --monitor or --worker are requested), otherwise "
+        "synchronize processes via multiprocessing shared memory. Default: "
+        "disabled.",
     )
     parser.add_argument(
         "--listen-interface",
         default=None,
-        help="Interface where monitor (if --monitor), or worker "
-        "(if --worker), or all (if not --multi-node) will listen for "
-        "connections",
+        help="Interface where monitor (if --monitor), or worker (if --worker), "
+        "or all (in single-node mode, i.e., no --monitor or --worker are "
+        "specified) will listen for connections.",
     )
     parser.add_argument(
         "--monitor-address",
         default=None,
-        help="Address where monitor is listening to process is started "
-        "with --worker, in the HOST:PORT format",
+        help="Address where --monitor process is listening to in the HOST:PORT "
+        "format.",
     )
     parser.add_argument(
-        "--num-workers", default=2, type=int,
+        "--num-workers",
+        default=2,
+        type=int,
+        help="Number of workers to start in single-node mode, or number of "
+        "workers that --monitor process will wait to connect before starting "
+        "transfers between workers. Default: 2.",
     )
     parser.add_argument(
-        "--endpoints-per-worker", default=1, type=int,
+        "--endpoints-per-worker",
+        default=1,
+        type=int,
+        help="Number of simultaneous endpoints between each worker pair that "
+        "will send and receive data. In a case where --num-workers=2, this "
+        "translates to Worker1 creating two endpoints connecting to the "
+        "listener on Worker2, with Worker2 creating another two endpoints "
+        "connecting to the listener on Worker1, totalling four endpoint pairs "
+        "sending and receiving benchmark data simultaneously. Default: 1.",
     )
     parser.add_argument(
         "--communication-lib",
         default="ucx",
         type=str,
         help="Communication library to benchmark. Options are "
-        "'ucx' (default), 'asyncio', 'tornado'.",
+        "'ucx', 'asyncio', 'tornado'. Default: 'ucx'.",
     )
     parser.add_argument(
         "--size",
         default=2 ** 20,
         type=int,
-        help="Size to be passed for data generation function",
+        help="Size to be passed for data generation function. Default: " "1048576.",
     )
     parser.add_argument(
         "--iterations",
@@ -60,7 +83,7 @@ def parse_args():
         type=int,
         help="Number of iterations of data transfers per worker pair. "
         "Each iteration consists in sending and receiving the same "
-        "data amount.",
+        "data amount. Default: 15.",
     )
     parser.add_argument(
         "--gather-send-recv",
@@ -68,7 +91,8 @@ def parse_args():
         action="store_true",
         help="If disabled (default), send and receive operations will "
         "be awaited individually, otherwise they are launched "
-        "simultaneously via an asyncio.gather or gen.multi operation.",
+        "simultaneously via an asyncio.gather or gen.multi operation. "
+        "Default: disabled.",
     )
 
     args = parser.parse_args()
