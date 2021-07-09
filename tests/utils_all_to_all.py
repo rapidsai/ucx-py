@@ -312,8 +312,8 @@ class UCXProcess:
                 "[%s -> %s] Transferred bytes: %s, average bandwidth: %s/s, "
                 "median bandwidth: %s/s"
                 % (
-                    local_address,
-                    remote_port,
+                    ":".join([str(i) for i in local_address]),
+                    ":".join([str(i) for i in remote_port]),
                     format_bytes(total_bytes),
                     format_bytes(avg_bandwidth),
                     format_bytes(median_bandwidth),
