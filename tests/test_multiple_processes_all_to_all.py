@@ -11,7 +11,7 @@ def _test_send_recv_cu(
 ):
     ctx = multiprocessing.get_context("spawn")
 
-    listener_address = ucp.get_address(ifname="enp1s0f0")
+    listener_address = ucp.get_address()
     monitor_port = 0
 
     signal = ctx.Array("i", [0, 0])
