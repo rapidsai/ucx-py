@@ -175,14 +175,16 @@ class UCXProcess:
                     if remote_port == self.listener.port:
                         continue
 
-                    ep = await self._create_endpoint(self.listener_address, remote_port)
-                    self.bytes_bandwidth[remote_port] = []
-                    self.conns[(remote_port, i)] = ep
+                    remote_address = (self.listener_address, remote_port)
+
+                    ep = await self._create_endpoint(*remote_address)
+                    self.bytes_bandwidth[remote_address] = []
+                    self.conns[(remote_address, i)] = ep
 
                     if self.transfer_to_cache:
                         client_tasks.append(
                             self._client(
-                                self.listener.port, remote_port, ep, cache_only=True
+                                self.listener.port, remote_address, ep, cache_only=True
                             )
                         )
             else:
@@ -271,10 +273,12 @@ class UCXProcess:
 
         # Wait for all workers to connect
         while len(self.get_connections()) != self.num_workers:
-            print(
-                f"Waiting for all workers to connect, {len(self.get_connections())} "
-                f"of {self.num_workers} workers connected."
-            )
+            if not self.shm_sync:
+                print(
+                    "Waiting for all workers to connect, "
+                    f"{len(self.get_connections())} of "
+                    f"{self.num_workers} workers connected."
+                )
             await self._sleep(1)
 
         # Get all worker addresses
@@ -303,7 +307,7 @@ class UCXProcess:
         await self._close_connections_and_listener()
 
     def get_results(self):
-        for remote_port, bb in self.bytes_bandwidth.items():
+        for remote_address, bb in self.bytes_bandwidth.items():
             local_address = (self.listener_address, self.listener.port)
             total_bytes = sum(b[0] for b in bb)
             avg_bandwidth = np.mean(list(b[1] for b in bb))
@@ -313,7 +317,7 @@ class UCXProcess:
                 "median bandwidth: %s/s"
                 % (
                     ":".join([str(i) for i in local_address]),
-                    ":".join([str(i) for i in remote_port]),
+                    ":".join([str(i) for i in remote_address]),
                     format_bytes(total_bytes),
                     format_bytes(avg_bandwidth),
                     format_bytes(median_bandwidth),
