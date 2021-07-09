@@ -298,10 +298,8 @@ class UCXProcess:
         # Start listener
         self.listener = await self._create_listener(self.listener_address)
 
-        print("Wait for workers")
         await self._wait_for_workers()
 
-        print("Create endpoints")
         await self._create_all_endpoints()
 
         await self._wait_for_connections_cache()
@@ -314,14 +312,15 @@ class UCXProcess:
 
     def get_results(self):
         for remote_port, bb in self.bytes_bandwidth.items():
+            local_address = (self.listener_address, self.listener.port)
             total_bytes = sum(b[0] for b in bb)
             avg_bandwidth = np.mean(list(b[1] for b in bb))
             median_bandwidth = np.median(list(b[1] for b in bb))
             print(
-                "[%d, %s] Transferred bytes: %s, average bandwidth: %s/s, "
+                "[%s -> %s] Transferred bytes: %s, average bandwidth: %s/s, "
                 "median bandwidth: %s/s"
                 % (
-                    self.listener.port,
+                    local_address,
                     remote_port,
                     format_bytes(total_bytes),
                     format_bytes(avg_bandwidth),
