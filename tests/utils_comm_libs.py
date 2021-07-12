@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import struct
 
 import numpy as np
@@ -217,13 +216,13 @@ class AsyncioCommServer:
 
     @classmethod
     async def start_server(cls, host, port):
-        def _server_callback(connections, reader, writer):
-            connections.append(AsyncioCommConnection(reader, writer))
-
         connections = []
 
+        def _server_callback(reader, writer):
+            connections.append(AsyncioCommConnection(reader, writer))
+
         server = await asyncio.start_server(
-            functools.partial(_server_callback, connections), host, port, limit=2 ** 30,
+            _server_callback, host, port, limit=2 ** 30,
         )
         return cls(server, connections)
 
@@ -299,16 +298,14 @@ class UCXServer:
 
     @classmethod
     async def start_server(cls, host, port, listener_func):
-        async def _server_callback(connections, ep):
+        connections = []
+
+        async def _server_callback(ep):
             conn = UCXConnection(ep)
             connections.append(conn)
             await listener_func(conn)
 
-        connections = []
-
-        server = ucp.create_listener(
-            functools.partial(_server_callback, connections), port,
-        )
+        server = ucp.create_listener(_server_callback, port)
         return cls(server, connections)
 
     def get_connections(self):
