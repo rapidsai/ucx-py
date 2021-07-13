@@ -1,7 +1,12 @@
 import argparse
 import multiprocessing
 
-from utils_all_to_all import asyncio_process, tornado_process, ucx_process
+from utils_all_to_all import (
+    asyncio_process,
+    tornado_process,
+    ucx_process,
+    uvloop_process,
+)
 
 import ucp
 
@@ -77,7 +82,7 @@ def parse_args():
         default="ucx",
         type=str,
         help="Communication library to benchmark. Options are "
-        "'ucx', 'asyncio', 'tornado'. Default: 'ucx'.",
+        "'ucx', 'asyncio', 'tornado', 'uvloop'. Default: 'ucx'.",
     )
     parser.add_argument(
         "--size",
@@ -123,6 +128,8 @@ def main():
         communication_func = ucx_process
     elif args.communication_lib == "asyncio":
         communication_func = asyncio_process
+    elif args.communication_lib == "uvloop":
+        communication_func = uvloop_process
     elif args.communication_lib == "tornado":
         communication_func = tornado_process
     else:
