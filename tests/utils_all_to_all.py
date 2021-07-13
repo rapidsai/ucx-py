@@ -72,7 +72,9 @@ class UCXProcess:
         await asyncio.gather(*tasks)
 
     async def _transfer(self, ep, msg2send, send_first=True):
+        time_per_iteration = []
         for i in range(self.iterations):
+            t = monotonic()
             if self.gather_send_recv:
                 msgs = [ep.recv(), ep.send(msg2send)]
                 await self._gather(msgs)
@@ -84,6 +86,8 @@ class UCXProcess:
                 else:
                     await ep.recv()
                     await ep.send(msg2send)
+            time_per_iteration.append(monotonic() - t)
+        return time_per_iteration
 
     async def _listener(self, ep):
         message = np.arange(self.size, dtype=np.uint8)
@@ -92,15 +96,13 @@ class UCXProcess:
 
     async def _client(self, my_port, worker_address, ep, cache_only=False):
         message = np.arange(self.size, dtype=np.uint8)
-        send_recv_bytes = (nbytes(message) * 2) * self.iterations
+        send_recv_bytes = nbytes(message) * 2
 
-        t = monotonic()
-        await self._transfer(ep, message, send_first=False)
-        total_time = monotonic() - t
+        time_per_iteration = await self._transfer(ep, message, send_first=False)
 
         if cache_only is False:
-            self.bytes_bandwidth[worker_address].append(
-                (send_recv_bytes, send_recv_bytes / total_time)
+            self.bytes_bandwidth[worker_address] += list(
+                (send_recv_bytes, send_recv_bytes / t) for t in time_per_iteration
             )
 
     def _init(self):
