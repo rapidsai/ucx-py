@@ -91,6 +91,9 @@ def _test_send_recv_cu(
 def test_send_recv_cu(
     num_workers, endpoints_per_worker, enable_monitor, size, iterations, communication
 ):
+    if communication == uvloop_process:
+        pytest.importorskip("uvloop", reason="uvloop not installed")
+
     _test_send_recv_cu(
         num_workers,
         endpoints_per_worker,
