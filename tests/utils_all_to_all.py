@@ -457,6 +457,7 @@ def asyncio_process(
     signal=None,
     ports=None,
     lock=None,
+    loop=None,
 ):
     w = AsyncioProcess(
         listener_address,
@@ -472,8 +473,19 @@ def asyncio_process(
         lock=lock,
     )
     run_func = w.run_monitor if is_monitor else w.run_worker
-    asyncio.get_event_loop().run_until_complete(run_func())
+    if loop is None:
+        loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_func())
     w.get_results()
+
+
+def uvloop_process(
+    *args, **kwargs,
+):
+    import uvloop
+
+    return asyncio_process(*args, **kwargs, loop=uvloop.new_event_loop())
 
 
 def tornado_process(

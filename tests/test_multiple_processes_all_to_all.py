@@ -1,7 +1,12 @@
 import multiprocessing
 
 import pytest
-from utils_all_to_all import asyncio_process, tornado_process, ucx_process
+from utils_all_to_all import (
+    asyncio_process,
+    tornado_process,
+    ucx_process,
+    uvloop_process,
+)
 
 import ucp
 
@@ -81,7 +86,7 @@ def _test_send_recv_cu(
 @pytest.mark.parametrize("size", [2 ** 20])
 @pytest.mark.parametrize("iterations", [5])
 @pytest.mark.parametrize(
-    "communication", [ucx_process, asyncio_process, tornado_process]
+    "communication", [ucx_process, asyncio_process, uvloop_process, tornado_process]
 )
 def test_send_recv_cu(
     num_workers, endpoints_per_worker, enable_monitor, size, iterations, communication
