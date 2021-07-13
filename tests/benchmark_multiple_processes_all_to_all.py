@@ -8,6 +8,8 @@ from utils_all_to_all import (
     uvloop_process,
 )
 
+from dask.utils import parse_bytes
+
 import ucp
 
 
@@ -46,6 +48,7 @@ def parse_args():
     )
     parser.add_argument(
         "--monitor-address",
+        metavar="IP:PORT",
         default=None,
         help="Address where --monitor process is listening to in the HOST:PORT "
         "format.",
@@ -86,9 +89,10 @@ def parse_args():
     )
     parser.add_argument(
         "--size",
-        default=2 ** 20,
-        type=int,
-        help="Size to be passed for data generation function. Default: " "1048576.",
+        metavar="BYTES",
+        default="1 MiB",
+        type=parse_bytes,
+        help="Size to be passed for data generation function. Default: '1 Mb'.",
     )
     parser.add_argument(
         "--iterations",
