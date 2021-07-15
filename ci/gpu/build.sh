@@ -85,7 +85,7 @@ function run_tests() {
     # Setting UCX options
     export UCXPY_IFNAME=eth0
 
-    if [ "$UCX111" == "1"]; then
+    if [ "$UCX111" == "1" ]; then
         export UCX_TLS=tcp,cuda_copy
     else
         export UCX_TLS=tcp,cuda_copy,sockcm
