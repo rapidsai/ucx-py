@@ -1,5 +1,6 @@
 import asyncio
 import fcntl
+import glob
 import hashlib
 import logging
 import multiprocessing as mp
@@ -38,16 +39,40 @@ def get_address(ifname=None):
     >>> get_address(ifname='lo')
     '127.0.0.1'
     """
-    if ifname is None:
-        ifname = os.environ.get("UCXPY_IFNAME", "ib0")
 
-    ifname = ifname.encode()
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        return socket.inet_ntoa(
-            fcntl.ioctl(
-                s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
-            )[20:24]
-        )
+    def _get_address(ifname):
+        ifname = ifname.encode()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            return socket.inet_ntoa(
+                fcntl.ioctl(
+                    s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
+                )[20:24]
+            )
+
+    def _try_interfaces():
+        prefix_priority = ["ib", "eth", "en"]
+        iftypes = {p: [] for p in prefix_priority}
+        for i in glob.glob("/sys/class/net/*"):
+            name = i.split("/")[-1]
+            for p in prefix_priority:
+                if name.startswith(p):
+                    iftypes[p].append(name)
+        for p in prefix_priority:
+            iftype = iftypes[p]
+            iftype.sort()
+            for i in iftype:
+                try:
+                    return _get_address(i)
+                except OSError:
+                    pass
+
+    if ifname is None:
+        ifname = os.environ.get("UCXPY_IFNAME")
+
+    if ifname is not None:
+        return _get_address(ifname)
+    else:
+        return _try_interfaces()
 
 
 def get_closest_net_devices(gpu_dev):
