@@ -4,9 +4,7 @@ import os
 from contextlib import contextmanager
 
 import numpy as np
-
-from distributed.comm.utils import from_frames
-from distributed.utils import nbytes
+import pytest
 
 import ucp
 
@@ -74,6 +72,9 @@ def cuda_array(size):
 
 
 async def send(ep, frames):
+    pytest.importorskip("distributed")
+    from distributed.utils import nbytes
+
     await ep.send(np.array([len(frames)], dtype=np.uint64))
     await ep.send(
         np.array(
@@ -88,6 +89,10 @@ async def send(ep, frames):
 
 
 async def recv(ep):
+    pytest.importorskip("distributed")
+
+    from distributed.comm.utils import from_frames
+
     try:
         # Recv meta data
         nframes = np.empty(1, dtype=np.uint64)
@@ -128,6 +133,10 @@ async def am_send(ep, frames):
 
 
 async def am_recv(ep):
+    pytest.importorskip("distributed")
+
+    from distributed.comm.utils import from_frames
+
     try:
         # Recv meta data
         nframes = (await ep.am_recv()).view(np.uint64)
