@@ -4,8 +4,6 @@ import pickle
 import numpy as np
 import pytest
 
-from distributed.utils import nbytes
-
 import ucp
 
 cudf = pytest.importorskip("cudf")
@@ -35,9 +33,7 @@ cuda = pytest.importorskip("numba.cuda")
     ],
 )
 async def test_send_recv_cudf(event_loop, g):
-    # requires numba=0.45 (.nbytes)
-    # or fix nbytes in distributed
-    cudf = pytest.importorskip("cudf")
+    from distributed.utils import nbytes
 
     class UCX:
         def __init__(self, ep):
