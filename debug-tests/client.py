@@ -11,9 +11,9 @@ from debug_utils import (
     start_process,
     total_nvlink_transfer,
 )
-from utils import recv, send
 
 import ucp
+from utils import recv, send
 
 pynvml.nvmlInit()
 
