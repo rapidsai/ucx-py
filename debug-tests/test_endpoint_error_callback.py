@@ -11,12 +11,12 @@ import sys
 
 import cloudpickle
 import pytest
+from utils import get_cuda_devices, get_num_gpus, recv, send
 
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
-from utils import get_cuda_devices, get_num_gpus, recv, send
 
 cupy = pytest.importorskip("cupy")
 

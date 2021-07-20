@@ -1,9 +1,9 @@
 import os
 
 import pytest
+from utils import captured_logger
 
 import ucp
-from utils import captured_logger
 
 
 def test_get_config():

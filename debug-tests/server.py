@@ -4,12 +4,12 @@ import os
 import cloudpickle
 import pytest
 from debug_utils import ITERATIONS, parse_args, set_rmm, start_process
+from utils import recv, send
 
 from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
-from utils import recv, send
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)

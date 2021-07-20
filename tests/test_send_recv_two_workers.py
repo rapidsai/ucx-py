@@ -5,9 +5,9 @@ import random
 
 import numpy as np
 import pytest
+from utils import am_recv, am_send, get_cuda_devices, get_num_gpus, recv, send
 
 import ucp
-from utils import am_recv, am_send, get_cuda_devices, get_num_gpus, recv, send
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")

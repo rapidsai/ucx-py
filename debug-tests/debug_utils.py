@@ -3,12 +3,11 @@ import os
 
 import cloudpickle
 import cupy
+from utils import get_num_gpus
 
 from dask.utils import parse_bytes
 
 import rmm
-
-from utils import get_num_gpus
 
 ITERATIONS = 100
 
