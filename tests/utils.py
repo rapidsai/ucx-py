@@ -8,8 +8,6 @@ import numpy as np
 from distributed.comm.utils import from_frames
 from distributed.utils import nbytes
 
-import rmm
-
 import ucp
 
 normal_env = {
@@ -65,7 +63,14 @@ def captured_logger(logger, level=logging.INFO, propagate=None):
 
 
 def cuda_array(size):
-    return rmm.DeviceBuffer(size=size)
+    try:
+        import rmm
+
+        return rmm.DeviceBuffer(size=size)
+    except ImportError:
+        import numba.cuda
+
+        return numba.cuda.device_array((size,), dtype="u1")
 
 
 async def send(ep, frames):
