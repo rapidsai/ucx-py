@@ -26,11 +26,9 @@ def event_loop(scope="function"):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint_error_handling", [False, True])
-async def test_server_shutdown(endpoint_error_handling):
+async def test_server_shutdown():
     """The server calls shutdown"""
-    if ucp.get_ucx_version() < (1, 10, 0) and endpoint_error_handling is True:
-        pytest.skip("Endpoint error handling is only supported for UCX >= 1.10")
+    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
     async def server_node(ep):
         msg = np.empty(10 ** 6)
@@ -55,11 +53,9 @@ async def test_server_shutdown(endpoint_error_handling):
     sys.version_info < (3, 7), reason="test currently fails for python3.6"
 )
 @pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint_error_handling", [False, True])
-async def test_client_shutdown(endpoint_error_handling):
+async def test_client_shutdown():
     """The client calls shutdown"""
-    if ucp.get_ucx_version() < (1, 10, 0) and endpoint_error_handling is True:
-        pytest.skip("Endpoint error handling is only supported for UCX >= 1.10")
+    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
@@ -81,11 +77,9 @@ async def test_client_shutdown(endpoint_error_handling):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint_error_handling", [False, True])
-async def test_listener_close(endpoint_error_handling):
+async def test_listener_close():
     """The server close the listener"""
-    if ucp.get_ucx_version() < (1, 10, 0) and endpoint_error_handling is True:
-        pytest.skip("Endpoint error handling is only supported for UCX >= 1.10")
+    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
     async def client_node(listener):
         ep = await ucp.create_endpoint(
@@ -111,11 +105,9 @@ async def test_listener_close(endpoint_error_handling):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint_error_handling", [False, True])
-async def test_listener_del(endpoint_error_handling):
+async def test_listener_del():
     """The client delete the listener"""
-    if ucp.get_ucx_version() < (1, 10, 0) and endpoint_error_handling is True:
-        pytest.skip("Endpoint error handling is only supported for UCX >= 1.10")
+    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
     async def server_node(ep):
         await ep.send(np.arange(100, dtype=np.int64))
@@ -137,11 +129,9 @@ async def test_listener_del(endpoint_error_handling):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("endpoint_error_handling", [False, True])
-async def test_close_after_n_recv(endpoint_error_handling):
+async def test_close_after_n_recv():
     """The Endpoint.close_after_n_recv()"""
-    if ucp.get_ucx_version() < (1, 10, 0) and endpoint_error_handling is True:
-        pytest.skip("Endpoint error handling is only supported for UCX >= 1.10")
+    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
     async def server_node(ep):
         for _ in range(10):
