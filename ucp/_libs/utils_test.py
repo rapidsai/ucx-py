@@ -75,3 +75,7 @@ def blocking_am_recv(worker, ep):
     while ret[0] is None:
         worker.progress()
     return ret[0]
+
+
+def get_endpoint_error_handling_default():
+    return ucx_api.get_ucx_version() >= (1, 10, 0)

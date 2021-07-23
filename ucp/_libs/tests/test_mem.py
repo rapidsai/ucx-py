@@ -5,6 +5,7 @@ import mmap
 import pytest
 
 from ucp._libs import ucx_api
+from ucp._libs.utils_test import get_endpoint_error_handling_default
 
 builtin_buffers = [
     b"",
@@ -59,7 +60,9 @@ def test_rkey_unpack():
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=False
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=get_endpoint_error_handling_default(),
     )
     rkey = ep.unpack_rkey(packed_rkey)
     assert rkey is not None
