@@ -46,21 +46,35 @@ UCX_MEMTYPE_CACHE
 
 This is a UCX Memory optimization which toggles whether UCX library intercepts cu*alloc* calls.  UCX-Py defaults this value to  ``n``.  There `known issues <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>`_ when using this feature.
 
-Values: n/y
+Values: ``n``/``y``
 
 UCX_CUDA_IPC_CACHE
 ``````````````````
 
 This is a UCX CUDA Memory optimization which enables/disables a remote endpoint IPC memhandle mapping cache. UCX/UCX-Py defaults this value to ``y``
 
-Values: n/y
+Values: ``n``/``y``
+
+UCX_MAX_RNDV_RAILS
+``````````````````
+
+Limitting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
+
+Values: Int (UCX default: ``2``)
+
+UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES
+`````````````````````````````````
+
+By defining ``UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES=cuda``, UCX enables registration cache based on a buffer's base address, thus preventing multiple time-consuming registrations for the same buffer. This is particularly useful when using a CUDA memory pool, thus requiring a single registration between two ends for the entire pool, providing considerable performance gains, especially when using InfiniBand.
+
+Requires UCX 1.11 and above.
 
 UCX_RNDV_THRESH
 ```````````````
 
 This is a configurable parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLink enabled, UCX can deliver messages either through TCP or NVLink.  Sending GPU buffers over TCP is costly as it triggers a device-to-host on the sender side, and then host-to-device transfer on the receiver side --  we want to avoid these kinds of transfers when NVLink is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESH=8192``
 
-Values: Int (UCX-Py default : 8192)
+Values: Int (UCX-Py default: ``8192``)
 
 
 UCX_RNDV_SCHEME
@@ -100,7 +114,7 @@ Transport Methods (Simplified):
 - ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq) uses rc_v and rc_x (preferably if available)
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
 - ``cuda_ipc`` -> CUDA Interprocess Communication (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
-- ``sockcm`` -> connection management over sockets
+- ``sockcm`` -> connection management over sockets (Only applies to UCX 1.9 and older)
 - ``sm/shm`` -> all shared memory transports (mm, cma, knem)
 - ``mm`` -> shared memory transports - only memory mappers
 - ``ugni`` -> ugni_smsg and ugni_rdma (uses ugni_udt for bootstrap)
@@ -145,25 +159,49 @@ InfiniBand -- No NVLink
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy <SCRIPT>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
+
+::
+
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,cuda_copy <SCRIPT>
 
 InfiniBand -- With NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy,cuda_ipc <SCRIPT>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
+
+::
+
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,cuda_copy,cuda_ipc <SCRIPT>
 
 TLS/Socket -- No NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy <SCRIPT>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
+
+::
+
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy <SCRIPT>
 
 TLS/Socket -- With NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm <SCRIPT>
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc <SCRIPT>
+
+Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
+
+::
+
+    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc <SCRIPT>

@@ -5,7 +5,7 @@ import cloudpickle
 import cupy
 from utils import get_num_gpus
 
-from distributed.utils import parse_bytes
+from dask.utils import parse_bytes
 
 import rmm
 

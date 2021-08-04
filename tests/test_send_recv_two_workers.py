@@ -3,25 +3,16 @@ import multiprocessing
 import os
 import random
 
-import cloudpickle
 import numpy as np
 import pytest
 from utils import am_recv, am_send, get_cuda_devices, get_num_gpus, recv, send
 
-from distributed.comm.utils import to_frames
-from distributed.protocol import to_serialize
-from distributed.utils import nbytes
-
-import cudf.tests.utils
-
 import ucp
-
-cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
-# subprocess.check_call(cmd, shell=True)
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
-
+distributed = pytest.importorskip("distributed")
+cloudpickle = pytest.importorskip("cloudpickle")
 
 ITERATIONS = 30
 
@@ -43,6 +34,7 @@ def client(port, func, comm_api):
     # deserialize
     # assert deserialized msg is cdf
     # send receipt
+    from distributed.utils import nbytes
 
     ucp.init()
 
@@ -89,13 +81,18 @@ def client(port, func, comm_api):
     if isinstance(rx_cuda_obj, cupy.ndarray):
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
-        cudf.tests.utils.assert_eq(rx_cuda_obj, pure_cuda_obj)
+        from cudf.testing._utils import assert_eq
+
+        assert_eq(rx_cuda_obj, pure_cuda_obj)
 
 
 def server(port, func, comm_api):
     # create listener receiver
     # write cudf object
     # confirm message is sent correctly
+    from distributed.comm.utils import to_frames
+    from distributed.protocol import to_serialize
+
     ucp.init()
 
     if comm_api == "am":
@@ -183,6 +180,7 @@ def cupy_obj():
     return cupy.arange(size)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     get_num_gpus() <= 2, reason="Machine does not have more than two GPUs"
 )

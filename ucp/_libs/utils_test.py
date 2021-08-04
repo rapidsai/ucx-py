@@ -11,6 +11,18 @@ def blocking_handler(request, exception, finished):
     finished[0] = True
 
 
+def blocking_flush(obj):
+    finished = [False]
+    if not hasattr(obj, "progress"):
+        progress = obj.worker.progress
+    else:
+        progress = obj.progress
+    req = obj.flush(cb_func=blocking_handler, cb_args=(finished,))
+    if req is not None:
+        while not finished[0]:
+            progress()
+
+
 def blocking_send(worker, ep, msg, tag=0):
     msg = Array(msg)
     finished = [False]
@@ -63,3 +75,7 @@ def blocking_am_recv(worker, ep):
     while ret[0] is None:
         worker.progress()
     return ret[0]
+
+
+def get_endpoint_error_handling_default():
+    return ucx_api.get_ucx_version() >= (1, 10, 0)
