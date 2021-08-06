@@ -152,7 +152,13 @@ class UCXProcess:
             _, worker_addresses = await self.monitor_ep.recv()
             assert worker_addresses["data"][0] == OP_CLUSTER_READY
             self.worker_addresses = worker_addresses["data"][1]
-            assert len(self.worker_addresses) == self.num_workers
+            if len(self.worker_addresses) != self.num_workers:
+                raise ValueError(
+                    f"Wrong number of workers, {self.num_workers} expected by this "
+                    f"worker, but monitor reported {len(self.worker_addresses)}. "
+                    "Make sure monitor and all workers specify the same number of "
+                    "workers."
+                )
 
     async def _wait_for_completion(self):
         if self.shm_sync:
