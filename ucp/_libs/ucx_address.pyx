@@ -32,7 +32,7 @@ cdef class UCXAddress(UCXObject):
     def __cinit__(
             self,
             uintptr_t address_as_int,
-            Py_ssize_t length,
+            size_t length,
             UCXWorker worker=None,
     ):
         address = <ucp_address_t *> address_as_int
@@ -63,7 +63,7 @@ cdef class UCXAddress(UCXObject):
         cdef size_t length
         status = ucp_worker_get_address(ucp_worker, &address, &length)
         assert_ucs_status(status)
-        return UCXAddress(int(<uintptr_t>address), length, worker=worker)
+        return UCXAddress(<uintptr_t>address, length, worker=worker)
 
     @property
     def address(self):
