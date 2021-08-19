@@ -12,20 +12,42 @@ from .arr cimport Array
 from .ucx_api_dep cimport *
 
 
-cdef class UCXAddress:
+def _ucx_address_finalizer(
+    uintptr_t handle_as_int,
+    uintptr_t worker_handle_as_int,
+):
+    cdef ucp_address_t *address = <ucp_address_t *>handle_as_int
+    cdef ucp_worker_h worker = <ucp_worker_h>worker_handle_as_int
+    if worker_handle_as_int != 0:
+        ucp_worker_release_address(worker, address)
+    else:
+        free(address)
+
+
+cdef class UCXAddress(UCXObject):
     """Python representation of ucp_address_t"""
     cdef ucp_address_t *_address
     cdef Py_ssize_t _length
 
-    def __cinit__(self, uintptr_t address_as_int, Py_ssize_t length):
+    def __cinit__(
+            self,
+            uintptr_t address_as_int,
+            Py_ssize_t length,
+            UCXWorker worker=None,
+    ):
         address = <ucp_address_t *> address_as_int
         # Copy address to `self._address`
         self._address = <ucp_address_t *> malloc(length)
         self._length = length
         memcpy(self._address, address, length)
 
-    def __dealloc__(self):
-        free(self._address)
+        self.add_handle_finalizer(
+            _ucx_address_finalizer,
+            int(<uintptr_t>self._address),
+            0 if worker is None else worker.handle,
+        )
+        if worker is not None:
+            worker.add_child(self)
 
     @classmethod
     def from_buffer(cls, buffer):
@@ -41,10 +63,7 @@ cdef class UCXAddress:
         cdef size_t length
         status = ucp_worker_get_address(ucp_worker, &address, &length)
         assert_ucs_status(status)
-        try:
-            return UCXAddress(int(<uintptr_t>address), length)
-        finally:
-            ucp_worker_release_address(ucp_worker, address)
+        return UCXAddress(int(<uintptr_t>address), length, worker=worker)
 
     @property
     def address(self):
