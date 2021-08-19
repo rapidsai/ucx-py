@@ -57,9 +57,8 @@ def _ucx_endpoint_finalizer(
         uintptr_t handle_as_int,
         uintptr_t status_handle_as_int,
         bint endpoint_error_handling,
-        worker,
+        UCXWorker worker,
         set inflight_msgs,
-        list am_recv_wait,
 ):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
@@ -84,20 +83,23 @@ def _ucx_endpoint_finalizer(
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
 
-    cdef dict wait_cb
-    for recv_wait in am_recv_wait:
-        cb_func = recv_wait["cb_func"]
-        cb_args = recv_wait["cb_args"]
-        cb_kwargs = recv_wait["cb_kwargs"]
+    # Cancel waiting `am_recv` calls
+    cdef dict recv_wait
+    if handle_as_int in worker._am_recv_wait:
+        while len(worker._am_recv_wait[handle_as_int]) > 0:
+            recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
+            cb_func = recv_wait["cb_func"]
+            cb_args = recv_wait["cb_args"]
+            cb_kwargs = recv_wait["cb_kwargs"]
 
-        logger.debug("Cancelling am_recv wait on ep %s" % hex(int(handle_as_int)))
+            logger.debug("Cancelling am_recv wait on ep %s" % hex(int(handle_as_int)))
 
-        cb_func(
-            None,
-            UCXCanceled("While waiting for am_recv the endpoint was closed"),
-            *cb_args,
-            **cb_kwargs
-        )
+            cb_func(
+                None,
+                UCXCanceled("While waiting for am_recv the endpoint was closed"),
+                *cb_args,
+                **cb_kwargs
+            )
 
     # Close the endpoint
     cdef str msg
@@ -123,7 +125,6 @@ cdef class UCXEndpoint(UCXObject):
         uintptr_t _status
         bint _endpoint_error_handling
         set _inflight_msgs
-        list _am_recv_wait
 
     cdef readonly:
         UCXWorker worker
@@ -139,7 +140,6 @@ cdef class UCXEndpoint(UCXObject):
         assert worker.initialized
         self.worker = worker
         self._inflight_msgs = set()
-        self._am_recv_wait = list()
 
         cdef ucp_err_handler_cb_t err_cb
         cdef uintptr_t ep_status
@@ -169,7 +169,6 @@ cdef class UCXEndpoint(UCXObject):
             endpoint_error_handling,
             worker,
             self._inflight_msgs,
-            self._am_recv_wait,
         )
         worker.add_child(self)
 
