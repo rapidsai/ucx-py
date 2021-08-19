@@ -114,6 +114,7 @@ async def test_listener_close(message_type):
             endpoint_error_handling=endpoint_error_handling,
         )
         await _shutdown_recv(ep, message_type)
+        await _shutdown_recv(ep, message_type)
         assert listener.closed() is False
         listener.close()
         assert listener.closed() is True
