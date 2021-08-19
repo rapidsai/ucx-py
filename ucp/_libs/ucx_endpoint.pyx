@@ -85,7 +85,7 @@ def _ucx_endpoint_finalizer(
 
     # Cancel waiting `am_recv` calls
     cdef dict recv_wait
-    if handle_as_int in worker._am_recv_wait:
+    if is_am_supported() and handle_as_int in worker._am_recv_wait:
         while len(worker._am_recv_wait[handle_as_int]) > 0:
             recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
             cb_func = recv_wait["cb_func"]
