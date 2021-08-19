@@ -216,7 +216,6 @@ def am_recv_nb(
             cb_kwargs = {}
         if Feature.AM not in worker._context._feature_flags:
             raise ValueError("UCXContext must be created with `Feature.AM`")
-        cdef bint cuda_support
 
         am_recv_pool = worker._am_recv_pool
         ep_as_int = int(<uintptr_t>ep._handle)
@@ -231,13 +230,18 @@ def am_recv_nb(
         else:
             if ep_as_int not in worker._am_recv_wait:
                 worker._am_recv_wait[ep_as_int] = list()
-            worker._am_recv_wait[ep_as_int].append(
-                {
-                    "cb_func": cb_func,
-                    "cb_args": cb_args,
-                    "cb_kwargs": cb_kwargs
-                }
-            )
+            wait_task = {
+                "cb_func": cb_func,
+                "cb_args": cb_args,
+                "cb_kwargs": cb_kwargs
+            }
+
+            # Handles message receive
+            worker._am_recv_wait[ep_as_int].append(wait_task)
+
+            # Handles endpoint closing
+            ep._am_recv_wait.append(wait_task)
+
             logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
     ELSE:
         if is_am_supported():
