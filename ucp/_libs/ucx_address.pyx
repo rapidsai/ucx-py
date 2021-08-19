@@ -27,7 +27,7 @@ def _ucx_address_finalizer(
 cdef class UCXAddress(UCXObject):
     """Python representation of ucp_address_t"""
     cdef ucp_address_t *_address
-    cdef Py_ssize_t _length
+    cdef size_t _length
 
     def __cinit__(
             self,
