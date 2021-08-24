@@ -35,20 +35,12 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(
-    endpoint, msg_tag, ctrl_tag, guarantee_msg_order, listener
-):
+async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, listener):
     """Help function that exchange endpoint information"""
 
     # Pack peer information incl. a checksum
-    fmt = "QQ?Q"
-    my_info = struct.pack(
-        fmt,
-        msg_tag,
-        ctrl_tag,
-        guarantee_msg_order,
-        hash64bits(msg_tag, ctrl_tag, guarantee_msg_order),
-    )
+    fmt = "QQQ"
+    my_info = struct.pack(fmt, msg_tag, ctrl_tag, hash64bits(msg_tag, ctrl_tag))
     peer_info = bytearray(len(my_info))
     my_info_arr = Array(my_info)
     peer_info_arr = Array(peer_info)
@@ -64,24 +56,14 @@ async def exchange_peer_info(
 
     # Unpacking and sanity check of the peer information
     ret = {}
-    (
-        ret["msg_tag"],
-        ret["ctrl_tag"],
-        ret["guarantee_msg_order"],
-        ret["checksum"],
-    ) = struct.unpack(fmt, peer_info)
+    (ret["msg_tag"], ret["ctrl_tag"], ret["checksum"]) = struct.unpack(fmt, peer_info)
 
-    expected_checksum = hash64bits(
-        ret["msg_tag"], ret["ctrl_tag"], ret["guarantee_msg_order"]
-    )
+    expected_checksum = hash64bits(ret["msg_tag"], ret["ctrl_tag"])
 
     if expected_checksum != ret["checksum"]:
         raise RuntimeError(
             f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
         )
-
-    if ret["guarantee_msg_order"] != guarantee_msg_order:
-        raise ValueError("Both peers must set guarantee_msg_order identically")
 
     return ret
 
@@ -143,9 +125,7 @@ class CtrlMsg:
         )
 
 
-async def _listener_handler_coroutine(
-    conn_request, ctx, func, guarantee_msg_order, endpoint_error_handling
-):
+async def _listener_handler_coroutine(conn_request, ctx, func, endpoint_error_handling):
     # We create the Endpoint in five steps:
     #  1) Create endpoint from conn_request
     #  2) Generate unique IDs to use as tags
@@ -161,11 +141,7 @@ async def _listener_handler_coroutine(
     ctrl_tag = hash64bits("ctrl_tag", seed, endpoint.handle)
 
     peer_info = await exchange_peer_info(
-        endpoint=endpoint,
-        msg_tag=msg_tag,
-        ctrl_tag=ctrl_tag,
-        guarantee_msg_order=guarantee_msg_order,
-        listener=True,
+        endpoint=endpoint, msg_tag=msg_tag, ctrl_tag=ctrl_tag, listener=True,
     )
     tags = {
         "msg_send": peer_info["msg_tag"],
@@ -173,9 +149,7 @@ async def _listener_handler_coroutine(
         "ctrl_send": peer_info["ctrl_tag"],
         "ctrl_recv": ctrl_tag,
     }
-    ep = Endpoint(
-        endpoint=endpoint, ctx=ctx, guarantee_msg_order=guarantee_msg_order, tags=tags
-    )
+    ep = Endpoint(endpoint=endpoint, ctx=ctx, tags=tags)
 
     logger.debug(
         "_listener_handler() server: %s, error handling: %s, msg-tag-send: %s, "
@@ -203,16 +177,10 @@ async def _listener_handler_coroutine(
         func(ep)
 
 
-def _listener_handler(
-    conn_request, callback_func, ctx, guarantee_msg_order, endpoint_error_handling
-):
+def _listener_handler(conn_request, callback_func, ctx, endpoint_error_handling):
     asyncio.ensure_future(
         _listener_handler_coroutine(
-            conn_request,
-            ctx,
-            callback_func,
-            guarantee_msg_order,
-            endpoint_error_handling,
+            conn_request, ctx, callback_func, endpoint_error_handling,
         )
     )
 
@@ -251,11 +219,7 @@ class ApplicationContext:
             )
 
     def create_listener(
-        self,
-        callback_func,
-        port=0,
-        guarantee_msg_order=False,
-        endpoint_error_handling=None,
+        self, callback_func, port=0, endpoint_error_handling=None,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -273,9 +237,6 @@ class ApplicationContext:
         port: int, optional
             An unused port number for listening, or `0` to let UCX assign
             an unused port.
-        guarantee_msg_order: boolean, optional
-            Whether to guarantee message order or not. Remember, both peers
-            of the endpoint must set guarantee_msg_order to the same value.
         endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
@@ -303,19 +264,12 @@ class ApplicationContext:
                 worker=self.worker,
                 port=port,
                 cb_func=_listener_handler,
-                cb_args=(
-                    callback_func,
-                    self,
-                    guarantee_msg_order,
-                    endpoint_error_handling,
-                ),
+                cb_args=(callback_func, self, endpoint_error_handling),
             )
         )
         return ret
 
-    async def create_endpoint(
-        self, ip_address, port, guarantee_msg_order, endpoint_error_handling=None
-    ):
+    async def create_endpoint(self, ip_address, port, endpoint_error_handling=None):
         """Create a new endpoint to a server
 
         Parameters
@@ -324,9 +278,6 @@ class ApplicationContext:
             IP address of the server the endpoint should connect to
         port: int
             IP address of the server the endpoint should connect to
-        guarantee_msg_order: boolean, optional
-            Whether to guarantee message order or not. Remember, both peers
-            of the endpoint must set guarantee_msg_order to the same value.
         endpoint_error_handling: None or boolean, optional
             Enable endpoint error handling raising exceptions when an error
             occurs, may incur in performance penalties but prevents a process
@@ -359,11 +310,7 @@ class ApplicationContext:
         msg_tag = hash64bits("msg_tag", seed, ucx_ep.handle)
         ctrl_tag = hash64bits("ctrl_tag", seed, ucx_ep.handle)
         peer_info = await exchange_peer_info(
-            endpoint=ucx_ep,
-            msg_tag=msg_tag,
-            ctrl_tag=ctrl_tag,
-            guarantee_msg_order=guarantee_msg_order,
-            listener=False,
+            endpoint=ucx_ep, msg_tag=msg_tag, ctrl_tag=ctrl_tag, listener=False,
         )
         tags = {
             "msg_send": peer_info["msg_tag"],
@@ -371,12 +318,7 @@ class ApplicationContext:
             "ctrl_send": peer_info["ctrl_tag"],
             "ctrl_recv": ctrl_tag,
         }
-        ep = Endpoint(
-            endpoint=ucx_ep,
-            ctx=self,
-            guarantee_msg_order=guarantee_msg_order,
-            tags=tags,
-        )
+        ep = Endpoint(endpoint=ucx_ep, ctx=self, tags=tags)
 
         logger.debug(
             "create_endpoint() client: %s, error handling: %s, msg-tag-send: %s, "
@@ -520,10 +462,9 @@ class Endpoint:
     to create an Endpoint.
     """
 
-    def __init__(self, endpoint, ctx, guarantee_msg_order, tags=None):
+    def __init__(self, endpoint, ctx, tags=None):
         self._ep = endpoint
         self._ctx = ctx
-        self._guarantee_msg_order = guarantee_msg_order
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
         self._finished_recv_count = 0  # Number of returned (finished) self.recv() calls
@@ -624,8 +565,6 @@ class Endpoint:
             tag = self._tags["msg_send"]
         else:
             tag = hash64bits(self._tags["msg_send"], hash(tag))
-        if self._guarantee_msg_order:
-            tag += self._send_count
 
         try:
             return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
@@ -697,8 +636,6 @@ class Endpoint:
         )
         logger.debug(log)
         self._recv_count += 1
-        if self._guarantee_msg_order:
-            tag += self._recv_count
 
         try:
             ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
@@ -943,25 +880,15 @@ def register_am_allocator(allocator, allocator_type):
     return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
-def create_listener(
-    callback_func, port=None, guarantee_msg_order=False, endpoint_error_handling=None
-):
+def create_listener(callback_func, port=None, endpoint_error_handling=None):
     return _get_ctx().create_listener(
-        callback_func,
-        port,
-        guarantee_msg_order,
-        endpoint_error_handling=endpoint_error_handling,
+        callback_func, port, endpoint_error_handling=endpoint_error_handling,
     )
 
 
-async def create_endpoint(
-    ip_address, port, guarantee_msg_order=False, endpoint_error_handling=None
-):
+async def create_endpoint(ip_address, port, endpoint_error_handling=None):
     return await _get_ctx().create_endpoint(
-        ip_address,
-        port,
-        guarantee_msg_order,
-        endpoint_error_handling=endpoint_error_handling,
+        ip_address, port, endpoint_error_handling=endpoint_error_handling,
     )
 
 
