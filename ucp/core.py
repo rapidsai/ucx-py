@@ -470,6 +470,33 @@ class ApplicationContext:
             allocator_type = ucx_api.AllocatorType.UNSUPPORTED
         self.worker.register_am_allocator(allocator, allocator_type)
 
+    @nvtx_annotate("UCXPY_WORKER_RECV", color="red", domain="ucxpy")
+    async def recv(self, buffer, tag=None):
+        """Receive from connected peer into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer
+            is smaller than nbytes or read-only.
+        tag: hashable, optional
+            Set a tag that must match the received message. Notice, currently
+            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
+            send that also sets `tag=None`.
+        """
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[Worker Recv] worker: %s, tag: %s, nbytes: %d, type: %s" % (
+            hex(self.worker.handle),
+            hex(tag),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+
+        return await comm.tag_recv(self.worker, buffer, nbytes, tag, name=log)
+
 
 class Listener:
     """A handle to the listening service started by `create_listener()`
@@ -956,6 +983,10 @@ def get_ucp_worker():
 
 def get_worker_address():
     return _get_ctx().get_worker_address()
+
+
+async def recv(buffer, tag=None):
+    return await _get_ctx().recv(buffer, tag=tag)
 
 
 def get_ucp_context_info():
