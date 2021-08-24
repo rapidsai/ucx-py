@@ -218,6 +218,11 @@ class ApplicationContext:
                 self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
             )
 
+        # Ensure progress even before Endpoints get created, for example to
+        # receive messages directly on a worker after a remote endpoint
+        # connected with `create_endpoint_from_worker_address`.
+        self.continuous_ucx_progress()
+
     def create_listener(
         self, callback_func, port=0, endpoint_error_handling=None,
     ):
