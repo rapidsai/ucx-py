@@ -471,8 +471,8 @@ class ApplicationContext:
         self.worker.register_am_allocator(allocator, allocator_type)
 
     @nvtx_annotate("UCXPY_WORKER_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, tag=None):
-        """Receive from connected peer into `buffer`.
+    async def recv(self, buffer, tag):
+        """Receive directly on worker without a local Endpoint into `buffer`.
 
         Parameters
         ----------
@@ -480,9 +480,7 @@ class ApplicationContext:
             The buffer to receive into. Raise ValueError if buffer
             is smaller than nbytes or read-only.
         tag: hashable, optional
-            Set a tag that must match the received message. Notice, currently
-            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
-            send that also sets `tag=None`.
+            Set a tag that must match the received message.
         """
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
@@ -999,7 +997,7 @@ def get_worker_address():
     return _get_ctx().get_worker_address()
 
 
-async def recv(buffer, tag=None):
+async def recv(buffer, tag):
     return await _get_ctx().recv(buffer, tag=tag)
 
 
