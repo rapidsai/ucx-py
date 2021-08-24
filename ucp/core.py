@@ -608,7 +608,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, tag=None):
+    async def send(self, buffer, tag=None, force_tag=False):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -617,27 +617,35 @@ class Endpoint:
             The buffer to send. Raise ValueError if buffer is smaller
             than nbytes.
         tag: hashable, optional
-            Set a tag that the receiver must match.
+        tag: hashable, optional
+            Set a tag that the receiver must match. Currently the tag
+            is hashed together with the internal Endpoint tag that is
+            agreed with the remote end at connection time. To enforce
+            using the user tag, make sure to specify `force_tag=True`.
+        force_tag: bool
+            If true, force using `tag` as is, otherwise the value
+            specified with `tag` (if any) will be hashed with the
+            internal Endpoint tag.
         """
         self._ep.raise_on_error()
         if self.closed():
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
+        if tag is None:
+            tag = self._tags["msg_send"]
+        elif not force_tag:
+            tag = hash64bits(self._tags["msg_send"], hash(tag))
         nbytes = buffer.nbytes
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._tags["msg_send"]),
+            hex(tag),
             nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
         self._send_count += 1
-        if tag is None:
-            tag = self._tags["msg_send"]
-        else:
-            tag = hash64bits(self._tags["msg_send"], hash(tag))
 
         try:
             return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
@@ -674,7 +682,7 @@ class Endpoint:
         return await comm.am_send(self._ep, buffer, nbytes, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, tag=None):
+    async def recv(self, buffer, tag=None, force_tag=False):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -683,13 +691,19 @@ class Endpoint:
             The buffer to receive into. Raise ValueError if buffer
             is smaller than nbytes or read-only.
         tag: hashable, optional
-            Set a tag that must match the received message. Notice, currently
-            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
-            send that also sets `tag=None`.
+            Set a tag that must match the received message. Currently
+            the tag is hashed together with the internal Endpoint tag
+            that is agreed with the remote end at connection time.
+            To enforce using the user tag, make sure to specify
+            `force_tag=True`.
+        force_tag: bool
+            If true, force using `tag` as is, otherwise the value
+            specified with `tag` (if any) will be hashed with the
+            internal Endpoint tag.
         """
         if tag is None:
             tag = self._tags["msg_recv"]
-        else:
+        elif not force_tag:
             tag = hash64bits(self._tags["msg_recv"], hash(tag))
 
         if not self._ctx.worker.tag_probe(tag):
@@ -703,7 +717,7 @@ class Endpoint:
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
-            hex(self._tags["msg_recv"]),
+            hex(tag),
             nbytes,
             type(buffer.obj),
         )
