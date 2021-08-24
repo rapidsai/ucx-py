@@ -337,6 +337,47 @@ class ApplicationContext:
         CtrlMsg.setup_ctrl_recv(ep)
         return ep
 
+    async def create_endpoint_from_worker_address(
+        self, address, endpoint_error_handling=None
+    ):
+        """Create a new endpoint to a server
+
+        Parameters
+        ----------
+        address: UCXAddress
+        endpoint_error_handling: None or boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
+
+        Returns
+        -------
+        Endpoint
+            The new endpoint
+        """
+        self.continuous_ucx_progress()
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
+
+        ucx_ep = ucx_api.UCXEndpoint.create_from_worker_address(
+            self.worker, address, endpoint_error_handling,
+        )
+        self.worker.progress()
+
+        ep = Endpoint(endpoint=ucx_ep, ctx=self, tags=None)
+
+        logger.debug(
+            "create_endpoint() client: %s, error handling: %s"
+            % (hex(ep._ep.handle), endpoint_error_handling)
+        )
+
+        return ep
+
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress
 
@@ -889,6 +930,14 @@ def create_listener(callback_func, port=None, endpoint_error_handling=None):
 async def create_endpoint(ip_address, port, endpoint_error_handling=None):
     return await _get_ctx().create_endpoint(
         ip_address, port, endpoint_error_handling=endpoint_error_handling,
+    )
+
+
+async def create_endpoint_from_worker_address(
+    address, endpoint_error_handling=None,
+):
+    return await _get_ctx().create_endpoint_from_worker_address(
+        address, endpoint_error_handling=endpoint_error_handling,
     )
 
 
