@@ -152,7 +152,7 @@ def _test_from_worker_address_server_fixedsize(num_nodes, queue):
             await ep.send(send_msg, tag=unpacked["send_tag"], force_tag=True)
 
             # Receive data from client's endpoint
-            recv_msg = np.arange(20, dtype=np.int64)
+            recv_msg = np.empty(20, dtype=np.int64)
             await ep.recv(recv_msg, tag=unpacked["recv_tag"], force_tag=True)
 
             np.testing.assert_array_equal(recv_msg, np.arange(20, dtype=np.int64))
@@ -205,7 +205,7 @@ def _test_from_worker_address_client_fixedsize(queue):
         np.testing.assert_array_equal(recv_msg, np.arange(10, dtype=np.int64))
 
         # Send message to server
-        send_msg = np.empty(20, dtype=np.int64)
+        send_msg = np.arange(20, dtype=np.int64)
         await ep.send(send_msg, tag=send_tag, force_tag=True)
 
     asyncio.get_event_loop().run_until_complete(run())
