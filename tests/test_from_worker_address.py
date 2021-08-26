@@ -211,7 +211,6 @@ def _test_from_worker_address_client_fixedsize(queue):
     asyncio.get_event_loop().run_until_complete(run())
 
 
-@pytest.mark.skipif(ucp.get_ucx_version() < (1, 11, 0), reason="Fails in UCX < 1.11")
 @pytest.mark.parametrize("num_nodes", [1, 2, 4, 8])
 def test_from_worker_address_multinode(num_nodes):
     queue = mp.Queue()
