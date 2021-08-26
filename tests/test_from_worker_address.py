@@ -24,7 +24,7 @@ def _test_from_worker_address_server(queue):
         # Receive address buffer on tag 0 and create UCXAddress from it
         remote_address = bytearray(address_size[0])
         await ucp.recv(remote_address, tag=0)
-        remote_address = ucp._libs.ucx_api.UCXAddress.from_buffer(remote_address)
+        remote_address = ucp.get_ucx_address_from_buffer(remote_address)
 
         # Create endpoint to remote worker using the received address
         ep = await ucp.create_endpoint_from_worker_address(remote_address)
@@ -140,9 +140,7 @@ def _test_from_worker_address_server_fixedsize(num_nodes, queue):
         async def _handle_client(packed_remote_address):
             # Unpack the fixed-size address+tag buffer
             unpacked = _unpack_address_and_tag(packed_remote_address)
-            remote_address = ucp._libs.ucx_api.UCXAddress.from_buffer(
-                unpacked["address"]
-            )
+            remote_address = ucp.get_ucx_address_from_buffer(unpacked["address"])
 
             # Create endpoint to remote worker using the received address
             ep = await ucp.create_endpoint_from_worker_address(remote_address)
@@ -193,9 +191,7 @@ def _test_from_worker_address_client_fixedsize(queue):
         remote_address = queue.get()
         ep = await ucp.create_endpoint_from_worker_address(remote_address)
 
-        # # Send local address to server on tag 0
-        # await ep.send(np.array(address.length, np.int64), tag=0, force_tag=True)
-        # await ep.send(address, tag=0, force_tag=True)
+        # Send local address to server on tag 0
         await ep.send(packed_address, tag=0, force_tag=True)
 
         # Receive message from server

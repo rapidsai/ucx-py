@@ -997,6 +997,10 @@ def get_worker_address():
     return _get_ctx().get_worker_address()
 
 
+def get_ucx_address_from_buffer(buffer):
+    return ucx_api.UCXAddress.from_buffer(buffer)
+
+
 async def recv(buffer, tag):
     return await _get_ctx().recv(buffer, tag=tag)
 
