@@ -3,6 +3,7 @@
 # See file LICENSE for terms.
 
 import asyncio
+from typing import Union
 
 from ._libs import arr, ucx_api
 
@@ -80,7 +81,7 @@ def stream_send(
 
 
 def tag_recv(
-    ep: ucx_api.UCXEndpoint,
+    obj: Union[ucx_api.UCXEndpoint, ucx_api.UCXWorker],
     buffer: arr.Array,
     nbytes: int,
     tag: int,
@@ -88,15 +89,11 @@ def tag_recv(
     event_loop=None,
 ) -> asyncio.Future:
 
+    worker = obj if isinstance(obj, ucx_api.UCXWorker) else obj.worker
+    ep = obj if isinstance(obj, ucx_api.UCXEndpoint) else None
+
     return _call_ucx_api(
-        event_loop,
-        ucx_api.tag_recv_nb,
-        ep.worker,
-        buffer,
-        nbytes,
-        tag,
-        name=name,
-        ep=ep,
+        event_loop, ucx_api.tag_recv_nb, worker, buffer, nbytes, tag, name=name, ep=ep,
     )
 
 

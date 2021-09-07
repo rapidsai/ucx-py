@@ -218,6 +218,11 @@ class ApplicationContext:
                 self, _epoll_fd_finalizer, self.epoll_fd, self.progress_tasks
             )
 
+        # Ensure progress even before Endpoints get created, for example to
+        # receive messages directly on a worker after a remote endpoint
+        # connected with `create_endpoint_from_worker_address`.
+        self.continuous_ucx_progress()
+
     def create_listener(
         self, callback_func, port=0, endpoint_error_handling=None,
     ):
@@ -337,6 +342,47 @@ class ApplicationContext:
         CtrlMsg.setup_ctrl_recv(ep)
         return ep
 
+    async def create_endpoint_from_worker_address(
+        self, address, endpoint_error_handling=None
+    ):
+        """Create a new endpoint to a server
+
+        Parameters
+        ----------
+        address: UCXAddress
+        endpoint_error_handling: None or boolean, optional
+            Enable endpoint error handling raising exceptions when an error
+            occurs, may incur in performance penalties but prevents a process
+            from terminating unexpectedly that may happen when disabled.
+            None (default) will enable endpoint error handling based on the
+            UCX version, enabling for UCX >= 1.11.0 and disabled for any
+            versions prior to that. This is done to prevent CUDA IPC to be
+            quietly disabled due to lack of support in older UCX versions.
+            Explicitly specifying True/False will override the default.
+
+        Returns
+        -------
+        Endpoint
+            The new endpoint
+        """
+        self.continuous_ucx_progress()
+        if endpoint_error_handling is None:
+            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
+
+        ucx_ep = ucx_api.UCXEndpoint.create_from_worker_address(
+            self.worker, address, endpoint_error_handling,
+        )
+        self.worker.progress()
+
+        ep = Endpoint(endpoint=ucx_ep, ctx=self, tags=None)
+
+        logger.debug(
+            "create_endpoint() client: %s, error handling: %s"
+            % (hex(ep._ep.handle), endpoint_error_handling)
+        )
+
+        return ep
+
     def continuous_ucx_progress(self, event_loop=None):
         """Guarantees continuous UCX progress
 
@@ -423,6 +469,31 @@ class ApplicationContext:
         else:
             allocator_type = ucx_api.AllocatorType.UNSUPPORTED
         self.worker.register_am_allocator(allocator, allocator_type)
+
+    @nvtx_annotate("UCXPY_WORKER_RECV", color="red", domain="ucxpy")
+    async def recv(self, buffer, tag):
+        """Receive directly on worker without a local Endpoint into `buffer`.
+
+        Parameters
+        ----------
+        buffer: exposing the buffer protocol or array/cuda interface
+            The buffer to receive into. Raise ValueError if buffer
+            is smaller than nbytes or read-only.
+        tag: hashable, optional
+            Set a tag that must match the received message.
+        """
+        if not isinstance(buffer, Array):
+            buffer = Array(buffer)
+        nbytes = buffer.nbytes
+        log = "[Worker Recv] worker: %s, tag: %s, nbytes: %d, type: %s" % (
+            hex(self.worker.handle),
+            hex(tag),
+            nbytes,
+            type(buffer.obj),
+        )
+        logger.debug(log)
+
+        return await comm.tag_recv(self.worker, buffer, nbytes, tag, name=log)
 
 
 class Listener:
@@ -535,7 +606,7 @@ class Endpoint:
                 self.abort()
 
     @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
-    async def send(self, buffer, tag=None):
+    async def send(self, buffer, tag=None, force_tag=False):
         """Send `buffer` to connected peer.
 
         Parameters
@@ -544,27 +615,35 @@ class Endpoint:
             The buffer to send. Raise ValueError if buffer is smaller
             than nbytes.
         tag: hashable, optional
-            Set a tag that the receiver must match.
+        tag: hashable, optional
+            Set a tag that the receiver must match. Currently the tag
+            is hashed together with the internal Endpoint tag that is
+            agreed with the remote end at connection time. To enforce
+            using the user tag, make sure to specify `force_tag=True`.
+        force_tag: bool
+            If true, force using `tag` as is, otherwise the value
+            specified with `tag` (if any) will be hashed with the
+            internal Endpoint tag.
         """
         self._ep.raise_on_error()
         if self.closed():
             raise UCXCloseError("Endpoint closed")
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
+        if tag is None:
+            tag = self._tags["msg_send"]
+        elif not force_tag:
+            tag = hash64bits(self._tags["msg_send"], hash(tag))
         nbytes = buffer.nbytes
         log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._tags["msg_send"]),
+            hex(tag),
             nbytes,
             type(buffer.obj),
         )
         logger.debug(log)
         self._send_count += 1
-        if tag is None:
-            tag = self._tags["msg_send"]
-        else:
-            tag = hash64bits(self._tags["msg_send"], hash(tag))
 
         try:
             return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
@@ -601,7 +680,7 @@ class Endpoint:
         return await comm.am_send(self._ep, buffer, nbytes, name=log)
 
     @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
-    async def recv(self, buffer, tag=None):
+    async def recv(self, buffer, tag=None, force_tag=False):
         """Receive from connected peer into `buffer`.
 
         Parameters
@@ -610,13 +689,19 @@ class Endpoint:
             The buffer to receive into. Raise ValueError if buffer
             is smaller than nbytes or read-only.
         tag: hashable, optional
-            Set a tag that must match the received message. Notice, currently
-            UCX-Py doesn't support a "any tag" thus `tag=None` only matches a
-            send that also sets `tag=None`.
+            Set a tag that must match the received message. Currently
+            the tag is hashed together with the internal Endpoint tag
+            that is agreed with the remote end at connection time.
+            To enforce using the user tag, make sure to specify
+            `force_tag=True`.
+        force_tag: bool
+            If true, force using `tag` as is, otherwise the value
+            specified with `tag` (if any) will be hashed with the
+            internal Endpoint tag.
         """
         if tag is None:
             tag = self._tags["msg_recv"]
-        else:
+        elif not force_tag:
             tag = hash64bits(self._tags["msg_recv"], hash(tag))
 
         if not self._ctx.worker.tag_probe(tag):
@@ -630,7 +715,7 @@ class Endpoint:
         log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
             self._recv_count,
             hex(self.uid),
-            hex(self._tags["msg_recv"]),
+            hex(tag),
             nbytes,
             type(buffer.obj),
         )
@@ -892,6 +977,14 @@ async def create_endpoint(ip_address, port, endpoint_error_handling=None):
     )
 
 
+async def create_endpoint_from_worker_address(
+    address, endpoint_error_handling=None,
+):
+    return await _get_ctx().create_endpoint_from_worker_address(
+        address, endpoint_error_handling=endpoint_error_handling,
+    )
+
+
 def continuous_ucx_progress(event_loop=None):
     _get_ctx().continuous_ucx_progress(event_loop=event_loop)
 
@@ -902,6 +995,14 @@ def get_ucp_worker():
 
 def get_worker_address():
     return _get_ctx().get_worker_address()
+
+
+def get_ucx_address_from_buffer(buffer):
+    return ucx_api.UCXAddress.from_buffer(buffer)
+
+
+async def recv(buffer, tag):
+    return await _get_ctx().recv(buffer, tag=tag)
 
 
 def get_ucp_context_info():
