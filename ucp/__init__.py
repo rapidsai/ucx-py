@@ -5,6 +5,7 @@
 
 import logging
 import os
+import warnings
 
 from ._version import get_versions as _get_versions
 from .core import *  # noqa
@@ -40,3 +41,10 @@ logger = get_ucxpy_logger()
 
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
+
+if get_ucx_version() < (1, 11, 1):
+    warnings.warn(
+        f"Support for UCX {__ucx_version__} is deprecated, it's highly recommended "
+        "upgrading to 1.11.1 or newer.",
+        FutureWarning,
+    )
