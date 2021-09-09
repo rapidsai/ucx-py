@@ -70,17 +70,17 @@ Test Dependencies
         distributed
 
 
-UCX-1.11 (Development)
-~~~~~~~~~~~~~~~~~~~~~~
+UCX-1.11.1
+~~~~~~~~~~
 
-Instructions for building UCX 1.11 (current development version):
+Instructions for building UCX 1.11.1:
 
 ::
 
     conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.11.x
+    git checkout v1.11.1
     ./autogen.sh
     mkdir build
     cd build
