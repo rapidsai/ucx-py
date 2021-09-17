@@ -28,7 +28,7 @@ extra_compile_args = ["-std=c99", "-Werror"]
 DISABLE_HWLOC = int(os.environ.get("UCXPY_DISABLE_HWLOC", "0"))
 topological_distance_ext = []
 if DISABLE_HWLOC == 0:
-    libraries.append(["hwloc"])
+    libraries.append("hwloc")
     topological_distance_ext = [
         Extension(
             "ucp._libs.topological_distance",
