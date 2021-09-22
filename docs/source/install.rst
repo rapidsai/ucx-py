@@ -163,4 +163,6 @@ UCX-Py
 In UCX 1.10 and above, or for builds that don't need CUDA and InfiniBand support, users can disable building with hwloc support:
 
 ::
+
+    UCXPY_DISABLE_HWLOC=1 python setup.py build_ext --inplace
     UCXPY_DISABLE_HWLOC=1 pip install .
