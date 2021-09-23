@@ -155,12 +155,12 @@ UCX-Py
     conda activate ucx
     git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
-    python setup.py build_ext --inplace
-    pip install .
+    pip install -v .
     # or for develop build
     pip install -v -e .
 
 In UCX 1.10 and above, or for builds that don't need CUDA and InfiniBand support, users can disable building with hwloc support:
 
 ::
-    UCXPY_DISABLE_HWLOC=1 pip install .
+
+    UCXPY_DISABLE_HWLOC=1 pip install -v .
