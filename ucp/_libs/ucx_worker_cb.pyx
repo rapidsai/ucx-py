@@ -92,6 +92,7 @@ IF CY_UCP_AM_SUPPORTED:
         cdef UCXWorker worker = <UCXWorker>arg
         cdef dict am_recv_pool = worker._am_recv_pool
         cdef dict am_recv_wait = worker._am_recv_wait
+        cdef object am_user_cb = worker._am_user_cb
         cdef set inflight_msgs = worker._inflight_msgs
         assert worker.initialized
         assert param.recv_attr & UCP_AM_RECV_ATTR_FIELD_REPLY_EP
@@ -111,7 +112,15 @@ IF CY_UCP_AM_SUPPORTED:
         cdef int allocator_type = (<int *>header)[0]
 
         def _push_result(buf, exception, recv_type):
-            if (
+            if am_user_cb is not None:
+                ep_obj = UCXEndpoint.create_from_handle(worker, ep_as_int)
+                logger.debug("running am callback on %s message in ep %s" % (
+                    recv_type,
+                    hex(int(ep_obj.handle)),
+                ))
+
+                am_user_cb(buf, exception, ep_obj)
+            elif (
                 ep_as_int in am_recv_wait and
                 len(am_recv_wait[ep_as_int]) > 0
             ):

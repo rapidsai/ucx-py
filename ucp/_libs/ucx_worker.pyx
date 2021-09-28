@@ -99,6 +99,7 @@ cdef class UCXWorker(UCXObject):
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
+            object _am_user_cb
             object _am_host_allocator
             object _am_cuda_allocator
 
@@ -125,6 +126,7 @@ cdef class UCXWorker(UCXObject):
             if Feature.AM in context._feature_flags:
                 self._am_recv_pool = dict()
                 self._am_recv_wait = dict()
+                self._am_user_cb = None
                 self._am_host_allocator = bytearray
                 self._am_cuda_allocator = None
                 am_handler_param.field_mask = (
@@ -179,7 +181,33 @@ cdef class UCXWorker(UCXObject):
                 raise UCXError("Allocator type not supported")
         else:
             raise RuntimeError("UCX-Py needs to be built against and running with "
-                               "UCX >= 1.11 to support am_send_nbx.")
+                               "UCX >= 1.11 to support active messages.")
+
+    def register_am_recv_callback(self, object callback):
+        """Register callback to be executed when an Active Message is received.
+
+        When a callback is registered with this function, each time a message
+        arrives via Active Message API the callback function is executed.
+        Note that when this is used, `am_recv_nb` cannot be used.
+
+        Parameters
+        ----------
+        callback: callable
+            A callback function accepting exactly three arguments: the received
+            message, an exception, and a `UCXEndpoint`. The received message is a
+            buffer allocated with host or CUDA allocator, the exception contains
+            the error that occurred while receiving or `None` if it was successful,
+            and the `UCXEndpoint` object that can be used to send a reply back to
+            remote worker.
+        """
+        if is_am_supported():
+            self._am_user_cb = callback
+        else:
+            raise RuntimeError("UCX-Py needs to be built against and running with "
+                               "UCX >= 1.11 to support active messages.")
+
+    def is_am_recv_callback_registered(self):
+        return self._am_user_cb is not None
 
     def init_blocking_progress_mode(self):
         assert self.initialized
