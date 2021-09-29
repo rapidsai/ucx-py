@@ -114,3 +114,50 @@ async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait, data):
         assert recv[0] == bytearray(msg.get())
     else:
         data["validator"](recv[0], msg)
+
+
+@pytest.mark.skipif(
+    not ucp._libs.ucx_api.is_am_supported(), reason="AM only supported in UCX >= 1.11"
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", msg_sizes)
+@pytest.mark.parametrize("blocking_progress_mode", [True, False])
+@pytest.mark.parametrize("recv_wait", [True, False])
+@pytest.mark.parametrize("data", get_data())
+async def test_send_recv_bytes_callback(size, blocking_progress_mode, recv_wait, data):
+    rndv_thresh = 8192
+    ucp.init(
+        options={"RNDV_THRESH": str(rndv_thresh)},
+        blocking_progress_mode=blocking_progress_mode,
+    )
+
+    recv = []
+
+    async def _cb(recv_obj, exception, ep):
+        recv.append(recv_obj)
+
+    ucp.register_am_allocator(data["allocator"], data["memory_type"])
+    ucp.register_am_recv_callback(_cb)
+    msg = data["generator"](size)
+
+    num_clients = 1
+    clients = [
+        await ucp.create_endpoint_from_worker_address(ucp.get_worker_address())
+        for i in range(num_clients)
+    ]
+    for c in clients:
+        if recv_wait:
+            # By sleeping here we ensure that the listener's
+            # ep.am_recv call will have to wait, rather than return
+            # immediately as receive data is already available.
+            await asyncio.sleep(1)
+        await c.am_send(msg)
+    for c in clients:
+        await c.close()
+
+    if data["memory_type"] == "cuda" and msg.nbytes < rndv_thresh:
+        # Eager messages are always received on the host, if no host
+        # allocator is registered UCX-Py defaults to `bytearray`.
+        assert recv[0] == bytearray(msg.get())
+    else:
+        data["validator"](recv[0], msg)
