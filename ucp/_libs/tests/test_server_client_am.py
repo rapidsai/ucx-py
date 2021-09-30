@@ -150,10 +150,14 @@ def _echo_client(
         recv_wireup = bytearray(recv_wireup)
     assert bytearray(recv_wireup) == send_wireup
 
-    if data["memory_type"] == "cuda" and send_data.nbytes < RNDV_THRESH:
+    if (
+        data["memory_type"] == ucx_api.AllocatorType.CUDA
+        and send_data.nbytes < RNDV_THRESH
+    ):
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
         assert recv_data == bytearray(send_data.get())
+    else:
         data["validator"](recv_data, send_data)
 
 
