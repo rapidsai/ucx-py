@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import pickle
 from functools import partial
 from queue import Empty as QueueIsEmpty
 
@@ -49,7 +50,9 @@ def get_data():
     return ret
 
 
-def _echo_server(get_queue, put_queue, msg_size, datatype, endpoint_error_handling):
+def _echo_server(
+    get_queue, put_queue, msg_size, datatype, user_callback, endpoint_error_handling
+):
     """Server that send received message back to the client
 
     Notice, since it is illegal to call progress() in call-back functions,
@@ -64,10 +67,6 @@ def _echo_server(get_queue, put_queue, msg_size, datatype, endpoint_error_handli
     worker = ucx_api.UCXWorker(ctx)
     worker.register_am_allocator(data["allocator"], data["memory_type"])
 
-    # A reference to listener's endpoint is stored to prevent it from going
-    # out of scope too early.
-    ep = None
-
     def _send_handle(request, exception, msg):
         # Notice, we pass `msg` to the handler in order to make sure
         # it doesn't go out of scope prematurely.
@@ -78,20 +77,28 @@ def _echo_server(get_queue, put_queue, msg_size, datatype, endpoint_error_handli
         msg = Array(recv_obj)
         ucx_api.am_send_nbx(ep, msg, msg.nbytes, cb_func=_send_handle, cb_args=(msg,))
 
-    def _listener_handler(conn_request):
-        global ep
-        ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=endpoint_error_handling,
-        )
+    if user_callback is True:
+        worker.register_am_recv_callback(_recv_handle)
+        put_queue.put(pickle.dumps(worker.get_address()))
+    else:
+        # A reference to listener's endpoint is stored to prevent it from going
+        # out of scope too early.
+        ep = None
 
-        # Wireup
-        ucx_api.am_recv_nb(ep, cb_func=_recv_handle, cb_args=(ep,))
+        def _listener_handler(conn_request):
+            global ep
+            ep = ucx_api.UCXEndpoint.create_from_conn_request(
+                worker, conn_request, endpoint_error_handling=endpoint_error_handling,
+            )
 
-        # Data
-        ucx_api.am_recv_nb(ep, cb_func=_recv_handle, cb_args=(ep,))
+            # Wireup
+            ucx_api.am_recv_nb(ep, cb_func=_recv_handle, cb_args=(ep,))
 
-    listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
-    put_queue.put(listener.port)
+            # Data
+            ucx_api.am_recv_nb(ep, cb_func=_recv_handle, cb_args=(ep,))
+
+        listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
+        put_queue.put(listener.port)
 
     while True:
         worker.progress()
@@ -103,7 +110,9 @@ def _echo_server(get_queue, put_queue, msg_size, datatype, endpoint_error_handli
             break
 
 
-def _echo_client(msg_size, datatype, port, endpoint_error_handling):
+def _echo_client(
+    msg_size, datatype, user_callback, server_info, endpoint_error_handling
+):
     data = get_data()[datatype]
 
     ctx = ucx_api.UCXContext(
@@ -113,9 +122,16 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
     worker = ucx_api.UCXWorker(ctx)
     worker.register_am_allocator(data["allocator"], data["memory_type"])
 
-    ep = ucx_api.UCXEndpoint.create(
-        worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
-    )
+    if user_callback is True:
+        server_worker_addr = pickle.loads(server_info)
+        ep = ucx_api.UCXEndpoint.create_from_worker_address(
+            worker, server_worker_addr, endpoint_error_handling=endpoint_error_handling,
+        )
+    else:
+        port = server_info
+        ep = ucx_api.UCXEndpoint.create(
+            worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
+        )
 
     # The wireup message is sent to ensure endpoints are connected, otherwise
     # UCX may not perform any rendezvous transfers.
@@ -134,10 +150,14 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
         recv_wireup = bytearray(recv_wireup)
     assert bytearray(recv_wireup) == send_wireup
 
-    if data["memory_type"] == "cuda" and send_data.nbytes < RNDV_THRESH:
+    if (
+        data["memory_type"] == ucx_api.AllocatorType.CUDA
+        and send_data.nbytes < RNDV_THRESH
+    ):
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
         assert recv_data == bytearray(send_data.get())
+    else:
         data["validator"](recv_data, send_data)
 
 
@@ -146,18 +166,27 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
 )
 @pytest.mark.parametrize("msg_size", [10, 2 ** 24])
 @pytest.mark.parametrize("datatype", get_data().keys())
-def test_server_client(msg_size, datatype):
+@pytest.mark.parametrize("user_callback", [False, True])
+def test_server_client(msg_size, datatype, user_callback):
     endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 10, 0)
 
     put_queue, get_queue = mp.Queue(), mp.Queue()
     server = mp.Process(
         target=_echo_server,
-        args=(put_queue, get_queue, msg_size, datatype, endpoint_error_handling),
+        args=(
+            put_queue,
+            get_queue,
+            msg_size,
+            datatype,
+            user_callback,
+            endpoint_error_handling,
+        ),
     )
     server.start()
-    port = get_queue.get()
+    server_info = get_queue.get()
     client = mp.Process(
-        target=_echo_client, args=(msg_size, datatype, port, endpoint_error_handling)
+        target=_echo_client,
+        args=(msg_size, datatype, user_callback, server_info, endpoint_error_handling),
     )
     client.start()
     client.join(timeout=10)

@@ -210,6 +210,10 @@ def am_recv_nb(
     IF CY_UCP_AM_SUPPORTED:
         worker = ep.worker
 
+        if worker.is_am_recv_callback_registered():
+            raise RuntimeError("`am_recv_nb` cannot be used when a callback was "
+                               "registered to worker with `register_am_recv_callback`")
+
         if cb_args is None:
             cb_args = ()
         if cb_kwargs is None:

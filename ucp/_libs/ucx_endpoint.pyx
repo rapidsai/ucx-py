@@ -135,45 +135,65 @@ cdef class UCXEndpoint(UCXObject):
     def __init__(
             self,
             UCXWorker worker,
-            uintptr_t params_as_int,
-            bint endpoint_error_handling
+            uintptr_t params_as_int=0,
+            endpoint_error_handling=None,
+            uintptr_t ep_as_int=0,
     ):
         """The Constructor"""
+
+        cdef ucp_err_handler_cb_t err_cb
+        cdef uintptr_t ep_status
+        cdef ucp_ep_params_t *params = NULL
+        cdef ucp_ep_h ucp_ep
+        cdef ucs_status_t status
 
         assert worker.initialized
         self.worker = worker
         self._inflight_msgs = set()
-
-        cdef ucp_err_handler_cb_t err_cb
-        cdef uintptr_t ep_status
-        err_cb, ep_status = (
-            _get_error_callback(worker._context._config["TLS"], endpoint_error_handling)
-        )
-
-        cdef ucp_ep_params_t *params = <ucp_ep_params_t *>params_as_int
-        if err_cb == NULL:
-            params.err_mode = UCP_ERR_HANDLING_MODE_NONE
-        else:
-            params.err_mode = UCP_ERR_HANDLING_MODE_PEER
-        params.err_handler.cb = err_cb
-        params.err_handler.arg = <void *>self
-
-        cdef ucp_ep_h ucp_ep
-        cdef ucs_status_t status = ucp_ep_create(worker._handle, params, &ucp_ep)
-        assert_ucs_status(status)
-
-        self._handle = ucp_ep
-        self._status = <uintptr_t>ep_status
         self._endpoint_error_handling = endpoint_error_handling
-        self.add_handle_finalizer(
-            _ucx_endpoint_finalizer,
-            int(<uintptr_t>ucp_ep),
-            int(<uintptr_t>ep_status),
-            endpoint_error_handling,
-            worker,
-            self._inflight_msgs,
-        )
-        worker.add_child(self)
+
+        if params_as_int == 0 and ep_as_int == 0:
+            raise ValueError("At least one of `params_as_int` or `ep` must be set.")
+        elif params_as_int != 0 and ep_as_int != 0:
+            raise ValueError("`params_as_int` and `ep` are mutually exclusive.")
+        elif params_as_int != 0:
+            err_cb, ep_status = (
+                _get_error_callback(
+                    worker._context._config["TLS"],
+                    endpoint_error_handling
+                )
+            )
+
+            params = <ucp_ep_params_t *>params_as_int
+            if err_cb == NULL:
+                params.err_mode = UCP_ERR_HANDLING_MODE_NONE
+            else:
+                params.err_mode = UCP_ERR_HANDLING_MODE_PEER
+            params.err_handler.cb = err_cb
+            params.err_handler.arg = <void *>self
+
+            status = ucp_ep_create(worker._handle, params, &ucp_ep)
+            assert_ucs_status(status)
+
+            self._handle = ucp_ep
+            self._status = <uintptr_t>ep_status
+            self.add_handle_finalizer(
+                _ucx_endpoint_finalizer,
+                int(<uintptr_t>ucp_ep),
+                int(<uintptr_t>ep_status),
+                endpoint_error_handling,
+                worker,
+                self._inflight_msgs,
+            )
+            worker.add_child(self)
+        else:
+            self._handle = <ucp_ep_h>ep_as_int
+            self._status = <uintptr_t>UCS_OK
+            self.add_handle_finalizer(
+                lambda handle: None,
+                int(<uintptr_t>ucp_ep),
+            )
+            worker.add_child(self)
 
     @classmethod
     def create(
@@ -200,7 +220,11 @@ cdef class UCXEndpoint(UCXObject):
             raise MemoryError("Failed allocation of sockaddr")
 
         try:
-            return cls(worker, <uintptr_t>params, endpoint_error_handling)
+            return cls(
+                worker,
+                params_as_int=<uintptr_t>params,
+                endpoint_error_handling=endpoint_error_handling
+            )
         finally:
             c_util_sockaddr_free(&params.sockaddr)
             free(<void *>params)
@@ -221,7 +245,11 @@ cdef class UCXEndpoint(UCXObject):
         params.address = address._address
 
         try:
-            return cls(worker, <uintptr_t>params, endpoint_error_handling)
+            return cls(
+                worker,
+                params_as_int=<uintptr_t>params,
+                endpoint_error_handling=endpoint_error_handling
+            )
         finally:
             free(<void *>params)
 
@@ -243,9 +271,22 @@ cdef class UCXEndpoint(UCXObject):
         params.conn_request = <ucp_conn_request_h> conn_request
 
         try:
-            return cls(worker, <uintptr_t>params, endpoint_error_handling)
+            return cls(
+                worker,
+                params_as_int=<uintptr_t>params,
+                endpoint_error_handling=endpoint_error_handling
+            )
         finally:
             free(<void *>params)
+
+    @classmethod
+    def create_from_handle(
+            cls,
+            UCXWorker worker,
+            uintptr_t ep,
+    ):
+        assert worker.initialized
+        return cls(worker, ep_as_int=ep)
 
     def info(self):
         assert self.initialized
