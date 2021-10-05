@@ -133,9 +133,12 @@ def server(queue, args):
 
     def _tag_recv_handle(request, exception, ep, msg):
         assert exception is None
-        ucx_api.tag_send_nb(
+        req = ucx_api.tag_send_nb(
             ep, msg, msg.nbytes, tag=0, cb_func=_send_handle, cb_args=(msg,)
         )
+        if req is None:
+            with finished_lock:
+                finished[0] += 1
 
     def _am_recv_handle(recv_obj, exception, ep):
         assert exception is None
