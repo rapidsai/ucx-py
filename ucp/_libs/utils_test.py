@@ -51,6 +51,49 @@ def blocking_recv(worker, ep, msg, tag=0):
             worker.progress()
 
 
+def non_blocking_handler(request, exception, completed_cb):
+    if exception is not None:
+        print(exception)
+    assert exception is None
+    completed_cb()
+    # print(f"handler: {count[0]}")
+
+
+def non_blocking_send(worker, ep, msg, started_cb, completed_cb, tag=0):
+    msg = Array(msg)
+    started_cb()
+    req = ucx_api.tag_send_nb(
+        ep,
+        msg,
+        msg.nbytes,
+        tag=tag,
+        cb_func=non_blocking_handler,
+        cb_args=(completed_cb,),
+    )
+    if req is None:
+        completed_cb()
+    # print(f"send: {count[0]}")
+    return req
+
+
+def non_blocking_recv(worker, ep, msg, started_cb, completed_cb, tag=0):
+    msg = Array(msg)
+    started_cb()
+    req = ucx_api.tag_recv_nb(
+        worker,
+        msg,
+        msg.nbytes,
+        tag=tag,
+        cb_func=non_blocking_handler,
+        cb_args=(completed_cb,),
+        ep=ep,
+    )
+    if req is None:
+        completed_cb()
+    # print(f"recv: {count[0]}")
+    return req
+
+
 def blocking_am_send(worker, ep, msg):
     msg = Array(msg)
     finished = [False]
