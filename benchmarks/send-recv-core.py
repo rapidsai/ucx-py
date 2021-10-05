@@ -54,6 +54,8 @@ from ucp._libs.utils_test import (
     blocking_am_send,
     blocking_recv,
     blocking_send,
+    non_blocking_recv,
+    non_blocking_send,
 )
 
 mp = mp.get_context("spawn")
@@ -122,16 +124,24 @@ def server(queue, args):
     # out of scope too early.
     ep = None
 
-    finished_lock = Lock()
+    op_lock = Lock()
     finished = [0]
+    outstanding = [0]
+
+    def op_started():
+        with op_lock:
+            outstanding[0] += 1
+
+    def op_completed():
+        with op_lock:
+            outstanding[0] -= 1
+            finished[0] += 1
 
     def _send_handle(request, exception, msg):
         # Notice, we pass `msg` to the handler in order to make sure
         # it doesn't go out of scope prematurely.
         assert exception is None
-
-        with finished_lock:
-            finished[0] += 1
+        op_completed()
 
     def _tag_recv_handle(request, exception, ep, msg):
         assert exception is None
@@ -139,8 +149,7 @@ def server(queue, args):
             ep, msg, msg.nbytes, tag=0, cb_func=_send_handle, cb_args=(msg,)
         )
         if req is None:
-            with finished_lock:
-                finished[0] += 1
+            op_completed()
 
     def _am_recv_handle(recv_obj, exception, ep):
         assert exception is None
@@ -157,6 +166,7 @@ def server(queue, args):
 
         # Wireup before starting to transfer data
         wireup = Array(bytearray(len(WireupMessage)))
+        op_started()
         ucx_api.tag_recv_nb(
             worker,
             wireup,
@@ -173,6 +183,7 @@ def server(queue, args):
                 if not args.reuse_alloc:
                     msg = Array(xp.zeros(args.n_bytes, dtype="u1"))
 
+                op_started()
                 ucx_api.tag_recv_nb(
                     worker,
                     msg,
@@ -192,9 +203,19 @@ def server(queue, args):
     )
     queue.put(listener.port)
 
-    # +1 to account for wireup message
-    while finished[0] != args.n_iter + 1:
+    while outstanding[0] == 0:
         worker.progress()
+
+    # +1 to account for wireup message
+    if args.delay_progress:
+        while finished[0] < args.n_iter + 1 and (
+            outstanding[0] >= args.max_outstanding
+            or finished[0] + args.max_outstanding >= args.n_iter + 1
+        ):
+            worker.progress()
+    else:
+        while finished[0] != args.n_iter + 1:
+            worker.progress()
 
 
 def client(queue, port, server_address, args):
@@ -245,6 +266,23 @@ def client(queue, port, server_address, args):
     blocking_send(worker, ep, WireupMessage)
     blocking_recv(worker, ep, wireup_recv)
 
+    op_lock = Lock()
+    finished = [0]
+    outstanding = [0]
+
+    def maybe_progress():
+        while outstanding[0] >= args.max_outstanding:
+            worker.progress()
+
+    def op_started():
+        with op_lock:
+            outstanding[0] += 1
+
+    def op_completed():
+        with op_lock:
+            outstanding[0] -= 1
+            finished[0] += 1
+
     if args.cuda_profile:
         xp.cuda.profiler.start()
 
@@ -259,16 +297,29 @@ def client(queue, port, server_address, args):
             if not args.reuse_alloc:
                 recv_msg = xp.zeros(args.n_bytes, dtype="u1")
 
-            blocking_send(worker, ep, send_msg)
-            blocking_recv(worker, ep, recv_msg)
+            if args.delay_progress:
+                maybe_progress()
+                non_blocking_send(worker, ep, send_msg, op_started, op_completed)
+                maybe_progress()
+                non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
+            else:
+                blocking_send(worker, ep, send_msg)
+                blocking_recv(worker, ep, recv_msg)
 
         stop = clock()
         times.append(stop - start)
+
+    if args.delay_progress:
+        while finished[0] != 2 * args.n_iter:
+            worker.progress()
 
     if args.cuda_profile:
         xp.cuda.profiler.stop()
 
     assert len(times) == args.n_iter
+    delay_progress_str = (
+        f"True ({args.max_outstanding})" if args.delay_progress is True else "False"
+    )
     print("Roundtrip benchmark")
     print("--------------------------")
     print(f"n_iter          | {args.n_iter}")
@@ -276,6 +327,7 @@ def client(queue, port, server_address, args):
     print(f"object          | {args.object_type}")
     print(f"reuse alloc     | {args.reuse_alloc}")
     print(f"transfer API    | {'AM' if args.enable_am else 'TAG'}")
+    print(f"delay progress  | {delay_progress_str}")
     print(f"UCX_TLS         | {ucp.get_config()['TLS']}")
     print(f"UCX_NET_DEVICES | {ucp.get_config()['NET_DEVICES']}")
     print("==========================")
@@ -299,13 +351,13 @@ def client(queue, port, server_address, args):
     med = format_bytes(2 * args.n_bytes / np.median(times))
     print(f"Average         | {avg}/s")
     print(f"Median          | {med}/s")
-    print("--------------------------")
-    print("Iterations")
-    print("--------------------------")
-    for i, t in enumerate(times):
-        ts = format_bytes(2 * args.n_bytes / t)
-        ts = (" " * (9 - len(ts))) + ts
-        print("%03d         |%s/s" % (i, ts))
+    # print("--------------------------")
+    # print("Iterations")
+    # print("--------------------------")
+    # for i, t in enumerate(times):
+    #     ts = format_bytes(2 * args.n_bytes / t)
+    #     ts = (" " * (9 - len(ts))) + ts
+    #     print("%03d         |%s/s" % (i, ts))
 
 
 def parse_args():
@@ -425,6 +477,23 @@ def parse_args():
         default=False,
         action="store_true",
         help="Use Active Message API instead of TAG for transfers",
+    )
+    parser.add_argument(
+        "--delay-progress",
+        default=False,
+        action="store_true",
+        help="Delay ucp_worker_progress calls until a minimum number of "
+        "outstanding operations is reached, implies non-blocking send/recv. "
+        "The --max-outstanding argument may be used to control number of "
+        "maximum outstanding operations. (Default: disabled)",
+    )
+    parser.add_argument(
+        "--max-outstanding",
+        metavar="N",
+        default=32,
+        type=int,
+        help="Number of maximum outstanding operations, see --delay-progress. "
+        "(Default: 32)",
     )
 
     args = parser.parse_args()
