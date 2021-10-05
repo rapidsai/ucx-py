@@ -58,6 +58,8 @@ from ucp._libs.utils_test import (
 
 mp = mp.get_context("spawn")
 
+WireupMessage = bytearray(b"wireup")
+
 
 def register_am_allocators(args, worker):
     if not args.enable_am:
@@ -153,6 +155,17 @@ def server(queue, args):
             endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
         )
 
+        # Wireup before starting to transfer data
+        wireup = Array(bytearray(len(WireupMessage)))
+        ucx_api.tag_recv_nb(
+            worker,
+            wireup,
+            wireup.nbytes,
+            tag=0,
+            cb_func=_tag_recv_handle,
+            cb_args=(ep, wireup),
+        )
+
         for i in range(args.n_iter):
             if args.enable_am is True:
                 ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
@@ -179,7 +192,8 @@ def server(queue, args):
     )
     queue.put(listener.port)
 
-    while finished[0] != args.n_iter:
+    # +1 to account for wireup message
+    while finished[0] != args.n_iter + 1:
         worker.progress()
 
 
@@ -226,6 +240,10 @@ def client(queue, port, server_address, args):
     send_msg = xp.arange(args.n_bytes, dtype="u1")
     if args.reuse_alloc:
         recv_msg = xp.zeros(args.n_bytes, dtype="u1")
+
+    wireup_recv = bytearray(len(WireupMessage))
+    blocking_send(worker, ep, WireupMessage)
+    blocking_recv(worker, ep, wireup_recv)
 
     if args.cuda_profile:
         xp.cuda.profiler.start()
