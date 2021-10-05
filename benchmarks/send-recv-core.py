@@ -142,7 +142,7 @@ def server(queue, args):
         msg = Array(recv_obj)
         ucx_api.am_send_nbx(ep, msg, msg.nbytes, cb_func=_send_handle, cb_args=(msg,))
 
-    def _listener_handler(conn_request):
+    def _listener_handler(conn_request, msg):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
             worker,
@@ -150,23 +150,13 @@ def server(queue, args):
             endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
         )
 
-        if not args.enable_am:
-            msg_recv_list = []
-            if not args.reuse_alloc:
-                for _ in range(args.n_iter):
-                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-            else:
-                t = xp.zeros(args.n_bytes, dtype="u1")
-                for _ in range(args.n_iter):
-                    msg_recv_list.append(t)
-
-            assert msg_recv_list[0].nbytes == args.n_bytes
-
         for i in range(args.n_iter):
             if args.enable_am is True:
                 ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
             else:
-                msg = Array(msg_recv_list[i])
+                if not args.reuse_alloc:
+                    msg = Array(xp.zeros(args.n_bytes, dtype="u1"))
+
                 ucx_api.tag_recv_nb(
                     worker,
                     msg,
@@ -176,8 +166,13 @@ def server(queue, args):
                     cb_args=(ep, msg),
                 )
 
+    if not args.enable_am and args.reuse_alloc:
+        msg = Array(xp.zeros(args.n_bytes, dtype="u1"))
+    else:
+        msg = None
+
     listener = ucx_api.UCXListener(
-        worker=worker, port=args.port or 0, cb_func=_listener_handler
+        worker=worker, port=args.port or 0, cb_func=_listener_handler, cb_args=(msg,)
     )
     queue.put(listener.port)
 
@@ -225,37 +220,30 @@ def client(queue, port, server_address, args):
         endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
     )
 
-    if args.enable_am:
-        msg = xp.arange(args.n_bytes, dtype="u1")
-    else:
-        msg_send_list = []
-        msg_recv_list = []
-        if not args.reuse_alloc:
-            for i in range(args.n_iter):
-                msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
-                msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-        else:
-            t1 = xp.arange(args.n_bytes, dtype="u1")
-            t2 = xp.zeros(args.n_bytes, dtype="u1")
-            for i in range(args.n_iter):
-                msg_send_list.append(t1)
-                msg_recv_list.append(t2)
-        assert msg_send_list[0].nbytes == args.n_bytes
-        assert msg_recv_list[0].nbytes == args.n_bytes
+    send_msg = xp.arange(args.n_bytes, dtype="u1")
+    if args.reuse_alloc:
+        recv_msg = xp.zeros(args.n_bytes, dtype="u1")
 
     if args.cuda_profile:
         xp.cuda.profiler.start()
+
     times = []
     for i in range(args.n_iter):
         start = clock()
+
         if args.enable_am:
-            blocking_am_send(worker, ep, msg)
+            blocking_am_send(worker, ep, send_msg)
             blocking_am_recv(worker, ep)
         else:
-            blocking_send(worker, ep, msg_send_list[i])
-            blocking_recv(worker, ep, msg_recv_list[i])
+            if not args.reuse_alloc:
+                recv_msg = xp.zeros(args.n_bytes, dtype="u1")
+
+            blocking_send(worker, ep, send_msg)
+            blocking_recv(worker, ep, recv_msg)
+
         stop = clock()
         times.append(stop - start)
+
     if args.cuda_profile:
         xp.cuda.profiler.stop()
 
