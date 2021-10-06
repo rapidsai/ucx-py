@@ -216,7 +216,6 @@ def am_recv_nb(
             cb_kwargs = {}
         if Feature.AM not in worker._context._feature_flags:
             raise ValueError("UCXContext must be created with `Feature.AM`")
-        cdef bint cuda_support
 
         am_recv_pool = worker._am_recv_pool
         ep_as_int = int(<uintptr_t>ep._handle)

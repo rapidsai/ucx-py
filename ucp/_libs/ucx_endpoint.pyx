@@ -12,7 +12,7 @@ from libc.stdio cimport FILE
 
 from .ucx_api_dep cimport *
 
-from ..exceptions import UCXConnectionReset, UCXError
+from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 
 logger = logging.getLogger("ucx")
 
@@ -57,13 +57,16 @@ def _ucx_endpoint_finalizer(
         uintptr_t handle_as_int,
         uintptr_t status_handle_as_int,
         bint endpoint_error_handling,
-        worker,
-        set inflight_msgs
+        UCXWorker worker,
+        set inflight_msgs,
 ):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
     cdef ucs_status_t ep_status
+    cdef bint am_enabled = (
+        is_am_supported() and Feature.AM in worker._context._feature_flags
+    )
 
     if <void *>status_handle_as_int == NULL:
         ep_status = UCS_OK
@@ -82,6 +85,24 @@ def _ucx_endpoint_finalizer(
         logger.debug("Future cancelling: %s" % name)
         # Notice, `request_cancel()` evoke the send/recv callback functions
         worker.request_cancel(req)
+
+    # Cancel waiting `am_recv` calls
+    cdef dict recv_wait
+    if am_enabled and handle_as_int in worker._am_recv_wait:
+        while len(worker._am_recv_wait[handle_as_int]) > 0:
+            recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
+            cb_func = recv_wait["cb_func"]
+            cb_args = recv_wait["cb_args"]
+            cb_kwargs = recv_wait["cb_kwargs"]
+
+            logger.debug("Cancelling am_recv wait on ep %s" % hex(int(handle_as_int)))
+
+            cb_func(
+                None,
+                UCXCanceled("While waiting for am_recv the endpoint was closed"),
+                *cb_args,
+                **cb_kwargs
+            )
 
     # Close the endpoint
     cdef str msg
@@ -150,7 +171,7 @@ cdef class UCXEndpoint(UCXObject):
             int(<uintptr_t>ep_status),
             endpoint_error_handling,
             worker,
-            self._inflight_msgs
+            self._inflight_msgs,
         )
         worker.add_child(self)
 

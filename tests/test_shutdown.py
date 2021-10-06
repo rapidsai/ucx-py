@@ -25,23 +25,45 @@ def event_loop(scope="function"):
     loop.close()
 
 
+def _skip_if_not_supported(message_type):
+    if message_type == "am" and not ucp._libs.ucx_api.is_am_supported():
+        pytest.skip("AM only supported in UCX >= 1.11")
+
+
+async def _shutdown_send(ep, message_type):
+    msg = np.arange(10 ** 6)
+    if message_type == "tag":
+        await ep.send(msg)
+    else:
+        await ep.am_send(msg)
+
+
+async def _shutdown_recv(ep, message_type):
+    if message_type == "tag":
+        msg = np.empty(10 ** 6)
+        await ep.recv(msg)
+    else:
+        await ep.am_recv()
+
+
 @pytest.mark.asyncio
-async def test_server_shutdown():
+@pytest.mark.parametrize("message_type", ["tag", "am"])
+async def test_server_shutdown(message_type):
     """The server calls shutdown"""
     endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
+    _skip_if_not_supported(message_type)
+
     async def server_node(ep):
-        msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await asyncio.gather(ep.recv(msg), ep.close())
+            await asyncio.gather(_shutdown_recv(ep, message_type), ep.close())
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
             ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
         )
-        msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
 
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
@@ -53,22 +75,23 @@ async def test_server_shutdown():
     sys.version_info < (3, 7), reason="test currently fails for python3.6"
 )
 @pytest.mark.asyncio
-async def test_client_shutdown():
+@pytest.mark.parametrize("message_type", ["tag", "am"])
+async def test_client_shutdown(message_type):
     """The client calls shutdown"""
     endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
+
+    _skip_if_not_supported(message_type)
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
             ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
         )
-        msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await asyncio.gather(ep.recv(msg), ep.close())
+            await asyncio.gather(_shutdown_recv(ep, message_type), ep.close())
 
     async def server_node(ep):
-        msg = np.empty(10 ** 6)
         with pytest.raises(ucp.exceptions.UCXCanceled):
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
 
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
@@ -77,9 +100,12 @@ async def test_client_shutdown():
 
 
 @pytest.mark.asyncio
-async def test_listener_close():
+@pytest.mark.parametrize("message_type", ["tag", "am"])
+async def test_listener_close(message_type):
     """The server close the listener"""
     endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
+
+    _skip_if_not_supported(message_type)
 
     async def client_node(listener):
         ep = await ucp.create_endpoint(
@@ -87,16 +113,15 @@ async def test_listener_close():
             listener.port,
             endpoint_error_handling=endpoint_error_handling,
         )
-        msg = np.empty(100, dtype=np.int64)
-        await ep.recv(msg)
-        await ep.recv(msg)
+        await _shutdown_recv(ep, message_type)
+        await _shutdown_recv(ep, message_type)
         assert listener.closed() is False
         listener.close()
         assert listener.closed() is True
 
     async def server_node(ep):
-        await ep.send(np.arange(100, dtype=np.int64))
-        await ep.send(np.arange(100, dtype=np.int64))
+        await _shutdown_send(ep, message_type)
+        await _shutdown_send(ep, message_type)
 
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
@@ -105,13 +130,16 @@ async def test_listener_close():
 
 
 @pytest.mark.asyncio
-async def test_listener_del():
+@pytest.mark.parametrize("message_type", ["tag", "am"])
+async def test_listener_del(message_type):
     """The client delete the listener"""
     endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
+    _skip_if_not_supported(message_type)
+
     async def server_node(ep):
-        await ep.send(np.arange(100, dtype=np.int64))
-        await ep.send(np.arange(100, dtype=np.int64))
+        await _shutdown_send(ep, message_type)
+        await _shutdown_send(ep, message_type)
 
     listener = ucp.create_listener(
         server_node, endpoint_error_handling=endpoint_error_handling
@@ -121,21 +149,23 @@ async def test_listener_del():
         listener.port,
         endpoint_error_handling=endpoint_error_handling,
     )
-    msg = np.empty(100, dtype=np.int64)
-    await ep.recv(msg)
+    await _shutdown_recv(ep, message_type)
     assert listener.closed() is False
     del listener
-    await ep.recv(msg)
+    await _shutdown_recv(ep, message_type)
 
 
 @pytest.mark.asyncio
-async def test_close_after_n_recv():
+@pytest.mark.parametrize("message_type", ["tag", "am"])
+async def test_close_after_n_recv(message_type):
     """The Endpoint.close_after_n_recv()"""
     endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
 
+    _skip_if_not_supported(message_type)
+
     async def server_node(ep):
         for _ in range(10):
-            await ep.send(np.arange(10))
+            await _shutdown_send(ep, message_type)
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
@@ -143,40 +173,34 @@ async def test_close_after_n_recv():
         )
         ep.close_after_n_recv(10)
         for _ in range(10):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
         assert ep.closed()
 
         ep = await ucp.create_endpoint(
             ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
         )
         for _ in range(5):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
         ep.close_after_n_recv(5)
         for _ in range(5):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
         assert ep.closed()
 
         ep = await ucp.create_endpoint(
             ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
         )
         for _ in range(5):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
         ep.close_after_n_recv(10, count_from_ep_creation=True)
         for _ in range(5):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
         assert ep.closed()
 
         ep = await ucp.create_endpoint(
             ucp.get_address(), port, endpoint_error_handling=endpoint_error_handling
         )
         for _ in range(10):
-            msg = np.empty(10)
-            await ep.recv(msg)
+            await _shutdown_recv(ep, message_type)
 
         with pytest.raises(
             ucp.exceptions.UCXError, match="`n` cannot be less than current recv_count",

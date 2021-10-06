@@ -55,9 +55,11 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        libhwloc psutil \
+        psutil \
         "python=3.7" setuptools "cython>=0.29.14,<3.0.0a0"
 
+
+If you are using UCX 1.9 and older and using both CUDA and InfiniBand support, ensure ``libhwloc`` is also on the list above.
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
@@ -70,17 +72,17 @@ Test Dependencies
         distributed
 
 
-UCX-1.11 (Development)
-~~~~~~~~~~~~~~~~~~~~~~
+UCX-1.11.1
+~~~~~~~~~~
 
-Instructions for building UCX 1.11 (current development version):
+Instructions for building UCX 1.11.1:
 
 ::
 
     conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.11.x
+    git checkout v1.11.1
     ./autogen.sh
     mkdir build
     cd build
@@ -153,7 +155,12 @@ UCX-Py
     conda activate ucx
     git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
-    python setup.py build_ext --inplace
-    pip install .
+    pip install -v .
     # or for develop build
     pip install -v -e .
+
+In UCX 1.10 and above, or for builds that don't need CUDA and InfiniBand support, users can disable building with hwloc support:
+
+::
+
+    UCXPY_DISABLE_HWLOC=1 pip install -v .
