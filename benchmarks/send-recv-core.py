@@ -351,13 +351,14 @@ def client(queue, port, server_address, args):
     med = format_bytes(2 * args.n_bytes / np.median(times))
     print(f"Average         | {avg}/s")
     print(f"Median          | {med}/s")
-    # print("--------------------------")
-    # print("Iterations")
-    # print("--------------------------")
-    # for i, t in enumerate(times):
-    #     ts = format_bytes(2 * args.n_bytes / t)
-    #     ts = (" " * (9 - len(ts))) + ts
-    #     print("%03d         |%s/s" % (i, ts))
+    if not args.no_detailed_report:
+        print("--------------------------")
+        print("Iterations")
+        print("--------------------------")
+        for i, t in enumerate(times):
+            ts = format_bytes(2 * args.n_bytes / t)
+            ts = (" " * (9 - len(ts))) + ts
+            print("%03d         |%s/s" % (i, ts))
 
 
 def parse_args():
@@ -494,6 +495,12 @@ def parse_args():
         type=int,
         help="Number of maximum outstanding operations, see --delay-progress. "
         "(Default: 32)",
+    )
+    parser.add_argument(
+        "--no-detailed-report",
+        default=False,
+        action="store_true",
+        help="Disable detailed report per iteration.",
     )
 
     args = parser.parse_args()
