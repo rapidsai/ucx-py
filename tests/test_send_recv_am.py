@@ -61,7 +61,6 @@ def event_loop(scope="function"):
     yield loop
     ucp.reset()
     loop.run_until_complete(asyncio.sleep(0))
-    loop.close()
 
 
 def simple_server(size, recv):

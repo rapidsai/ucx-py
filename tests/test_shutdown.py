@@ -22,7 +22,6 @@ def event_loop(scope="function"):
     yield loop
     ucp.reset()
     loop.run_until_complete(asyncio.sleep(0))
-    loop.close()
 
 
 def _skip_if_not_supported(message_type):
