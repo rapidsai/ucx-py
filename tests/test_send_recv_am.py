@@ -46,23 +46,6 @@ def get_data():
     return ret
 
 
-def handle_exception(loop, context):
-    msg = context.get("exception", context["message"])
-    print("handle_exception: %s" % msg, flush=True)
-
-
-# Let's make sure that UCX gets time to cancel
-# progress tasks before closing the event loop.
-@pytest.fixture()
-def event_loop(scope="function"):
-    loop = asyncio.new_event_loop()
-    loop.set_exception_handler(handle_exception)
-    ucp.reset()
-    yield loop
-    ucp.reset()
-    loop.run_until_complete(asyncio.sleep(0))
-
-
 def simple_server(size, recv):
     async def server(ep):
         recv.append(await ep.am_recv())
