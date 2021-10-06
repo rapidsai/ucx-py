@@ -56,7 +56,6 @@ def non_blocking_handler(request, exception, completed_cb):
         print(exception)
     assert exception is None
     completed_cb()
-    # print(f"handler: {count[0]}")
 
 
 def non_blocking_send(worker, ep, msg, started_cb, completed_cb, tag=0):
@@ -72,7 +71,6 @@ def non_blocking_send(worker, ep, msg, started_cb, completed_cb, tag=0):
     )
     if req is None:
         completed_cb()
-    # print(f"send: {count[0]}")
     return req
 
 
@@ -90,7 +88,6 @@ def non_blocking_recv(worker, ep, msg, started_cb, completed_cb, tag=0):
     )
     if req is None:
         completed_cb()
-    # print(f"recv: {count[0]}")
     return req
 
 
