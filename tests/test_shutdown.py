@@ -7,24 +7,6 @@ import pytest
 import ucp
 
 
-def handle_exception(loop, context):
-    msg = context.get("exception", context["message"])
-    print(msg)
-
-
-# Let's make sure that UCX gets time to cancel
-# progress tasks before closing the event loop.
-@pytest.fixture()
-def event_loop(scope="function"):
-    loop = asyncio.new_event_loop()
-    loop.set_exception_handler(handle_exception)
-    ucp.reset()
-    yield loop
-    ucp.reset()
-    loop.run_until_complete(asyncio.sleep(0))
-    loop.close()
-
-
 def _skip_if_not_supported(message_type):
     if message_type == "am" and not ucp._libs.ucx_api.is_am_supported():
         pytest.skip("AM only supported in UCX >= 1.11")
