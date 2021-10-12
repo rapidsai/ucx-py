@@ -165,16 +165,19 @@ def server(queue, args):
         )
 
         # Wireup before starting to transfer data
-        wireup = Array(bytearray(len(WireupMessage)))
-        op_started()
-        ucx_api.tag_recv_nb(
-            worker,
-            wireup,
-            wireup.nbytes,
-            tag=0,
-            cb_func=_tag_recv_handle,
-            cb_args=(ep, wireup),
-        )
+        if args.enable_am is True:
+            ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
+        else:
+            wireup = Array(bytearray(len(WireupMessage)))
+            op_started()
+            ucx_api.tag_recv_nb(
+                worker,
+                wireup,
+                wireup.nbytes,
+                tag=0,
+                cb_func=_tag_recv_handle,
+                cb_args=(ep, wireup),
+            )
 
         for i in range(args.n_iter):
             if args.enable_am is True:
@@ -262,9 +265,13 @@ def client(queue, port, server_address, args):
     if args.reuse_alloc:
         recv_msg = xp.zeros(args.n_bytes, dtype="u1")
 
-    wireup_recv = bytearray(len(WireupMessage))
-    blocking_send(worker, ep, WireupMessage)
-    blocking_recv(worker, ep, wireup_recv)
+    if args.enable_am:
+        blocking_am_send(worker, ep, send_msg)
+        blocking_am_recv(worker, ep)
+    else:
+        wireup_recv = bytearray(len(WireupMessage))
+        blocking_send(worker, ep, WireupMessage)
+        blocking_recv(worker, ep, wireup_recv)
 
     op_lock = Lock()
     finished = [0]
