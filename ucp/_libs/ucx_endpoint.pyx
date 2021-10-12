@@ -47,7 +47,10 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
     )
     logger.debug(msg)
 
-    _cancel_inflight_msgs(ucx_worker, inflight_msgs)
+    # Schedule inflight messages to be canceled after all UCP progress
+    # is complete. This may happen if the user called ep.recv() but
+    # the remote worker errored before sending the message.
+    ucx_worker._inflight_msgs_to_cancel = inflight_msgs
 
 
 cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
