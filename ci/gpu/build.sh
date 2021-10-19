@@ -28,6 +28,7 @@ export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
 export RAPIDS_VERSION="21.10"
 export UCX_PATH=$CONDA_PREFIX
+export TEST_UCX_MASTER=0
 
 ################################################################################
 # SETUP - Check environment
@@ -132,27 +133,29 @@ fi
 ################################################################################
 # BUILD - Build UCX master, UCX-Py and run tests
 ################################################################################
-gpuci_logger "Build UCX master"
-cd $WORKSPACE
-git clone https://github.com/openucx/ucx
-cd ucx
-./autogen.sh
-mkdir build
-cd build
-../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
-make -j install
+if [[ "${TEST_UCX_MASTER}" == 1 ]]; then
+    gpuci_logger "Build UCX master"
+    cd $WORKSPACE
+    git clone https://github.com/openucx/ucx
+    cd ucx
+    ./autogen.sh
+    mkdir build
+    cd build
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
+    make -j install
 
-gpuci_logger "UCX Version and Build Information"
-ucx_info -v
+    gpuci_logger "UCX Version and Build Information"
+    ucx_info -v
 
-gpuci_logger "Build UCX-Py"
-cd $WORKSPACE
-git clean -ffdx
-python setup.py build_ext --inplace
-python -m pip install -e .
+    gpuci_logger "Build UCX-Py"
+    cd $WORKSPACE
+    git clean -ffdx
+    python setup.py build_ext --inplace
+    python -m pip install -e .
 
-if hasArg --skip-tests; then
-    gpuci_logger "Skipping Tests"
-else
-    run_tests
+    if hasArg --skip-tests; then
+        gpuci_logger "Skipping Tests"
+    else
+        run_tests
+    fi
 fi
