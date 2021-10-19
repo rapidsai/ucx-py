@@ -64,8 +64,6 @@ conda list --show-channel-urls
 # TEST - Run py.tests for ucx-py
 ################################################################################
 function run_tests() {
-    UCX111=$1
-
     gpuci_logger "Check GPU usage"
     nvidia-smi
 
@@ -83,11 +81,7 @@ function run_tests() {
     ls tests/
 
     # Setting UCX options
-    if [ "$UCX111" == "1" ]; then
-        export UCX_TLS=tcp,cuda_copy
-    else
-        export UCX_TLS=tcp,cuda_copy,sockcm
-    fi
+    export UCX_TLS=tcp,cuda_copy
 
     # Test with TCP/Sockets
     gpuci_logger "TEST WITH TCP ONLY"
@@ -131,19 +125,17 @@ python -m pip install -e .
 if hasArg --skip-tests; then
     gpuci_logger "Skipping Tests"
 else
-    run_tests 0
+    run_tests
 fi
 
 
 ################################################################################
 # BUILD - Build UCX master, UCX-Py and run tests
 ################################################################################
-
 gpuci_logger "Build UCX master"
 cd $WORKSPACE
 git clone https://github.com/openucx/ucx
 cd ucx
-git checkout v1.11.x
 ./autogen.sh
 mkdir build
 cd build
@@ -162,5 +154,5 @@ python -m pip install -e .
 if hasArg --skip-tests; then
     gpuci_logger "Skipping Tests"
 else
-    run_tests 1
+    run_tests
 fi
