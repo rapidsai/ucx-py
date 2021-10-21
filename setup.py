@@ -21,8 +21,31 @@ with open("README.md", "r") as fh:
 
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
-libraries = ["ucp", "uct", "ucm", "ucs", "hwloc"]
+libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99", "-Werror"]
+
+
+DISABLE_HWLOC = int(os.environ.get("UCXPY_DISABLE_HWLOC", "0"))
+topological_distance_ext = []
+if DISABLE_HWLOC == 0:
+    libraries.append("hwloc")
+    topological_distance_ext = [
+        Extension(
+            "ucp._libs.topological_distance",
+            sources=[
+                "ucp/_libs/topological_distance.pyx",
+                "ucp/_libs/src/topological_distance.c",
+            ],
+            depends=[
+                "ucp/_libs/src/topological_distance.h",
+                "ucp/_libs/topological_distance_dep.pxd",
+            ],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries,
+            extra_compile_args=extra_compile_args,
+        ),
+    ]
 
 
 def get_ucp_version():
@@ -59,22 +82,8 @@ ext_modules = cythonize(
             libraries=libraries,
             extra_compile_args=extra_compile_args,
         ),
-        Extension(
-            "ucp._libs.topological_distance",
-            sources=[
-                "ucp/_libs/topological_distance.pyx",
-                "ucp/_libs/src/topological_distance.c",
-            ],
-            depends=[
-                "ucp/_libs/src/topological_distance.h",
-                "ucp/_libs/topological_distance_dep.pxd",
-            ],
-            include_dirs=include_dirs,
-            library_dirs=library_dirs,
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-    ],
+    ]
+    + topological_distance_ext,
     compile_time_env={"CY_UCP_AM_SUPPORTED": _am_supported},
 )
 
