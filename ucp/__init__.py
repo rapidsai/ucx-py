@@ -15,7 +15,7 @@ logger = logging.getLogger("ucx")
 
 # Notice, if we have to update environment variables
 # we need to do it before importing UCX
-if "UCX_MEMTYPE_CACHE" not in os.environ:
+if "UCX_MEMTYPE_CACHE" not in os.environ and get_ucx_version() < (1, 12, 0):
     # See <https://github.com/openucx/ucx/wiki/NVIDIA-GPU-Support#known-issues>
     logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"

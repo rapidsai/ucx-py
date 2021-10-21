@@ -137,6 +137,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_ERR_NO_ELEM
     ucs_status_t UCS_ERR_BUSY
     ucs_status_t UCS_ERR_CANCELED
+    ucs_status_t UCS_ERR_NOT_CONNECTED
     ucs_status_t UCS_ERR_CONNECTION_RESET
 
     void ucp_get_version(unsigned * major_version,
