@@ -47,3 +47,7 @@ class UCXConnectionReset(UCXBaseException):
 
 class UCXMsgTruncated(UCXBaseException):
     pass
+
+
+class UCXNotConnected(UCXBaseException):
+    pass
