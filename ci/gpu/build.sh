@@ -27,7 +27,6 @@ cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
 export RAPIDS_VERSION="21.10"
-export UCX_PATH=$CONDA_PREFIX
 export TEST_UCX_MASTER=0
 
 ################################################################################
