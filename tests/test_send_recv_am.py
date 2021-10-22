@@ -9,12 +9,16 @@ import ucp
 msg_sizes = [0] + [2 ** i for i in range(0, 25, 4)]
 
 
+def _bytearray_assert_equal(a, b):
+    assert a == b
+
+
 def get_data():
     ret = [
         {
             "allocator": bytearray,
             "generator": lambda n: bytearray(b"m" * n),
-            "validator": lambda recv, exp: np.testing.assert_equal(recv, exp),
+            "validator": lambda recv, exp: _bytearray_assert_equal(recv, exp),
             "memory_type": "host",
         },
         {
@@ -62,7 +66,7 @@ def simple_server(size, recv):
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 @pytest.mark.parametrize("recv_wait", [True, False])
 @pytest.mark.parametrize("data", get_data())
-async def test_send_recv_bytes(size, blocking_progress_mode, recv_wait, data):
+async def test_send_recv_am(size, blocking_progress_mode, recv_wait, data):
     rndv_thresh = 8192
     ucp.init(
         options={"RNDV_THRESH": str(rndv_thresh)},
