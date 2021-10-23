@@ -119,7 +119,7 @@ cdef void _stream_recv_callback(
             name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXCanceled(msg)
-        if status == UCS_ERR_NOT_CONNECTED:
+        elif status == UCS_ERR_NOT_CONNECTED:
             name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXNotConnected(msg)
