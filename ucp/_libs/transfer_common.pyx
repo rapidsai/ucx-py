@@ -14,7 +14,7 @@ from ..exceptions import UCXCanceled, UCXError, log_errors
 # This callback function is currently needed by stream_send_nb and
 # tag_send_nb transfer functions, as well as UCXEndpoint and UCXWorker
 # flush methods.
-cdef void _send_callback(void *request, ucs_status_t status):
+cdef void _send_callback(void *request, ucs_status_t status) with gil:
     cdef UCXRequest req
     cdef dict req_info
     cdef str name, ucx_status_msg, msg

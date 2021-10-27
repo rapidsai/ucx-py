@@ -10,7 +10,7 @@ from .ucx_api_dep cimport *
 from ..exceptions import log_errors
 
 
-cdef void _listener_callback(ucp_conn_request_h conn_request, void *args):
+cdef void _listener_callback(ucp_conn_request_h conn_request, void *args) with gil:
     """Callback function used by UCXListener"""
     cdef dict cb_data = <dict> args
 

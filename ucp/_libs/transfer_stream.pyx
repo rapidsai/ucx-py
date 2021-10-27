@@ -97,7 +97,7 @@ def stream_send_nb(
 
 cdef void _stream_recv_callback(
     void *request, ucs_status_t status, size_t length
-):
+) with gil:
     cdef UCXRequest req
     cdef dict req_info
     cdef str name, ucx_status_msg, msg
