@@ -12,7 +12,7 @@ def _close_callback(closed):
     closed[0] = True
 
 
-def _echo_server(queue, endpoint_error_handling, server_close_callback):
+def _server(queue, endpoint_error_handling, server_close_callback):
     """Server that send received message back to the client
 
     Notice, since it is illegal to call progress() in call-back functions,
@@ -35,19 +35,21 @@ def _echo_server(queue, endpoint_error_handling, server_close_callback):
         )
         if server_close_callback is True:
             ep.set_close_callback(functools.partial(_close_callback, closed))
-        ep.close()
         listener_finished[0] = True
 
     listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
     queue.put(listener.port)
 
-    while listener_finished[0] is False:
-        worker.progress()
     if server_close_callback is True:
+        while closed[0] is False:
+            worker.progress()
         assert closed[0] is True
+    else:
+        while listener_finished[0] is False:
+            worker.progress()
 
 
-def _echo_client(port, endpoint_error_handling, server_close_callback):
+def _client(port, endpoint_error_handling, server_close_callback):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
@@ -69,17 +71,15 @@ def test_close_callback(server_close_callback):
 
     queue = mp.Queue()
     server = mp.Process(
-        target=_echo_server,
-        args=(queue, endpoint_error_handling, server_close_callback),
+        target=_server, args=(queue, endpoint_error_handling, server_close_callback),
     )
     server.start()
     port = queue.get()
     client = mp.Process(
-        target=_echo_client,
-        args=(port, endpoint_error_handling, server_close_callback),
+        target=_client, args=(port, endpoint_error_handling, server_close_callback),
     )
     client.start()
     client.join(timeout=10)
-    assert not client.exitcode
     server.join(timeout=10)
-    assert not server.exitcode
+    assert client.exitcode == 0
+    assert server.exitcode == 0
