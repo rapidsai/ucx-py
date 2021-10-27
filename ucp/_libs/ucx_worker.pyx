@@ -222,8 +222,9 @@ cdef class UCXWorker(UCXObject):
         the call-back function given to UCXListener, tag_send_nb, and tag_recv_nb.
         """
         assert self.initialized
-        while ucp_worker_progress(self._handle) != 0:
-            pass
+        with nogil:
+            while ucp_worker_progress(self._handle) != 0:
+                pass
 
     @property
     def handle(self):

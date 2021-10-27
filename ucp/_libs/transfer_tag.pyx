@@ -95,7 +95,7 @@ def tag_send_nb(
 
 cdef void _tag_recv_callback(
     void *request, ucs_status_t status, ucp_tag_recv_info_t *info
-):
+) with gil:
     cdef UCXRequest req
     cdef dict req_info
     cdef str name, ucx_status_msg, msg
