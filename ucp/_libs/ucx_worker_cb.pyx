@@ -23,7 +23,7 @@ IF CY_UCP_AM_SUPPORTED:
         ucs_status_t status,
         size_t length,
         void *user_data
-    ):
+    ) with gil:
         cdef bytearray buf
         cdef UCXRequest req
         cdef dict req_info
@@ -88,7 +88,7 @@ IF CY_UCP_AM_SUPPORTED:
         void *data,
         size_t length,
         const ucp_am_recv_param_t *param
-    ):
+    ) with gil:
         cdef UCXWorker worker = <UCXWorker>arg
         cdef dict am_recv_pool = worker._am_recv_pool
         cdef dict am_recv_wait = worker._am_recv_wait

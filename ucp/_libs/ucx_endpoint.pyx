@@ -36,7 +36,7 @@ cdef class UCXEndpointCloseCallback():
         self._cb_func = cb_func
 
 
-cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     cdef UCXEndpoint ucx_ep = <UCXEndpoint> arg
     assert ucx_ep.worker.initialized
 
@@ -55,7 +55,7 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
 
 cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
     str tls, bint endpoint_error_handling
-) except *:
+) except * with gil:
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
     cdef ucs_status_t *cb_status = <ucs_status_t *>NULL
 
