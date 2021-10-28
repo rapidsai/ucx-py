@@ -277,16 +277,17 @@ cdef class UCXWorker(UCXObject):
         ucp_worker_print_info(self._handle, text_fd)
         return decode_text_fd(text_fd)
 
-    def query_total_inflight_messages_to_cancel(self):
-        """Query the total of inflight messages scheduled to cancel
+    def cancel_inflight_messages(self):
+        """Cancel inflight messages scheduled for canceling
 
-        While there are messages scheduled for canceling, we need to progress
-        the worker. Therefore, this can be used to query if there are still any
-        such messages and progress while the result is larger than 0.
+        If any messages are scheduled for canceling, we need to trigger their
+        cancelation and return the number of canceled messages, if there are
+        any messages to cancel, the worker needs to progress to complete the
+        cancelation.
 
         Returns
         -------
-        total: The total number of inflight messages scheduled to cancel.
+        total: The total number of inflight messages canceled.
         """
         len_inflight_msgs_to_cancel = len(self._inflight_msgs_to_cancel)
         if len_inflight_msgs_to_cancel > 0:
