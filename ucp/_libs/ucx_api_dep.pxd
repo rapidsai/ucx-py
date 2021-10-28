@@ -231,7 +231,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ucp_datatype_t ucp_dt_make_contig(size_t elem_size)
 
-    unsigned ucp_worker_progress(ucp_worker_h worker)
+    unsigned ucp_worker_progress(ucp_worker_h worker) nogil
 
     ctypedef struct ucp_tag_recv_info_t:
         ucp_tag_t sender_tag

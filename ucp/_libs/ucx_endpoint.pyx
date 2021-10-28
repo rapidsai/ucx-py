@@ -30,7 +30,22 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
         worker.request_cancel(req)
 
 
-cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
+class UCXEndpointCloseCallback():
+    def __init__(self):
+        self._cb_func = None
+
+    def run(self):
+        if self._cb_func is not None:
+            # Deregister callback to prevent calling from the endpoint error
+            # callback and again from the finalizer.
+            cb_func, self._cb_func = self._cb_func, None
+            cb_func()
+
+    def set(self, cb_func):
+        self._cb_func = cb_func
+
+
+cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     cdef UCXEndpoint ucx_ep = <UCXEndpoint> arg
     cdef UCXWorker ucx_worker = ucx_ep.worker
     cdef set inflight_msgs = ucx_ep._inflight_msgs
@@ -45,6 +60,7 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
             hex(int(<uintptr_t>ep)), status, status_str
         )
     )
+    ucx_ep._endpoint_close_callback.run()
     logger.debug(msg)
 
     # Schedule inflight messages to be canceled after all UCP progress
@@ -55,7 +71,7 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status):
 
 cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
     str tls, bint endpoint_error_handling
-) except *:
+) except * with gil:
     cdef ucp_err_handler_cb_t err_cb = <ucp_err_handler_cb_t>NULL
     cdef ucs_status_t *cb_status = <ucs_status_t *>NULL
 
@@ -79,6 +95,7 @@ def _ucx_endpoint_finalizer(
         bint endpoint_error_handling,
         UCXWorker worker,
         set inflight_msgs,
+        object endpoint_close_callback,
 ):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
@@ -131,6 +148,8 @@ def _ucx_endpoint_finalizer(
         msg = ucs_status_string(UCS_PTR_STATUS(status)).decode("utf-8")
         raise UCXError("Error while closing endpoint: %s" % msg)
 
+    endpoint_close_callback.run()
+
 
 cdef class UCXEndpoint(UCXObject):
     """Python representation of `ucp_ep_h`"""
@@ -139,6 +158,7 @@ cdef class UCXEndpoint(UCXObject):
         uintptr_t _status
         bint _endpoint_error_handling
         set _inflight_msgs
+        object _endpoint_close_callback
 
     cdef readonly:
         UCXWorker worker
@@ -154,6 +174,7 @@ cdef class UCXEndpoint(UCXObject):
         assert worker.initialized
         self.worker = worker
         self._inflight_msgs = set()
+        self._endpoint_close_callback = UCXEndpointCloseCallback()
 
         cdef ucp_err_handler_cb_t err_cb
         cdef uintptr_t ep_status
@@ -183,6 +204,7 @@ cdef class UCXEndpoint(UCXObject):
             endpoint_error_handling,
             worker,
             self._inflight_msgs,
+            self._endpoint_close_callback,
         )
         worker.add_child(self)
 
@@ -316,3 +338,6 @@ cdef class UCXEndpoint(UCXObject):
 
     def unpack_rkey(self, rkey):
         return UCXRkey(self, rkey)
+
+    def set_close_callback(self, cb_func):
+        self._endpoint_close_callback.set(cb_func)

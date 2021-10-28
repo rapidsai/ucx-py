@@ -19,7 +19,9 @@ logger = logging.getLogger("ucx")
 
 
 IF CY_UCP_AM_SUPPORTED:
-    cdef void _send_nbx_callback(void *request, ucs_status_t status, void *user_data):
+    cdef void _send_nbx_callback(
+        void *request, ucs_status_t status, void *user_data
+    ) with gil:
         cdef UCXRequest req
         cdef dict req_info
         cdef str name, ucx_status_msg, msg

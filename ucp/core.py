@@ -856,6 +856,28 @@ class Endpoint:
         logger.debug("[Flush] ep: %s" % (hex(self.uid)))
         return await comm.flush_ep(self._ep)
 
+    def set_close_callback(self, callback_func):
+        """Register a user callback function to be called on Endpoint's closing.
+
+        Allows the user to register a callback function to be called when the
+        Endpoint's error callback is called, or during its finalizer if the error
+        callback is never called.
+
+        Once the callback is called, it's not possible to send any more messages.
+        However, receiving messages may still be possible, as UCP may still have
+        incoming messages in transit.
+
+        Parameters
+        ----------
+        callback_func: callable
+            The callback function to be called when the Endpoint's error callback
+            is called, otherwise called on its finalizer.
+
+        Example
+        >>> ep.set_close_callback(lambda: print("Executing close callback"))
+        """
+        self._ep.set_close_callback(callback_func)
+
 
 # The following functions initialize and use a single ApplicationContext instance
 
