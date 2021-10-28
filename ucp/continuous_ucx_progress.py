@@ -96,6 +96,13 @@ class BlockingMode(ProgressTask):
             if worker is None or not worker.initialized:
                 return
             worker.progress()
+
+            # Cancel inflight messages that couldn't be completed. This may
+            # happen if the user called ep.recv() but the remote worker
+            # errored before sending the message.
+            if worker.query_total_inflight_messages_to_cancel() > 0:
+                worker.progress()
+
             del worker
 
             # This IO task returns when all non-IO tasks are finished.

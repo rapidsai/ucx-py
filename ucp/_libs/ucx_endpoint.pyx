@@ -17,6 +17,19 @@ from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 logger = logging.getLogger("ucx")
 
 
+cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
+    cdef UCXRequest req
+    cdef dict req_info
+    cdef str name
+    for req in list(inflight_msgs):
+        assert not req.closed()
+        req_info = <dict>req._handle.info
+        name = req_info["name"]
+        logger.debug("Future cancelling: %s" % name)
+        # Notice, `request_cancel()` evoke the send/recv callback functions
+        worker.request_cancel(req)
+
+
 class UCXEndpointCloseCallback():
     def __init__(self):
         self._cb_func = None
@@ -34,7 +47,9 @@ class UCXEndpointCloseCallback():
 
 cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     cdef UCXEndpoint ucx_ep = <UCXEndpoint> arg
-    assert ucx_ep.worker.initialized
+    cdef UCXWorker ucx_worker = ucx_ep.worker
+    cdef set inflight_msgs = ucx_ep._inflight_msgs
+    assert ucx_worker.initialized
 
     cdef ucs_status_t *ep_status = <ucs_status_t *> <uintptr_t>ucx_ep._status
     ep_status[0] = status
@@ -47,6 +62,11 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     )
     ucx_ep._endpoint_close_callback.run()
     logger.debug(msg)
+
+    # Schedule inflight messages to be canceled after all UCP progress
+    # is complete. This may happen if the user called ep.recv() but
+    # the remote worker errored before sending the message.
+    ucx_worker._inflight_msgs_to_cancel.update(inflight_msgs)
 
 
 cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
@@ -92,16 +112,7 @@ def _ucx_endpoint_finalizer(
         free(<void *>status_handle_as_int)
 
     # Cancel all inflight messages
-    cdef UCXRequest req
-    cdef dict req_info
-    cdef str name
-    for req in list(inflight_msgs):
-        assert not req.closed()
-        req_info = <dict>req._handle.info
-        name = req_info["name"]
-        logger.debug("Future cancelling: %s" % name)
-        # Notice, `request_cancel()` evoke the send/recv callback functions
-        worker.request_cancel(req)
+    _cancel_inflight_msgs(worker, inflight_msgs)
 
     # Cancel waiting `am_recv` calls
     cdef dict recv_wait

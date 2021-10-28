@@ -20,7 +20,7 @@ logger = logging.getLogger("ucx")
 
 
 cdef _drain_worker_tag_recv(ucp_worker_h handle):
-    cdef ucp_tag_message_h
+    cdef ucp_tag_message_h message
     cdef ucp_tag_recv_info_t info
     cdef ucs_status_ptr_t status
     cdef void *buf
@@ -96,6 +96,7 @@ cdef class UCXWorker(UCXObject):
         ucp_worker_h _handle
         UCXContext _context
         set _inflight_msgs
+        set _inflight_msgs_to_cancel
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
@@ -119,6 +120,7 @@ cdef class UCXWorker(UCXObject):
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
         self._inflight_msgs = set()
+        self._inflight_msgs_to_cancel = set()
 
         IF CY_UCP_AM_SUPPORTED:
             cdef int AM_MSG_ID = 0
@@ -274,3 +276,20 @@ cdef class UCXWorker(UCXObject):
         cdef FILE *text_fd = create_text_fd()
         ucp_worker_print_info(self._handle, text_fd)
         return decode_text_fd(text_fd)
+
+    def query_total_inflight_messages_to_cancel(self):
+        """Query the total of inflight messages scheduled to cancel
+
+        While there are messages scheduled for canceling, we need to progress
+        the worker. Therefore, this can be used to query if there are still any
+        such messages and progress while the result is larger than 0.
+
+        Returns
+        -------
+        total: The total number of inflight messages scheduled to cancel.
+        """
+        len_inflight_msgs_to_cancel = len(self._inflight_msgs_to_cancel)
+        if len_inflight_msgs_to_cancel > 0:
+            _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel)
+            self._inflight_msgs_to_cancel = set()
+        return len_inflight_msgs_to_cancel

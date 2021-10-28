@@ -722,13 +722,7 @@ class Endpoint:
         logger.debug(log)
         self._recv_count += 1
 
-        try:
-            ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
-        except UCXCanceled as e:
-            # If self._ep has already been closed and destroyed, we reraise the
-            # UCXCanceled exception.
-            if self._ep is None:
-                raise e
+        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
 
         self._finished_recv_count += 1
         if (
