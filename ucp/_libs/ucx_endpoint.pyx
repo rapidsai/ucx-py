@@ -22,12 +22,12 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
     cdef dict req_info
     cdef str name
     for req in list(inflight_msgs):
-        assert not req.closed()
-        req_info = <dict>req._handle.info
-        name = req_info["name"]
-        logger.debug("Future cancelling: %s" % name)
-        # Notice, `request_cancel()` evoke the send/recv callback functions
-        worker.request_cancel(req)
+        if not req.closed():
+            req_info = <dict>req._handle.info
+            name = req_info["name"]
+            logger.debug("Future cancelling: %s" % name)
+            # Notice, `request_cancel()` evoke the send/recv callback functions
+            worker.request_cancel(req)
 
 
 class UCXEndpointCloseCallback():
