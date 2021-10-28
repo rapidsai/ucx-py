@@ -23,11 +23,10 @@ class UCXEndpointCloseCallback():
 
     def run(self):
         if self._cb_func is not None:
-            self._cb_func()
-
             # Deregister callback to prevent calling from the endpoint error
             # callback and again from the finalizer.
-            self._cb_func = None
+            cb_func, self._cb_func = self._cb_func, None
+            cb_func()
 
     def set(self, cb_func):
         self._cb_func = cb_func
