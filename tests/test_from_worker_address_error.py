@@ -93,7 +93,6 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
                     task = asyncio.wait_for(
                         ep.recv(msg, tag=0, force_tag=True), timeout=3.0
                     )
-                    # task = ep.recv(msg, tag=0, force_tag=True)
 
                     q2.put("ready")
 
@@ -109,7 +108,6 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
     ucp.get_ucx_version() < (1, 11, 0),
     reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
 )
-@pytest.mark.parametrize("error_type", ["unreachable", "timeout"])
 @pytest.mark.parametrize("error_type", ["unreachable", "timeout_send", "timeout_recv"])
 def test_from_worker_address_error(error_type):
     os.environ["UCX_WARN_UNUSED_ENV_VARS"] = "n"
