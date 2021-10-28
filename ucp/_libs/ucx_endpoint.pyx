@@ -17,10 +17,7 @@ from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 logger = logging.getLogger("ucx")
 
 
-cdef class UCXEndpointCloseCallback():
-    cdef:
-        object _cb_func
-
+class UCXEndpointCloseCallback():
     def __init__(self):
         self._cb_func = None
 
@@ -79,7 +76,7 @@ def _ucx_endpoint_finalizer(
         bint endpoint_error_handling,
         UCXWorker worker,
         set inflight_msgs,
-        UCXEndpointCloseCallback endpoint_close_callback,
+        object endpoint_close_callback,
 ):
     assert worker.initialized
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
@@ -151,7 +148,7 @@ cdef class UCXEndpoint(UCXObject):
         uintptr_t _status
         bint _endpoint_error_handling
         set _inflight_msgs
-        UCXEndpointCloseCallback _endpoint_close_callback
+        object _endpoint_close_callback
 
     cdef readonly:
         UCXWorker worker
