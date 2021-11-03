@@ -3,7 +3,7 @@ import os
 import pynvml
 import pytest
 
-from ucp._libs.topological_distance import TopologicalDistance
+topological_distance = pytest.importorskip("ucp._libs.topological_distance")
 
 
 def test_topological_distance_dgx():
@@ -56,7 +56,7 @@ def test_topological_distance_dgx():
     else:
         pytest.skip("DGX Server not recognized or not supported")
 
-    td = TopologicalDistance()
+    td = topological_distance.TopologicalDistance()
 
     for i in range(dev_count):
         closest_network = td.get_cuda_distances_from_device_index(i, "network")
