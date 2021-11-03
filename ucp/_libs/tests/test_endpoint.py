@@ -65,6 +65,10 @@ def _client(port, endpoint_error_handling, server_close_callback):
             worker.progress()
 
 
+@pytest.mark.skipif(
+    ucx_api.get_ucx_version() < (1, 11, 0),
+    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
+)
 @pytest.mark.parametrize("server_close_callback", [True, False])
 def test_close_callback(server_close_callback):
     endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 10, 0)
