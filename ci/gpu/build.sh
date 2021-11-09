@@ -42,7 +42,7 @@ nvidia-smi
 gpuci_logger "Activate conda env"
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
-gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
+gpuci_mamba_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
               "rapids-build-env=${RAPIDS_VERSION}"
 
