@@ -96,7 +96,7 @@ cdef class UCXWorker(UCXObject):
         ucp_worker_h _handle
         UCXContext _context
         set _inflight_msgs
-        set _inflight_msgs_to_cancel
+        dict _inflight_msgs_to_cancel
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
@@ -120,7 +120,7 @@ cdef class UCXWorker(UCXObject):
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
         self._inflight_msgs = set()
-        self._inflight_msgs_to_cancel = set()
+        self._inflight_msgs_to_cancel = dict({"tag": set()})
 
         IF CY_UCP_AM_SUPPORTED:
             cdef int AM_MSG_ID = 0
@@ -129,6 +129,7 @@ cdef class UCXWorker(UCXObject):
                 self._am_recv_wait = dict()
                 self._am_host_allocator = bytearray
                 self._am_cuda_allocator = None
+                self._inflight_msgs_to_cancel["am"] = set()
                 am_handler_param.field_mask = (
                     UCP_AM_HANDLER_PARAM_FIELD_ID |
                     UCP_AM_HANDLER_PARAM_FIELD_CB |
@@ -289,8 +290,13 @@ cdef class UCXWorker(UCXObject):
         -------
         total: The total number of inflight messages canceled.
         """
-        len_inflight_msgs_to_cancel = len(self._inflight_msgs_to_cancel)
-        if len_inflight_msgs_to_cancel > 0:
-            _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel)
-            self._inflight_msgs_to_cancel = set()
-        return len_inflight_msgs_to_cancel
+        len_tag = len(self._inflight_msgs_to_cancel["tag"])
+        len_am = 0
+        if len_tag > 0:
+            _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel["tag"])
+            self._inflight_msgs_to_cancel["tag"] = set()
+        if "am" in self._inflight_msgs_to_cancel:
+            for ep in self._inflight_msgs_to_cancel["am"]:
+                len_am += _cancel_am_recv(self, ep)
+            self._inflight_msgs_to_cancel["am"] = set()
+        return len_tag + len_am

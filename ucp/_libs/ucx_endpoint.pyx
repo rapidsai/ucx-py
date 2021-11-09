@@ -30,6 +30,33 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
             worker.request_cancel(req)
 
 
+cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
+    cdef bint am_enabled = (
+        is_am_supported() and Feature.AM in worker._context._feature_flags
+    )
+
+    cdef dict recv_wait
+    cdef int len_wait = 0
+    if am_enabled and handle_as_int in worker._am_recv_wait:
+        len_wait = len(worker._am_recv_wait[handle_as_int])
+        while len(worker._am_recv_wait[handle_as_int]) > 0:
+            recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
+            cb_func = recv_wait["cb_func"]
+            cb_args = recv_wait["cb_args"]
+            cb_kwargs = recv_wait["cb_kwargs"]
+
+            logger.debug("Cancelling am_recv wait on ep %s" % hex(int(handle_as_int)))
+
+            cb_func(
+                None,
+                UCXCanceled("While waiting for am_recv the endpoint was closed"),
+                *cb_args,
+                **cb_kwargs
+            )
+
+    return len_wait
+
+
 class UCXEndpointCloseCallback():
     def __init__(self):
         self._cb_func = None
@@ -63,10 +90,12 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     ucx_ep._endpoint_close_callback.run()
     logger.debug(msg)
 
-    # Schedule inflight messages to be canceled after all UCP progress
-    # is complete. This may happen if the user called ep.recv() but
-    # the remote worker errored before sending the message.
-    ucx_worker._inflight_msgs_to_cancel.update(inflight_msgs)
+    # Schedule inflight messages to be canceled after all UCP progress is
+    # complete. This may happen if the user called ep.recv() or ep.am_recv()
+    # but the remote worker errored before sending the message.
+    ucx_worker._inflight_msgs_to_cancel["tag"].update(inflight_msgs)
+    if "am" in ucx_worker._inflight_msgs_to_cancel:
+        ucx_worker._inflight_msgs_to_cancel["am"].add(<uintptr_t>ep)
 
 
 cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
@@ -101,9 +130,6 @@ def _ucx_endpoint_finalizer(
     cdef ucp_ep_h handle = <ucp_ep_h>handle_as_int
     cdef ucs_status_ptr_t status
     cdef ucs_status_t ep_status
-    cdef bint am_enabled = (
-        is_am_supported() and Feature.AM in worker._context._feature_flags
-    )
 
     if <void *>status_handle_as_int == NULL:
         ep_status = UCS_OK
@@ -115,22 +141,7 @@ def _ucx_endpoint_finalizer(
     _cancel_inflight_msgs(worker, inflight_msgs)
 
     # Cancel waiting `am_recv` calls
-    cdef dict recv_wait
-    if am_enabled and handle_as_int in worker._am_recv_wait:
-        while len(worker._am_recv_wait[handle_as_int]) > 0:
-            recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
-            cb_func = recv_wait["cb_func"]
-            cb_args = recv_wait["cb_args"]
-            cb_kwargs = recv_wait["cb_kwargs"]
-
-            logger.debug("Cancelling am_recv wait on ep %s" % hex(int(handle_as_int)))
-
-            cb_func(
-                None,
-                UCXCanceled("While waiting for am_recv the endpoint was closed"),
-                *cb_args,
-                **cb_kwargs
-            )
+    _cancel_am_recv(worker, handle_as_int)
 
     # Close the endpoint
     cdef str msg
