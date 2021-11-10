@@ -120,7 +120,7 @@ cdef class UCXWorker(UCXObject):
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
         self._inflight_msgs = set()
-        self._inflight_msgs_to_cancel = dict({"tag": set()})
+        self._inflight_msgs_to_cancel = {"tag": set()}
 
         IF CY_UCP_AM_SUPPORTED:
             cdef int AM_MSG_ID = 0
