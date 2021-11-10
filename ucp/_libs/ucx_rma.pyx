@@ -1,9 +1,8 @@
 from io import RawIOBase
 
 from .arr cimport Array
+from .exceptions import UCXError
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXError
 
 
 class RemoteMemory:

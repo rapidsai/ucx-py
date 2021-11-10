@@ -11,9 +11,9 @@ from libc.stdint cimport uint16_t, uintptr_t
 from libc.stdio cimport FILE
 from libc.string cimport memset
 
+from .exceptions import UCXError
 from .ucx_api_dep cimport *
 
-from ..exceptions import UCXError
 from ..utils import nvtx_annotate
 
 logger = logging.getLogger("ucx")

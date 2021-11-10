@@ -10,9 +10,8 @@ import warnings
 from libc.stdint cimport uintptr_t
 from libc.stdio cimport FILE
 
+from .exceptions import UCXCanceled, UCXConnectionReset, UCXError
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 
 logger = logging.getLogger("ucx")
 

@@ -6,9 +6,8 @@
 
 from libc.stdint cimport uintptr_t
 
+from .exceptions import UCXCanceled, UCXError, log_errors
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXCanceled, UCXError, log_errors
 
 
 # This callback function is currently needed by stream_send_nb and

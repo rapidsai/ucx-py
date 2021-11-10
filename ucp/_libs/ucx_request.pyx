@@ -6,9 +6,8 @@
 from cpython.ref cimport Py_DECREF, Py_INCREF, PyObject
 from libc.stdint cimport uintptr_t
 
+from .exceptions import UCXError, UCXMsgTruncated
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXError, UCXMsgTruncated
 
 
 # Counter used as UCXRequest UIDs

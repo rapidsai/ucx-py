@@ -7,15 +7,14 @@
 from libc.stdint cimport uintptr_t
 
 from .arr cimport Array
-from .ucx_api_dep cimport *
-
-from ..exceptions import (
+from .exceptions import (
     UCXCanceled,
     UCXError,
     UCXMsgTruncated,
     UCXNotConnected,
     log_errors,
 )
+from .ucx_api_dep cimport *
 
 
 def stream_send_nb(
