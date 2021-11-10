@@ -18,7 +18,7 @@ from ._libs import ucx_api
 from ._libs.arr import Array
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
-from .utils import hash64bits, nvtx_annotate
+from .utils import hash64bits
 
 logger = logging.getLogger("ucx")
 
@@ -470,7 +470,7 @@ class ApplicationContext:
             allocator_type = ucx_api.AllocatorType.UNSUPPORTED
         self.worker.register_am_allocator(allocator, allocator_type)
 
-    @nvtx_annotate("UCXPY_WORKER_RECV", color="red", domain="ucxpy")
+    @ucx_api.nvtx_annotate("UCXPY_WORKER_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag):
         """Receive directly on worker without a local Endpoint into `buffer`.
 
@@ -605,7 +605,7 @@ class Endpoint:
                 await asyncio.sleep(0)
                 self.abort()
 
-    @nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
+    @ucx_api.nvtx_annotate("UCXPY_SEND", color="green", domain="ucxpy")
     async def send(self, buffer, tag=None, force_tag=False):
         """Send `buffer` to connected peer.
 
@@ -653,7 +653,7 @@ class Endpoint:
             if self._ep is None:
                 raise e
 
-    @nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
+    @ucx_api.nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
     async def am_send(self, buffer):
         """Send `buffer` to connected peer.
 
@@ -679,7 +679,7 @@ class Endpoint:
         self._send_count += 1
         return await comm.am_send(self._ep, buffer, nbytes, name=log)
 
-    @nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
+    @ucx_api.nvtx_annotate("UCXPY_RECV", color="red", domain="ucxpy")
     async def recv(self, buffer, tag=None, force_tag=False):
         """Receive from connected peer into `buffer`.
 
@@ -732,7 +732,7 @@ class Endpoint:
             self.abort()
         return ret
 
-    @nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
+    @ucx_api.nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
     async def am_recv(self):
         """Receive from connected peer.
         """

@@ -13,8 +13,7 @@ from libc.string cimport memset
 
 from .exceptions import UCXError
 from .ucx_api_dep cimport *
-
-from ..utils import nvtx_annotate
+from .utils import nvtx_annotate
 
 logger = logging.getLogger("ucx")
 

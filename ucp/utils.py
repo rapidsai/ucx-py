@@ -189,17 +189,6 @@ def run_on_local_network(
     return results
 
 
-try:
-    from nvtx import annotate as nvtx_annotate
-except ImportError:
-    # If nvtx module is not installed, `annotate` yields only.
-    from contextlib import contextmanager
-
-    @contextmanager
-    def nvtx_annotate(message=None, color=None, domain=None):
-        yield
-
-
 def hash64bits(*args):
     """64 bit unsigned hash of `args`"""
     # 64 bits hexdigest
