@@ -3,19 +3,28 @@
 
 # cython: language_level=3
 
+import logging
+
 from libc.stdint cimport uintptr_t
 
 from .arr cimport Array
 from .ucx_api_dep cimport *
 
+logger = logging.getLogger("ucx")
+
 
 def _ucx_remote_mem_finalizer_post_flush(req, exception, UCXRkey rkey):
-    assert exception is None
+    if exception is not None:
+        logger.debug("Remote memory finalizer exception: %s" % str(exception))
     ucp_rkey_destroy(rkey._handle)
 
 
-def _ucx_rkey_finalizer(rkey, ep):
-    ep.flush(_ucx_remote_mem_finalizer_post_flush, (rkey,))
+def _ucx_rkey_finalizer(UCXRkey rkey, UCXEndpoint ep):
+    req = ep.flush(_ucx_remote_mem_finalizer_post_flush, (rkey,))
+
+    # Flush completed immediately and callback wasn't called
+    if req is None:
+        ucp_rkey_destroy(rkey._handle)
 
 
 cdef class UCXRkey(UCXObject):
