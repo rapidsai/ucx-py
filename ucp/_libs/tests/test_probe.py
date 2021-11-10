@@ -31,20 +31,20 @@ def _server_probe(queue, transfer_api):
     worker = ucx_api.UCXWorker(ctx)
 
     # Keep endpoint to be used from outside the listener callback
-    global ep
-    ep = None
+    ep = [None]
 
     def _listener_handler(conn_request):
-        global ep
-        ep = ucx_api.UCXEndpoint.create_from_conn_request(
+        ep[0] = ucx_api.UCXEndpoint.create_from_conn_request(
             worker, conn_request, endpoint_error_handling=True,
         )
 
     listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
     queue.put(listener.port),
 
-    while ep is None:
+    while ep[0] is None:
         worker.progress()
+
+    ep = ep[0]
 
     # Ensure wireup and inform client before it can disconnect
     if transfer_api == "am":
