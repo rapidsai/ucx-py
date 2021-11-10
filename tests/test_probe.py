@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 import ucp
@@ -16,7 +18,7 @@ async def test_message_probe(transfer_api):
         # Wait for remote endpoint to close before probing the endpoint for
         # in-transit message and receiving it.
         while not ep.closed():
-            pass
+            await asyncio.sleep(0)  # Yield task
 
         if transfer_api == "am":
             assert ep._ep.am_probe() is True
