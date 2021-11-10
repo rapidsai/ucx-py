@@ -1,78 +1,16 @@
 import asyncio
-import fcntl
-import glob
 import hashlib
 import logging
 import multiprocessing as mp
 import os
 import socket
-import struct
 import time
 
 import numpy as np
 
+from ._libs import ucx_api
+
 mp = mp.get_context("spawn")
-
-
-def get_address(ifname=None):
-    """
-    Get the address associated with a network interface.
-
-    Parameters
-    ----------
-    ifname : str
-        The network interface name to find the address for.
-        If None, it uses the value of environment variable `UCXPY_IFNAME`
-        and if `UCXPY_IFNAME` is not set it defaults to "ib0"
-        An OSError is raised for invalid interfaces.
-
-    Returns
-    -------
-    address : str
-        The inet addr associated with an interface.
-
-    Examples
-    --------
-    >>> get_address()
-    '10.33.225.160'
-
-    >>> get_address(ifname='lo')
-    '127.0.0.1'
-    """
-
-    def _get_address(ifname):
-        ifname = ifname.encode()
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            return socket.inet_ntoa(
-                fcntl.ioctl(
-                    s.fileno(), 0x8915, struct.pack("256s", ifname[:15])  # SIOCGIFADDR
-                )[20:24]
-            )
-
-    def _try_interfaces():
-        prefix_priority = ["ib", "eth", "en"]
-        iftypes = {p: [] for p in prefix_priority}
-        for i in glob.glob("/sys/class/net/*"):
-            name = i.split("/")[-1]
-            for p in prefix_priority:
-                if name.startswith(p):
-                    iftypes[p].append(name)
-        for p in prefix_priority:
-            iftype = iftypes[p]
-            iftype.sort()
-            for i in iftype:
-                try:
-                    return _get_address(i)
-                except OSError:
-                    pass
-
-    if ifname is None:
-        ifname = os.environ.get("UCXPY_IFNAME")
-
-    if ifname is not None:
-        return _get_address(ifname)
-    else:
-        return _try_interfaces()
 
 
 def get_closest_net_devices(gpu_dev):
@@ -208,7 +146,7 @@ def run_on_local_network(
     worker_args: object
         The argument to pass to `worker_func`.
     server_address: str
-        Server address for the workers. If None, get_address() is used.
+        Server address for the workers. If None, ucx_api.get_address() is used.
     ucx_options_list: list of dict
         Options to pass to UCX when initializing workers, one for each worker.
 
@@ -219,7 +157,7 @@ def run_on_local_network(
     """
 
     if server_address is None:
-        server_address = get_address()
+        server_address = ucx_api.get_address()
     process_list = []
     for rank in range(n_workers):
         q = mp.Queue()

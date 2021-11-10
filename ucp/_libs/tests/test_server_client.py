@@ -62,7 +62,10 @@ def _echo_client(msg_size, port, endpoint_error_handling):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
-        worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=endpoint_error_handling,
     )
     send_msg = bytes(os.urandom(msg_size))
     recv_msg = bytearray(msg_size)
