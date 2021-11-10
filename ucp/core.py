@@ -668,10 +668,9 @@ class Endpoint:
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
-        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+        log = "[AM Send #%03d] ep: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._tags["msg_send"]),
             nbytes,
             type(buffer.obj),
         )

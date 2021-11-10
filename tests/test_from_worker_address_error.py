@@ -1,6 +1,7 @@
 import asyncio
 import multiprocessing as mp
 import os
+import re
 import time
 
 import numpy as np
@@ -63,13 +64,13 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
         else:
             # Create endpoint to remote worker, and:
             #
-            # 1. For timeout_send:
+            # 1. For timeout_am_send/timeout_send:
             #    - inform remote worker that local endpoint is ready for remote
             #      shutdown;
             #    - wait for remote worker to shutdown and confirm;
             #    - attempt to send message.
             #
-            # 2. For timeout_recv:
+            # 2. For timeout_am_recv/timeout_recv:
             #    - schedule ep.recv;
             #    - inform remote worker that local endpoint is ready for remote
             #      shutdown;
@@ -77,22 +78,28 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
             #    - wait for recv message.
             ep = await ucp.create_endpoint_from_worker_address(remote_address)
 
-            if error_type == "timeout_send":
+            if re.match("timeout.*send", error_type):
                 q2.put("ready")
 
                 remote_disconnected = q1.get()
                 assert remote_disconnected == "disconnected"
 
                 with pytest.raises(ucp.exceptions.UCXError, match="Endpoint timeout"):
-                    await asyncio.wait_for(
-                        ep.send(np.zeros(10), tag=0, force_tag=True), timeout=1.0
-                    )
+                    if error_type == "timeout_am_send":
+                        await asyncio.wait_for(ep.am_send(np.zeros(10)), timeout=1.0)
+                    else:
+                        await asyncio.wait_for(
+                            ep.send(np.zeros(10), tag=0, force_tag=True), timeout=1.0
+                        )
             else:
                 with pytest.raises(ucp.exceptions.UCXCanceled):
-                    msg = np.empty(10)
-                    task = asyncio.wait_for(
-                        ep.recv(msg, tag=0, force_tag=True), timeout=3.0
-                    )
+                    if error_type == "timeout_am_recv":
+                        task = asyncio.wait_for(ep.am_recv(), timeout=3.0)
+                    else:
+                        msg = np.empty(10)
+                        task = asyncio.wait_for(
+                            ep.recv(msg, tag=0, force_tag=True), timeout=3.0
+                        )
 
                     q2.put("ready")
 
@@ -108,7 +115,16 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
     ucp.get_ucx_version() < (1, 11, 0),
     reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
 )
-@pytest.mark.parametrize("error_type", ["unreachable", "timeout_send", "timeout_recv"])
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        "unreachable",
+        "timeout_am_send",
+        "timeout_am_recv",
+        "timeout_send",
+        "timeout_recv",
+    ],
+)
 def test_from_worker_address_error(error_type):
     os.environ["UCX_WARN_UNUSED_ENV_VARS"] = "n"
     # Set low timeouts to ensure tests quickly raise as expected
