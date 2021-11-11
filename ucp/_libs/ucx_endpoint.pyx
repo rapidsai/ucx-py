@@ -54,7 +54,7 @@ cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
                 **cb_kwargs
             )
 
-        # Prevent endpoint canceling AM messages multiple times.  This is important
+        # Prevent endpoint canceling AM messages multiple times. This is important
         # because UCX may reuse the same endpoint handle, and if a message is canceled
         # during then endpoint finalizer, a message received on the same (new) endpoint
         # handle may be canceled incorrectly.
