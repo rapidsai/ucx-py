@@ -296,7 +296,5 @@ cdef class UCXWorker(UCXObject):
             _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel["tag"])
             self._inflight_msgs_to_cancel["tag"] = set()
         if "am" in self._inflight_msgs_to_cancel:
-            for ep in self._inflight_msgs_to_cancel["am"]:
-                len_am += _cancel_am_recv(self, ep)
-            self._inflight_msgs_to_cancel["am"] = set()
+            len_am = _cancel_am_recv(self, self._inflight_msgs_to_cancel["am"])
         return len_tag + len_am

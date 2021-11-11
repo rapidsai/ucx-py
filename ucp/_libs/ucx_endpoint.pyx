@@ -30,13 +30,13 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
             worker.request_cancel(req)
 
 
-cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
+cdef size_t _cancel_am_recv_single(UCXWorker worker, uintptr_t handle_as_int):
     cdef bint am_enabled = (
         is_am_supported() and Feature.AM in worker._context._feature_flags
     )
 
     cdef dict recv_wait
-    cdef int len_wait = 0
+    cdef size_t len_wait = 0
     if am_enabled and handle_as_int in worker._am_recv_wait:
         len_wait = len(worker._am_recv_wait[handle_as_int])
         while len(worker._am_recv_wait[handle_as_int]) > 0:
@@ -54,12 +54,24 @@ cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
                 **cb_kwargs
             )
 
-        # Prevent endpoint canceling AM messages multiple times. This is important
-        # because UCX may reuse the same endpoint handle, and if a message is canceled
-        # during then endpoint finalizer, a message received on the same (new) endpoint
-        # handle may be canceled incorrectly.
         del worker._am_recv_wait[handle_as_int]
-        worker._inflight_msgs_to_cancel["am"].discard(handle_as_int)
+
+    return len_wait
+
+cdef size_t _cancel_am_recv(UCXWorker worker, set inflight_msgs):
+    cdef bint am_enabled = (
+        is_am_supported() and Feature.AM in worker._context._feature_flags
+    )
+
+    cdef size_t len_wait = 0
+    for handle_as_int in inflight_msgs:
+        len_wait += _cancel_am_recv_single(worker, handle_as_int)
+
+    # Prevent endpoint canceling AM messages multiple times. This is important
+    # because UCX may reuse the same endpoint handle, and if a message is canceled
+    # during then endpoint finalizer, a message received on the same (new) endpoint
+    # handle may be canceled incorrectly.
+    inflight_msgs.clear()
 
     return len_wait
 
@@ -148,7 +160,7 @@ def _ucx_endpoint_finalizer(
     _cancel_inflight_msgs(worker, inflight_msgs)
 
     # Cancel waiting `am_recv` calls
-    _cancel_am_recv(worker, handle_as_int)
+    _cancel_am_recv_single(worker, handle_as_int)
 
     # Close the endpoint
     cdef str msg
