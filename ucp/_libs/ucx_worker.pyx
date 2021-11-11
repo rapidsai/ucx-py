@@ -290,11 +290,8 @@ cdef class UCXWorker(UCXObject):
         -------
         total: The total number of inflight messages canceled.
         """
-        len_tag = len(self._inflight_msgs_to_cancel["tag"])
         len_am = 0
-        if len_tag > 0:
-            _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel["tag"])
-            self._inflight_msgs_to_cancel["tag"] = set()
+        len_tag = _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel["tag"])
         if "am" in self._inflight_msgs_to_cancel:
             len_am = _cancel_am_recv(self, self._inflight_msgs_to_cancel["am"])
         return len_tag + len_am

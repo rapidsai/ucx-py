@@ -17,10 +17,11 @@ from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 logger = logging.getLogger("ucx")
 
 
-cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
+cdef size_t _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
     cdef UCXRequest req
     cdef dict req_info
     cdef str name
+    cdef size_t len_inflight_msgs = len(inflight_msgs)
     for req in list(inflight_msgs):
         if not req.closed():
             req_info = <dict>req._handle.info
@@ -28,6 +29,10 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
             logger.debug("Future cancelling: %s" % name)
             # Notice, `request_cancel()` evoke the send/recv callback functions
             worker.request_cancel(req)
+
+    inflight_msgs.clear()
+
+    return len_inflight_msgs
 
 
 cdef size_t _cancel_am_recv_single(UCXWorker worker, uintptr_t handle_as_int):
