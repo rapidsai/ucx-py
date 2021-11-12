@@ -79,7 +79,7 @@ cdef size_t _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int=0):
 
             # Prevent endpoint canceling AM messages multiple times. This is important
             # because UCX may reuse the same endpoint handle, and if a message is
-            # canceled # during then endpoint finalizer, a message received on the same
+            # canceled during the endpoint finalizer, a message received on the same
             # (new) endpoint handle may be canceled incorrectly.
             worker._inflight_msgs_to_cancel["am"].clear()
         else:

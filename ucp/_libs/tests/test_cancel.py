@@ -40,7 +40,7 @@ def _server_cancel(queue, transfer_api):
         )
 
     listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
-    queue.put(listener.port),
+    queue.put(listener.port)
 
     while ep[0] is None:
         worker.progress()

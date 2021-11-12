@@ -47,7 +47,7 @@ async def test_cancel(transfer_api):
         await ep.close()
 
     async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port,)
+        ep = await ucp.create_endpoint(ucp.get_address(), port)
         if transfer_api == "am":
             with pytest.raises(
                 ucp.exceptions.UCXCanceled, match="am_recv",
@@ -61,5 +61,5 @@ async def test_cancel(transfer_api):
                 await ep.recv(msg)
         await ep.close()
 
-    listener = ucp.create_listener(server_node,)
+    listener = ucp.create_listener(server_node)
     await client_node(listener.port)
