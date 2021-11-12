@@ -384,3 +384,6 @@ cdef class UCXEndpoint(UCXObject):
 
     def set_close_callback(self, cb_func):
         self._endpoint_close_callback.set(cb_func)
+
+    def am_probe(self):
+        return self.handle in self.worker._am_recv_pool
