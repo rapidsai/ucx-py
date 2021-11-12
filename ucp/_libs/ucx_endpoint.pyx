@@ -17,10 +17,21 @@ from ..exceptions import UCXCanceled, UCXConnectionReset, UCXError
 logger = logging.getLogger("ucx")
 
 
-cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
+cdef bint _is_am_enabled(UCXWorker worker):
+    return is_am_supported() and Feature.AM in worker._context._feature_flags
+
+
+cdef size_t _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs=None):
     cdef UCXRequest req
     cdef dict req_info
     cdef str name
+    cdef size_t len_inflight_msgs
+
+    if inflight_msgs is None:
+        inflight_msgs = worker._inflight_msgs_to_cancel["tag"]
+
+    len_inflight_msgs = len(inflight_msgs)
+
     for req in list(inflight_msgs):
         if not req.closed():
             req_info = <dict>req._handle.info
@@ -29,15 +40,15 @@ cdef void _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs):
             # Notice, `request_cancel()` evoke the send/recv callback functions
             worker.request_cancel(req)
 
+    inflight_msgs.clear()
 
-cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
-    cdef bint am_enabled = (
-        is_am_supported() and Feature.AM in worker._context._feature_flags
-    )
+    return len_inflight_msgs
 
+
+cdef size_t _cancel_am_recv_single(UCXWorker worker, uintptr_t handle_as_int):
     cdef dict recv_wait
-    cdef int len_wait = 0
-    if am_enabled and handle_as_int in worker._am_recv_wait:
+    cdef size_t len_wait = 0
+    if _is_am_enabled(worker) and handle_as_int in worker._am_recv_wait:
         len_wait = len(worker._am_recv_wait[handle_as_int])
         while len(worker._am_recv_wait[handle_as_int]) > 0:
             recv_wait = worker._am_recv_wait[handle_as_int].pop(0)
@@ -53,6 +64,27 @@ cdef int _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int):
                 *cb_args,
                 **cb_kwargs
             )
+
+        del worker._am_recv_wait[handle_as_int]
+
+    return len_wait
+
+cdef size_t _cancel_am_recv(UCXWorker worker, uintptr_t handle_as_int=0):
+    cdef size_t len_wait = 0
+
+    if _is_am_enabled(worker):
+        if handle_as_int == 0:
+            for handle_as_int in worker._inflight_msgs_to_cancel["am"]:
+                len_wait += _cancel_am_recv_single(worker, handle_as_int)
+
+            # Prevent endpoint canceling AM messages multiple times. This is important
+            # because UCX may reuse the same endpoint handle, and if a message is
+            # canceled during the endpoint finalizer, a message received on the same
+            # (new) endpoint handle may be canceled incorrectly.
+            worker._inflight_msgs_to_cancel["am"].clear()
+        else:
+            len_wait = _cancel_am_recv_single(worker, handle_as_int)
+            worker._inflight_msgs_to_cancel["am"].discard(handle_as_int)
 
     return len_wait
 
@@ -94,7 +126,7 @@ cdef void _err_cb(void *arg, ucp_ep_h ep, ucs_status_t status) with gil:
     # complete. This may happen if the user called ep.recv() or ep.am_recv()
     # but the remote worker errored before sending the message.
     ucx_worker._inflight_msgs_to_cancel["tag"].update(inflight_msgs)
-    if "am" in ucx_worker._inflight_msgs_to_cancel:
+    if _is_am_enabled(ucx_worker):
         ucx_worker._inflight_msgs_to_cancel["am"].add(<uintptr_t>ep)
 
 
@@ -141,7 +173,7 @@ def _ucx_endpoint_finalizer(
     _cancel_inflight_msgs(worker, inflight_msgs)
 
     # Cancel waiting `am_recv` calls
-    _cancel_am_recv(worker, handle_as_int)
+    _cancel_am_recv(worker, handle_as_int=handle_as_int)
 
     # Close the endpoint
     cdef str msg
