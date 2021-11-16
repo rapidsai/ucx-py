@@ -17,7 +17,16 @@ Monitor InfiniBand packet counters -- this number should dramatically increase w
 CUDA IPC/NVLink
 ---------------
 
+Monitor traffic over all GPUs
+
+::
+    nvidia-smi nvlink -gt d
+
+
 Monitor traffic over all GPUs on counter 0
+
+.. note::
+    nvidia-smi nvlink -g is now deprecated
 
 ::
 
@@ -25,9 +34,10 @@ Monitor traffic over all GPUs on counter 0
     nvidia-smi nvlink -sc 0bz
     watch -d 'nvidia-smi nvlink -g 0'
 
+
 Stats Monitoring of GPUs
 ::
 
     dcgmi dmon -e 449
 
-nvdashboard
+`nvdashboard <https://github.com/rapidsai/jupyterlab-nvdashboard>`_
