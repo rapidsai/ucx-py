@@ -93,8 +93,8 @@ Instructions for building UCX 1.11.1:
     make -j install
 
 
-UCX-1.9
-~~~~~~~
+UCX-1.9 (Deprecated)
+~~~~~~~~~~~~~~~~~~~~
 
 Instructions for building ucx 1.9:
 
@@ -133,7 +133,7 @@ As noted above, the UCX conda package no longer builds support for IB/RDMA.  To 
 
 If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
 
-Building UCX 1.9 or 1.11 as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
+Building UCX 1.11.1 or 1.9 (deprecated) as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
 
 ::
 
