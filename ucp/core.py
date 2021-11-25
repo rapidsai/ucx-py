@@ -668,10 +668,9 @@ class Endpoint:
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
-        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+        log = "[AM Send #%03d] ep: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._tags["msg_send"]),
             nbytes,
             type(buffer.obj),
         )
@@ -736,8 +735,11 @@ class Endpoint:
     async def am_recv(self):
         """Receive from connected peer.
         """
-        if self.closed():
-            raise UCXCloseError("Endpoint closed")
+        if not self._ep.am_probe():
+            self._ep.raise_on_error()
+            if self.closed():
+                raise UCXCloseError("Endpoint closed")
+
         log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
         logger.debug(log)
         self._recv_count += 1

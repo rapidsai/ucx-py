@@ -96,7 +96,7 @@ cdef class UCXWorker(UCXObject):
         ucp_worker_h _handle
         UCXContext _context
         set _inflight_msgs
-        set _inflight_msgs_to_cancel
+        dict _inflight_msgs_to_cancel
         IF CY_UCP_AM_SUPPORTED:
             dict _am_recv_pool
             dict _am_recv_wait
@@ -120,7 +120,7 @@ cdef class UCXWorker(UCXObject):
         status = ucp_worker_create(context._handle, &worker_params, &self._handle)
         assert_ucs_status(status)
         self._inflight_msgs = set()
-        self._inflight_msgs_to_cancel = set()
+        self._inflight_msgs_to_cancel = {"am": set(), "tag": set()}
 
         IF CY_UCP_AM_SUPPORTED:
             cdef int AM_MSG_ID = 0
@@ -289,8 +289,6 @@ cdef class UCXWorker(UCXObject):
         -------
         total: The total number of inflight messages canceled.
         """
-        len_inflight_msgs_to_cancel = len(self._inflight_msgs_to_cancel)
-        if len_inflight_msgs_to_cancel > 0:
-            _cancel_inflight_msgs(self, self._inflight_msgs_to_cancel)
-            self._inflight_msgs_to_cancel = set()
-        return len_inflight_msgs_to_cancel
+        len_tag = _cancel_inflight_msgs(self)
+        len_am = _cancel_am_recv(self)
+        return len_tag + len_am

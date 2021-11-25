@@ -26,7 +26,7 @@ export HOME=$WORKSPACE
 cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
-export RAPIDS_VERSION="21.10"
+export RAPIDS_VERSION="21.12"
 export TEST_UCX_MASTER=0
 
 ################################################################################
@@ -42,7 +42,7 @@ nvidia-smi
 gpuci_logger "Activate conda env"
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
-gpuci_conda_retry install "cudatoolkit=${CUDA_REL}" \
+gpuci_mamba_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
               "rapids-build-env=${RAPIDS_VERSION}"
 

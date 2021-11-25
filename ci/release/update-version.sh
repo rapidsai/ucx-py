@@ -24,3 +24,10 @@ NEXT_SHORT_TAG=${NEXT_MAJOR}.${NEXT_MINOR}
 
 echo "Preparing release $CURRENT_TAG => $NEXT_FULL_TAG"
 
+# Inplace sed replace; workaround for Linux and Mac
+function sed_runner() {
+    sed -i.bak ''"$1"'' $2 && rm -f ${2}.bak
+}
+
+# cpp update
+sed_runner "s/export RAPIDS_VERSION=.*/export RAPIDS_VERSION=\"${NEXT_MAJOR}.${NEXT_MINOR}\"/g" ci/gpu/build.sh
