@@ -1,4 +1,4 @@
-# Copyright (c) 2021,      UT-Battelle, LLC. All rights reserved.
+# Copyright (c) 2021, UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
 from io import RawIOBase
