@@ -51,3 +51,7 @@ class UCXMsgTruncated(UCXBaseException):
 
 class UCXNotConnected(UCXBaseException):
     pass
+
+
+class UCXUnreachable(UCXBaseException):
+    pass
