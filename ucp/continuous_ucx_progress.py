@@ -82,7 +82,8 @@ class BlockingMode(ProgressTask):
 
         # Notice, we can safely overwrite `self.dangling_arm_task`
         # since previous arm task is finished by now.
-        assert self.asyncio_task is None or self.asyncio_task.done()
+        if self.asyncio_task is None or self.asyncio_task.done():
+            return
         self.asyncio_task = self.event_loop.create_task(self._arm_worker())
 
     async def _arm_worker(self):
