@@ -7,9 +7,8 @@
 from libc.stdint cimport uintptr_t
 
 from .arr cimport Array
+from .exceptions import UCXCanceled, UCXError, UCXMsgTruncated, log_errors
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXCanceled, UCXError, UCXMsgTruncated, log_errors
 
 
 def tag_send_nb(

@@ -5,9 +5,8 @@
 
 from libc.stdint cimport uint16_t, uintptr_t
 
+from .exceptions import log_errors
 from .ucx_api_dep cimport *
-
-from ..exceptions import log_errors
 
 
 cdef void _listener_callback(ucp_conn_request_h conn_request, void *args) with gil:

@@ -114,7 +114,10 @@ def _echo_client(msg_size, datatype, port, endpoint_error_handling):
     worker.register_am_allocator(data["allocator"], data["memory_type"])
 
     ep = ucx_api.UCXEndpoint.create(
-        worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=endpoint_error_handling,
     )
 
     # The wireup message is sent to ensure endpoints are connected, otherwise

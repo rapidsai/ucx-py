@@ -11,9 +11,8 @@ from libc.stdint cimport uintptr_t
 from libc.stdlib cimport free
 
 from .arr cimport Array
+from .exceptions import UCXCanceled, UCXError, log_errors
 from .ucx_api_dep cimport *
-
-from ..exceptions import UCXCanceled, UCXError, log_errors
 
 logger = logging.getLogger("ucx")
 

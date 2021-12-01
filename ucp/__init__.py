@@ -20,7 +20,8 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
 from ._version import get_versions as _get_versions  # noqa
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
-from .utils import get_address, get_ucxpy_logger  # noqa
+from .utils import get_ucxpy_logger  # noqa
+from ._libs.ucx_api import get_address  # noqa
 
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
     logger.debug(
