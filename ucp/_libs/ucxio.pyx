@@ -49,9 +49,8 @@ class UCXIO(RawIOBase):
                 self.pos = max(self.pos + pos, 0)
             else:
                 self.pos = min(self.pos + pos, self.length)
-            pos += self.pos
         elif whence == SEEK_END:
-            pos = min(max(self.pos + pos, 0), self.length)
+            self.pos = min(max(self.pos + pos, 0), self.length)
         else:
             raise ValueError("Invalid argument")
         return self.pos
