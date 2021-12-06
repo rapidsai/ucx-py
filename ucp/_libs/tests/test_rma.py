@@ -116,8 +116,6 @@ def test_ucxio(msg_size):
     recv_msg = uio.read(msg_size)
     assert send_msg == recv_msg
 
-    del uio
-
 
 # The alloc function may return more memory than requested based on OS page
 # size. So this test for insane seek values uses 2GB seeks to make sure we
@@ -152,7 +150,6 @@ def test_ucxio_seek_bad(seek_loc, seek_flag):
         expected = send_msg
 
     assert recv_msg == expected
-    del uio
 
 
 @pytest.mark.parametrize(
@@ -179,7 +176,6 @@ def test_ucxio_seek_good(seek_data):
     recv_msg = uio.read(4)
 
     assert recv_msg == send_msg[seek_dest : seek_dest + 4]
-    del uio
 
 
 def test_force_requests():
