@@ -2,9 +2,9 @@ import os
 
 import pytest
 
-import ucp.exceptions
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
+from ucp._libs.exceptions import UCXConfigError
 
 
 def test_get_config():
@@ -46,13 +46,13 @@ def test_init_options():
 )
 def test_init_unknown_option():
     options = {"UNKNOWN_OPTION": "3M"}
-    with pytest.raises(ucp.exceptions.UCXConfigError):
+    with pytest.raises(UCXConfigError):
         ucx_api.UCXContext(options)
 
 
 def test_init_invalid_option():
     options = {"SEG_SIZE": "invalid-size"}
-    with pytest.raises(ucp.exceptions.UCXConfigError):
+    with pytest.raises(UCXConfigError):
         ucx_api.UCXContext(options)
 
 

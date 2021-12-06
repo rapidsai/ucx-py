@@ -1,3 +1,6 @@
+# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
+
 include "packed_remote_key.pyx"
 include "transfer_am.pyx"
 include "transfer_common.pyx"

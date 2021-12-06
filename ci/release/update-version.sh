@@ -30,4 +30,4 @@ function sed_runner() {
 }
 
 # cpp update
-sed_runner "s/export RAPIDS_VERSION=.*/export RAPIDS_VERSION=\"${NEXT_MAJOR}.${NEXT_MINOR}\"/g" ci/gpu/build.sh
+# sed_runner "s/export RAPIDS_VERSION=.*/export RAPIDS_VERSION=\"${NEXT_MAJOR}.${NEXT_MINOR}\"/g" ci/gpu/build.sh

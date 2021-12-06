@@ -53,7 +53,10 @@ def _client(port, endpoint_error_handling, server_close_callback):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
-        worker, "localhost", port, endpoint_error_handling=endpoint_error_handling,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=endpoint_error_handling,
     )
     if server_close_callback is True:
         ep.close()

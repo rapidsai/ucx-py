@@ -5,6 +5,7 @@
 
 import logging
 import os
+import warnings
 
 logger = logging.getLogger("ucx")
 
@@ -19,7 +20,8 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
 from ._version import get_versions as _get_versions  # noqa
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
-from .utils import get_address, get_ucxpy_logger  # noqa
+from .utils import get_ucxpy_logger  # noqa
+from ._libs.ucx_api import get_address  # noqa
 
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
     logger.debug(
@@ -41,3 +43,10 @@ logger = get_ucxpy_logger()
 
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
+
+if get_ucx_version() < (1, 11, 1):
+    warnings.warn(
+        f"Support for UCX {__ucx_version__} is deprecated, it's highly recommended "
+        "upgrading to 1.11.1 or newer.",
+        FutureWarning,
+    )
