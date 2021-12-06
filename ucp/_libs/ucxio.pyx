@@ -6,9 +6,6 @@ from io import SEEK_CUR, SEEK_END, SEEK_SET, RawIOBase
 from .arr cimport Array
 from .ucx_api_dep cimport *
 
-from .arr cimport Array
-from .ucx_api_dep cimport *
-
 
 def blocking_handler(request, exception, finished):
     assert exception is None
