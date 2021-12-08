@@ -9,7 +9,13 @@ from libc.stdint cimport uintptr_t
 from .arr cimport Array
 from .ucx_api_dep cimport *
 
-from ..exceptions import UCXCanceled, UCXError, UCXMsgTruncated, log_errors
+from ..exceptions import (
+    UCXCanceled,
+    UCXError,
+    UCXMsgTruncated,
+    UCXNotConnected,
+    log_errors,
+)
 
 
 def stream_send_nb(
@@ -91,7 +97,7 @@ def stream_send_nb(
 
 cdef void _stream_recv_callback(
     void *request, ucs_status_t status, size_t length
-):
+) with gil:
     cdef UCXRequest req
     cdef dict req_info
     cdef str name, ucx_status_msg, msg
@@ -113,6 +119,10 @@ cdef void _stream_recv_callback(
             name = req_info["name"]
             msg = "<%s>: " % name
             exception = UCXCanceled(msg)
+        elif status == UCS_ERR_NOT_CONNECTED:
+            name = req_info["name"]
+            msg = "<%s>: " % name
+            exception = UCXNotConnected(msg)
         elif status != UCS_OK:
             name = req_info["name"]
             ucx_status_msg = ucs_status_string(status).decode("utf-8")

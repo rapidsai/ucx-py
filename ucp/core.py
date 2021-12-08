@@ -668,10 +668,9 @@ class Endpoint:
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
         nbytes = buffer.nbytes
-        log = "[AM Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+        log = "[AM Send #%03d] ep: %s, nbytes: %d, type: %s" % (
             self._send_count,
             hex(self.uid),
-            hex(self._tags["msg_send"]),
             nbytes,
             type(buffer.obj),
         )
@@ -722,13 +721,7 @@ class Endpoint:
         logger.debug(log)
         self._recv_count += 1
 
-        try:
-            ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
-        except UCXCanceled as e:
-            # If self._ep has already been closed and destroyed, we reraise the
-            # UCXCanceled exception.
-            if self._ep is None:
-                raise e
+        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
 
         self._finished_recv_count += 1
         if (
@@ -742,8 +735,11 @@ class Endpoint:
     async def am_recv(self):
         """Receive from connected peer.
         """
-        if self.closed():
-            raise UCXCloseError("Endpoint closed")
+        if not self._ep.am_probe():
+            self._ep.raise_on_error()
+            if self.closed():
+                raise UCXCloseError("Endpoint closed")
+
         log = "[AM Recv #%03d] ep: %s" % (self._recv_count, hex(self.uid))
         logger.debug(log)
         self._recv_count += 1
@@ -861,6 +857,28 @@ class Endpoint:
     async def flush(self):
         logger.debug("[Flush] ep: %s" % (hex(self.uid)))
         return await comm.flush_ep(self._ep)
+
+    def set_close_callback(self, callback_func):
+        """Register a user callback function to be called on Endpoint's closing.
+
+        Allows the user to register a callback function to be called when the
+        Endpoint's error callback is called, or during its finalizer if the error
+        callback is never called.
+
+        Once the callback is called, it's not possible to send any more messages.
+        However, receiving messages may still be possible, as UCP may still have
+        incoming messages in transit.
+
+        Parameters
+        ----------
+        callback_func: callable
+            The callback function to be called when the Endpoint's error callback
+            is called, otherwise called on its finalizer.
+
+        Example
+        >>> ep.set_close_callback(lambda: print("Executing close callback"))
+        """
+        self._ep.set_close_callback(callback_func)
 
 
 # The following functions initialize and use a single ApplicationContext instance

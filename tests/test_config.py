@@ -7,10 +7,19 @@ import ucp
 
 
 def test_get_config():
+    # Cache user-defined UCX_TLS and unset it to test default value
+    tls = os.environ.get("UCX_TLS", None)
+    if tls is not None:
+        del os.environ["UCX_TLS"]
+
     ucp.reset()
     config = ucp.get_config()
     assert isinstance(config, dict)
-    assert config["MEMTYPE_CACHE"] == "n"
+    assert config["TLS"] == "all"
+
+    # Restore user-defined UCX_TLS
+    if tls is not None:
+        os.environ["UCX_TLS"] = tls
 
 
 def test_set_env():
@@ -38,6 +47,12 @@ def test_init_options_and_env():
     assert config["SEG_SIZE"] == options["SEG_SIZE"]
 
 
+@pytest.mark.skipif(
+    ucp.get_ucx_version() >= (1, 12, 0),
+    reason="Beginning with UCX >= 1.12, it's only possible to validate "
+    "UCP options but not options from other modules such as UCT. "
+    "See https://github.com/openucx/ucx/issues/7519.",
+)
 def test_init_unknown_option():
     ucp.reset()
     options = {"UNKNOWN_OPTION": "3M"}

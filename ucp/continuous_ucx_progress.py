@@ -59,8 +59,8 @@ class BlockingMode(ProgressTask):
         super().__init__(worker, event_loop)
 
         # Creating a job that is ready straightaway but with low priority.
-        # Calling `await event_loop.sock_recv(rsock, 1)` will return when
-        # all non-IO tasks are finished.
+        # Calling `await self.event_loop.sock_recv(self.rsock, 1)` will
+        # return when all non-IO tasks are finished.
         # See <https://stackoverflow.com/a/48491563>.
         self.rsock, wsock = socket.socketpair()
         self.rsock.setblocking(0)
@@ -96,10 +96,17 @@ class BlockingMode(ProgressTask):
             if worker is None or not worker.initialized:
                 return
             worker.progress()
+
+            # Cancel inflight messages that couldn't be completed. This may
+            # happen if the user called ep.recv() but the remote worker
+            # errored before sending the message.
+            if worker.cancel_inflight_messages() > 0:
+                worker.progress()
+
             del worker
 
             # This IO task returns when all non-IO tasks are finished.
-            # Notice, we do NOT hold a reference to `ctx` while waiting.
+            # Notice, we do NOT hold a reference to `worker` while waiting.
             await self.event_loop.sock_recv(self.rsock, 1)
 
             worker = self.weakref_worker()

@@ -137,6 +137,7 @@ cdef extern from "ucp/api/ucp.h":
     ucs_status_t UCS_ERR_NO_ELEM
     ucs_status_t UCS_ERR_BUSY
     ucs_status_t UCS_ERR_CANCELED
+    ucs_status_t UCS_ERR_NOT_CONNECTED
     ucs_status_t UCS_ERR_CONNECTION_RESET
 
     void ucp_get_version(unsigned * major_version,
@@ -230,7 +231,7 @@ cdef extern from "ucp/api/ucp.h":
 
     ucp_datatype_t ucp_dt_make_contig(size_t elem_size)
 
-    unsigned ucp_worker_progress(ucp_worker_h worker)
+    unsigned ucp_worker_progress(ucp_worker_h worker) nogil
 
     ctypedef struct ucp_tag_recv_info_t:
         ucp_tag_t sender_tag

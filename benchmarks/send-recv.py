@@ -130,7 +130,6 @@ def server(queue, args):
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run())
-    loop.close()
 
 
 def client(queue, port, server_address, args):
@@ -203,7 +202,7 @@ def client(queue, port, server_address, args):
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run())
-    loop.close()
+
     times = queue.get()
     assert len(times) == args.n_iter
     print("Roundtrip benchmark")

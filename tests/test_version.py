@@ -2,7 +2,6 @@ import ucp
 
 
 def test_get_ucx_version():
-    ucp.reset()
     version = ucp.get_ucx_version()
     assert isinstance(version, tuple)
     assert len(version) == 3
