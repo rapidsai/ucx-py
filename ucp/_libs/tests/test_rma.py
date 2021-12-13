@@ -115,7 +115,67 @@ def test_ucxio(msg_size):
     uio.seek(0)
     recv_msg = uio.read(msg_size)
     assert send_msg == recv_msg
-    del uio
+
+
+# The alloc function may return more memory than requested based on OS page
+# size. So this test for insane seek values uses 2GB seeks to make sure we
+# always run into trouble
+max_possible = 2 * 1024 * 1024 * 1024
+
+
+@pytest.mark.parametrize("seek_loc", [-max_possible, max_possible])
+@pytest.mark.parametrize("seek_flag", [io.SEEK_CUR, io.SEEK_SET, io.SEEK_END])
+def test_ucxio_seek_bad(seek_loc, seek_flag):
+    msg_size = 1024
+    ctx = ucx_api.UCXContext({})
+    mem = ucx_api.UCXMemoryHandle.alloc(ctx, msg_size)
+    packed_rkey = mem.pack_rkey()
+    worker = ucx_api.UCXWorker(ctx)
+    ep = ucx_api.UCXEndpoint.create_from_worker_address(
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=get_endpoint_error_handling_default(),
+    )
+    rkey = ep.unpack_rkey(packed_rkey)
+
+    uio = ucx_api.UCXIO(mem.address, msg_size, rkey)
+    send_msg = bytes(os.urandom(msg_size))
+    uio.write(send_msg)
+    uio.seek(seek_loc, seek_flag)
+    recv_msg = uio.read(len(send_msg))
+
+    if seek_loc > 0:
+        expected = b""
+    else:
+        expected = send_msg
+
+    assert recv_msg == expected
+
+
+@pytest.mark.parametrize(
+    "seek_data", [(io.SEEK_CUR, -25), (io.SEEK_SET, 4), (io.SEEK_END, -8)]
+)
+def test_ucxio_seek_good(seek_data):
+    seek_flag, seek_dest = seek_data
+    ctx = ucx_api.UCXContext({})
+    mem = ucx_api.UCXMemoryHandle.alloc(ctx, 1024)
+    msg_size = mem.length
+    packed_rkey = mem.pack_rkey()
+    worker = ucx_api.UCXWorker(ctx)
+    ep = ucx_api.UCXEndpoint.create_from_worker_address(
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=get_endpoint_error_handling_default(),
+    )
+    rkey = ep.unpack_rkey(packed_rkey)
+
+    uio = ucx_api.UCXIO(mem.address, msg_size, rkey)
+    send_msg = bytes(os.urandom(msg_size))
+    uio.write(send_msg)
+    uio.seek(seek_dest, seek_flag)
+    recv_msg = uio.read(4)
+
+    assert recv_msg == send_msg[seek_dest : seek_dest + 4]
 
 
 def test_force_requests():

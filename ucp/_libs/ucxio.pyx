@@ -1,7 +1,7 @@
 # Copyright (c) 2021, UT-Battelle, LLC. All rights reserved.
 # See file LICENSE for terms.
 
-from io import RawIOBase
+from io import SEEK_CUR, SEEK_END, SEEK_SET, RawIOBase
 
 from .arr cimport Array
 from .ucx_api_dep cimport *
@@ -44,12 +44,19 @@ class UCXIO(RawIOBase):
         req = self.rkey.ep.flush(blocking_handler, cb_args=(self.cb_finished,))
         self.block_on_request(req)
 
-    def seek(self, pos, whence=0):
-        if whence == 1:
-            pos += self.pos
-        if whence == 2:
-            pos = self.length - pos
-        self.pos = pos
+    def seek(self, pos, whence=SEEK_SET):
+        if whence == SEEK_SET:
+            self.pos = min(max(pos, 0), self.length)
+        elif whence == SEEK_CUR:
+            if pos < 0:
+                self.pos = max(self.pos + pos, 0)
+            else:
+                self.pos = min(self.pos + pos, self.length)
+        elif whence == SEEK_END:
+            self.pos = min(max(self.pos + pos, 0), self.length)
+        else:
+            raise ValueError("Invalid argument")
+        return self.pos
 
     def _do_rma(self, op, buff):
         data = Array(buff)
