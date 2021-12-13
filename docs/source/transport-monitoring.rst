@@ -20,6 +20,7 @@ CUDA IPC/NVLink
 Monitor traffic over all GPUs
 
 ::
+
     nvidia-smi nvlink -gt d
 
 
