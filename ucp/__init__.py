@@ -23,17 +23,23 @@ from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
 from ._libs.ucx_api import get_address  # noqa
 
+# Setup UCX-Py logger
+logger = get_ucxpy_logger()
+
+
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
-    logger.debug(
+    logger.info(
         "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "
         "which is required to connect multiple nodes"
     )
     os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
 if "UCX_RNDV_THRESH" not in os.environ:
+    logger.info("Setting UCX_RNDV_THRESH=8192")
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
 if "UCX_RNDV_SCHEME" not in os.environ:
+    logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
 if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
@@ -53,13 +59,10 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
                 large_bar1[dev_idx] = True
 
         if all(large_bar1):
+            logger.info("Setting UCX_CUDA_COPY_MAX_REG_RATIO=1.0")
             os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
     except ImportError:
         pass
-
-
-# After handling of environment variable logging, add formatting to the logger
-logger = get_ucxpy_logger()
 
 
 __version__ = _get_versions()["version"]
