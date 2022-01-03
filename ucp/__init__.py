@@ -36,6 +36,27 @@ if not os.environ.get("UCX_RNDV_THRESH", False):
 if not os.environ.get("UCX_RNDV_SCHEME", False):
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
+if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        device_count = pynvml.nvmlDeviceGetCount()
+        large_bar1 = [False] * device_count
+
+        for dev_idx in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
+            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+            bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+
+            if total_memory <= bar1_total:
+                large_bar1[dev_idx] = True
+
+        if all(large_bar1):
+            os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
+    except ImportError:
+        pass
+
 
 # After handling of environment variable logging, add formatting to the logger
 logger = get_ucxpy_logger()
