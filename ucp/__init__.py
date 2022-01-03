@@ -30,10 +30,10 @@ if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11,
     )
     os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
-if not os.environ.get("UCX_RNDV_THRESH", False):
+if "UCX_RNDV_THRESH" not in os.environ:
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
-if not os.environ.get("UCX_RNDV_SCHEME", False):
+if "UCX_RNDV_SCHEME" not in os.environ:
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
 if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
