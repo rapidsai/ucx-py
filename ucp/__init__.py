@@ -64,6 +64,10 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
     except ImportError:
         pass
 
+if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
+    logger.info("Setting UCX_MAX_RNDV_RAILS=1")
+    os.environ["UCX_MAX_RNDV_RAILS"] = "1"
+
 
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
