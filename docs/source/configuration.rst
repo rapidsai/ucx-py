@@ -15,16 +15,41 @@ UCX/UCX-Py either with environment variables or programmatically during initiali
 .. note::
     When programmatically configuring UCX-Py, the ``UCX`` prefix is not used.
 
-For novice users we recommend the following settings:
+For novice users we recommend using UCX-Py defaults, see the next section for details.
+
+UCX-Py vs UCX Defaults
+----------------------
+
+UCX-Py redefines some of the UCX defaults for a variety of reasons, including better performance for the more common Python use cases, or to work around known limitations or bugs of UCX. To verify UCX default configurations, for the currently installed UCX version please run the command-line tool ``ucx_info -f``.
+
+Below is a list of the UCX-Py redefined default values, and what conditions are required for them to apply.
+
+Apply to all UCX versions:
 
 ::
 
-    UCX_MEMTYPE_CACHE=n UCX_TLS=all
+    UCX_RNDV_THRESH=8192
+    UCX_RNDV_SCHEME=get_zcopy
 
-``UCX_TLS=all`` configures UCX to try all available transport methods.  However, users who want to define specific transport methods to use and/or other optional settings may do so.  Below we define the more common options and provide some example combinations and usage.
+Apply to UCX < 1.11.0, newer UCX versions rely on UCX defaults:
 
-Env Vars
---------
+::
+
+    UCX_SOCKADDR_TLS_PRIORITY=sockcm
+
+Apply to UCX >= 1.12.0, older UCX versions rely on UCX defaults:
+
+::
+
+    UCX_CUDA_COPY_MAX_REG_RATIO=1.0
+    UCX_MAX_RNDV_RAILS=1
+
+Please note that ``UCX_CUDA_COPY_MAX_REG_RATIO=1.0`` is only set provided at least one GPU is present with a BAR1 size smaller than its total memory (e.g., NVIDIA T4).
+
+UCX Environment Variables in UCX-Py
+-----------------------------------
+
+In this section we go over a brief overview of some of the more relevant variables for current UCX-Py usage, along with some comments on their uses and limitations. To see a complete list of UCX environment variables, their descriptions and default values, please run the command-line tool ``ucx_info -f``.
 
 DEBUG
 ~~~~~
@@ -55,19 +80,22 @@ This is a UCX CUDA Memory optimization which enables/disables a remote endpoint 
 
 Values: ``n``/``y``
 
-UCX_MAX_RNDV_RAILS
-``````````````````
-
-Limitting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
-
-Values: Int (UCX default: ``2``)
-
 UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES
 `````````````````````````````````
 
-By defining ``UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES=cuda``, UCX enables registration cache based on a buffer's base address, thus preventing multiple time-consuming registrations for the same buffer. This is particularly useful when using a CUDA memory pool, thus requiring a single registration between two ends for the entire pool, providing considerable performance gains, especially when using InfiniBand.
+By defining ``UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES=cuda`` (default in UCX >= 1.12.0), UCX enables registration cache based on a buffer's base address, thus preventing multiple time-consuming registrations for the same buffer. This is particularly useful when using a CUDA memory pool, thus requiring a single registration between two ends for the entire pool, providing considerable performance gains, especially when using InfiniBand.
 
 Requires UCX 1.11 and above.
+
+TRANSPORTS
+~~~~~~~~~~
+
+UCX_MAX_RNDV_RAILS
+``````````````````
+
+Limiting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
+
+Values: Int (UCX default: ``2``)
 
 UCX_RNDV_THRESH
 ```````````````
@@ -75,7 +103,6 @@ UCX_RNDV_THRESH
 This is a configurable parameter used by UCX to help determine which transport method should be used.  For example, on machines with multiple GPUs, and with NVLink enabled, UCX can deliver messages either through TCP or NVLink.  Sending GPU buffers over TCP is costly as it triggers a device-to-host on the sender side, and then host-to-device transfer on the receiver side --  we want to avoid these kinds of transfers when NVLink is available.  If a buffer is below the threshold, `Rendezvous-Protocol <https://github.com/openucx/ucx/wiki/Rendezvous-Protocol>`_ is triggered and for UCX-Py users, this will typically mean messages will be delivered through TCP.  Depending on the application, messages can be quite small, therefore, we recommend setting a small value if the application uses NVLink or InfiniBand: ``UCX_RNDV_THRESH=8192``
 
 Values: Int (UCX-Py default: ``8192``)
-
 
 UCX_RNDV_SCHEME
 ```````````````
