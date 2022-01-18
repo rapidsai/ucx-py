@@ -31,12 +31,6 @@ Apply to all UCX versions:
     UCX_RNDV_THRESH=8192
     UCX_RNDV_SCHEME=get_zcopy
 
-Apply to UCX < 1.11.0, newer UCX versions rely on UCX defaults:
-
-::
-
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm
-
 Apply to UCX >= 1.12.0, older UCX versions rely on UCX defaults:
 
 ::
@@ -84,8 +78,6 @@ UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES
 `````````````````````````````````
 
 By defining ``UCX_MEMTYPE_REG_WHOLE_ALLOC_TYPES=cuda`` (default in UCX >= 1.12.0), UCX enables registration cache based on a buffer's base address, thus preventing multiple time-consuming registrations for the same buffer. This is particularly useful when using a CUDA memory pool, thus requiring a single registration between two ends for the entire pool, providing considerable performance gains, especially when using InfiniBand.
-
-Requires UCX 1.11 and above.
 
 TRANSPORTS
 ~~~~~~~~~~
@@ -141,7 +133,6 @@ Transport Methods (Simplified):
 - ``rc`` -> InfiniBand (ibv_post_send, ibv_post_recv, ibv_poll_cq) uses rc_v and rc_x (preferably if available)
 - ``cuda_copy`` -> cuMemHostRegister, cuMemcpyAsync
 - ``cuda_ipc`` -> CUDA Interprocess Communication (cuIpcCloseMemHandle, cuIpcOpenMemHandle, cuMemcpyAsync)
-- ``sockcm`` -> connection management over sockets (Only applies to UCX 1.9 and older)
 - ``sm/shm`` -> all shared memory transports (mm, cma, knem)
 - ``mm`` -> shared memory transports - only memory mappers
 - ``ugni`` -> ugni_smsg and ugni_rdma (uses ugni_udt for bootstrap)
@@ -186,22 +177,10 @@ InfiniBand -- No NVLink
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy <SCRIPT>
-
-Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
-
-::
-
     UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,cuda_copy <SCRIPT>
 
 InfiniBand -- With NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=rc,tcp,sockcm,cuda_copy,cuda_ipc <SCRIPT>
-
-Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
 
 ::
 
@@ -212,22 +191,10 @@ TLS/Socket -- No NVLink
 
 ::
 
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy <SCRIPT>
-
-Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
-
-::
-
     UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy <SCRIPT>
 
 TLS/Socket -- With NVLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    UCX_RNDV_SCHEME=get_zcopy UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc <SCRIPT>
-
-Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The command above would be modified as follows for UCX 1.10:
 
 ::
 

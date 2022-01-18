@@ -5,7 +5,6 @@
 
 import logging
 import os
-import warnings
 
 logger = logging.getLogger("ucx")
 
@@ -25,14 +24,6 @@ from ._libs.ucx_api import get_address  # noqa
 
 # Setup UCX-Py logger
 logger = get_ucxpy_logger()
-
-
-if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
-    logger.info(
-        "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "
-        "which is required to connect multiple nodes"
-    )
-    os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
 if "UCX_RNDV_THRESH" not in os.environ:
     logger.info("Setting UCX_RNDV_THRESH=8192")
@@ -73,8 +64,7 @@ __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
 if get_ucx_version() < (1, 11, 1):
-    warnings.warn(
-        f"Support for UCX {__ucx_version__} is deprecated, it's highly recommended "
-        "upgrading to 1.11.1 or newer.",
-        FutureWarning,
+    raise ImportError(
+        f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
+        "1.11.1 or newer."
     )

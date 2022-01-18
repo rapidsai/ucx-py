@@ -16,6 +16,5 @@ dependencies:
 - pandoc=<2.0.0
 - pip
 - psutil
-- libhwloc
 - ucx
 - cython

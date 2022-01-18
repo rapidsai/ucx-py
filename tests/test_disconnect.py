@@ -80,7 +80,8 @@ def _test_shutdown_unexpected_closed_peer_client(
     asyncio.get_event_loop().run_until_complete(run())
 
 
-def test_shutdown_unexpected_closed_peer(caplog):
+@pytest.mark.parametrize("endpoint_error_handling", [True, False])
+def test_shutdown_unexpected_closed_peer(caplog, endpoint_error_handling):
     """
     Test clean server shutdown after unexpected peer close
 
@@ -88,7 +89,6 @@ def test_shutdown_unexpected_closed_peer(caplog):
     The main goal is to assert that the processes exit without errors
     despite a somewhat messy initial state.
     """
-    endpoint_error_handling = ucp.get_ucx_version() >= (1, 10, 0)
     if endpoint_error_handling is False and any(
         [
             t.startswith(i)

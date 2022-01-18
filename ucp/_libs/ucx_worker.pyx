@@ -96,20 +96,17 @@ cdef class UCXWorker(UCXObject):
         UCXContext _context
         set _inflight_msgs
         dict _inflight_msgs_to_cancel
-        IF CY_UCP_AM_SUPPORTED:
-            dict _am_recv_pool
-            dict _am_recv_wait
-            object _am_host_allocator
-            object _am_cuda_allocator
+        dict _am_recv_pool
+        dict _am_recv_wait
+        object _am_host_allocator
+        object _am_cuda_allocator
 
     def __init__(self, UCXContext context):
         cdef ucp_params_t ucp_params
         cdef ucp_worker_params_t worker_params
+        cdef ucp_am_handler_param_t am_handler_param
         cdef ucs_status_t status
         cdef bint tag_enabled
-
-        IF CY_UCP_AM_SUPPORTED:
-            cdef ucp_am_handler_param_t am_handler_param
 
         assert context.initialized
         self._context = context
@@ -121,22 +118,21 @@ cdef class UCXWorker(UCXObject):
         self._inflight_msgs = set()
         self._inflight_msgs_to_cancel = {"am": set(), "tag": set()}
 
-        IF CY_UCP_AM_SUPPORTED:
-            cdef int AM_MSG_ID = 0
-            if Feature.AM in context._feature_flags:
-                self._am_recv_pool = dict()
-                self._am_recv_wait = dict()
-                self._am_host_allocator = bytearray
-                self._am_cuda_allocator = None
-                am_handler_param.field_mask = (
-                    UCP_AM_HANDLER_PARAM_FIELD_ID |
-                    UCP_AM_HANDLER_PARAM_FIELD_CB |
-                    UCP_AM_HANDLER_PARAM_FIELD_ARG
-                )
-                am_handler_param.id = AM_MSG_ID
-                am_handler_param.cb = _am_recv_callback
-                am_handler_param.arg = <void *>self
-                status = ucp_worker_set_am_recv_handler(self._handle, &am_handler_param)
+        cdef int AM_MSG_ID = 0
+        if Feature.AM in context._feature_flags:
+            self._am_recv_pool = dict()
+            self._am_recv_wait = dict()
+            self._am_host_allocator = bytearray
+            self._am_cuda_allocator = None
+            am_handler_param.field_mask = (
+                UCP_AM_HANDLER_PARAM_FIELD_ID |
+                UCP_AM_HANDLER_PARAM_FIELD_CB |
+                UCP_AM_HANDLER_PARAM_FIELD_ARG
+            )
+            am_handler_param.id = AM_MSG_ID
+            am_handler_param.cb = _am_recv_callback
+            am_handler_param.arg = <void *>self
+            status = ucp_worker_set_am_recv_handler(self._handle, &am_handler_param)
 
         tag_enabled = Feature.TAG in context._feature_flags
 
@@ -171,16 +167,12 @@ cdef class UCXWorker(UCXObject):
             The type of allocator, currently supports AllocatorType.HOST
             and AllocatorType.CUDA.
         """
-        if is_am_supported():
-            if allocator_type is AllocatorType.HOST:
-                self._am_host_allocator = allocator
-            elif allocator_type is AllocatorType.CUDA:
-                self._am_cuda_allocator = allocator
-            else:
-                raise UCXError("Allocator type not supported")
+        if allocator_type is AllocatorType.HOST:
+            self._am_host_allocator = allocator
+        elif allocator_type is AllocatorType.CUDA:
+            self._am_cuda_allocator = allocator
         else:
-            raise RuntimeError("UCX-Py needs to be built against and running with "
-                               "UCX >= 1.11 to support am_send_nbx.")
+            raise UCXError("Allocator type not supported")
 
     def init_blocking_progress_mode(self):
         assert self.initialized

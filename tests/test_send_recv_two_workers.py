@@ -189,9 +189,6 @@ def cupy_obj():
 )
 @pytest.mark.parametrize("comm_api", ["tag", "am"])
 def test_send_recv_cu(cuda_obj_generator, comm_api):
-    if comm_api == "am" and not ucp._libs.ucx_api.is_am_supported():
-        pytest.skip("AM only supported in UCX >= 1.11")
-
     base_env = os.environ
     env_client = base_env.copy()
     # grab first two devices

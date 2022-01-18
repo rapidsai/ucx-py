@@ -58,9 +58,6 @@ Build Dependencies
         psutil \
         "python=3.7" setuptools "cython>=0.29.14,<3.0.0a0"
 
-
-If you are using UCX 1.9 and older and using both CUDA and InfiniBand support, ensure ``libhwloc`` is also on the list above.
-
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
 
@@ -72,10 +69,10 @@ Test Dependencies
         distributed
 
 
-UCX-1.11.1
-~~~~~~~~~~
+UCX >= 1.11.1
+~~~~~~~~~~~~~
 
-Instructions for building UCX 1.11.1:
+Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), make sure to change `git checkout v1.11.1` to a newer version if desired:
 
 ::
 
@@ -93,34 +90,6 @@ Instructions for building UCX 1.11.1:
     make -j install
 
 
-UCX-1.9 (Deprecated)
-~~~~~~~~~~~~~~~~~~~~
-
-Instructions for building ucx 1.9:
-
-::
-
-    conda activate ucx
-    git clone https://github.com/openucx/ucx
-    cd ucx
-    git checkout v1.9.x
-    # apply UCX IB registration cache patch, improves overall
-    # CUDA IB performance when using a memory pool
-    curl -LO https://raw.githubusercontent.com/rapidsai/ucx-split-feedstock/11ad7a3c1f25514df8064930f69c310be4fd55dc/recipe/cuda-alloc-rcache.patch
-    git apply cuda-alloc-rcache.patch
-    ./autogen.sh
-    mkdir build
-    cd build
-    # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
-    # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
-    make -j install
-
-.. note::
-    If you're running on a machine without CUDA then you _must NOT_ apply any of the patches above.
-
-
 UCX + OFED
 ~~~~~~~~~~
 
@@ -133,7 +102,7 @@ As noted above, the UCX conda package no longer builds support for IB/RDMA.  To 
 
 If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
 
-Building UCX 1.11.1 or 1.9 (deprecated) as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
+Building UCX >= 1.11.1 as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
 
 ::
 
@@ -158,9 +127,3 @@ UCX-Py
     pip install -v .
     # or for develop build
     pip install -v -e .
-
-In UCX 1.10 and above, or for builds that don't need CUDA and InfiniBand support, users can disable building with hwloc support:
-
-::
-
-    UCXPY_DISABLE_HWLOC=1 pip install -v .

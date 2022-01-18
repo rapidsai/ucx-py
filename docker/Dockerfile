@@ -8,7 +8,6 @@ RUN apt-get update && \
         g++ \
         git \
         libcap2 \
-        libhwloc-dev \
         libnuma-dev \
         libtool \
         make \

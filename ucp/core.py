@@ -224,7 +224,7 @@ class ApplicationContext:
         self.continuous_ucx_progress()
 
     def create_listener(
-        self, callback_func, port=0, endpoint_error_handling=None,
+        self, callback_func, port=0, endpoint_error_handling=True,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -242,15 +242,12 @@ class ApplicationContext:
         port: int, optional
             An unused port number for listening, or `0` to let UCX assign
             an unused port.
-        endpoint_error_handling: None or boolean, optional
-            Enable endpoint error handling raising exceptions when an error
-            occurs, may incur in performance penalties but prevents a process
-            from terminating unexpectedly that may happen when disabled.
-            None (default) will enable endpoint error handling based on the
-            UCX version, enabling for UCX >= 1.11.0 and disabled for any
-            versions prior to that. This is done to prevent CUDA IPC to be
-            quietly disabled due to lack of support in older UCX versions.
-            Explicitly specifying True/False will override the default.
+        endpoint_error_handling: boolean, optional
+            If `True` (default) enable endpoint error handling raising
+            exceptions when an error occurs, may incur in performance penalties
+            but prevents a process from terminating unexpectedly that may
+            happen when disabled. If `False` endpoint endpoint error handling
+            is disabled.
 
         Returns
         -------
@@ -260,8 +257,6 @@ class ApplicationContext:
         self.continuous_ucx_progress()
         if port is None:
             port = 0
-        if endpoint_error_handling is None:
-            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
         logger.info("create_listener() - Start listening on port %d" % port)
         ret = Listener(
@@ -274,7 +269,7 @@ class ApplicationContext:
         )
         return ret
 
-    async def create_endpoint(self, ip_address, port, endpoint_error_handling=None):
+    async def create_endpoint(self, ip_address, port, endpoint_error_handling=True):
         """Create a new endpoint to a server
 
         Parameters
@@ -283,15 +278,12 @@ class ApplicationContext:
             IP address of the server the endpoint should connect to
         port: int
             IP address of the server the endpoint should connect to
-        endpoint_error_handling: None or boolean, optional
-            Enable endpoint error handling raising exceptions when an error
-            occurs, may incur in performance penalties but prevents a process
-            from terminating unexpectedly that may happen when disabled.
-            None (default) will enable endpoint error handling based on the
-            UCX version, enabling for UCX >= 1.11.0 and disabled for any
-            versions prior to that. This is done to prevent CUDA IPC to be
-            quietly disabled due to lack of support in older UCX versions.
-            Explicitly specifying True/False will override the default.
+        endpoint_error_handling: boolean, optional
+            If `True` (default) enable endpoint error handling raising
+            exceptions when an error occurs, may incur in performance penalties
+            but prevents a process from terminating unexpectedly that may
+            happen when disabled. If `False` endpoint endpoint error handling
+            is disabled.
 
         Returns
         -------
@@ -299,8 +291,6 @@ class ApplicationContext:
             The new endpoint
         """
         self.continuous_ucx_progress()
-        if endpoint_error_handling is None:
-            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
         ucx_ep = ucx_api.UCXEndpoint.create(
             self.worker, ip_address, port, endpoint_error_handling
@@ -343,22 +333,19 @@ class ApplicationContext:
         return ep
 
     async def create_endpoint_from_worker_address(
-        self, address, endpoint_error_handling=None
+        self, address, endpoint_error_handling=True,
     ):
         """Create a new endpoint to a server
 
         Parameters
         ----------
         address: UCXAddress
-        endpoint_error_handling: None or boolean, optional
-            Enable endpoint error handling raising exceptions when an error
-            occurs, may incur in performance penalties but prevents a process
-            from terminating unexpectedly that may happen when disabled.
-            None (default) will enable endpoint error handling based on the
-            UCX version, enabling for UCX >= 1.11.0 and disabled for any
-            versions prior to that. This is done to prevent CUDA IPC to be
-            quietly disabled due to lack of support in older UCX versions.
-            Explicitly specifying True/False will override the default.
+        endpoint_error_handling: boolean, optional
+            If `True` (default) enable endpoint error handling raising
+            exceptions when an error occurs, may incur in performance penalties
+            but prevents a process from terminating unexpectedly that may
+            happen when disabled. If `False` endpoint endpoint error handling
+            is disabled.
 
         Returns
         -------
@@ -366,8 +353,6 @@ class ApplicationContext:
             The new endpoint
         """
         self.continuous_ucx_progress()
-        if endpoint_error_handling is None:
-            endpoint_error_handling = get_ucx_version() >= (1, 11, 0)
 
         ucx_ep = ucx_api.UCXEndpoint.create_from_worker_address(
             self.worker, address, endpoint_error_handling,
@@ -983,20 +968,20 @@ def register_am_allocator(allocator, allocator_type):
     return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
-def create_listener(callback_func, port=None, endpoint_error_handling=None):
+def create_listener(callback_func, port=None, endpoint_error_handling=True):
     return _get_ctx().create_listener(
         callback_func, port, endpoint_error_handling=endpoint_error_handling,
     )
 
 
-async def create_endpoint(ip_address, port, endpoint_error_handling=None):
+async def create_endpoint(ip_address, port, endpoint_error_handling=True):
     return await _get_ctx().create_endpoint(
         ip_address, port, endpoint_error_handling=endpoint_error_handling,
     )
 
 
 async def create_endpoint_from_worker_address(
-    address, endpoint_error_handling=None,
+    address, endpoint_error_handling=True,
 ):
     return await _get_ctx().create_endpoint_from_worker_address(
         address, endpoint_error_handling=endpoint_error_handling,
