@@ -61,7 +61,12 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
         if all(large_bar1):
             logger.info("Setting UCX_CUDA_COPY_MAX_REG_RATIO=1.0")
             os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
-    except ImportError:
+    except (
+        ImportError,
+        pynvml.NVMLError_LibraryNotFound,
+        pynvml.NVMLError_DriverNotLoaded,
+        pynvml.NVMLError_Unknown,
+    ):
         pass
 
 if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
