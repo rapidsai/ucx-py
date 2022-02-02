@@ -20,24 +20,58 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
 from ._version import get_versions as _get_versions  # noqa
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
-from .utils import get_address, get_ucxpy_logger  # noqa
+from .utils import get_ucxpy_logger  # noqa
+from ._libs.ucx_api import get_address  # noqa
+
+# Setup UCX-Py logger
+logger = get_ucxpy_logger()
+
 
 if "UCX_SOCKADDR_TLS_PRIORITY" not in os.environ and get_ucx_version() < (1, 11, 0):
-    logger.debug(
+    logger.info(
         "Setting env UCX_SOCKADDR_TLS_PRIORITY=sockcm, "
         "which is required to connect multiple nodes"
     )
     os.environ["UCX_SOCKADDR_TLS_PRIORITY"] = "sockcm"
 
-if not os.environ.get("UCX_RNDV_THRESH", False):
+if "UCX_RNDV_THRESH" not in os.environ:
+    logger.info("Setting UCX_RNDV_THRESH=8192")
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
-if not os.environ.get("UCX_RNDV_SCHEME", False):
+if "UCX_RNDV_SCHEME" not in os.environ:
+    logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
+if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
+    try:
+        import pynvml
 
-# After handling of environment variable logging, add formatting to the logger
-logger = get_ucxpy_logger()
+        pynvml.nvmlInit()
+        device_count = pynvml.nvmlDeviceGetCount()
+        large_bar1 = [False] * device_count
+
+        for dev_idx in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
+            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+            bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+
+            if total_memory <= bar1_total:
+                large_bar1[dev_idx] = True
+
+        if all(large_bar1):
+            logger.info("Setting UCX_CUDA_COPY_MAX_REG_RATIO=1.0")
+            os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
+    except (
+        ImportError,
+        pynvml.NVMLError_LibraryNotFound,
+        pynvml.NVMLError_DriverNotLoaded,
+        pynvml.NVMLError_Unknown,
+    ):
+        pass
+
+if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
+    logger.info("Setting UCX_MAX_RNDV_RAILS=1")
+    os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
 __version__ = _get_versions()["version"]
