@@ -74,6 +74,14 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
+try:
+    import uvloop
+
+    uvloop.install()
+except ImportError:
+    pass
+
+
 __version__ = _get_versions()["version"]
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
