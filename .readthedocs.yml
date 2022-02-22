@@ -12,7 +12,7 @@ python:
       path: .
 
 conda:
-  environment: conda/environments/builddocs_py38.yml
+  environment: conda/environments/builddocs.yml
 
 sphinx:
   configuration: docs/source/conf.py
