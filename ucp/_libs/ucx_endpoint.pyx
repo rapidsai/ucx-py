@@ -17,7 +17,7 @@ logger = logging.getLogger("ucx")
 
 
 cdef bint _is_am_enabled(UCXWorker worker):
-    return is_am_supported() and Feature.AM in worker._context._feature_flags
+    return Feature.AM in worker._context._feature_flags
 
 
 cdef size_t _cancel_inflight_msgs(UCXWorker worker, set inflight_msgs=None):
@@ -136,12 +136,6 @@ cdef (ucp_err_handler_cb_t, uintptr_t) _get_error_callback(
     cdef ucs_status_t *cb_status = <ucs_status_t *>NULL
 
     if endpoint_error_handling:
-        if get_ucx_version() < (1, 11, 0) and "cuda_ipc" in tls:
-            warnings.warn(
-                "CUDA IPC endpoint error handling is only supported in "
-                "UCX 1.11 and above, CUDA IPC will be disabled!",
-                RuntimeWarning
-            )
         err_cb = <ucp_err_handler_cb_t>_err_cb
         cb_status = <ucs_status_t *> malloc(sizeof(ucs_status_t))
         cb_status[0] = UCS_OK

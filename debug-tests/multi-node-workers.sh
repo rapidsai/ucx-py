@@ -3,8 +3,7 @@ set -e
 #export UCX_LOG_LEVEL=DEBUG
 #export UCXPY_LOG_LEVEL=DEBUG
 export UCX_MEMTYPE_CACHE=n
-export UCX_TLS=tcp,sockcm,cuda_copy,rc
-export UCX_SOCKADDR_TLS_PRIORITY=sockcm
+export UCX_TLS=tcp,cuda_copy,rc
 
 UCX_NET_DEVICES=mlx5_0:1 CUDA_VISIBLE_DEVICES=0 python recv.py 2>&1 | tee /tmp/recv-log-0.txt &
 UCX_NET_DEVICES=mlx5_0:1 CUDA_VISIBLE_DEVICES=1 python recv.py 2>&1 | tee /tmp/recv-log-1.txt &

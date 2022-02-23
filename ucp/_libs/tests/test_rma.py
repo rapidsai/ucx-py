@@ -6,10 +6,7 @@ import os
 import pytest
 
 from ucp._libs import ucx_api
-from ucp._libs.utils_test import (
-    blocking_flush,
-    get_endpoint_error_handling_default,
-)
+from ucp._libs.utils_test import blocking_flush
 
 builtin_buffers = [
     b"",
@@ -36,9 +33,7 @@ def test_flush():
     ctx = ucx_api.UCXContext({})
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     req = ep.flush(_)
     if req is None:
@@ -55,9 +50,7 @@ def test_implicit(msg_size):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)
@@ -78,9 +71,7 @@ def test_explicit(msg_size):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)
@@ -103,9 +94,7 @@ def test_ucxio(msg_size):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -132,9 +121,7 @@ def test_ucxio_seek_bad(seek_loc, seek_flag):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -163,9 +150,7 @@ def test_ucxio_seek_good(seek_data):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -185,9 +170,7 @@ def test_force_requests():
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        worker.get_address(),
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, worker.get_address(), endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)

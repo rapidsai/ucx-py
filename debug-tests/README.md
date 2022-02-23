@@ -11,11 +11,11 @@ NOTE: This was moved outside of the tests directory to prevent users running pot
 
 ### Process 1
 
-> UCXPY_IFNAME=enp1s0f0 CUDA_VISIBLE_DEVICES=0,1 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm /usr/local/cuda/bin/nvprof python tests/debug-testssend.py
+> UCXPY_IFNAME=enp1s0f0 CUDA_VISIBLE_DEVICES=0,1 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc /usr/local/cuda/bin/nvprof python tests/debug-testssend.py
 
 ### Process 2
 
-> UCXPY_LOG_LEVEL=DEBUG UCX_LOG_LEVEL=DEBUG UCXPY_IFNAME=enp1s0f0 CUDA_VISIBLE_DEVICES=0,1 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc,sockcm UCX_SOCKADDR_TLS_PRIORITY=sockcm /usr/local/cuda/bin/nvprof python tests/recv.py
+> UCXPY_LOG_LEVEL=DEBUG UCX_LOG_LEVEL=DEBUG UCXPY_IFNAME=enp1s0f0 CUDA_VISIBLE_DEVICES=0,1 UCX_MEMTYPE_CACHE=n UCX_TLS=tcp,cuda_copy,cuda_ipc /usr/local/cuda/bin/nvprof python tests/recv.py
 
 `nvprof` is used to verify NVLINK usage and we are looking at two things primarily:
 - existence of [CUDA memcpy PtoP]

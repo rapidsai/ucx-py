@@ -182,13 +182,6 @@ def get_ucx_version():
     return (a, b, c)
 
 
-def is_am_supported():
-    IF CY_UCP_AM_SUPPORTED:
-        return get_ucx_version() >= (1, 11, 0)
-    ELSE:
-        return False
-
-
 def get_address(ifname=None):
     """
     Get the address associated with a network interface.

@@ -4,10 +4,6 @@ import ucp
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    ucp.get_ucx_version() < (1, 11, 0),
-    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
-)
 @pytest.mark.parametrize("server_close_callback", [True, False])
 async def test_close_callback(server_close_callback):
     closed = [False]
@@ -34,10 +30,6 @@ async def test_close_callback(server_close_callback):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    ucp.get_ucx_version() < (1, 11, 0),
-    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
-)
 @pytest.mark.parametrize("transfer_api", ["am", "tag"])
 async def test_cancel(transfer_api):
     async def server_node(ep):

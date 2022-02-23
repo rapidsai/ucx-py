@@ -91,10 +91,6 @@ def _client_cancel(queue, transfer_api):
     assert re.match(match_msg, ret[0].args[0])
 
 
-@pytest.mark.skipif(
-    ucx_api.get_ucx_version() < (1, 11, 0),
-    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
-)
 @pytest.mark.parametrize("transfer_api", ["am", "tag"])
 def test_message_probe(transfer_api):
     queue = mp.Queue()

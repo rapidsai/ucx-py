@@ -60,9 +60,6 @@ def test_init_invalid_option():
     "feature_flag", [ucx_api.Feature.TAG, ucx_api.Feature.STREAM, ucx_api.Feature.AM]
 )
 def test_feature_flags_mismatch(feature_flag):
-    if feature_flag == ucx_api.Feature.AM and not ucx_api.is_am_supported():
-        pytest.skip("AM only supported in UCX >= 1.11")
-
     ctx = ucx_api.UCXContext(feature_flags=(feature_flag,))
     worker = ucx_api.UCXWorker(ctx)
     addr = worker.get_address()
@@ -88,7 +85,7 @@ def test_feature_flags_mismatch(feature_flag):
             ValueError, match="UCXContext must be created with `Feature.STREAM`"
         ):
             ucx_api.stream_recv_nb(ep, msg, msg.nbytes, None)
-    if feature_flag != ucx_api.Feature.AM and ucx_api.is_am_supported():
+    if feature_flag != ucx_api.Feature.AM:
         with pytest.raises(
             ValueError, match="UCXContext must be created with `Feature.AM`"
         ):

@@ -5,19 +5,14 @@ from itertools import repeat
 import pytest
 
 from ucp._libs import ucx_api
-from ucp._libs.utils_test import (
-    blocking_flush,
-    blocking_recv,
-    blocking_send,
-    get_endpoint_error_handling_default,
-)
+from ucp._libs.utils_test import blocking_flush, blocking_recv, blocking_send
 
 mp = mp.get_context("spawn")
 
 
 def _rma_setup(worker, address, prkey, base, msg_size):
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, address, endpoint_error_handling=get_endpoint_error_handling_default()
+        worker, address, endpoint_error_handling=True
     )
     rkey = ep.unpack_rkey(prkey)
     mem = ucx_api.RemoteMemory(rkey, base, msg_size)
@@ -78,14 +73,10 @@ def _test_peer_communication_tag(queue, rank, msg_size):
     left_rank, left_address = queue.get()
 
     right_ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        right_address,
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, right_address, endpoint_error_handling=True,
     )
     left_ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker,
-        left_address,
-        endpoint_error_handling=get_endpoint_error_handling_default(),
+        worker, left_address, endpoint_error_handling=True,
     )
     recv_msg = bytearray(msg_size)
     if rank == 0:

@@ -17,50 +17,49 @@ from .ucx_api_dep cimport *
 logger = logging.getLogger("ucx")
 
 
-IF CY_UCP_AM_SUPPORTED:
-    cdef void _send_nbx_callback(
-        void *request, ucs_status_t status, void *user_data
-    ) with gil:
-        cdef UCXRequest req
-        cdef dict req_info
-        cdef str name, ucx_status_msg, msg
-        cdef set inflight_msgs
-        cdef tuple cb_args
-        cdef dict cb_kwargs
-        with log_errors():
-            req = UCXRequest(<uintptr_t><void*> request)
-            assert not req.closed()
-            req_info = <dict>req._handle.info
-            req_info["status"] = "finished"
+cdef void _send_nbx_callback(
+    void *request, ucs_status_t status, void *user_data
+) with gil:
+    cdef UCXRequest req
+    cdef dict req_info
+    cdef str name, ucx_status_msg, msg
+    cdef set inflight_msgs
+    cdef tuple cb_args
+    cdef dict cb_kwargs
+    with log_errors():
+        req = UCXRequest(<uintptr_t><void*> request)
+        assert not req.closed()
+        req_info = <dict>req._handle.info
+        req_info["status"] = "finished"
 
-            if "cb_func" not in req_info:
-                # This callback function was called before ucp_tag_send_nb() returned
-                return
+        if "cb_func" not in req_info:
+            # This callback function was called before ucp_tag_send_nb() returned
+            return
 
-            exception = None
-            if status == UCS_ERR_CANCELED:
-                name = req_info["name"]
-                msg = "<%s>: " % name
-                exception = UCXCanceled(msg)
-            elif status != UCS_OK:
-                name = req_info["name"]
-                ucx_status_msg = ucs_status_string(status).decode("utf-8")
-                msg = "<%s>: %s" % (name, ucx_status_msg)
-                exception = UCXError(msg)
-            try:
-                inflight_msgs = req_info["inflight_msgs"]
-                inflight_msgs.discard(req)
-                cb_func = req_info["cb_func"]
-                if cb_func is not None:
-                    cb_args = req_info["cb_args"]
-                    if cb_args is None:
-                        cb_args = ()
-                    cb_kwargs = req_info["cb_kwargs"]
-                    if cb_kwargs is None:
-                        cb_kwargs = {}
-                    cb_func(req, exception, *cb_args, **cb_kwargs)
-            finally:
-                req.close()
+        exception = None
+        if status == UCS_ERR_CANCELED:
+            name = req_info["name"]
+            msg = "<%s>: " % name
+            exception = UCXCanceled(msg)
+        elif status != UCS_OK:
+            name = req_info["name"]
+            ucx_status_msg = ucs_status_string(status).decode("utf-8")
+            msg = "<%s>: %s" % (name, ucx_status_msg)
+            exception = UCXError(msg)
+        try:
+            inflight_msgs = req_info["inflight_msgs"]
+            inflight_msgs.discard(req)
+            cb_func = req_info["cb_func"]
+            if cb_func is not None:
+                cb_args = req_info["cb_args"]
+                if cb_args is None:
+                    cb_args = ()
+                cb_kwargs = req_info["cb_kwargs"]
+                if cb_kwargs is None:
+                    cb_kwargs = {}
+                cb_func(req, exception, *cb_args, **cb_kwargs)
+        finally:
+            req.close()
 
 
 def am_send_nbx(
@@ -107,65 +106,60 @@ def am_send_nbx(
     name: str, optional
         Descriptive name of the operation
     """
-    IF CY_UCP_AM_SUPPORTED:
-        if cb_args is None:
-            cb_args = ()
-        if cb_kwargs is None:
-            cb_kwargs = {}
-        if name is None:
-            name = u"am_send_nb"
-        if Feature.AM not in ep.worker._context._feature_flags:
-            raise ValueError("UCXContext must be created with `Feature.AM`")
-        if buffer.cuda and not ep.worker._context.cuda_support:
-            raise ValueError(
-                "UCX is not configured with CUDA support, please add "
-                "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-                "variable and that the ucx-proc=*=gpu package is "
-                "installed. See "
-                "https://ucx-py.readthedocs.io/en/latest/install.html for "
-                "more information."
-            )
-        if not buffer._contiguous():
-            raise ValueError("Array must be C or F contiguous")
-
-        cdef ucp_request_param_t params
-        params.op_attr_mask = (
-            UCP_OP_ATTR_FIELD_CALLBACK |
-            UCP_OP_ATTR_FIELD_USER_DATA |
-            UCP_OP_ATTR_FIELD_FLAGS
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if name is None:
+        name = u"am_send_nb"
+    if Feature.AM not in ep.worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.AM`")
+    if buffer.cuda and not ep.worker._context.cuda_support:
+        raise ValueError(
+            "UCX is not configured with CUDA support, please add "
+            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
+            "variable and that the ucx-proc=*=gpu package is "
+            "installed. See "
+            "https://ucx-py.readthedocs.io/en/latest/install.html for "
+            "more information."
         )
-        params.cb.send = <ucp_send_nbx_callback_t>_send_nbx_callback
-        params.flags = UCP_AM_SEND_FLAG_REPLY
-        params.user_data = <void*>buffer.ptr
+    if not buffer._contiguous():
+        raise ValueError("Array must be C or F contiguous")
 
-        cdef int *header = <int *>malloc(sizeof(int))
-        if buffer.cuda:
-            header[0] = UCS_MEMORY_TYPE_CUDA
-        else:
-            header[0] = UCS_MEMORY_TYPE_HOST
+    cdef ucp_request_param_t params
+    params.op_attr_mask = (
+        UCP_OP_ATTR_FIELD_CALLBACK |
+        UCP_OP_ATTR_FIELD_USER_DATA |
+        UCP_OP_ATTR_FIELD_FLAGS
+    )
+    params.cb.send = <ucp_send_nbx_callback_t>_send_nbx_callback
+    params.flags = UCP_AM_SEND_FLAG_REPLY
+    params.user_data = <void*>buffer.ptr
 
-        def cb_wrapper(header_as_int, cb_func, *cb_args, **cb_kwargs):
-            free(<void *><uintptr_t>header_as_int)
-            cb_func(*cb_args, **cb_kwargs)
+    cdef int *header = <int *>malloc(sizeof(int))
+    if buffer.cuda:
+        header[0] = UCS_MEMORY_TYPE_CUDA
+    else:
+        header[0] = UCS_MEMORY_TYPE_HOST
 
-        cb_func = functools.partial(cb_wrapper, int(<uintptr_t>header), cb_func)
+    def cb_wrapper(header_as_int, cb_func, *cb_args, **cb_kwargs):
+        free(<void *><uintptr_t>header_as_int)
+        cb_func(*cb_args, **cb_kwargs)
 
-        cdef ucs_status_ptr_t status = ucp_am_send_nbx(
-            ep._handle,
-            0,
-            <void *>header,
-            sizeof(int),
-            <void*>buffer.ptr,
-            nbytes,
-            &params,
-        )
-        return _handle_status(
-            status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
-        )
-    ELSE:
-        if is_am_supported():
-            raise RuntimeError("UCX-Py needs to be built against and running with "
-                               "UCX >= 1.11 to support am_recv_nb.")
+    cb_func = functools.partial(cb_wrapper, int(<uintptr_t>header), cb_func)
+
+    cdef ucs_status_ptr_t status = ucp_am_send_nbx(
+        ep._handle,
+        0,
+        <void *>header,
+        sizeof(int),
+        <void*>buffer.ptr,
+        nbytes,
+        &params,
+    )
+    return _handle_status(
+        status, nbytes, cb_func, cb_args, cb_kwargs, name, ep._inflight_msgs
+    )
 
 
 def am_recv_nb(
@@ -208,38 +202,33 @@ def am_recv_nb(
     name: str, optional
         Descriptive name of the operation
     """
-    IF CY_UCP_AM_SUPPORTED:
-        worker = ep.worker
+    worker = ep.worker
 
-        if cb_args is None:
-            cb_args = ()
-        if cb_kwargs is None:
-            cb_kwargs = {}
-        if Feature.AM not in worker._context._feature_flags:
-            raise ValueError("UCXContext must be created with `Feature.AM`")
+    if cb_args is None:
+        cb_args = ()
+    if cb_kwargs is None:
+        cb_kwargs = {}
+    if Feature.AM not in worker._context._feature_flags:
+        raise ValueError("UCXContext must be created with `Feature.AM`")
 
-        am_recv_pool = worker._am_recv_pool
-        ep_as_int = int(<uintptr_t>ep._handle)
-        if (
-            ep_as_int in am_recv_pool and
-            len(am_recv_pool[ep_as_int]) > 0
-        ):
-            recv_obj = am_recv_pool[ep_as_int].pop(0)
-            exception = recv_obj if isinstance(type(recv_obj), (Exception, )) else None
-            cb_func(recv_obj, exception, *cb_args, **cb_kwargs)
-            logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
-        else:
-            if ep_as_int not in worker._am_recv_wait:
-                worker._am_recv_wait[ep_as_int] = list()
-            worker._am_recv_wait[ep_as_int].append(
-                {
-                    "cb_func": cb_func,
-                    "cb_args": cb_args,
-                    "cb_kwargs": cb_kwargs
-                }
-            )
-            logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))
-    ELSE:
-        if is_am_supported():
-            raise RuntimeError("UCX-Py needs to be built against and running with "
-                               "UCX >= 1.11 to support am_recv_nb.")
+    am_recv_pool = worker._am_recv_pool
+    ep_as_int = int(<uintptr_t>ep._handle)
+    if (
+        ep_as_int in am_recv_pool and
+        len(am_recv_pool[ep_as_int]) > 0
+    ):
+        recv_obj = am_recv_pool[ep_as_int].pop(0)
+        exception = recv_obj if isinstance(type(recv_obj), (Exception, )) else None
+        cb_func(recv_obj, exception, *cb_args, **cb_kwargs)
+        logger.debug("AM recv ready: ep %s" % (hex(ep_as_int), ))
+    else:
+        if ep_as_int not in worker._am_recv_wait:
+            worker._am_recv_wait[ep_as_int] = list()
+        worker._am_recv_wait[ep_as_int].append(
+            {
+                "cb_func": cb_func,
+                "cb_args": cb_args,
+                "cb_kwargs": cb_kwargs
+            }
+        )
+        logger.debug("AM recv waiting: ep %s" % (hex(ep_as_int), ))

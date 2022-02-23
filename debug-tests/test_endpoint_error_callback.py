@@ -1,6 +1,6 @@
 # This test requires InfiniBand, to run:
 # UCXPY_IFNAME=ib0 UCX_NET_DEVICES=mlx5_0:1 \
-# UCX_TLS=rc,tcp,sockcm,cuda_copy UCX_SOCKADDR_TLS_PRIORITY=sockcm \
+# UCX_TLS=rc,tcp,cuda_copy \
 # py.test --cache-clear tests/debug-tests/test_endpoint_error_callback.py
 import asyncio
 import multiprocessing
@@ -134,12 +134,6 @@ def cupy_obj():
 )
 @pytest.mark.parametrize("endpoint_error_handling", [True, False])
 def test_send_recv_cu(endpoint_error_handling):
-    if endpoint_error_handling is True and ucp.get_ucx_version() < (1, 11, 0):
-        pytest.skip(
-            "Endpoint error handling support for all transports is only available "
-            "in UCX >= 1.11.0"
-        )
-
     base_env = os.environ
     env_client = base_env.copy()
     # grab first two devices
