@@ -83,7 +83,7 @@ def server(queue, args):
 
         rmm.reinitialize(
             pool_allocator=True,
-            managed_memory=False,
+            managed_memory=args.rmm_managed_memory,
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.server_dev],
         )
@@ -217,7 +217,7 @@ def client(queue, port, server_address, args):
 
         rmm.reinitialize(
             pool_allocator=True,
-            managed_memory=False,
+            managed_memory=args.rmm_managed_memory,
             initial_pool_size=args.rmm_init_pool_size,
             devices=[args.client_dev],
         )
@@ -483,12 +483,20 @@ def parse_args():
         action="store_true",
         help="Disable detailed report per iteration.",
     )
+    parser.add_argument(
+        "--rmm-managed-memory",
+        default=False,
+        action="store_true",
+        help="Use RMM managed memory (requires `--object-type rmm`)",
+    )
 
     args = parser.parse_args()
     if args.cuda_profile and args.object_type == "numpy":
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
+    if args.rmm_managed_memory is True and args.object_type != "rmm":
+        raise RuntimeError("`--rmm-managed-memory` requires `--object_type=rmm`")
     return args
 
 
