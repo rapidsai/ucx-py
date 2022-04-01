@@ -81,7 +81,9 @@ def _echo_server(get_queue, put_queue, msg_size, datatype):
     def _listener_handler(conn_request):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True,
+            worker,
+            conn_request,
+            endpoint_error_handling=True,
         )
 
         # Wireup
@@ -114,7 +116,10 @@ def _echo_client(msg_size, datatype, port):
     worker.register_am_allocator(data["allocator"], data["memory_type"])
 
     ep = ucx_api.UCXEndpoint.create(
-        worker, ucx_api.get_address(), port, endpoint_error_handling=True,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=True,
     )
 
     # The wireup message is sent to ensure endpoints are connected, otherwise
@@ -141,12 +146,13 @@ def _echo_client(msg_size, datatype, port):
         data["validator"](recv_data, send_data)
 
 
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 @pytest.mark.parametrize("datatype", get_data().keys())
 def test_server_client(msg_size, datatype):
     put_queue, get_queue = mp.Queue(), mp.Queue()
     server = mp.Process(
-        target=_echo_server, args=(put_queue, get_queue, msg_size, datatype),
+        target=_echo_server,
+        args=(put_queue, get_queue, msg_size, datatype),
     )
     server.start()
     port = get_queue.get()

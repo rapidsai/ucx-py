@@ -278,7 +278,10 @@ def main():
     assert len(ranks) % 2 == 0
 
     stats = run_on_local_network(
-        args.n_chunks, worker, worker_args=args, server_address=args.server_address,
+        args.n_chunks,
+        worker,
+        worker_args=args,
+        server_address=args.server_address,
     )
 
     wc = stats[0]["wallclock"]

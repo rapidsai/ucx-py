@@ -141,7 +141,10 @@ async def _listener_handler_coroutine(conn_request, ctx, func, endpoint_error_ha
     ctrl_tag = hash64bits("ctrl_tag", seed, endpoint.handle)
 
     peer_info = await exchange_peer_info(
-        endpoint=endpoint, msg_tag=msg_tag, ctrl_tag=ctrl_tag, listener=True,
+        endpoint=endpoint,
+        msg_tag=msg_tag,
+        ctrl_tag=ctrl_tag,
+        listener=True,
     )
     tags = {
         "msg_send": peer_info["msg_tag"],
@@ -180,7 +183,10 @@ async def _listener_handler_coroutine(conn_request, ctx, func, endpoint_error_ha
 def _listener_handler(conn_request, callback_func, ctx, endpoint_error_handling):
     asyncio.ensure_future(
         _listener_handler_coroutine(
-            conn_request, ctx, callback_func, endpoint_error_handling,
+            conn_request,
+            ctx,
+            callback_func,
+            endpoint_error_handling,
         )
     )
 
@@ -224,7 +230,10 @@ class ApplicationContext:
         self.continuous_ucx_progress()
 
     def create_listener(
-        self, callback_func, port=0, endpoint_error_handling=True,
+        self,
+        callback_func,
+        port=0,
+        endpoint_error_handling=True,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -305,7 +314,10 @@ class ApplicationContext:
         msg_tag = hash64bits("msg_tag", seed, ucx_ep.handle)
         ctrl_tag = hash64bits("ctrl_tag", seed, ucx_ep.handle)
         peer_info = await exchange_peer_info(
-            endpoint=ucx_ep, msg_tag=msg_tag, ctrl_tag=ctrl_tag, listener=False,
+            endpoint=ucx_ep,
+            msg_tag=msg_tag,
+            ctrl_tag=ctrl_tag,
+            listener=False,
         )
         tags = {
             "msg_send": peer_info["msg_tag"],
@@ -333,7 +345,9 @@ class ApplicationContext:
         return ep
 
     async def create_endpoint_from_worker_address(
-        self, address, endpoint_error_handling=True,
+        self,
+        address,
+        endpoint_error_handling=True,
     ):
         """Create a new endpoint to a server
 
@@ -355,7 +369,9 @@ class ApplicationContext:
         self.continuous_ucx_progress()
 
         ucx_ep = ucx_api.UCXEndpoint.create_from_worker_address(
-            self.worker, address, endpoint_error_handling,
+            self.worker,
+            address,
+            endpoint_error_handling,
         )
         self.worker.progress()
 
@@ -718,8 +734,7 @@ class Endpoint:
 
     @ucx_api.nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
     async def am_recv(self):
-        """Receive from connected peer.
-        """
+        """Receive from connected peer."""
         if not self._ep.am_probe():
             self._ep.raise_on_error()
             if self.closed():
@@ -970,21 +985,27 @@ def register_am_allocator(allocator, allocator_type):
 
 def create_listener(callback_func, port=None, endpoint_error_handling=True):
     return _get_ctx().create_listener(
-        callback_func, port, endpoint_error_handling=endpoint_error_handling,
+        callback_func,
+        port,
+        endpoint_error_handling=endpoint_error_handling,
     )
 
 
 async def create_endpoint(ip_address, port, endpoint_error_handling=True):
     return await _get_ctx().create_endpoint(
-        ip_address, port, endpoint_error_handling=endpoint_error_handling,
+        ip_address,
+        port,
+        endpoint_error_handling=endpoint_error_handling,
     )
 
 
 async def create_endpoint_from_worker_address(
-    address, endpoint_error_handling=True,
+    address,
+    endpoint_error_handling=True,
 ):
     return await _get_ctx().create_endpoint_from_worker_address(
-        address, endpoint_error_handling=endpoint_error_handling,
+        address,
+        endpoint_error_handling=endpoint_error_handling,
     )
 
 
@@ -1010,22 +1031,22 @@ async def recv(buffer, tag):
 
 def get_ucp_context_info():
     """Gets information on the current UCX context, obtained from
-       `ucp_context_print_info`.
+    `ucp_context_print_info`.
     """
     return _get_ctx().ucp_context_info()
 
 
 def get_ucp_worker_info():
     """Gets information on the current UCX worker, obtained from
-       `ucp_worker_print_info`.
+    `ucp_worker_print_info`.
     """
     return _get_ctx().ucp_worker_info()
 
 
 def get_active_transports():
     """Returns a list of all transports that are available and are currently
-       active in UCX, meaning UCX **may** use them depending on the type of
-       transfers and how it is configured but is not required to do so.
+    active in UCX, meaning UCX **may** use them depending on the type of
+    transfers and how it is configured but is not required to do so.
     """
     info = get_ucp_context_info()
     resources = re.findall("^#.*resource.*md.*dev.*flags.*$", info, re.MULTILINE)
@@ -1034,8 +1055,8 @@ def get_active_transports():
 
 async def flush():
     """Flushes outstanding AMO and RMA operations. This ensures that the
-       operations issued on this worker have completed both locally and remotely.
-       This function does not guarantee ordering.
+    operations issued on this worker have completed both locally and remotely.
+    This function does not guarantee ordering.
     """
     if _ctx is not None:
         return await _get_ctx().flush()
@@ -1046,8 +1067,8 @@ async def flush():
 
 def fence():
     """Ensures ordering of non-blocking communication operations on the UCP worker.
-       This function returns nothing, but will raise an error if it cannot make
-       this guarantee. This function does not ensure any operations have completed.
+    This function returns nothing, but will raise an error if it cannot make
+    this guarantee. This function does not ensure any operations have completed.
     """
     if _ctx is not None:
         _get_ctx().fence()

@@ -31,7 +31,7 @@ async def run():
     ) as cluster:
         async with Client(cluster, asynchronous=True) as client:
             d = dask_cudf.from_cudf(
-                cudf.DataFrame({"a": range(2 ** 16)}), npartitions=2
+                cudf.DataFrame({"a": range(2**16)}), npartitions=2
             )
             r = d.sum()
 

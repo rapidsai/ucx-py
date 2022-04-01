@@ -18,7 +18,7 @@ def _cb_func(request, exception, event_loop, future):
 
 
 def _call_ucx_api(event_loop, func, *args, **kwargs):
-    """ Help function to avoid duplicated code.
+    """Help function to avoid duplicated code.
     Basically, all the communication functions have the
     same structure, which this wrapper implements.
     """
@@ -93,12 +93,21 @@ def tag_recv(
     ep = obj if isinstance(obj, ucx_api.UCXEndpoint) else None
 
     return _call_ucx_api(
-        event_loop, ucx_api.tag_recv_nb, worker, buffer, nbytes, tag, name=name, ep=ep,
+        event_loop,
+        ucx_api.tag_recv_nb,
+        worker,
+        buffer,
+        nbytes,
+        tag,
+        name=name,
+        ep=ep,
     )
 
 
 def am_recv(
-    ep: ucx_api.UCXEndpoint, name="am_recv", event_loop=None,
+    ep: ucx_api.UCXEndpoint,
+    name="am_recv",
+    event_loop=None,
 ) -> asyncio.Future:
 
     event_loop = event_loop if event_loop else asyncio.get_event_loop()

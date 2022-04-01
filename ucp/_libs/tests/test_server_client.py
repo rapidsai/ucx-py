@@ -38,7 +38,9 @@ def _echo_server(get_queue, put_queue, msg_size):
     def _listener_handler(conn_request):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True,
+            worker,
+            conn_request,
+            endpoint_error_handling=True,
         )
         msg = Array(bytearray(msg_size))
         ucx_api.tag_recv_nb(
@@ -62,7 +64,10 @@ def _echo_client(msg_size, port):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
-        worker, ucx_api.get_address(), port, endpoint_error_handling=True,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=True,
     )
     send_msg = bytes(os.urandom(msg_size))
     recv_msg = bytearray(msg_size)
@@ -71,10 +76,13 @@ def _echo_client(msg_size, port):
     assert send_msg == recv_msg
 
 
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 def test_server_client(msg_size):
     put_queue, get_queue = mp.Queue(), mp.Queue()
-    server = mp.Process(target=_echo_server, args=(put_queue, get_queue, msg_size),)
+    server = mp.Process(
+        target=_echo_server,
+        args=(put_queue, get_queue, msg_size),
+    )
     server.start()
     port = get_queue.get()
     client = mp.Process(target=_echo_client, args=(msg_size, port))

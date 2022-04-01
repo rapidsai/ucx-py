@@ -125,7 +125,7 @@ def server(port, func, endpoint_error_handling):
 def cupy_obj():
     import cupy
 
-    size = 10 ** 8
+    size = 10**8
     return cupy.arange(size)
 
 

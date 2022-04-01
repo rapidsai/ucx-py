@@ -131,12 +131,14 @@ def test_from_worker_address_error(error_type):
     q2 = mp.Queue()
 
     server = mp.Process(
-        target=_test_from_worker_address_error_server, args=(q1, q2, error_type),
+        target=_test_from_worker_address_error_server,
+        args=(q1, q2, error_type),
     )
     server.start()
 
     client = mp.Process(
-        target=_test_from_worker_address_error_client, args=(q1, q2, error_type),
+        target=_test_from_worker_address_error_client,
+        args=(q1, q2, error_type),
     )
     client.start()
 
