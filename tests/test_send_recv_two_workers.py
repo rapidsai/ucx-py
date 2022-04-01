@@ -154,7 +154,7 @@ def dataframe():
 
     # always generate the same random numbers
     np.random.seed(0)
-    size = 2 ** 26
+    size = 2**26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -176,7 +176,7 @@ def empty_dataframe():
 def cupy_obj():
     import cupy
 
-    size = 10 ** 8
+    size = 10**8
     return cupy.arange(size)
 
 

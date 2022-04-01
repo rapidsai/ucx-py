@@ -6,7 +6,7 @@ import pytest
 
 import ucp
 
-msg_sizes = [0] + [2 ** i for i in range(0, 25, 4)]
+msg_sizes = [0] + [2**i for i in range(0, 25, 4)]
 
 
 def _bytearray_assert_equal(a, b):

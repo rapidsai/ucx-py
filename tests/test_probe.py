@@ -26,11 +26,16 @@ async def test_message_probe(transfer_api):
         assert received == msg
 
     async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port,)
+        ep = await ucp.create_endpoint(
+            ucp.get_address(),
+            port,
+        )
         if transfer_api == "am":
             await ep.am_send(msg)
         else:
             await ep.send(msg)
 
-    listener = ucp.create_listener(server_node,)
+    listener = ucp.create_listener(
+        server_node,
+    )
     await client_node(listener.port)

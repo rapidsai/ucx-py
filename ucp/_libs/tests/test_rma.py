@@ -33,7 +33,9 @@ def test_flush():
     ctx = ucx_api.UCXContext({})
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     req = ep.flush(_)
     if req is None:
@@ -43,14 +45,16 @@ def test_flush():
         assert info["status"] == "finished"
 
 
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 def test_implicit(msg_size):
     ctx = ucx_api.UCXContext({})
     mem = ucx_api.UCXMemoryHandle.alloc(ctx, msg_size)
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)
@@ -64,14 +68,16 @@ def test_implicit(msg_size):
     assert send_msg == recv_msg
 
 
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 def test_explicit(msg_size):
     ctx = ucx_api.UCXContext({})
     mem = ucx_api.UCXMemoryHandle.alloc(ctx, msg_size)
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)
@@ -87,14 +93,16 @@ def test_explicit(msg_size):
     assert send_msg == recv_msg
 
 
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 def test_ucxio(msg_size):
     ctx = ucx_api.UCXContext({})
     mem = ucx_api.UCXMemoryHandle.alloc(ctx, msg_size)
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -121,7 +129,9 @@ def test_ucxio_seek_bad(seek_loc, seek_flag):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -150,7 +160,9 @@ def test_ucxio_seek_good(seek_data):
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
 
@@ -170,7 +182,9 @@ def test_force_requests():
     packed_rkey = mem.pack_rkey()
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, worker.get_address(), endpoint_error_handling=True,
+        worker,
+        worker.get_address(),
+        endpoint_error_handling=True,
     )
     rkey = ep.unpack_rkey(packed_rkey)
     self_mem = ucx_api.RemoteMemory(rkey, mem.address, msg_size)
