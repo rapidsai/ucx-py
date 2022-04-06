@@ -1,32 +1,11 @@
 """
-Benchmark send receive on one machine (UCX < 1.10):
-UCX_TLS=tcp,sockcm,cuda_copy,cuda_ipc UCX_SOCKADDR_TLS_PRIORITY=sockcm python \
-    send-recv-core.py --server-dev 2 --client-dev 1 \
-    --object_type rmm --reuse-alloc --n-bytes 1GB
-
-
-Benchmark send receive on one machine (UCX >= 1.10):
+Benchmark send receive on one machine:
 UCX_TLS=tcp,cuda_copy,cuda_ipc python send-recv-core.py \
         --server-dev 2 --client-dev 1 --object_type rmm \
         --reuse-alloc --n-bytes 1GB
 
 
-Benchmark send receive on two machines (IB testing, UCX < 1.10):
-# server process
-UCX_NET_DEVICES=mlx5_0:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python send-recv-core.py \
-    --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
-    --n-bytes 1GB --server-only --port 13337 --n-iter 100
-
-# client process
-UCX_NET_DEVICES=mlx5_2:1 UCX_TLS=tcp,sockcm,cuda_copy,rc \
-    UCX_SOCKADDR_TLS_PRIORITY=sockcm python send-recv-core.py \
-    --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
-    --n-bytes 1GB --client-only --server-address SERVER_IP --port 13337 \
-    --n-iter 100
-
-
-Benchmark send receive on two machines (IB testing, UCX >= 1.10):
+Benchmark send receive on two machines (IB testing):
 # server process
 UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python send-recv-core.py \
         --server-dev 0 --client-dev 5 --object_type rmm --reuse-alloc \
@@ -159,9 +138,7 @@ def server(queue, args):
     def _listener_handler(conn_request, msg):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker,
-            conn_request,
-            endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
+            worker, conn_request, endpoint_error_handling=True,
         )
 
         # Wireup before starting to transfer data
@@ -255,10 +232,7 @@ def client(queue, port, server_address, args):
     worker = ucx_api.UCXWorker(ctx)
     register_am_allocators(args, worker)
     ep = ucx_api.UCXEndpoint.create(
-        worker,
-        server_address,
-        port,
-        endpoint_error_handling=ucx_api.get_ucx_version() >= (1, 10, 0),
+        worker, server_address, port, endpoint_error_handling=True,
     )
 
     send_msg = xp.arange(args.n_bytes, dtype="u1")
@@ -525,10 +499,6 @@ def main():
     # if you are the server, only start the `server process`
     # if you are the client, only start the `client process`
     # otherwise, start everything
-
-    if args.enable_am and not ucp._libs.ucx_api.is_am_supported():
-        print("AM only supported in UCX >= 1.11")
-        return
 
     if not args.client_only:
         # server process

@@ -240,13 +240,6 @@ def parse_args():
         help="Fraction of rows that matches (default 0.3)",
     )
     parser.add_argument(
-        "--net-devices",
-        metavar="LIST",
-        default=None,
-        type=str,
-        help='List of net devices to use, one for each device or "auto"',
-    )
-    parser.add_argument(
         "--profile",
         metavar="FILENAME",
         default=None,
@@ -275,11 +268,6 @@ def parse_args():
             f"Number of chunks must be greater than 1 (chunks-per-dev: \
                     {args.chunks_per_dev}, devs: {args.devs})"
         )
-    if args.net_devices == "auto":
-        args.net_devices = [ucp.utils.get_closest_net_devices(d) for d in args.devs]
-    elif args.net_devices is not None:
-        args.net_devices = args.net_devices.split(",")
-        assert len(args.net_devices) == len(args.devs)
     return args
 
 
@@ -289,18 +277,8 @@ def main():
     assert len(ranks) > 1
     assert len(ranks) % 2 == 0
 
-    ucx_options_list = None
-    if args.net_devices is not None:
-        ucx_options_list = [
-            {"NET_DEVICES": args.net_devices[rank % len(args.devs)]} for rank in ranks
-        ]
-
     stats = run_on_local_network(
-        args.n_chunks,
-        worker,
-        worker_args=args,
-        server_address=args.server_address,
-        ucx_options_list=ucx_options_list,
+        args.n_chunks, worker, worker_args=args, server_address=args.server_address,
     )
 
     wc = stats[0]["wallclock"]

@@ -111,10 +111,6 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
     asyncio.get_event_loop().run_until_complete(run())
 
 
-@pytest.mark.skipif(
-    ucp.get_ucx_version() < (1, 11, 0),
-    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
-)
 @pytest.mark.parametrize(
     "error_type",
     [

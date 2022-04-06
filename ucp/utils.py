@@ -16,39 +16,6 @@ from ._libs import ucx_api
 mp = mp.get_context("spawn")
 
 
-def get_closest_net_devices(gpu_dev):
-    """
-    Get the names of the closest net devices to `gpu_dev`
-
-    Parameters
-    ----------
-    gpu_dev : str
-        GPU device id
-
-    Returns
-    -------
-    dev_names : str
-        Names of the closest net devices
-
-    Examples
-    --------
-    >>> get_closest_net_devices(0)
-    'eth0'
-    """
-    from ucp._libs.topological_distance import TopologicalDistance
-
-    dev = int(gpu_dev)
-    net_dev = ""
-    td = TopologicalDistance()
-    ibs = td.get_cuda_distances_from_device_index(dev, "openfabrics")
-    if len(ibs) > 0:
-        net_dev += ibs[0]["name"] + ":1,"
-    ifnames = td.get_cuda_distances_from_device_index(dev, "network")
-    if len(ifnames) > 0:
-        net_dev += ifnames[0]["name"]
-    return net_dev
-
-
 def get_ucxpy_logger():
     """
     Get UCX-Py logger with custom formatting

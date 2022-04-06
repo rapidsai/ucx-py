@@ -110,8 +110,8 @@ NVLink Performance
 
 ::
 
-    CUDA_VISIBLE_DEVICES=0 UCX_TLS=cuda_ipc,cuda_copy,tcp,sockcm ucx_perftest -t tag_bw -m cuda -s 10000000 -n 10 -p 9999 -c 0 & \
-    CUDA_VISIBLE_DEVICES=1 UCX_TLS=cuda_ipc,cuda_copy,tcp,sockcm ucx_perftest `hostname` -t tag_bw -m cuda -s 100000000 -n 10 -p 9999 -c 1
+    CUDA_VISIBLE_DEVICES=0 UCX_TLS=cuda_ipc,cuda_copy,tcp ucx_perftest -t tag_bw -m cuda -s 10000000 -n 10 -p 9999 -c 0 & \
+    CUDA_VISIBLE_DEVICES=1 UCX_TLS=cuda_ipc,cuda_copy,tcp ucx_perftest `hostname` -t tag_bw -m cuda -s 100000000 -n 10 -p 9999 -c 1
     +--------------+-----------------------------+---------------------+-----------------------+
     |              |       latency (usec)        |   bandwidth (MB/s)  |  message rate (msg/s) |
     +--------------+---------+---------+---------+----------+----------+-----------+-----------+
@@ -126,14 +126,6 @@ NVLink Performance
     | Message size: 100000000                                                                  |
     +------------------------------------------------------------------------------------------+
                 10     0.000  4163.694  4163.694   22904.52   22904.52         240         240
-
-
-Starting in UCX 1.10, ``sockcm`` has been removed and should not anymore be added to ``UCX_TLS``. The commands above would be modified as follows for UCX 1.10:
-
-::
-
-    CUDA_VISIBLE_DEVICES=0 UCX_TLS=cuda_ipc,cuda_copy,tcp,sockcm ucx_perftest -t tag_bw -m cuda -s 10000000 -n 10 -p 9999 -c 0 & \
-    CUDA_VISIBLE_DEVICES=1 UCX_TLS=cuda_ipc,cuda_copy,tcp,sockcm ucx_perftest `hostname` -t tag_bw -m cuda -s 100000000 -n 10 -p 9999 -c 1
 
 
 Experimental Debugging

@@ -6,13 +6,13 @@ build:
     - libnuma1
 
 python:
-  version: 3.7
+  version: 3.8
   install:
     - method: setuptools
       path: .
 
 conda:
-  environment: conda/environments/builddocs_py37.yml
+  environment: conda/environments/builddocs.yml
 
 sphinx:
   configuration: docs/source/conf.py

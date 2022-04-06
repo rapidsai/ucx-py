@@ -12,7 +12,7 @@ def _close_callback(closed):
     closed[0] = True
 
 
-def _server(queue, endpoint_error_handling, server_close_callback):
+def _server(queue, server_close_callback):
     """Server that send received message back to the client
 
     Notice, since it is illegal to call progress() in call-back functions,
@@ -31,7 +31,7 @@ def _server(queue, endpoint_error_handling, server_close_callback):
     def _listener_handler(conn_request):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=endpoint_error_handling,
+            worker, conn_request, endpoint_error_handling=True,
         )
         if server_close_callback is True:
             ep.set_close_callback(functools.partial(_close_callback, closed))
@@ -49,14 +49,11 @@ def _server(queue, endpoint_error_handling, server_close_callback):
             worker.progress()
 
 
-def _client(port, endpoint_error_handling, server_close_callback):
+def _client(port, server_close_callback):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
-        worker,
-        ucx_api.get_address(),
-        port,
-        endpoint_error_handling=endpoint_error_handling,
+        worker, ucx_api.get_address(), port, endpoint_error_handling=True,
     )
     if server_close_callback is True:
         ep.close()
@@ -68,23 +65,13 @@ def _client(port, endpoint_error_handling, server_close_callback):
             worker.progress()
 
 
-@pytest.mark.skipif(
-    ucx_api.get_ucx_version() < (1, 11, 0),
-    reason="Endpoint error handling is unreliable in UCX releases prior to 1.11.0",
-)
 @pytest.mark.parametrize("server_close_callback", [True, False])
 def test_close_callback(server_close_callback):
-    endpoint_error_handling = ucx_api.get_ucx_version() >= (1, 10, 0)
-
     queue = mp.Queue()
-    server = mp.Process(
-        target=_server, args=(queue, endpoint_error_handling, server_close_callback),
-    )
+    server = mp.Process(target=_server, args=(queue, server_close_callback),)
     server.start()
     port = queue.get()
-    client = mp.Process(
-        target=_client, args=(port, endpoint_error_handling, server_close_callback),
-    )
+    client = mp.Process(target=_client, args=(port, server_close_callback),)
     client.start()
     client.join(timeout=10)
     server.join(timeout=10)
