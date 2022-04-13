@@ -41,8 +41,23 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
         device_count = pynvml.nvmlDeviceGetCount()
         large_bar1 = [False] * device_count
 
+        def _is_mig_device(handle):
+            try:
+                pynvml.nvmlDeviceGetMigMode(handle)[0]
+            except pynvml.NVMLError:
+                return False
+            return True
+
         for dev_idx in range(device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
+
+            # Ignore MIG devices and use rely on UCX's default for now. Increasing
+            # `UCX_CUDA_COPY_MAX_REG_RATIO` should be thoroughly tested, as it's
+            # not yet clear whether it would be safe to set `1.0` for those
+            # instances too.
+            if _is_mig_device(handle):
+                continue
+
             total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
             bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
 
