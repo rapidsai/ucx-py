@@ -68,5 +68,7 @@ RUN . /opt/conda/etc/profile.d/conda.sh \
     && conda activate ucx \
     && pip install -v -e .
 
-# Setup for interactive use of conda
-RUN conda init bash
+WORKDIR /root
+
+COPY bench-all.sh /root
+CMD ["/root/bench-all.sh", "tcp,cuda_copy,cuda_ipc", "rc,cuda_copy", "all"]
