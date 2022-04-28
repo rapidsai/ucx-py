@@ -53,5 +53,9 @@ For example, a run command that exposes all devices available in
 docker run --ulimit memlock=-1 --device /dev/infiniband -ti ucx-py-ib /bin/bash
 ```
 
-UCX-Py is installed via conda in the `ucx` environment; so `conda activate ucx`
+UCX-Py is installed via conda in the `ucx` environment; so 
+```bash
+source /opt/conda/etc/profile.d/conda.sh
+conda activate ucx`
+```
 in the container will provide a python with UCX-Py available.
