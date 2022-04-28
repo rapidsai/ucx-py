@@ -12,10 +12,9 @@ function logger {
 source /opt/conda/etc/profile.d/conda.sh
 conda activate ucx
 
-pip install -v dask distributed
-# Except ucx-py checkout here
+# Expect ucx-py checkout here
 cd ucx-py/
-# Benchmark using the provided transports or else default
+# Benchmark using command-line provided transports or else default
 for tls in ${@:-"tcp" "all"}; do
     export UCX_TLS=${tls}
     logger "Python pytest for ucx-py"

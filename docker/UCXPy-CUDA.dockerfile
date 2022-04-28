@@ -47,6 +47,7 @@ RUN conda create -n ucx -c conda-forge -c nvidia -c rapidsai \
     "python=3.8" "cudatoolkit=11.5" \
     setuptools psutil "cython>=0.29.14,<3.0.0a0" \
     pytest pytest-asyncio \
+    dask distributed \
     cupy "numba>=0.46" rmm
 
 WORKDIR /root
