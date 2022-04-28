@@ -38,11 +38,11 @@ docker build -t ucx-py-ib -f UCXPy-CUDA.dockerfile .
 
 ### Running
 
-To expose high-performance transports from the host in the container requires a
-number of additional flags when running the container. `docker run --privileged`
-is a catch-all that will definitely provide enough permissions (`ulimit -l
-unlimited` is then needed in the container). Alternately, provide `--ulimit
-memlock=-1` and expose devices with `--device /dev/infiniband`, see [the UCX
+Running the container requires a number of additional flags to expose
+high-performance transports from the host. `docker run --privileged` is a
+catch-all that will definitely provide enough permissions (`ulimit -l unlimited`
+is then needed in the container). Alternately, provide `--ulimit memlock=-1` and
+expose devices with `--device /dev/infiniband`, see [the UCX
 documentation](https://openucx.readthedocs.io/en/master/running.html#running-in-docker-containers)
 for more details.
 
