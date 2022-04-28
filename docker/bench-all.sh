@@ -12,7 +12,6 @@ function logger {
 source /opt/conda/etc/profile.d/conda.sh
 conda activate ucx
 
-# Expect ucx-py checkout here
 cd ucx-py/
 # Benchmark using command-line provided transports or else default
 for tls in ${@:-"tcp" "all"}; do

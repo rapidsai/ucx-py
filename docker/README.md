@@ -44,13 +44,14 @@ catch-all that will definitely provide enough permissions (`ulimit -l unlimited`
 is then needed in the container). Alternately, provide `--ulimit memlock=-1` and
 expose devices with `--device /dev/infiniband`, see [the UCX
 documentation](https://openucx.readthedocs.io/en/master/running.html#running-in-docker-containers)
-for more details.
+for more details. To expose the infiniband devices using IPoIB, we need to in
+addition map the relevant host network interfaces, a catchall is just to use `--network host`.
 
 For example, a run command that exposes all devices available in
-`/dev/infiniband` on the host is:
+`/dev/infiniband` along with the network interfaces on the host is:
 
 ```bash
-docker run --ulimit memlock=-1 --device /dev/infiniband -ti ucx-py-ib /bin/bash
+docker run --ulimit memlock=-1 --device /dev/infiniband --network host -ti ucx-py-ib /bin/bash
 ```
 
 UCX-Py is installed via conda in the `ucx` environment; so 
