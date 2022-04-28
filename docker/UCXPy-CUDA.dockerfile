@@ -43,14 +43,11 @@ RUN bash /miniconda.sh -b -p /opt/conda
 
 ENV PATH="/opt/conda/bin:${CUDA_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# FIXME: We plausibly have two different CUDA runtimes after this.
-# The base image provides a build environment at /usr/local/cuda
-# but this install adds the cudatoolkit from the nvidia conda channel.
-# Hopefully they don't conflict...
 RUN conda create -n ucx -c conda-forge -c nvidia -c rapidsai \
-    "python=3.7" setuptools psutil "cython>=0.29.14,<3.0.0a0" \
+    "python=3.8" "cudatoolkit=11.5" \
+    setuptools psutil "cython>=0.29.14,<3.0.0a0" \
     pytest pytest-asyncio \
-    cupy "numba>=0.46" rmm distributed
+    cupy "numba>=0.46" rmm
 
 WORKDIR /root
 RUN git clone https://github.com/openucx/ucx.git
