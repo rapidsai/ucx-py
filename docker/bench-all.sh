@@ -19,14 +19,15 @@ for tls in ${@:-"tcp" "all"}; do
     export UCX_TLS=${tls}
     logger "Python pytest for ucx-py"
 
-    # Test with TCP/Sockets
-    logger "Tests (UCX_TLS=$UCX_TLS)"
+    logger "Tests (UCX_TLS=${UCX_TLS})"
     pytest --cache-clear -vs ucp/_libs/tests
     pytest --cache-clear -vs tests/
 
-    logger "Benchmarks (UCX_TLS=$UCX_TLS)"
-    python benchmarks/send-recv.py -o numpy \
-        --server-dev 0 --client-dev 0 --reuse-alloc
-    python benchmarks/send-recv-core.py -o numpy \
-        --server-dev 0 --client-dev 0 --reuse-alloc
+    for array_type in "numpy" "cupy" "rmm"; do
+        logger "Benchmarks (UCX_TLS=${UCX_TLS}, array_type=${array_type})"
+        python benchmarks/send-recv.py -o ${array_type} \
+            --server-dev 0 --client-dev 0 --reuse-alloc
+        python benchmarks/send-recv-core.py -o ${array_type} \
+            --server-dev 0 --client-dev 0 --reuse-alloc
+    done
 done
