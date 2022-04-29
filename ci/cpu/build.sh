@@ -54,12 +54,12 @@ conda config --set ssl_verify False
 # BUILD - Conda package builds (conda deps: ucx-py)
 ################################################################################
 
-# logger "Build conda pkg for ucx-py"
-# source ci/cpu/ucx-py/build_ucx-py.sh
+gpuci_logger "Build conda pkg for UCX-Py"
+gpuci_conda_retry build conda/recipes/ucx-py --python=${PYTHON}
 
 ################################################################################
 # UPLOAD - Conda packages
 ################################################################################
 
-# logger "Upload conda pkgs"
-# source ci/cpu/upload_anaconda.sh
+gpuci_logger "Upload conda pkgs"
+source ci/cpu/upload.sh
