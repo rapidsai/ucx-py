@@ -22,6 +22,11 @@ from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
 from ._libs.ucx_api import get_address  # noqa
 
+try:
+    import pynvml
+except ImportError:
+    pynvml = None
+
 # Setup UCX-Py logger
 logger = get_ucxpy_logger()
 
@@ -33,10 +38,12 @@ if "UCX_RNDV_SCHEME" not in os.environ:
     logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
-if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
+if (
+    pynvml is not None
+    and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
+    and get_ucx_version() >= (1, 12, 0)
+):
     try:
-        import pynvml
-
         pynvml.nvmlInit()
         device_count = pynvml.nvmlDeviceGetCount()
         large_bar1 = [False] * device_count
@@ -53,7 +60,6 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
             logger.info("Setting UCX_CUDA_COPY_MAX_REG_RATIO=1.0")
             os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
     except (
-        ImportError,
         pynvml.NVMLError_LibraryNotFound,
         pynvml.NVMLError_DriverNotLoaded,
         pynvml.NVMLError_Unknown,
