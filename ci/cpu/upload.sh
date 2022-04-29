@@ -35,7 +35,6 @@ export UCX_PY_FILE=`conda build conda/recipes/ucx-py --output`
 gpuci_logger "Starting conda uploads"
 
 test -e ${UCX_PY_FILE}
-echo "Upload ucx-py"
-echo ${UCX_PY_FILE}
+gpuci_logger "Uploading ucx-py file: ${UCX_PY_FILE}"
 gpuci_retry anaconda -t ${MY_UPLOAD_KEY} upload -u ${CONDA_USERNAME:-rapidsai} ${LABEL_OPTION} --skip-existing ${UCX_PY_FILE} --no-progress
 
