@@ -909,11 +909,20 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
             "UCX is already initiated. Call reset() and init() "
             "in order to re-initate UCX with new options."
         )
-    if env_takes_precedence:
-        options = options.copy()
-        for k, v in options.items():
-            options[k] = os.environ.get(f"UCX_{k}", v)
-
+    options = options.copy()
+    for k, v in options.items():
+        env_k = f"UCX_{k}"
+        env_v = os.environ.get(env_k)
+        if env_v is not None:
+            if env_takes_precedence:
+                options[k] = env_v
+                logger.debug(
+                    f"Ignoring option {k}={v}; using environment {env_k}={env_v}"
+                )
+            else:
+                logger.debug(
+                    f"Ignoring environment {env_k}={env_v}; using option {k}={v}"
+                )
     _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
 
 
