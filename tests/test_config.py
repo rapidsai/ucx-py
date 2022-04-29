@@ -36,13 +36,14 @@ def test_init_options():
 
 
 @patch.dict(os.environ, {"UCX_SEG_SIZE": "4M"})
-@pytest.mark.xfail(reason="Incorrect handling of environment override in ucp.init()")
 def test_init_options_and_env():
     ucp.reset()
     options = {"SEG_SIZE": "3M"}  # Should be ignored
     ucp.init(options, env_takes_precedence=True)
     config = ucp.get_config()
     assert config["SEG_SIZE"] == os.environ["UCX_SEG_SIZE"]
+    # Provided options dict was not modified.
+    assert options == {"SEG_SIZE": "3M"}
 
 
 @pytest.mark.skipif(

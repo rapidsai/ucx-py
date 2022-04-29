@@ -910,9 +910,9 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
             "in order to re-initate UCX with new options."
         )
     if env_takes_precedence:
-        for k in os.environ.keys():
-            if k in options:
-                del options[k]
+        options = options.copy()
+        for k, v in options.items():
+            options[k] = os.environ.get(f"UCX_{k}", v)
 
     _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
 
