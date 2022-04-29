@@ -32,7 +32,7 @@ requirements:
     - psutil
     - ucx
   run_constrained:
-    - pynvml
+    - pynvml >=11.4.1
 
 test:
   requires:
