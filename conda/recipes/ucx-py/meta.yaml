@@ -24,7 +24,7 @@ requirements:
   host:
     - python
     - pip
-    - cython >=0.29.14,<3.0.0a0
+    - cython
     - ucx
   run:
     - python
