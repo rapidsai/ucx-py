@@ -4,18 +4,37 @@ FROM nvidia/cuda:${CUDA_VERSION}-devel-${DISTRIBUTION_VERSION}
 
 # Make available to later build stages
 ARG DISTRIBUTION_VERSION
-
 # Should match host OS OFED version (as reported by ofed_info -s)
 ARG OFED_VERSION=5.3-1.0.5.0
 # Tag to checkout from UCX repository
 ARG UCX_VERSION_TAG=v1.12.1
+# Where to install conda, and what to name the created environment
+ARG CONDA_HOME=/opt/conda
+ARG CONDA_ENV=ucx
+# Name of conda spec file in the current working directory that
+# will be used to build the conda environment.
+ARG CONDA_ENV_SPEC=ucx-py-cuda11.5.yml
 
+ENV CONDA_ENV="${CONDA_ENV}"
+ENV CONDA_HOME="${CONDA_HOME}"
+
+# Where cuda is installed
 ENV CUDA_HOME="/usr/local/cuda"
-ENV PATH="${CUDA_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# This can go once the nvidia images have updated the signing key?
+RUN apt-key del 7fa2af80 \
+    && apt-key adv --fetch-keys \
+        https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+
+ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /miniconda.sh
+RUN bash /miniconda.sh -b -p ${CONDA_HOME} && rm /miniconda.sh
+
+ENV PATH="${CONDA_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CUDA_HOME}/bin"
 
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update \
+RUN apt-get update -y \
+    && apt-get --fix-missing upgrade -y \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata \
     && apt-get install -y \
         automake \
@@ -38,38 +57,13 @@ RUN cd MLNX_OFED_LINUX-${OFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64 \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /MLNX_OFED_LINUX*
 
-ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /miniconda.sh
-RUN bash /miniconda.sh -b -p /opt/conda
-
-ENV PATH="/opt/conda/bin:${CUDA_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-RUN conda create -n ucx -c conda-forge -c nvidia -c rapidsai \
-    "python=3.8" "cudatoolkit=11.5" \
-    setuptools psutil "cython>=0.29.14,<3.0.0a0" \
-    pytest pytest-asyncio \
-    dask distributed \
-    cupy "numba>=0.46" rmm
-
 WORKDIR /root
-RUN git clone https://github.com/openucx/ucx.git
-WORKDIR /root/ucx
-RUN git checkout ${UCX_VERSION_TAG}
-RUN ./autogen.sh
-WORKDIR /root/ucx/build
-RUN . /opt/conda/etc/profile.d/conda.sh \
-    && conda activate ucx \
-    && ../configure --prefix=${CONDA_PREFIX} --with-sysroot --enable-cma --enable-mt \
-        --enable-numa --with-gnu-ld --with-rdmacm --with-verbs --with-cuda=${CUDA_HOME}
-RUN make -j install
+COPY ${CONDA_ENV_SPEC} /root/conda-env.yml
+COPY build-ucx.sh /root/build-ucx.sh
+COPY build-ucx-py.sh /root/build-ucx-py.sh
+COPY bench-all.sh /root/bench-all.sh
 
-WORKDIR /root
-RUN git clone https://github.com/rapidsai/ucx-py.git
-WORKDIR /root/ucx-py
-RUN . /opt/conda/etc/profile.d/conda.sh \
-    && conda activate ucx \
-    && pip install -v -e .
-
-WORKDIR /root
-
-COPY bench-all.sh /root
+RUN conda env create -n ${CONDA_ENV} --file /root/conda-env.yml
+RUN bash ./build-ucx.sh ${UCX_VERSION_TAG} ${CONDA_HOME} ${CONDA_ENV} ${CUDA_HOME}
+RUN bash ./build-ucx-py.sh ${CONDA_HOME} ${CONDA_ENV}
 CMD ["/root/bench-all.sh", "tcp,cuda_copy,cuda_ipc", "rc,cuda_copy", "all"]
