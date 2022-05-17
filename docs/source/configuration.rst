@@ -91,7 +91,7 @@ Limiting the number of rails (network devices) to ``1`` allows UCX to use only t
 
     On CPU-only systems, better network bandwidth performance with infiniband transports may be achieved by letting UCX use more than a single network device. This can be achieved by explicitly setting ``UCX_MAX_RNDV_RAILS`` to ``2`` or higher.
 
-Values: Int (UCX default: ``2``)
+Values: Int (UCX-Py default: ``1``)
 
 UCX_RNDV_THRESH
 ```````````````
