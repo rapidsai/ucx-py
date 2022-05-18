@@ -25,16 +25,36 @@ The container above will run UCX-Py tests and benchmarks.
 
 ## Infiniband/NVLink-enabled docker file
 
-In addition to the reference Docker image, the `UCXPy-CUDA.dockerfile` builds an
-image with support for CUDA and MOFED. This is based on the
-[nvidia/cuda:11.5.2-devel-ubuntu20.04](https://hub.docker.com/layers/cuda/nvidia/cuda/11.5.2-devel-ubuntu20.04/images/sha256-fed73168f35a44f5ff53d06d61a1c55da7c26e7ca5a543efd78f35d98f29fd4a?context=explore)
-image, and uses MOFED version 5.3-1.0.5.0. To function successfully the OFED
-version reported by `ofed_info -s` on the host should match this version.
+In addition to the reference Docker image, there are two further docker
+files which (respectively) have support for CUDA devices and
+infiniband/nvlink-enabled communications using either
+[rdma-core](https://github.com/linux-rdma/rdma-core) or
+[MOFED](https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/).
+image with support for CUDA and MOFED. In both cases, the default base image is
+[nvidia/cuda:11.5.2-devel-ubuntu20.04](https://hub.docker.com/layers/cuda/nvidia/cuda/11.5.2-devel-ubuntu20.04/images/sha256-fed73168f35a44f5ff53d06d61a1c55da7c26e7ca5a543efd78f35d98f29fd4a?context=explore).
 
-To use this image, first build it
+The rdma-core image should work as long as the host system has MOFED >= 5.x.
+If you use the MOFED image, then the host version (reported by `ofed_info
+-s`) should match that used when building the container.
+
+To use these images, first build it
 ```bash
-docker build -t ucx-py-ib -f UCXPy-CUDA.dockerfile .
+docker build -t ucx-py-mofed -f UCXPy-MOFED.dockerfile .
+# or
+docker built -t ucx-py-rdma -f UCXPy-rdma-core.dockerfile .
 ```
+
+### Controlling build-args
+
+You can control some of the behaviour of the docker file with docker `--build-arg` flags:
+
+- `UCX_VERSION_TAG`: git committish for the version of UCX to build (default `v1.12.1`)
+- `CONDA_HOME`: Where to install conda in the image (default `/opt/conda`)
+- `CONDA_ENV`: What to name the conda environment (default `ucx`)
+- `CONDA_ENV_SPEC`: yaml file used when initially creating the conda environment (default `ucx-py-cuda11.5.yml`)
+- `CUDA_VERSION`: version of cuda toolkit in the base image (default `11.5.2`), must exist in the [nvidia/cuda](https://hub.docker.com/layers/cuda/nvidia/cuda) docker hub image list
+- `DISTRIBUTION_VERSION`: version of distribution in the base image (default `ubuntu20.04`), must exist in the [nvidia/cuda](https://hub.docker.com/layers/cuda/nvidia/cuda) docker hub image list
+- `OFED_VERSION`: (MOFED image only) version of MOFED to download (default `5.3-1.0.5.0`)
 
 ### Running
 
