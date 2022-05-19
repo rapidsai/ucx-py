@@ -17,11 +17,6 @@ ENV CONDA_HOME="${CONDA_HOME}"
 # Where cuda is installed
 ENV CUDA_HOME="/usr/local/cuda"
 
-# This can go once the nvidia images have updated the signing key?
-RUN apt-key del 7fa2af80 \
-    && apt-key adv --fetch-keys \
-        https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-
 ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /miniconda.sh
 RUN bash /miniconda.sh -b -p ${CONDA_HOME} && rm /miniconda.sh
 

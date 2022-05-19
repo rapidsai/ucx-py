@@ -13,11 +13,10 @@ conda activate ${CONDA_ENV}
 
 git clone https://github.com/openucx/ucx.git
 
-pushd ucx
+cd ucx
 git checkout ${UCX_VERSION_TAG}
 ./autogen.sh
-mkdir build-linux
-pushd build-linux
+mkdir build-linux && cd build-linux
 ../contrib/configure-release --prefix=${CONDA_PREFIX} --with-sysroot --enable-cma \
     --enable-mt --enable-numa --with-gnu-ld --with-rdmacm --with-verbs \
     --with-cuda=${CUDA_HOME} \

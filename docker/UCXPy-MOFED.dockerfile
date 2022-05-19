@@ -5,7 +5,7 @@ FROM nvidia/cuda:${CUDA_VERSION}-devel-${DISTRIBUTION_VERSION}
 # Make available to later build stages
 ARG DISTRIBUTION_VERSION
 # Should match host OS OFED version (as reported by ofed_info -s)
-ARG OFED_VERSION=5.3-1.0.5.0
+ARG MOFED_VERSION=5.3-1.0.5.0
 # Tag to checkout from UCX repository
 ARG UCX_VERSION_TAG=v1.12.1
 # Where to install conda, and what to name the created environment
@@ -20,11 +20,6 @@ ENV CONDA_HOME="${CONDA_HOME}"
 
 # Where cuda is installed
 ENV CUDA_HOME="/usr/local/cuda"
-
-# This can go once the nvidia images have updated the signing key?
-RUN apt-key del 7fa2af80 \
-    && apt-key adv --fetch-keys \
-        https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 
 ADD https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh /miniconda.sh
 RUN bash /miniconda.sh -b -p ${CONDA_HOME} && rm /miniconda.sh
@@ -50,9 +45,9 @@ RUN apt-get update -y \
     && apt-get autoremove -y \
     && apt-get clean
 
-ADD https://content.mellanox.com/ofed/MLNX_OFED-${OFED_VERSION}/MLNX_OFED_LINUX-${OFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz /MLNX_OFED_LINUX-${OFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz
-RUN tar -xzf /MLNX_OFED_LINUX-${OFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz
-RUN cd MLNX_OFED_LINUX-${OFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64 \
+ADD https://content.mellanox.com/ofed/MLNX_OFED-${MOFED_VERSION}/MLNX_OFED_LINUX-${MOFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz /MLNX_OFED_LINUX-${MOFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz
+RUN tar -xzf /MLNX_OFED_LINUX-${MOFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64.tgz
+RUN cd MLNX_OFED_LINUX-${MOFED_VERSION}-${DISTRIBUTION_VERSION}-x86_64 \
     && yes | ./mlnxofedinstall --user-space-only --without-fw-update --without-neohost-backend \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /MLNX_OFED_LINUX*
