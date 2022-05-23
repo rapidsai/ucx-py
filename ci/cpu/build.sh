@@ -15,6 +15,11 @@ export HOME=$WORKSPACE
 # Switch to project root; also root of repo checkout
 cd $WORKSPACE
 
+# If nightly build, append current YYMMDD to version
+if [[ "$BUILD_MODE" = "branch" && "$SOURCE_BRANCH" = branch-* ]] ; then
+  export VERSION_SUFFIX=`date +%y%m%d`
+fi
+
 # Get latest tag and number of commits since tag
 export GIT_DESCRIBE_TAG=`git describe --abbrev=0 --tags`
 export GIT_DESCRIBE_NUMBER=`git rev-list ${GIT_DESCRIBE_TAG}..HEAD --count`
