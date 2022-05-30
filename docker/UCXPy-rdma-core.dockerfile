@@ -38,10 +38,10 @@ RUN apt-get update -y \
     && apt-get autoremove -y \
     && apt-get clean
 
-RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    -o /miniconda.sh \
-    && bash /miniconda.sh -b -p ${CONDA_HOME} \
-    && rm /miniconda.sh
+RUN curl -fsSL https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh \
+    -o /minimamba.sh \
+    && bash /minimamba.sh -b -p ${CONDA_HOME} \
+    && rm /minimamba.sh
 
 ENV PATH="${CONDA_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CUDA_HOME}/bin"
 
@@ -50,6 +50,6 @@ COPY ${CONDA_ENV_SPEC} /root/conda-env.yml
 COPY build-ucx.sh /root/build-ucx.sh
 COPY build-ucx-py.sh /root/build-ucx-py.sh
 
-RUN conda env create -n ${CONDA_ENV} --file /root/conda-env.yml
+RUN mamba env create -n ${CONDA_ENV} --file /root/conda-env.yml
 RUN bash ./build-ucx.sh ${UCX_VERSION_TAG} ${CONDA_HOME} ${CONDA_ENV} ${CUDA_HOME}
 RUN bash ./build-ucx-py.sh ${CONDA_HOME} ${CONDA_ENV}
