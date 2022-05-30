@@ -68,15 +68,19 @@ for more details. To expose the infiniband devices using IPoIB, we need to in
 addition map the relevant host network interfaces, a catchall is just to use `--network host`.
 
 For example, a run command that exposes all devices available in
-`/dev/infiniband` along with the network interfaces on the host is:
+`/dev/infiniband` along with the network interfaces on the host is (assuming
+that the `ucx-py-rdma` image tag has been built as above):
 
 ```bash
-docker run --ulimit memlock=-1 --device /dev/infiniband --network host -ti ucx-py-ib /bin/bash
+docker run --ulimit memlock=-1 --device /dev/infiniband --network host -ti ucx-py-rdma /bin/bash
 ```
 
-UCX-Py is installed via conda in the `ucx` environment; so 
+UCX-Py is installed via
+[mamba](https://mamba.readthedocs.io/en/latest/index.html) in the `ucx`
+environment; so 
 ```bash
 source /opt/conda/etc/profile.d/conda.sh
-conda activate ucx`
+source /opt/conda/etc/profile.d/mamba.sh
+mamba activate ucx
 ```
-in the container will provide a python with UCX-Py available.
+in the container will provide a Python with UCX-Py available.
