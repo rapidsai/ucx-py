@@ -9,7 +9,8 @@ CUDA_HOME=${4:-"/usr/local/cuda"}
 CONFIGURE_ARGS=${@:5}
 
 source ${CONDA_HOME}/etc/profile.d/conda.sh
-conda activate ${CONDA_ENV}
+source ${CONDA_HOME}/etc/profile.d/mamba.sh
+mamba activate ${CONDA_ENV}
 
 git clone https://github.com/openucx/ucx.git
 
