@@ -1,0 +1,50 @@
+{% set version = environ.get('GIT_DESCRIBE_TAG', '0.0.0.dev').lstrip('v') + environ.get('VERSION_SUFFIX', '') %}
+{% set py_version = environ.get('CONDA_PY', '38') %}
+{% set cuda_version = '.'.join(environ.get('CUDA', '11.2').split('.')[:2]) %}
+
+package:
+  name: ucx-py
+  version: {{ version }}
+
+source:
+  git_url: ../../..
+
+build:
+  number: {{ GIT_DESCRIBE_NUMBER }}
+  string: py{{ py_version }}_{{ GIT_DESCRIBE_HASH }}_{{ GIT_DESCRIBE_NUMBER }}
+  script_env:
+    - VERSION_SUFFIX
+    - CC
+    - CXX
+    - CUDAHOSTCXX
+  script:
+    - {{ PYTHON }} -m pip install . -vv
+
+requirements:
+  host:
+    - python
+    - pip
+    - cython
+    - ucx
+  run:
+    - python
+    - numpy
+    - psutil
+    - ucx
+  run_constrained:
+    - pynvml {{ pynvml }}
+
+test:
+  requires:
+    - cudatoolkit {{ cuda_version }}.*
+  imports:
+    - ucp
+
+about:
+  home: http://rapids.ai/
+  license: BSD-3-Clause
+  license_family: BSD
+  license_file: ../../../LICENSE
+  summary: Python bindings for UCX
+  dev_url: https://github.com/rapidsai/ucx-py
+  doc_url: https://ucx-py.readthedocs.io

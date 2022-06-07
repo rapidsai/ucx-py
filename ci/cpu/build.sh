@@ -15,6 +15,11 @@ export HOME=$WORKSPACE
 # Switch to project root; also root of repo checkout
 cd $WORKSPACE
 
+# If nightly build, append current YYMMDD to version
+if [[ "$BUILD_MODE" = "branch" && "$SOURCE_BRANCH" = branch-* ]] ; then
+  export VERSION_SUFFIX=`date +%y%m%d`
+fi
+
 # Get latest tag and number of commits since tag
 export GIT_DESCRIBE_TAG=`git describe --abbrev=0 --tags`
 export GIT_DESCRIBE_NUMBER=`git rev-list ${GIT_DESCRIBE_TAG}..HEAD --count`
@@ -54,12 +59,12 @@ conda config --set ssl_verify False
 # BUILD - Conda package builds (conda deps: ucx-py)
 ################################################################################
 
-# logger "Build conda pkg for ucx-py"
-# source ci/cpu/ucx-py/build_ucx-py.sh
+gpuci_logger "Build conda pkg for UCX-Py"
+gpuci_conda_retry build conda/recipes/ucx-py --python=${PYTHON}
 
 ################################################################################
 # UPLOAD - Conda packages
 ################################################################################
 
-# logger "Upload conda pkgs"
-# source ci/cpu/upload_anaconda.sh
+gpuci_logger "Upload conda pkgs"
+source ci/cpu/upload.sh

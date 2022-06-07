@@ -62,10 +62,16 @@ def _test_from_worker_address_client(queue):
 def test_from_worker_address():
     queue = mp.Queue()
 
-    server = mp.Process(target=_test_from_worker_address_server, args=(queue,),)
+    server = mp.Process(
+        target=_test_from_worker_address_server,
+        args=(queue,),
+    )
     server.start()
 
-    client = mp.Process(target=_test_from_worker_address_client, args=(queue,),)
+    client = mp.Process(
+        target=_test_from_worker_address_client,
+        args=(queue,),
+    )
     client.start()
 
     client.join()
@@ -123,7 +129,8 @@ def _unpack_address_and_tag(address_packed):
     address_info = _get_address_info()
 
     recv_tag, send_tag, address_length, address_padded = struct.unpack(
-        address_info["fixed_size_address_buffer_fmt"], address_packed,
+        address_info["fixed_size_address_buffer_fmt"],
+        address_packed,
     )
 
     # Swap send and recv tags, as they are used by the remote process in the
@@ -212,14 +219,16 @@ def test_from_worker_address_multinode(num_nodes):
     queue = mp.Queue()
 
     server = mp.Process(
-        target=_test_from_worker_address_server_fixedsize, args=(num_nodes, queue),
+        target=_test_from_worker_address_server_fixedsize,
+        args=(num_nodes, queue),
     )
     server.start()
 
     clients = []
     for i in range(num_nodes):
         client = mp.Process(
-            target=_test_from_worker_address_client_fixedsize, args=(queue,),
+            target=_test_from_worker_address_client_fixedsize,
+            args=(queue,),
         )
         client.start()
         clients.append(client)

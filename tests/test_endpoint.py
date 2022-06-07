@@ -18,13 +18,18 @@ async def test_close_callback(server_close_callback):
             await ep.close()
 
     async def client_node(port):
-        ep = await ucp.create_endpoint(ucp.get_address(), port,)
+        ep = await ucp.create_endpoint(
+            ucp.get_address(),
+            port,
+        )
         if server_close_callback is False:
             ep.set_close_callback(_close_callback)
         if server_close_callback is True:
             await ep.close()
 
-    listener = ucp.create_listener(server_node,)
+    listener = ucp.create_listener(
+        server_node,
+    )
     await client_node(listener.port)
     assert closed[0] is True
 
@@ -39,12 +44,14 @@ async def test_cancel(transfer_api):
         ep = await ucp.create_endpoint(ucp.get_address(), port)
         if transfer_api == "am":
             with pytest.raises(
-                ucp.exceptions.UCXCanceled, match="am_recv",
+                ucp.exceptions.UCXCanceled,
+                match="am_recv",
             ):
                 await ep.am_recv()
         else:
             with pytest.raises(
-                ucp.exceptions.UCXCanceled, match="Recv.*tag",
+                ucp.exceptions.UCXCanceled,
+                match="Recv.*tag",
             ):
                 msg = bytearray(1)
                 await ep.recv(msg)

@@ -73,10 +73,14 @@ def _test_peer_communication_tag(queue, rank, msg_size):
     left_rank, left_address = queue.get()
 
     right_ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, right_address, endpoint_error_handling=True,
+        worker,
+        right_address,
+        endpoint_error_handling=True,
     )
     left_ep = ucx_api.UCXEndpoint.create_from_worker_address(
-        worker, left_address, endpoint_error_handling=True,
+        worker,
+        left_address,
+        endpoint_error_handling=True,
     )
     recv_msg = bytearray(msg_size)
     if rank == 0:
@@ -92,7 +96,7 @@ def _test_peer_communication_tag(queue, rank, msg_size):
 @pytest.mark.parametrize(
     "test_name", [_test_peer_communication_tag, _test_peer_communication_rma]
 )
-@pytest.mark.parametrize("msg_size", [10, 2 ** 24])
+@pytest.mark.parametrize("msg_size", [10, 2**24])
 def test_peer_communication(test_name, msg_size, num_nodes=2):
     """Test peer communication by sending a message between each worker"""
     queues = [mp.Queue() for _ in range(num_nodes)]

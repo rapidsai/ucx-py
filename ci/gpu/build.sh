@@ -88,22 +88,6 @@ function run_tests() {
     py.test --cache-clear -vs tests/
     py.test --cache-clear -vs ucp/_libs/tests
 
-    # Test downstream packages, which requires Python v3.7
-    if [ $(python -c "import sys; print(sys.version_info[1])") -ge "7" ]; then
-        # Clone Distributed to avoid pytest cleanup fixture errors
-        # See https://github.com/dask/distributed/issues/4902
-        gpuci_logger "Clone Distributed"
-        git clone https://github.com/dask/distributed
-
-        gpuci_logger "Run Distributed Tests"
-        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_cupy.py
-        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_numba.py
-        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_rmm.py
-        py.test --cache-clear -vs distributed/distributed/protocol/tests/test_collection_cuda.py
-        py.test --cache-clear -vs distributed/distributed/tests/test_nanny.py
-        py.test --cache-clear -vs --runslow distributed/distributed/comm/tests/test_ucx.py
-    fi
-
     gpuci_logger "Run local benchmark"
     python benchmarks/send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
     python benchmarks/send-recv-core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc

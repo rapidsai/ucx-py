@@ -6,7 +6,7 @@ import ucp
 
 np = pytest.importorskip("numpy")
 
-msg_sizes = [2 ** i for i in range(0, 25, 4)]
+msg_sizes = [2**i for i in range(0, 25, 4)]
 dtypes = ["|u1", "<i8", "f8"]
 
 
