@@ -12,11 +12,6 @@ source:
 build:
   number: {{ GIT_DESCRIBE_NUMBER }}
   string: py{{ py_version }}_{{ GIT_DESCRIBE_HASH }}_{{ GIT_DESCRIBE_NUMBER }}
-  script_env:
-    - VERSION_SUFFIX
-    - CC
-    - CXX
-    - CUDAHOSTCXX
   script:
     - {{ PYTHON }} -m pip install . -vv
 
