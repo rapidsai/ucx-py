@@ -42,6 +42,14 @@ mp = mp.get_context("spawn")
 WireupMessage = bytearray(b"wireup")
 
 
+def print_separator(separator="-", length=80):
+    print(separator * length)
+
+
+def print_key_value(key, value, key_length=25):
+    print(f"{key: <{key_length}} | {value}")
+
+
 def register_am_allocators(args, worker):
     if not args.enable_am:
         return
@@ -158,7 +166,7 @@ def server(queue, args):
                 cb_args=(ep, wireup),
             )
 
-        for i in range(args.n_iter):
+        for i in range(args.n_iter + args.n_warmup_iter):
             if args.enable_am is True:
                 ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
             else:
@@ -190,13 +198,13 @@ def server(queue, args):
 
     # +1 to account for wireup message
     if args.delay_progress:
-        while finished[0] < args.n_iter + 1 and (
+        while finished[0] < args.n_iter  + args.n_warmup_iter + 1 and (
             outstanding[0] >= args.max_outstanding
-            or finished[0] + args.max_outstanding >= args.n_iter + 1
+            or finished[0] + args.max_outstanding >= args.n_iter  + args.n_warmup_iter + 1
         ):
             worker.progress()
     else:
-        while finished[0] != args.n_iter + 1:
+        while finished[0] != args.n_iter  + args.n_warmup_iter + 1:
             worker.progress()
 
 
@@ -273,7 +281,7 @@ def client(queue, port, server_address, args):
         xp.cuda.profiler.start()
 
     times = []
-    for i in range(args.n_iter):
+    for i in range(args.n_iter + args.n_warmup_iter):
         start = clock()
 
         if args.enable_am:
@@ -293,32 +301,39 @@ def client(queue, port, server_address, args):
                 blocking_recv(worker, ep, recv_msg)
 
         stop = clock()
-        times.append(stop - start)
+        if i >= args.n_warmup_iter:
+            times.append(stop - start)
 
     if args.delay_progress:
-        while finished[0] != 2 * args.n_iter:
+        while finished[0] != 2 * (args.n_iter + args.n_warmup_iter):
             worker.progress()
 
     if args.cuda_profile:
         xp.cuda.profiler.stop()
 
     assert len(times) == args.n_iter
+    bw_avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
+    bw_med = format_bytes(2 * args.n_bytes / np.median(times))
+    lat_avg = int(sum(times) * 1e9 / (2 * args.n_iter))
+    lat_med = int(np.median(times) * 1e9 / 2)
+
     delay_progress_str = (
         f"True ({args.max_outstanding})" if args.delay_progress is True else "False"
     )
+
     print("Roundtrip benchmark")
-    print("--------------------------")
-    print(f"n_iter          | {args.n_iter}")
-    print(f"n_bytes         | {format_bytes(args.n_bytes)}")
-    print(f"object          | {args.object_type}")
-    print(f"reuse alloc     | {args.reuse_alloc}")
-    print(f"transfer API    | {'AM' if args.enable_am else 'TAG'}")
-    print(f"delay progress  | {delay_progress_str}")
-    print(f"UCX_TLS         | {ucp.get_config()['TLS']}")
-    print(f"UCX_NET_DEVICES | {ucp.get_config()['NET_DEVICES']}")
-    print("==========================")
+    print_separator(separator="=")
+    print_key_value(key="Iterations", value=f"{args.n_iter}")
+    print_key_value(key="Bytes", value=f"{format_bytes(args.n_bytes)}")
+    print_key_value(key="Object type", value=f"{args.object_type}")
+    print_key_value(key="Reuse allocation", value=f"{args.reuse_alloc}")
+    print_key_value(key="Transfer API", value=f"{'AM' if args.enable_am else 'TAG'}")
+    print_key_value(key="Delay progress", value=f"{delay_progress_str}")
+    print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
+    print_key_value(key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}")
+    print_separator(separator="=")
     if args.object_type == "numpy":
-        print("Device(s)       | CPU-only")
+        print_key_value(key="Device(s)", value="CPU-only")
         s_aff = (
             args.server_cpu_affinity
             if args.server_cpu_affinity >= 0
@@ -329,22 +344,23 @@ def client(queue, port, server_address, args):
             if args.client_cpu_affinity >= 0
             else "affinity not set"
         )
-        print(f"Server CPU      | {s_aff}")
-        print(f"Client CPU      | {c_aff}")
+        print_key_value(key="Server CPU", value=f"{s_aff}")
+        print_key_value(key="Client CPU", value=f"{c_aff}")
     else:
-        print(f"Device(s)       | {args.server_dev}, {args.client_dev}")
-    avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
-    med = format_bytes(2 * args.n_bytes / np.median(times))
-    print(f"Average         | {avg}/s")
-    print(f"Median          | {med}/s")
+        print_key_value(key="Device(s)", value=f"{args.server_dev}, {args.client_dev}")
+    print_separator(separator="=")
+    print_key_value("Bandwidth (average)", value=f"{bw_avg}/s")
+    print_key_value("Bandwidth (median)", value=f"{bw_med}/s")
+    print_key_value("Latency (average)", value=f"{lat_avg}ns")
+    print_key_value("Latency (median)", value=f"{lat_med}ns")
     if not args.no_detailed_report:
-        print("--------------------------")
-        print("Iterations")
-        print("--------------------------")
+        print_separator(separator="=")
+        print_key_value(key="Iterations", value="Bandwidth, Latency")
+        print_separator(separator="-")
         for i, t in enumerate(times):
             ts = format_bytes(2 * args.n_bytes / t)
-            ts = (" " * (9 - len(ts))) + ts
-            print("%03d         |%s/s" % (i, ts))
+            lat = int(t * 1e9 / 2)
+            print_key_value(key=i, value=f"{ts}/s, {lat}ns")
 
 
 def parse_args():
@@ -363,6 +379,12 @@ def parse_args():
         default=10,
         type=int,
         help="Number of send / recv iterations (default 10).",
+    )
+    parser.add_argument(
+        "--n-warmup-iter",
+        default=10,
+        type=int,
+        help="Number of send / recv warmup iterations (default 10).",
     )
     parser.add_argument(
         "-b",
