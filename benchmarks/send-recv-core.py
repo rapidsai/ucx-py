@@ -352,8 +352,8 @@ def client(queue, port, server_address, args):
     print_separator(separator="=")
     print_key_value("Bandwidth (average)", value=f"{bw_avg}/s")
     print_key_value("Bandwidth (median)", value=f"{bw_med}/s")
-    print_key_value("Latency (average)", value=f"{lat_avg}ns")
-    print_key_value("Latency (median)", value=f"{lat_med}ns")
+    print_key_value("Latency (average)", value=f"{lat_avg} ns")
+    print_key_value("Latency (median)", value=f"{lat_med} ns")
     if not args.no_detailed_report:
         print_separator(separator="=")
         print_key_value(key="Iterations", value="Bandwidth, Latency")
