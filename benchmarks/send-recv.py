@@ -182,7 +182,7 @@ def client(queue, port, server_address, args):
                 await ep.send(msg_send_list[i])
                 await ep.recv(msg_recv_list[i])
             stop = clock()
-            if i>= args.n_warmup_iter:
+            if i >= args.n_warmup_iter:
                 times.append(stop - start)
         if args.cuda_profile:
             xp.cuda.profiler.stop()

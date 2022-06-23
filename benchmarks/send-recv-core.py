@@ -198,13 +198,14 @@ def server(queue, args):
 
     # +1 to account for wireup message
     if args.delay_progress:
-        while finished[0] < args.n_iter  + args.n_warmup_iter + 1 and (
+        while finished[0] < args.n_iter + args.n_warmup_iter + 1 and (
             outstanding[0] >= args.max_outstanding
-            or finished[0] + args.max_outstanding >= args.n_iter  + args.n_warmup_iter + 1
+            or finished[0] + args.max_outstanding
+            >= args.n_iter + args.n_warmup_iter + 1
         ):
             worker.progress()
     else:
-        while finished[0] != args.n_iter  + args.n_warmup_iter + 1:
+        while finished[0] != args.n_iter + args.n_warmup_iter + 1:
             worker.progress()
 
 
