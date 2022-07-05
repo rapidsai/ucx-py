@@ -23,9 +23,13 @@ import multiprocessing as mp
 import os
 from time import perf_counter as clock
 
-from dask.utils import format_bytes, parse_bytes
-
 import ucp
+from ucp._libs.utils import (
+    format_bytes,
+    parse_bytes,
+    print_key_value,
+    print_separator,
+)
 
 mp = mp.get_context("spawn")
 
@@ -82,16 +86,16 @@ def server(queue, args):
             if not args.enable_am:
                 msg_recv_list = []
                 if not args.reuse_alloc:
-                    for _ in range(args.n_iter):
+                    for _ in range(args.n_iter + args.n_warmup_iter):
                         msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
                 else:
                     t = xp.zeros(args.n_bytes, dtype="u1")
-                    for _ in range(args.n_iter):
+                    for _ in range(args.n_iter + args.n_warmup_iter):
                         msg_recv_list.append(t)
 
                 assert msg_recv_list[0].nbytes == args.n_bytes
 
-            for i in range(args.n_iter):
+            for i in range(args.n_iter + args.n_warmup_iter):
                 if args.enable_am is True:
                     recv = await ep.am_recv()
                     await ep.am_send(recv)
@@ -150,13 +154,13 @@ def client(queue, port, server_address, args):
             msg_send_list = []
             msg_recv_list = []
             if not args.reuse_alloc:
-                for i in range(args.n_iter):
+                for i in range(args.n_iter + args.n_warmup_iter):
                     msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
                     msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
             else:
                 t1 = xp.arange(args.n_bytes, dtype="u1")
                 t2 = xp.zeros(args.n_bytes, dtype="u1")
-                for i in range(args.n_iter):
+                for i in range(args.n_iter + args.n_warmup_iter):
                     msg_send_list.append(t1)
                     msg_recv_list.append(t2)
             assert msg_send_list[0].nbytes == args.n_bytes
@@ -165,7 +169,7 @@ def client(queue, port, server_address, args):
         if args.cuda_profile:
             xp.cuda.profiler.start()
         times = []
-        for i in range(args.n_iter):
+        for i in range(args.n_iter + args.n_warmup_iter):
             start = clock()
             if args.enable_am:
                 await ep.am_send(msg)
@@ -174,7 +178,8 @@ def client(queue, port, server_address, args):
                 await ep.send(msg_send_list[i])
                 await ep.recv(msg_recv_list[i])
             stop = clock()
-            times.append(stop - start)
+            if i >= args.n_warmup_iter:
+                times.append(stop - start)
         if args.cuda_profile:
             xp.cuda.profiler.stop()
         queue.put(times)
@@ -184,18 +189,23 @@ def client(queue, port, server_address, args):
 
     times = queue.get()
     assert len(times) == args.n_iter
+    bw_avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
+    bw_med = format_bytes(2 * args.n_bytes / np.median(times))
+    lat_avg = int(sum(times) * 1e9 / (2 * args.n_iter))
+    lat_med = int(np.median(times) * 1e9 / 2)
+
     print("Roundtrip benchmark")
-    print("--------------------------")
-    print(f"n_iter          | {args.n_iter}")
-    print(f"n_bytes         | {format_bytes(args.n_bytes)}")
-    print(f"object          | {args.object_type}")
-    print(f"reuse alloc     | {args.reuse_alloc}")
-    print(f"transfer API    | {'AM' if args.enable_am else 'TAG'}")
-    print(f"UCX_TLS         | {ucp.get_config()['TLS']}")
-    print(f"UCX_NET_DEVICES | {ucp.get_config()['NET_DEVICES']}")
-    print("==========================")
+    print_separator(separator="=")
+    print_key_value(key="Iterations", value=f"{args.n_iter}")
+    print_key_value(key="Bytes", value=f"{format_bytes(args.n_bytes)}")
+    print_key_value(key="Object type", value=f"{args.object_type}")
+    print_key_value(key="Reuse allocation", value=f"{args.reuse_alloc}")
+    print_key_value(key="Transfer API", value=f"{'AM' if args.enable_am else 'TAG'}")
+    print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
+    print_key_value(key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}")
+    print_separator(separator="=")
     if args.object_type == "numpy":
-        print("Device(s)       | CPU-only")
+        print_key_value(key="Device(s)", value="CPU-only")
         s_aff = (
             args.server_cpu_affinity
             if args.server_cpu_affinity >= 0
@@ -206,39 +216,56 @@ def client(queue, port, server_address, args):
             if args.client_cpu_affinity >= 0
             else "affinity not set"
         )
-        print(f"Server CPU      | {s_aff}")
-        print(f"Client CPU      | {c_aff}")
+        print_key_value(key="Server CPU", value=f"{s_aff}")
+        print_key_value(key="Client CPU", value=f"{c_aff}")
     else:
-        print(f"Device(s)       | {args.server_dev}, {args.client_dev}")
-    avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
-    med = format_bytes(2 * args.n_bytes / np.median(times))
-    print(f"Average         | {avg}/s")
-    print(f"Median          | {med}/s")
-    print("--------------------------")
-    print("Iterations")
-    print("--------------------------")
-    for i, t in enumerate(times):
-        ts = format_bytes(2 * args.n_bytes / t)
-        ts = (" " * (9 - len(ts))) + ts
-        print("%03d         |%s/s" % (i, ts))
+        print_key_value(key="Device(s)", value=f"{args.server_dev}, {args.client_dev}")
+    print_separator(separator="=")
+    print_key_value("Bandwidth (average)", value=f"{bw_avg}/s")
+    print_key_value("Bandwidth (median)", value=f"{bw_med}/s")
+    print_key_value("Latency (average)", value=f"{lat_avg} ns")
+    print_key_value("Latency (median)", value=f"{lat_med} ns")
+    if not args.no_detailed_report:
+        print_separator(separator="=")
+        print_key_value(key="Iterations", value="Bandwidth, Latency")
+        print_separator(separator="-")
+        for i, t in enumerate(times):
+            ts = format_bytes(2 * args.n_bytes / t)
+            lat = int(t * 1e9 / 2)
+            print_key_value(key=i, value=f"{ts}/s, {lat}ns")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Roundtrip benchmark")
-    parser.add_argument(
-        "-n",
-        "--n-bytes",
-        metavar="BYTES",
-        default="10 Mb",
-        type=parse_bytes,
-        help="Message size. Default '10 Mb'.",
-    )
+    if callable(parse_bytes):
+        parser.add_argument(
+            "-n",
+            "--n-bytes",
+            metavar="BYTES",
+            default="10 Mb",
+            type=parse_bytes,
+            help="Message size. Default '10 Mb'.",
+        )
+    else:
+        parser.add_argument(
+            "-n",
+            "--n-bytes",
+            metavar="BYTES",
+            default=10_000_000,
+            help="Message size in bytes. Default '10_000_000'.",
+        )
     parser.add_argument(
         "--n-iter",
         metavar="N",
         default=10,
         type=int,
         help="Number of send / recv iterations (default 10).",
+    )
+    parser.add_argument(
+        "--n-warmup-iter",
+        default=10,
+        type=int,
+        help="Number of send / recv warmup iterations (default 10).",
     )
     parser.add_argument(
         "-b",
@@ -340,6 +367,12 @@ def parse_args():
         default=False,
         action="store_true",
         help="Use Active Message API instead of TAG for transfers",
+    )
+    parser.add_argument(
+        "--no-detailed-report",
+        default=False,
+        action="store_true",
+        help="Disable detailed report per iteration.",
     )
 
     args = parser.parse_args()
