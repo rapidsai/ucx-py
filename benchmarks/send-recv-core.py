@@ -26,7 +26,12 @@ from time import perf_counter as clock
 import ucp
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
-from ucp._libs.utils import format_bytes, parse_bytes
+from ucp._libs.utils import (
+    format_bytes,
+    parse_bytes,
+    print_key_value,
+    print_separator,
+)
 from ucp._libs.utils_test import (
     blocking_am_recv,
     blocking_am_send,
@@ -39,14 +44,6 @@ from ucp._libs.utils_test import (
 mp = mp.get_context("spawn")
 
 WireupMessage = bytearray(b"wireup")
-
-
-def print_separator(separator="-", length=80):
-    print(separator * length)
-
-
-def print_key_value(key, value, key_length=25):
-    print(f"{key: <{key_length}} | {value}")
 
 
 def register_am_allocators(args, worker):

@@ -30,3 +30,13 @@ except ImportError:
             return f"{x / 1024**4:.2f} TiB"
 
     parse_bytes = None
+
+
+def print_separator(separator="-", length=80):
+    """Print a single separator character multiple times"""
+    print(separator * length)
+
+
+def print_key_value(key, value, key_length=25):
+    """Print a key and value with fixed key-field length"""
+    print(f"{key: <{key_length}} | {value}")
