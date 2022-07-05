@@ -23,9 +23,8 @@ import multiprocessing as mp
 import os
 from time import perf_counter as clock
 
-from dask.utils import format_bytes, parse_bytes
-
 import ucp
+from ucp._libs.utils import format_bytes, parse_bytes
 
 mp = mp.get_context("spawn")
 
@@ -241,14 +240,23 @@ def client(queue, port, server_address, args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Roundtrip benchmark")
-    parser.add_argument(
-        "-n",
-        "--n-bytes",
-        metavar="BYTES",
-        default="10 Mb",
-        type=parse_bytes,
-        help="Message size. Default '10 Mb'.",
-    )
+    if callable(parse_bytes):
+        parser.add_argument(
+            "-n",
+            "--n-bytes",
+            metavar="BYTES",
+            default="10 Mb",
+            type=parse_bytes,
+            help="Message size. Default '10 Mb'.",
+        )
+    else:
+        parser.add_argument(
+            "-n",
+            "--n-bytes",
+            metavar="BYTES",
+            default=10_000_000,
+            help="Message size in bytes. Default '10_000_000'.",
+        )
     parser.add_argument(
         "--n-iter",
         metavar="N",
