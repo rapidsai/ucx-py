@@ -17,6 +17,7 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
+from ucp.utils import get_event_loop
 
 cupy = pytest.importorskip("cupy")
 
@@ -53,7 +54,7 @@ def client(port, func, endpoint_error_handling):
         # on the server
         os.kill(os.getpid(), signal.SIGKILL)
 
-    asyncio.get_event_loop().run_until_complete(read())
+    get_event_loop().run_until_complete(read())
 
 
 def server(port, func, endpoint_error_handling):
@@ -114,7 +115,7 @@ def server(port, func, endpoint_error_handling):
         except ucp.UCXCloseError:
             pass
 
-    asyncio.get_event_loop().run_until_complete(f(port))
+    get_event_loop().run_until_complete(f(port))
 
     if ep_failure_occurred:
         sys.exit(0)

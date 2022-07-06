@@ -30,6 +30,7 @@ from ucp._libs.utils import (
     print_key_value,
     print_separator,
 )
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -111,7 +112,7 @@ def server(queue, args):
         while not lf.closed():
             await asyncio.sleep(0.5)
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     loop.run_until_complete(run())
 
 
@@ -184,7 +185,7 @@ def client(queue, port, server_address, args):
             xp.cuda.profiler.stop()
         queue.put(times)
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     loop.run_until_complete(run())
 
     times = queue.get()

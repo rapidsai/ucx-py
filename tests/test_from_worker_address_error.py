@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 import ucp
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -34,7 +35,7 @@ def _test_from_worker_address_error_server(q1, q2, error_type):
 
             q1.put("disconnected")
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_error_client(q1, q2, error_type):
@@ -109,7 +110,7 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
 
                     await task
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 @pytest.mark.parametrize(

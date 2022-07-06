@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import ucp
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -33,7 +34,7 @@ def _test_from_worker_address_server(queue):
         send_msg = np.arange(10, dtype=np.int64)
         await ep.send(send_msg, tag=1, force_tag=True)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_client(queue):
@@ -56,7 +57,7 @@ def _test_from_worker_address_client(queue):
 
         np.testing.assert_array_equal(recv_msg, np.arange(10, dtype=np.int64))
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def test_from_worker_address():
@@ -182,7 +183,7 @@ def _test_from_worker_address_server_fixedsize(num_nodes, queue):
         # Await handling each client request
         await asyncio.gather(*server_tasks)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_client_fixedsize(queue):
@@ -211,7 +212,7 @@ def _test_from_worker_address_client_fixedsize(queue):
         send_msg = np.arange(20, dtype=np.int64)
         await ep.send(send_msg, tag=send_tag, force_tag=True)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 @pytest.mark.parametrize("num_nodes", [1, 2, 4, 8])

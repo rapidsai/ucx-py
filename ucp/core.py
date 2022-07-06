@@ -18,7 +18,7 @@ from ._libs import ucx_api
 from ._libs.arr import Array
 from .continuous_ucx_progress import BlockingMode, NonBlockingMode
 from .exceptions import UCXCanceled, UCXCloseError, UCXError
-from .utils import hash64bits
+from .utils import get_event_loop, hash64bits
 
 logger = logging.getLogger("ucx")
 
@@ -397,9 +397,9 @@ class ApplicationContext:
         ----------
         event_loop: asyncio.event_loop, optional
             The event loop to evoke UCX progress. If None,
-            `asyncio.get_event_loop()` is used.
+            `ucp.utils.get_event_loop()` is used.
         """
-        loop = event_loop if event_loop is not None else asyncio.get_event_loop()
+        loop = event_loop if event_loop is not None else get_event_loop()
         if loop in self.progress_tasks:
             return  # Progress has already been guaranteed for the current event loop
 
