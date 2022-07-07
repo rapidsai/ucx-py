@@ -14,6 +14,7 @@ from debug_utils import (
 from utils import recv, send
 
 import ucp
+from ucp.utils import get_event_loop
 
 pynvml.nvmlInit()
 
@@ -63,7 +64,7 @@ def client(env, port, func, verbose):
     for i in range(ITERATIONS):
         print("ITER: ", i)
         t = time.time()
-        asyncio.get_event_loop().run_until_complete(read())
+        get_event_loop().run_until_complete(read())
         if verbose:
             print("Time take for interation %d: %ss" % (i, time.time() - t))
 
