@@ -23,7 +23,7 @@ def _call_ucx_api(event_loop, func, *args, **kwargs):
     Basically, all the communication functions have the
     same structure, which this wrapper implements.
     """
-    event_loop = event_loop if event_loop else get_event_loop()
+    event_loop = event_loop or get_event_loop()
     ret = event_loop.create_future()
     # All the comm functions takes the call-back function and its arguments
     kwargs["cb_func"] = _cb_func
@@ -111,7 +111,7 @@ def am_recv(
     event_loop=None,
 ) -> asyncio.Future:
 
-    event_loop = event_loop if event_loop else get_event_loop()
+    event_loop = event_loop or get_event_loop()
     ret = event_loop.create_future()
     # All the comm functions takes the call-back function and its arguments
     cb_args = (event_loop, ret)

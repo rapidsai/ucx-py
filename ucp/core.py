@@ -399,7 +399,7 @@ class ApplicationContext:
             The event loop to evoke UCX progress. If None,
             `ucp.utils.get_event_loop()` is used.
         """
-        loop = event_loop if event_loop is not None else get_event_loop()
+        loop = event_loop or get_event_loop()
         if loop in self.progress_tasks:
             return  # Progress has already been guaranteed for the current event loop
 
