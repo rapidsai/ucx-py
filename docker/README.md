@@ -48,7 +48,7 @@ docker built -t ucx-py-rdma -f UCXPy-rdma-core.dockerfile .
 
 You can control some of the behaviour of the docker file with docker `--build-arg` flags:
 
-- `UCX_VERSION_TAG`: git committish for the version of UCX to build (default `v1.12.1`);
+- `UCX_VERSION_TAG`: git committish for the version of UCX to build (default `v1.13.0`);
 - `CONDA_HOME`: Where to install conda in the image (default `/opt/conda`);
 - `CONDA_ENV`: What to name the conda environment (default `ucx`);
 - `CONDA_ENV_SPEC`: yaml file used when initially creating the conda environment (default `ucx-py-cuda11.5.yml`);
