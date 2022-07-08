@@ -3,7 +3,7 @@ ARG DISTRIBUTION_VERSION=ubuntu20.04
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${DISTRIBUTION_VERSION}
 
 # Tag to checkout from UCX repository
-ARG UCX_VERSION_TAG=v1.12.1
+ARG UCX_VERSION_TAG=v1.13.0
 # Where to install conda, and what to name the created environment
 ARG CONDA_HOME=/opt/conda
 ARG CONDA_ENV=ucx

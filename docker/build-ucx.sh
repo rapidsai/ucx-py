@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-UCX_VERSION_TAG=${1:-"v1.12.1"}
+UCX_VERSION_TAG=${1:-"v1.13.0"}
 CONDA_HOME=${2:-"/opt/conda"}
 CONDA_ENV=${3:-"ucx"}
 CUDA_HOME=${4:-"/usr/local/cuda"}
