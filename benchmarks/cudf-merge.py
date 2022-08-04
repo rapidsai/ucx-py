@@ -307,6 +307,7 @@ def main():
         worker,
         worker_args=args,
         server_address=args.server_address,
+        ensure_cuda_device=True,
     )
 
     wc = stats[0]["wallclock"]

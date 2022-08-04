@@ -75,9 +75,12 @@ def get_ucxpy_logger():
     return logger
 
 
-def _set_cuda_visible_devices(devs, rank):
+def _ensure_cuda_device(devs, rank):
+    import numba.cuda
+
     dev_id = devs[rank % len(devs)]
     os.environ["CUDA_VISIBLE_DEVICES"] = str(dev_id)
+    numba.cuda.current_context()
 
 
 # Help function used by `run_on_local_network()`
@@ -87,12 +90,12 @@ def _worker_process(
     server_address,
     n_workers,
     ucx_options_list,
-    set_cuda_visible_devices,
+    ensure_cuda_device,
     func,
     args,
 ):
-    if set_cuda_visible_devices is True:
-        _set_cuda_visible_devices(args.devs, rank)
+    if ensure_cuda_device is True:
+        _ensure_cuda_device(args.devs, rank)
 
     import ucp
 
@@ -135,7 +138,7 @@ def run_on_local_network(
     worker_args=None,
     server_address=None,
     ucx_options_list=None,
-    set_cuda_visible_devices=True,
+    ensure_cuda_device=False,
 ):
     """
     Creates a local UCX network of `n_workers` that runs `worker_func`
@@ -156,12 +159,16 @@ def run_on_local_network(
         Server address for the workers. If None, ucx_api.get_address() is used.
     ucx_options_list: list of dict
         Options to pass to UCX when initializing workers, one for each worker.
-    set_cuda_visible_devices: bool
+    ensure_cuda_device: bool
         If `True`, sets the `CUDA_VISIBLE_DEVICES` environment variable to match
-        the proper CUDA device based on the worker's rank before calling
-        `import ucp` on the newly-spawned worker process for the first time,
-        otherwise continues without setting or modifying `CUDA_VISIBLE_DEVICES`.
-        Please note that this may cause all workers to use device 0 if `False`.
+        the proper CUDA device based on the worker's rank and create the CUDA
+        context on the corresponding device before calling `import ucp` for the
+        first time on the newly-spawned worker process, otherwise continues
+        without modifying `CUDA_VISIBLE_DEVICES` and creating a CUDA context.
+        Please note that having this set to `False` may cause all workers to use
+        device 0 and will not ensure proper InfiniBand<->GPU mapping on UCX,
+        potentially leading to low performance as GPUDirectRDMA will not be
+        active.
 
     Returns
     -------
@@ -182,7 +189,7 @@ def run_on_local_network(
                 server_address,
                 n_workers,
                 ucx_options_list,
-                set_cuda_visible_devices,
+                ensure_cuda_device,
                 worker_func,
                 worker_args,
             ),
