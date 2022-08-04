@@ -75,10 +75,25 @@ def get_ucxpy_logger():
     return logger
 
 
+def _set_cuda_visible_devices(devs, rank):
+    dev_id = devs[rank % len(devs)]
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(dev_id)
+
+
 # Help function used by `run_on_local_network()`
 def _worker_process(
-    queue, rank, server_address, n_workers, ucx_options_list, func, args
+    queue,
+    rank,
+    server_address,
+    n_workers,
+    ucx_options_list,
+    set_cuda_visible_devices,
+    func,
+    args,
 ):
+    if set_cuda_visible_devices is True:
+        _set_cuda_visible_devices(args.devs, rank)
+
     import ucp
 
     if ucx_options_list is not None:
@@ -115,7 +130,12 @@ def _worker_process(
 
 
 def run_on_local_network(
-    n_workers, worker_func, worker_args=None, server_address=None, ucx_options_list=None
+    n_workers,
+    worker_func,
+    worker_args=None,
+    server_address=None,
+    ucx_options_list=None,
+    set_cuda_visible_devices=True,
 ):
     """
     Creates a local UCX network of `n_workers` that runs `worker_func`
@@ -136,6 +156,12 @@ def run_on_local_network(
         Server address for the workers. If None, ucx_api.get_address() is used.
     ucx_options_list: list of dict
         Options to pass to UCX when initializing workers, one for each worker.
+    set_cuda_visible_devices: bool
+        If `True`, sets the `CUDA_VISIBLE_DEVICES` environment variable to match
+        the proper CUDA device based on the worker's rank before calling
+        `import ucp` on the newly-spawned worker process for the first time,
+        otherwise continues without setting or modifying `CUDA_VISIBLE_DEVICES`.
+        Please note that this may cause all workers to use device 0 if `False`.
 
     Returns
     -------
@@ -156,6 +182,7 @@ def run_on_local_network(
                 server_address,
                 n_workers,
                 ucx_options_list,
+                set_cuda_visible_devices,
                 worker_func,
                 worker_args,
             ),

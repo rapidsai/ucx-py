@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import cProfile
 import io
+import os
 import pickle
 import pstats
 from time import perf_counter as clock
@@ -14,11 +15,15 @@ import numpy as np
 
 from dask.utils import format_bytes, format_time
 
-import cudf
-import rmm
-
 import ucp
 from ucp.utils import run_on_local_network
+
+# Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
+os.environ["RAPIDS_NO_INITIALIZE"] = "True"
+
+
+import cudf  # noqa
+import rmm  # noqa
 
 
 def sizeof_cudf_dataframe(df):
@@ -167,11 +172,7 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
 
 async def worker(rank, eps, args):
     # Setting current device and make RMM use it
-    dev_id = args.devs[rank % len(args.devs)]
-    cupy.cuda.runtime.setDevice(dev_id)
-    rmm.reinitialize(
-        pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
-    )
+    rmm.reinitialize(pool_allocator=True, initial_pool_size=args.rmm_init_pool_size)
 
     # Make cupy use RMM
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
