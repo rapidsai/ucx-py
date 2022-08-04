@@ -17,6 +17,7 @@ import numpy as np
 from dask.utils import format_bytes, format_time
 
 import ucp
+from ucp._libs.utils import print_multi, print_separator
 from ucp.utils import run_on_local_network
 
 # Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
@@ -195,13 +196,32 @@ async def worker(rank, eps, args):
         pr = cProfile.Profile()
         pr.enable()
 
+    iter_results = {"bw": [], "wallclock": [], "throughput": [], "data_processed": []}
     timings = []
     t1 = clock()
     for i in range(args.iter):
-        await distributed_join(args, rank, eps, df1, df2, timings)
+        iter_timings = []
+
+        iter_t = clock()
+        await distributed_join(args, rank, eps, df1, df2, iter_timings)
         await barrier(rank, eps)
+        iter_took = clock() - iter_t
+
         if args.collect_garbage:
             gc.collect()
+
+        iter_bw = sum(t[1] for t in iter_timings) / sum(t[0] for t in iter_timings)
+        iter_data_processed = len(df1) * sum([t.itemsize for t in df1.dtypes])
+        iter_data_processed += len(df2) * sum([t.itemsize for t in df2.dtypes])
+        iter_throughput = args.n_chunks * iter_data_processed / iter_took
+
+        iter_results["bw"].append(iter_bw)
+        iter_results["wallclock"].append(iter_took)
+        iter_results["throughput"].append(iter_throughput)
+        iter_results["data_processed"].append(iter_data_processed)
+
+        timings += iter_timings
+
     took = clock() - t1
 
     if args.profile:
@@ -221,6 +241,7 @@ async def worker(rank, eps, args):
         "wallclock": took,
         "throughput": args.n_chunks * data_processed / took,
         "data_processed": data_processed,
+        "iter_results": iter_results,
     }
 
 
@@ -325,18 +346,37 @@ def main():
     bw = sum(s["bw"] for s in stats) / len(stats)
     tp = stats[0]["throughput"]
     dp = sum(s["data_processed"] for s in stats)
+    dp_iter = sum(s["iter_results"]["data_processed"][0] for s in stats)
 
-    print("cudf merge benchmark")
-    print("----------------------------")
-    print(f"device(s)      | {args.devs}")
-    print(f"chunks-per-dev | {args.chunks_per_dev}")
-    print(f"rows-per-chunk | {args.chunk_size}")
-    print(f"data-processed | {format_bytes(dp)}")
-    print(f"frac-match     | {args.frac_match}")
-    print("============================")
-    print(f"Wall-clock     | {format_time(wc)}")
-    print(f"Bandwidth      | {format_bytes(bw)}/s")
-    print(f"Throughput     | {format_bytes(tp)}/s")
+    print("cuDF merge benchmark")
+    print_separator(separator="-", length=110)
+    print_multi(values=["Device(s)", f"{args.devs}"])
+    print_multi(values=["Chunks per device", f"{args.chunks_per_dev}"])
+    print_multi(values=["Rows per chunk", f"{args.chunk_size}"])
+    print_multi(values=["Total data processed", f"{format_bytes(dp)}"])
+    print_multi(values=["Data processed per iter", f"{format_bytes(dp_iter)}"])
+    print_multi(values=["Row matching fraction", f"{args.frac_match}"])
+    print_separator(separator="=", length=110)
+    print_multi(values=["Wall-clock", f"{format_time(wc)}"])
+    print_multi(values=["Bandwidth", f"{format_bytes(bw)}/s"])
+    print_multi(values=["Throughput", f"{format_bytes(tp)}/s"])
+    print_separator(separator="=", length=110)
+    print_multi(values=["Run", "Wall-clock", "Bandwidth", "Throughput"])
+    for i in range(args.iter):
+        iter_results = stats[0]["iter_results"]
+
+        iter_wc = iter_results["wallclock"][i]
+        iter_bw = sum(s["iter_results"]["bw"][i] for s in stats) / len(stats)
+        iter_tp = iter_results["throughput"][i]
+
+        print_multi(
+            values=[
+                i,
+                f"{format_time(iter_wc)}",
+                f"{format_bytes(iter_bw)}/s",
+                f"{format_bytes(iter_tp)}/s",
+            ]
+        )
 
 
 if __name__ == "__main__":
