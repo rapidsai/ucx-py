@@ -180,8 +180,9 @@ async def worker(rank, eps, args):
     df2 = generate_chunk(rank, args.chunk_size, args.n_chunks, "other", args.frac_match)
 
     # Let's warmup and sync before benchmarking
-    await distributed_join(args, rank, eps, df1, df2)
-    await barrier(rank, eps)
+    for i in range(args.warmup_iter):
+        await distributed_join(args, rank, eps, df1, df2)
+        await barrier(rank, eps)
 
     if args.cuda_profile:
         cupy.cuda.profiler.start()
@@ -192,8 +193,9 @@ async def worker(rank, eps, args):
 
     timings = []
     t1 = clock()
-    await distributed_join(args, rank, eps, df1, df2, timings)
-    await barrier(rank, eps)
+    for i in range(args.iter):
+        await distributed_join(args, rank, eps, df1, df2, timings)
+        await barrier(rank, eps)
     took = clock() - t1
 
     if args.profile:
@@ -205,8 +207,8 @@ async def worker(rank, eps, args):
     if args.cuda_profile:
         cupy.cuda.profiler.stop()
 
-    data_processed = len(df1) * sum([t.itemsize for t in df1.dtypes])
-    data_processed += len(df2) * sum([t.itemsize for t in df2.dtypes])
+    data_processed = len(df1) * sum([t.itemsize * args.iter for t in df1.dtypes])
+    data_processed += len(df2) * sum([t.itemsize * args.iter for t in df2.dtypes])
 
     return {
         "bw": sum(t[1] for t in timings) / sum(t[0] for t in timings),
@@ -269,6 +271,18 @@ def parse_args():
         default=None,
         type=int,
         help="Initial RMM pool size (default  1/2 total GPU memory)",
+    )
+    parser.add_argument(
+        "--iter",
+        default=1,
+        type=int,
+        help="Number of benchmark iterations.",
+    )
+    parser.add_argument(
+        "--warmup-iter",
+        default=5,
+        type=int,
+        help="Number of warmup iterations.",
     )
     args = parser.parse_args()
     args.devs = [int(d) for d in args.devs.split(",")]
