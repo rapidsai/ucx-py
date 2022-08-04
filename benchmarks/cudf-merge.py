@@ -7,7 +7,6 @@ import cProfile
 import io
 import pickle
 import pstats
-import sys
 from time import perf_counter as clock
 
 import cupy
@@ -20,6 +19,12 @@ import rmm
 
 import ucp
 from ucp.utils import run_on_local_network
+
+
+def sizeof_cudf_dataframe(df):
+    return int(
+        sum(col.memory_usage for col in df._data.columns) + df._index.memory_usage()
+    )
 
 
 async def send_df(ep, df):
@@ -80,7 +85,12 @@ async def exchange_and_concat_bins(rank, eps, bins, timings=None):
     if timings is not None:
         t2 = clock()
         timings.append(
-            (t2 - t1, sum([sys.getsizeof(b) for i, b in enumerate(bins) if i != rank]))
+            (
+                t2 - t1,
+                sum(
+                    [sizeof_cudf_dataframe(b) for i, b in enumerate(bins) if i != rank]
+                ),
+            )
         )
     return cudf.concat(ret)
 
