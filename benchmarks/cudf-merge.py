@@ -4,6 +4,7 @@ Benchmark send receive on one machine
 import argparse
 import asyncio
 import cProfile
+import gc
 import io
 import os
 import pickle
@@ -184,6 +185,8 @@ async def worker(rank, eps, args):
     for i in range(args.warmup_iter):
         await distributed_join(args, rank, eps, df1, df2)
         await barrier(rank, eps)
+        if args.collect_garbage:
+            gc.collect()
 
     if args.cuda_profile:
         cupy.cuda.profiler.start()
@@ -197,6 +200,8 @@ async def worker(rank, eps, args):
     for i in range(args.iter):
         await distributed_join(args, rank, eps, df1, df2, timings)
         await barrier(rank, eps)
+        if args.collect_garbage:
+            gc.collect()
     took = clock() - t1
 
     if args.profile:
@@ -272,6 +277,12 @@ def parse_args():
         default=None,
         type=int,
         help="Initial RMM pool size (default  1/2 total GPU memory)",
+    )
+    parser.add_argument(
+        "--collect-garbage",
+        default=False,
+        action="store_true",
+        help="Trigger Python garbage collection after each iteration.",
     )
     parser.add_argument(
         "--iter",
