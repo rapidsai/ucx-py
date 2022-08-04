@@ -40,3 +40,13 @@ def print_separator(separator="-", length=80):
 def print_key_value(key, value, key_length=25):
     """Print a key and value with fixed key-field length"""
     print(f"{key: <{key_length}} | {value}")
+
+
+def print_multi(values, key_length=25):
+    """Print a key and value with fixed key-field length"""
+    assert isinstance(values, tuple) or isinstance(values, list)
+    assert len(values) > 1
+
+    print_str = "".join(f"{s: <{key_length}} | " for s in values[:-1])
+    print_str += values[-1]
+    print(print_str)
