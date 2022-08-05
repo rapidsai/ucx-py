@@ -9,15 +9,18 @@ import io
 import os
 import pickle
 import pstats
-from time import perf_counter as clock
+from time import monotonic as clock
 
 import cupy
 import numpy as np
 
-from dask.utils import format_bytes, format_time
-
 import ucp
-from ucp._libs.utils import print_multi, print_separator
+from ucp._libs.utils import (
+    format_bytes,
+    format_time,
+    print_multi,
+    print_separator,
+)
 from ucp.utils import hmean, run_on_local_network
 
 # Must be set _before_ importing RAPIDS libraries (cuDF, RMM)

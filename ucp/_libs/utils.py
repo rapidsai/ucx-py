@@ -13,8 +13,18 @@ except ImportError:
 
 
 try:
-    from dask.utils import format_bytes, parse_bytes
+    from dask.utils import format_bytes, format_time, parse_bytes
 except ImportError:
+
+    def format_time(x):
+        if x < 1e-6:
+            return f"{x * 1e9:.3f} ns"
+        if x < 1e-3:
+            return f"{x * 1e6:.3f} us"
+        if x < 1:
+            return f"{x * 1e3:.3f} ms"
+        else:
+            return f"{x:.3f} s"
 
     def format_bytes(x):
         """Return formatted string in B, KiB, MiB, GiB or TiB"""
