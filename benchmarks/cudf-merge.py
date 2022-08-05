@@ -361,10 +361,10 @@ def main():
     print_multi(values=["Row matching fraction", f"{args.frac_match}"])
     print_separator(separator="=", length=110)
     print_multi(values=["Wall-clock", f"{format_time(wc)}"])
-    print_multi(values=["Bandwidth", f"{format_bytes(bw)}/s"])
-    print_multi(values=["Throughput", f"{format_bytes(tp)}/s"])
+    print_multi(values=["Avg Bandwidth / GPU", f"{format_bytes(bw)}/s"])
+    print_multi(values=["Throughput / GPU", f"{format_bytes(tp)}/s"])
     print_separator(separator="=", length=110)
-    print_multi(values=["Run", "Wall-clock", "Bandwidth", "Throughput"])
+    print_multi(values=["Run", "Wall-clock", "Avg Bandwidth / GPU", "Throughput / GPU"])
     for i in range(args.iter):
         iter_results = stats[0]["iter_results"]
 
