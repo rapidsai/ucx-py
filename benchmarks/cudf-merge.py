@@ -22,6 +22,10 @@ from ucp._libs.utils import (
     print_separator,
 )
 from ucp.utils import hmean, run_on_local_network
+from ucp.utils_multi_node import (
+    run_on_multiple_nodes_server,
+    run_on_multiple_nodes_worker,
+)
 
 # Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
 os.environ["RAPIDS_NO_INITIALIZE"] = "True"
@@ -325,30 +329,94 @@ def parse_args():
         type=int,
         help="Number of warmup iterations.",
     )
+    parser.add_argument(
+        "--server",
+        default=False,
+        action="store_true",
+        help="Run server only.",
+    )
+    parser.add_argument(
+        "--server-file",
+        type=str,
+        help="File to store server's address (if `--server` is specified) or to "
+        "read its address from otherwise.",
+    )
+    parser.add_argument(
+        "--n-devs-on-net",
+        type=int,
+        help="Number of devices in the entire network , mandatory when "
+        "`--server` is specified. The resulting number of workers is "
+        "`--n-devs-on-net * --chunks-per-dev`",
+    )
+    parser.add_argument(
+        "--node-num",
+        type=int,
+        help="On a multi-node setup, specify the number of the node that this "
+        "process is running. Must be a unique number in the "
+        "[0, `--n-workers` / `len(--devs)`) range.",
+    )
     args = parser.parse_args()
+
     args.devs = [int(d) for d in args.devs.split(",")]
-    args.n_chunks = len(args.devs) * args.chunks_per_dev
+
+    if args.server_file:
+        if args.n_devs_on_net is None:
+            raise RuntimeError(
+                "A multi-node setup requires specifying `--n-devs-on-net`."
+            )
+        elif args.n_devs_on_net < 2:
+            raise RuntimeError("A multi-node setup requires `--n-devs-on-net >= 2`.")
+
+        if not args.server and args.node_num is None:
+            raise RuntimeError(
+                "Each worker on a multi-node is required to specify `--node-num`."
+            )
+
+        args.n_chunks = args.n_devs_on_net * args.chunks_per_dev
+        args.node_n_workers = len(args.devs) * args.chunks_per_dev
+    else:
+        args.n_chunks = len(args.devs) * args.chunks_per_dev
+
     if args.n_chunks < 2:
         raise RuntimeError(
             f"Number of chunks must be greater than 1 (chunks-per-dev: \
                     {args.chunks_per_dev}, devs: {args.devs})"
         )
+
     return args
 
 
 def main():
     args = parse_args()
-    ranks = range(args.n_chunks)
-    assert len(ranks) > 1
-    assert len(ranks) % 2 == 0
+    if not args.server:
+        ranks = range(args.n_chunks)
+        assert len(ranks) > 1
+        assert len(ranks) % 2 == 0
 
-    stats = run_on_local_network(
-        args.n_chunks,
-        worker,
-        worker_args=args,
-        server_address=args.server_address,
-        ensure_cuda_device=True,
-    )
+    if args.server:
+        stats = run_on_multiple_nodes_server(
+            args.server_file,
+            args.n_devs_on_net,
+        )
+    elif args.server_file:
+        run_on_multiple_nodes_worker(
+            args.server_file,
+            args.n_chunks,
+            args.node_n_workers,
+            args.node_num,
+            worker,
+            worker_args=args,
+            ensure_cuda_device=True,
+        )
+        return
+    else:
+        stats = run_on_local_network(
+            args.n_chunks,
+            worker,
+            worker_args=args,
+            server_address=args.server_address,
+            ensure_cuda_device=True,
+        )
 
     wc = stats[0]["wallclock"]
     bw = hmean(np.array([s["bw"] for s in stats]))
