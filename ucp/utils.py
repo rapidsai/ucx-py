@@ -216,3 +216,11 @@ def hash64bits(*args):
     h = hashlib.sha1(bytes(repr(args), "utf-8")).hexdigest()[:16]
     # Convert to an integer and return
     return int(h, 16)
+
+
+def hmean(a):
+    """Harmonic mean"""
+    if len(a):
+        return 1 / np.mean(1 / a)
+    else:
+        return 0

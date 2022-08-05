@@ -18,7 +18,7 @@ from dask.utils import format_bytes, format_time
 
 import ucp
 from ucp._libs.utils import print_multi, print_separator
-from ucp.utils import run_on_local_network
+from ucp.utils import hmean, run_on_local_network
 
 # Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
 os.environ["RAPIDS_NO_INITIALIZE"] = "True"
@@ -343,7 +343,7 @@ def main():
     )
 
     wc = stats[0]["wallclock"]
-    bw = sum(s["bw"] for s in stats) / len(stats)
+    bw = hmean(np.array([s["bw"] for s in stats]))
     tp = stats[0]["throughput"]
     dp = sum(s["data_processed"] for s in stats)
     dp_iter = sum(s["iter_results"]["data_processed"][0] for s in stats)
@@ -366,7 +366,7 @@ def main():
         iter_results = stats[0]["iter_results"]
 
         iter_wc = iter_results["wallclock"][i]
-        iter_bw = sum(s["iter_results"]["bw"][i] for s in stats) / len(stats)
+        iter_bw = hmean(np.array([s["iter_results"]["bw"][i] for s in stats]))
         iter_tp = iter_results["throughput"][i]
 
         print_multi(
