@@ -111,7 +111,7 @@ async def distributed_join(args, rank, eps, left_table, right_table, timings=Non
 
     left_df = await exchange_and_concat_bins(rank, eps, left_bins, timings)
     right_df = await exchange_and_concat_bins(rank, eps, right_bins, timings)
-    return left_df.merge(right_df)
+    return left_df.merge(right_df, on="key")
 
 
 def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
@@ -206,9 +206,16 @@ async def worker(rank, eps, args):
         iter_timings = []
 
         iter_t = clock()
-        await distributed_join(args, rank, eps, df1, df2, iter_timings)
+        ret = await distributed_join(args, rank, eps, df1, df2, iter_timings)
         await barrier(rank, eps)
         iter_took = clock() - iter_t
+
+        # Ensure the number of matches falls within `args.frac_match` +/- 1%
+        expected_len = args.chunk_size * args.frac_match
+        expected_len_err = expected_len * 0.01
+        assert len(ret) in range(
+            expected_len - expected_len_err, expected_len + expected_len_err
+        )
 
         if args.collect_garbage:
             gc.collect()
