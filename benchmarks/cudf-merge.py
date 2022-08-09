@@ -213,9 +213,7 @@ async def worker(rank, eps, args):
         # Ensure the number of matches falls within `args.frac_match` +/- 1%
         expected_len = args.chunk_size * args.frac_match
         expected_len_err = expected_len * 0.01
-        assert len(ret) in range(
-            expected_len - expected_len_err, expected_len + expected_len_err
-        )
+        assert abs(len(ret) - expected_len) <= expected_len_err
 
         if args.collect_garbage:
             gc.collect()
