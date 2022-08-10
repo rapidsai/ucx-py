@@ -4,37 +4,22 @@ Benchmark send receive on one machine
 import argparse
 import asyncio
 import cProfile
-import gc
 import io
-import os
 import pickle
 import pstats
-from time import monotonic as clock
+import sys
+from time import perf_counter as clock
 
 import cupy
 import numpy as np
 
+from dask.utils import format_bytes, format_time
+
+import cudf
+import rmm
+
 import ucp
-from ucp._libs.utils import (
-    format_bytes,
-    format_time,
-    print_multi,
-    print_separator,
-)
-from ucp.utils import hmean, run_on_local_network
-
-# Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
-os.environ["RAPIDS_NO_INITIALIZE"] = "True"
-
-
-import cudf  # noqa
-import rmm  # noqa
-
-
-def sizeof_cudf_dataframe(df):
-    return int(
-        sum(col.memory_usage for col in df._data.columns) + df._index.memory_usage()
-    )
+from ucp.utils import run_on_local_network
 
 
 async def send_df(ep, df):
@@ -95,12 +80,7 @@ async def exchange_and_concat_bins(rank, eps, bins, timings=None):
     if timings is not None:
         t2 = clock()
         timings.append(
-            (
-                t2 - t1,
-                sum(
-                    [sizeof_cudf_dataframe(b) for i, b in enumerate(bins) if i != rank]
-                ),
-            )
+            (t2 - t1, sum([sys.getsizeof(b) for i, b in enumerate(bins) if i != rank]))
         )
     return cudf.concat(ret)
 
@@ -111,7 +91,7 @@ async def distributed_join(args, rank, eps, left_table, right_table, timings=Non
 
     left_df = await exchange_and_concat_bins(rank, eps, left_bins, timings)
     right_df = await exchange_and_concat_bins(rank, eps, right_bins, timings)
-    return left_df.merge(right_df, on="key")
+    return left_df.merge(right_df)
 
 
 def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
@@ -177,7 +157,11 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
 
 async def worker(rank, eps, args):
     # Setting current device and make RMM use it
-    rmm.reinitialize(pool_allocator=True, initial_pool_size=args.rmm_init_pool_size)
+    dev_id = args.devs[rank % len(args.devs)]
+    cupy.cuda.runtime.setDevice(dev_id)
+    rmm.reinitialize(
+        pool_allocator=True, devices=dev_id, initial_pool_size=args.rmm_init_pool_size
+    )
 
     # Make cupy use RMM
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
@@ -186,11 +170,8 @@ async def worker(rank, eps, args):
     df2 = generate_chunk(rank, args.chunk_size, args.n_chunks, "other", args.frac_match)
 
     # Let's warmup and sync before benchmarking
-    for i in range(args.warmup_iter):
-        await distributed_join(args, rank, eps, df1, df2)
-        await barrier(rank, eps)
-        if args.collect_garbage:
-            gc.collect()
+    await distributed_join(args, rank, eps, df1, df2)
+    await barrier(rank, eps)
 
     if args.cuda_profile:
         cupy.cuda.profiler.start()
@@ -199,37 +180,10 @@ async def worker(rank, eps, args):
         pr = cProfile.Profile()
         pr.enable()
 
-    iter_results = {"bw": [], "wallclock": [], "throughput": [], "data_processed": []}
     timings = []
     t1 = clock()
-    for i in range(args.iter):
-        iter_timings = []
-
-        iter_t = clock()
-        ret = await distributed_join(args, rank, eps, df1, df2, iter_timings)
-        await barrier(rank, eps)
-        iter_took = clock() - iter_t
-
-        # Ensure the number of matches falls within `args.frac_match` +/- 2%
-        expected_len = args.chunk_size * args.frac_match
-        expected_len_err = expected_len * 0.02
-        assert abs(len(ret) - expected_len) <= expected_len_err
-
-        if args.collect_garbage:
-            gc.collect()
-
-        iter_bw = sum(t[1] for t in iter_timings) / sum(t[0] for t in iter_timings)
-        iter_data_processed = len(df1) * sum([t.itemsize for t in df1.dtypes])
-        iter_data_processed += len(df2) * sum([t.itemsize for t in df2.dtypes])
-        iter_throughput = args.n_chunks * iter_data_processed / iter_took
-
-        iter_results["bw"].append(iter_bw)
-        iter_results["wallclock"].append(iter_took)
-        iter_results["throughput"].append(iter_throughput)
-        iter_results["data_processed"].append(iter_data_processed)
-
-        timings += iter_timings
-
+    await distributed_join(args, rank, eps, df1, df2, timings)
+    await barrier(rank, eps)
     took = clock() - t1
 
     if args.profile:
@@ -241,15 +195,14 @@ async def worker(rank, eps, args):
     if args.cuda_profile:
         cupy.cuda.profiler.stop()
 
-    data_processed = len(df1) * sum([t.itemsize * args.iter for t in df1.dtypes])
-    data_processed += len(df2) * sum([t.itemsize * args.iter for t in df2.dtypes])
+    data_processed = len(df1) * sum([t.itemsize for t in df1.dtypes])
+    data_processed += len(df2) * sum([t.itemsize for t in df2.dtypes])
 
     return {
         "bw": sum(t[1] for t in timings) / sum(t[0] for t in timings),
         "wallclock": took,
         "throughput": args.n_chunks * data_processed / took,
         "data_processed": data_processed,
-        "iter_results": iter_results,
     }
 
 
@@ -307,24 +260,6 @@ def parse_args():
         type=int,
         help="Initial RMM pool size (default  1/2 total GPU memory)",
     )
-    parser.add_argument(
-        "--collect-garbage",
-        default=False,
-        action="store_true",
-        help="Trigger Python garbage collection after each iteration.",
-    )
-    parser.add_argument(
-        "--iter",
-        default=1,
-        type=int,
-        help="Number of benchmark iterations.",
-    )
-    parser.add_argument(
-        "--warmup-iter",
-        default=5,
-        type=int,
-        help="Number of warmup iterations.",
-    )
     args = parser.parse_args()
     args.devs = [int(d) for d in args.devs.split(",")]
     args.n_chunks = len(args.devs) * args.chunks_per_dev
@@ -347,44 +282,24 @@ def main():
         worker,
         worker_args=args,
         server_address=args.server_address,
-        ensure_cuda_device=True,
     )
 
     wc = stats[0]["wallclock"]
-    bw = hmean(np.array([s["bw"] for s in stats]))
+    bw = sum(s["bw"] for s in stats) / len(stats)
     tp = stats[0]["throughput"]
     dp = sum(s["data_processed"] for s in stats)
-    dp_iter = sum(s["iter_results"]["data_processed"][0] for s in stats)
 
-    print("cuDF merge benchmark")
-    print_separator(separator="-", length=110)
-    print_multi(values=["Device(s)", f"{args.devs}"])
-    print_multi(values=["Chunks per device", f"{args.chunks_per_dev}"])
-    print_multi(values=["Rows per chunk", f"{args.chunk_size}"])
-    print_multi(values=["Total data processed", f"{format_bytes(dp)}"])
-    print_multi(values=["Data processed per iter", f"{format_bytes(dp_iter)}"])
-    print_multi(values=["Row matching fraction", f"{args.frac_match}"])
-    print_separator(separator="=", length=110)
-    print_multi(values=["Wall-clock", f"{format_time(wc)}"])
-    print_multi(values=["Bandwidth", f"{format_bytes(bw)}/s"])
-    print_multi(values=["Throughput", f"{format_bytes(tp)}/s"])
-    print_separator(separator="=", length=110)
-    print_multi(values=["Run", "Wall-clock", "Bandwidth", "Throughput"])
-    for i in range(args.iter):
-        iter_results = stats[0]["iter_results"]
-
-        iter_wc = iter_results["wallclock"][i]
-        iter_bw = hmean(np.array([s["iter_results"]["bw"][i] for s in stats]))
-        iter_tp = iter_results["throughput"][i]
-
-        print_multi(
-            values=[
-                i,
-                f"{format_time(iter_wc)}",
-                f"{format_bytes(iter_bw)}/s",
-                f"{format_bytes(iter_tp)}/s",
-            ]
-        )
+    print("cudf merge benchmark")
+    print("----------------------------")
+    print(f"device(s)      | {args.devs}")
+    print(f"chunks-per-dev | {args.chunks_per_dev}")
+    print(f"rows-per-chunk | {args.chunk_size}")
+    print(f"data-processed | {format_bytes(dp)}")
+    print(f"frac-match     | {args.frac_match}")
+    print("============================")
+    print(f"Wall-clock     | {format_time(wc)}")
+    print(f"Bandwidth      | {format_bytes(bw)}/s")
+    print(f"Throughput     | {format_bytes(tp)}/s")
 
 
 if __name__ == "__main__":

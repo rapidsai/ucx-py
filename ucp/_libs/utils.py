@@ -13,18 +13,8 @@ except ImportError:
 
 
 try:
-    from dask.utils import format_bytes, format_time, parse_bytes
+    from dask.utils import format_bytes, parse_bytes
 except ImportError:
-
-    def format_time(x):
-        if x < 1e-6:
-            return f"{x * 1e9:.3f} ns"
-        if x < 1e-3:
-            return f"{x * 1e6:.3f} us"
-        if x < 1:
-            return f"{x * 1e3:.3f} ms"
-        else:
-            return f"{x:.3f} s"
 
     def format_bytes(x):
         """Return formatted string in B, KiB, MiB, GiB or TiB"""
@@ -50,13 +40,3 @@ def print_separator(separator="-", length=80):
 def print_key_value(key, value, key_length=25):
     """Print a key and value with fixed key-field length"""
     print(f"{key: <{key_length}} | {value}")
-
-
-def print_multi(values, key_length=25):
-    """Print a key and value with fixed key-field length"""
-    assert isinstance(values, tuple) or isinstance(values, list)
-    assert len(values) > 1
-
-    print_str = "".join(f"{s: <{key_length}} | " for s in values[:-1])
-    print_str += values[-1]
-    print(print_str)
