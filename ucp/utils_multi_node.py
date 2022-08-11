@@ -25,18 +25,9 @@ def _ensure_cuda_device(devs, rank):
 async def send_pickled_msg(ep, obj):
     msg = pickle.dumps(obj)
     await ep.send_obj(msg)
-    # msg_len = np.array(len(msg), dtype=np.uint64)
-    # await ep.send(msg_len)
-    # print(f"sending: {msg_len} {msg}")
-    # await ep.send(msg)
 
 
 async def recv_pickled_msg(ep):
-    # msg_len = np.empty((1,), dtype=np.uint64)
-    # await ep.recv(msg_len)
-    # msg = bytearray(msg_len)
-    # await ep.recv(msg)
-    # print(f"received: {msg_len} {msg}")
     msg = await ep.recv_obj()
     return pickle.loads(msg)
 
@@ -51,6 +42,7 @@ def _server_process(
 
     if ucx_options_list is not None:
         ucp.init(ucx_options_list)
+    import sys
 
     async def run():
         lock = threading.Lock()
@@ -73,9 +65,11 @@ def _server_process(
 
         lf = ucp.create_listener(server_handler)
 
-        fp = open(server_file, mode="w")
-        # json.dump({"ip": lf.ip, "port": lf.port}, fp)
-        json.dump({"ip": ucx_api.get_address(), "port": lf.port}, fp)
+        if server_file is None:
+            fp = sys.stdout
+        else:
+            fp = open(server_file, mode="w")
+        json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
         fp.close()
 
         while len(results) != n_workers:
@@ -85,7 +79,10 @@ def _server_process(
 
     loop = asyncio.get_event_loop()
     ret = loop.run_until_complete(run())
-    queue.put(ret)
+    if queue is None:
+        print(ret)
+    else:
+        queue.put(ret)
 
 
 def run_on_multiple_nodes_server(
@@ -171,7 +168,7 @@ def _worker_process(
 
 
 def run_on_multiple_nodes_worker(
-    server_file,
+    server_info,
     n_workers,
     node_n_workers,
     node_num,
@@ -217,9 +214,15 @@ def run_on_multiple_nodes_worker(
         The output of `worker_func` for each worker (sorted by rank)
     """
 
-    fp = open(server_file, mode="r")
-    server_info = json.load(fp)
-    fp.close()
+    if isinstance(server_info, str):
+        fp = open(server_info, mode="r")
+        server_info = json.load(fp)
+        fp.close()
+    elif not isinstance(server_info, dict):
+        raise ValueError(
+            "server_info must be the path to a server file, or a dictionary "
+            "with the unpacked values."
+        )
 
     process_list = []
     for worker_num in range(node_n_workers):

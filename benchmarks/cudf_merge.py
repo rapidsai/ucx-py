@@ -21,6 +21,7 @@ from ucp._libs.utils import (
     print_multi,
     print_separator,
 )
+from ucp.asyncssh_module import run_ssh_cluster
 from ucp.utils import hmean, run_on_local_network
 from ucp.utils_multi_node import (
     run_on_multiple_nodes_server,
@@ -182,6 +183,7 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
 async def worker(rank, eps, args):
     # Setting current device and make RMM use it
     rmm.reinitialize(pool_allocator=True, initial_pool_size=args.rmm_init_pool_size)
+    # rmm.reinitialize(pool_allocator=True, initial_pool_size=int(1e9))
 
     # Make cupy use RMM
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
@@ -275,12 +277,12 @@ def parse_args():
         help='GPU devices to use (default "0").',
     )
     parser.add_argument(
-        "-s",
-        "--server-address",
+        "-l",
+        "--listen-address",
         metavar="ip",
         default=ucp.get_address(),
         type=str,
-        help="Server address (default `ucp.get_address()`).",
+        help="Server listen address (default `ucp.get_address()`).",
     )
     parser.add_argument("-c", "--chunk-size", type=int, default=4, metavar="N")
     parser.add_argument(
@@ -342,6 +344,13 @@ def parse_args():
         "read its address from otherwise.",
     )
     parser.add_argument(
+        "--server-address",
+        type=str,
+        help="Address where server is listening, in the IP:PORT or HOST:PORT "
+        "format. Only to be used to connect to a remote server started with  "
+        "`--server`.",
+    )
+    parser.add_argument(
         "--n-devs-on-net",
         type=int,
         help="Number of devices in the entire network , mandatory when "
@@ -355,52 +364,101 @@ def parse_args():
         "process is running. Must be a unique number in the "
         "[0, `--n-workers` / `len(--devs)`) range.",
     )
+    parser.add_argument(
+        "--hosts",
+        type=str,
+        help="The list of hosts to use for a multi-node run. All hosts need "
+        "to be reachable via SSH without a password (i.e., with a password-less "
+        "key). Usage example: --hosts 'dgx12,dgx12,10.10.10.10,dgx13'. In the "
+        "example, the benchmark is launched with server (manages workers "
+        "synchronization) on dgx12 (first in the list), and then three workers "
+        "on hosts 'dgx12', '10.10.10.10', 'dgx13'. "
+        "This option cannot be used with `--server`, `--server-file`, "
+        "`--n-devs-on-net`, or `--node-num` which are all used for a manual "
+        "multi-node setup.",
+    )
     args = parser.parse_args()
 
-    args.devs = [int(d) for d in args.devs.split(",")]
-
-    if args.server_file:
-        if args.n_devs_on_net is None:
+    if args.hosts:
+        try:
+            import asyncssh  # noqa
+        except ImportError:
             raise RuntimeError(
-                "A multi-node setup requires specifying `--n-devs-on-net`."
-            )
-        elif args.n_devs_on_net < 2:
-            raise RuntimeError("A multi-node setup requires `--n-devs-on-net >= 2`.")
-
-        if not args.server and args.node_num is None:
-            raise RuntimeError(
-                "Each worker on a multi-node is required to specify `--node-num`."
+                "The use of `--hosts` for SSH multi-node benchmarking requires "
+                "`asyncssh` to be installed."
             )
 
-        args.n_chunks = args.n_devs_on_net * args.chunks_per_dev
-        args.node_n_workers = len(args.devs) * args.chunks_per_dev
+        if any(
+            arg
+            for arg in [
+                args.server,
+                args.server_file,
+                args.n_devs_on_net,
+                args.node_num,
+            ]
+        ):
+            raise RuntimeError(
+                "A multi-node setup using `--hosts` for automatic SSH configuration "
+                "cannot be used together with `--server`, `--server-file`, "
+                "`--n-devs-on-net` or `--node-num`."
+            )
     else:
-        args.n_chunks = len(args.devs) * args.chunks_per_dev
+        args.devs = [int(d) for d in args.devs.split(",")]
 
-    if args.n_chunks < 2:
-        raise RuntimeError(
-            f"Number of chunks must be greater than 1 (chunks-per-dev: \
-                    {args.chunks_per_dev}, devs: {args.devs})"
-        )
+        if any([args.server, args.server_file, args.server_address]):
+            if args.server_address:
+                server_host, server_port = args.server_address.split(":")
+                args.server_address = {"address": server_host, "port": int(server_port)}
+            args.server_info = args.server_file or args.server_address
+
+            if args.n_devs_on_net is None:
+                raise RuntimeError(
+                    "A multi-node setup requires specifying `--n-devs-on-net`."
+                )
+            elif args.n_devs_on_net < 2:
+                raise RuntimeError(
+                    "A multi-node setup requires `--n-devs-on-net >= 2`."
+                )
+
+            if not args.server and args.node_num is None:
+                raise RuntimeError(
+                    "Each worker on a multi-node is required to specify `--node-num`."
+                )
+
+            args.n_chunks = args.n_devs_on_net * args.chunks_per_dev
+            args.node_n_workers = len(args.devs) * args.chunks_per_dev
+        else:
+            args.n_chunks = len(args.devs) * args.chunks_per_dev
+
+        if args.n_chunks < 2:
+            raise RuntimeError(
+                f"Number of chunks must be greater than 1 (chunks-per-dev: \
+                        {args.chunks_per_dev}, devs: {args.devs})"
+            )
 
     return args
 
 
 def main():
     args = parse_args()
-    if not args.server:
+    if not args.server and not args.hosts:
         ranks = range(args.n_chunks)
         assert len(ranks) > 1
         assert len(ranks) % 2 == 0
 
-    if args.server:
+    if args.hosts:
+        return run_ssh_cluster(
+            args.hosts,
+            args,
+        )
+    elif args.server:
         stats = run_on_multiple_nodes_server(
             args.server_file,
             args.n_devs_on_net,
         )
-    elif args.server_file:
-        run_on_multiple_nodes_worker(
-            args.server_file,
+    elif args.server_info:
+        return run_on_multiple_nodes_worker(
+            args.server_info,
             args.n_chunks,
             args.node_n_workers,
             args.node_num,
@@ -408,13 +466,12 @@ def main():
             worker_args=args,
             ensure_cuda_device=True,
         )
-        return
     else:
         stats = run_on_local_network(
             args.n_chunks,
             worker,
             worker_args=args,
-            server_address=args.server_address,
+            server_address=args.listen_address,
             ensure_cuda_device=True,
         )
 
