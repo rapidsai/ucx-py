@@ -4,7 +4,7 @@ import tempfile
 import numpy as np
 import pytest
 
-import ucp.utils_multi_node
+import ucp.benchmarks.utils
 
 
 async def _worker(rank, eps, args):

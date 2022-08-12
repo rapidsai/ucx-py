@@ -8,7 +8,7 @@ import threading
 
 import numpy as np
 
-from ._libs import ucx_api
+from ucp._libs import ucx_api
 
 logger = logging.getLogger("ucx")
 

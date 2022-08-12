@@ -22,14 +22,14 @@ from ucp._libs.utils import (
     print_multi,
     print_separator,
 )
-from ucp.asyncssh_module import run_ssh_cluster
-from ucp.utils import hmean
-from ucp.utils_multi_node import (
+from ucp.benchmarks.asyncssh import run_ssh_cluster
+from ucp.benchmarks.utils import (
     _run_on_multiple_nodes_server,
     _run_on_multiple_nodes_worker,
     run_on_multiple_nodes_server,
     run_on_multiple_nodes_worker,
 )
+from ucp.utils import hmean
 
 # Must be set _before_ importing RAPIDS libraries (cuDF, RMM)
 os.environ["RAPIDS_NO_INITIALIZE"] = "True"
