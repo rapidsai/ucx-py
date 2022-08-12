@@ -219,10 +219,13 @@ async def worker(rank, eps, args):
         await barrier(rank, eps)
         iter_took = clock() - iter_t
 
-        # Ensure the number of matches falls within `args.frac_match` +/- 2%
-        expected_len = args.chunk_size * args.frac_match
-        expected_len_err = expected_len * 0.02
-        assert abs(len(ret) - expected_len) <= expected_len_err
+        # Ensure the number of matches falls within `args.frac_match` +/- 2%.
+        # Small chunk sizes may not have enough matches, skip check for chunks
+        # smaller than 100k.
+        if args.chunk_size >= 100_000:
+            expected_len = args.chunk_size * args.frac_match
+            expected_len_err = expected_len * 0.02
+            assert abs(len(ret) - expected_len) <= expected_len_err
 
         if args.collect_garbage:
             gc.collect()
