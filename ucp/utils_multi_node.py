@@ -77,7 +77,7 @@ def _server_process(
 
         return results
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     ret = loop.run_until_complete(run())
     if queue is None:
         print(ret)
@@ -85,7 +85,7 @@ def _server_process(
         queue.put(ret)
 
 
-def run_on_multiple_nodes_server(
+def _run_on_multiple_nodes_server(
     server_file,
     n_workers,
     ucx_options_list=None,
@@ -101,6 +101,21 @@ def run_on_multiple_nodes_server(
         ),
     )
     p.start()
+    return p, q
+
+
+def run_on_multiple_nodes_server(
+    server_file,
+    n_workers,
+    ucx_options_list=None,
+):
+    p, q = _run_on_multiple_nodes_server(
+        server_file=server_file,
+        n_workers=n_workers,
+        ucx_options_list=ucx_options_list,
+    )
+    p.join()
+    assert not p.exitcode
     return q.get()
 
 
@@ -137,7 +152,6 @@ def _worker_process(
         server_ep = await ucp.create_endpoint(
             server_info["address"], server_info["port"]
         )
-        # await send_pickled_msg(server_ep, (rank, lf.ip, lf.port))
         await send_pickled_msg(server_ep, (rank, ucx_api.get_address(), lf.port))
 
         logger.debug(f"Receiving network info from server {rank=}")
@@ -162,12 +176,12 @@ def _worker_process(
 
         await send_pickled_msg(server_ep, results)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     ret = loop.run_until_complete(run())
     queue.put(ret)
 
 
-def run_on_multiple_nodes_worker(
+def _run_on_multiple_nodes_worker(
     server_info,
     n_workers,
     node_n_workers,
@@ -243,6 +257,32 @@ def run_on_multiple_nodes_worker(
         )
         p.start()
         process_list.append(p)
+
+    return process_list
+
+
+def run_on_multiple_nodes_worker(
+    server_info,
+    n_workers,
+    node_n_workers,
+    node_num,
+    worker_func,
+    worker_args=None,
+    server_address=None,
+    ucx_options_list=None,
+    ensure_cuda_device=False,
+):
+    process_list = _run_on_multiple_nodes_worker(
+        server_info=server_info,
+        n_workers=n_workers,
+        node_n_workers=node_n_workers,
+        node_num=node_num,
+        worker_func=worker_func,
+        worker_args=worker_args,
+        server_address=server_address,
+        ucx_options_list=ucx_options_list,
+        ensure_cuda_device=ensure_cuda_device,
+    )
 
     for proc in process_list:
         proc.join()
