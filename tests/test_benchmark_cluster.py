@@ -4,7 +4,6 @@ import tempfile
 import numpy as np
 import pytest
 
-import ucp.utils
 import ucp.utils_multi_node
 
 
@@ -24,10 +23,6 @@ async def _worker(rank, eps, args):
     expect = sum(range(len(eps) + 1)) - rank
     got = np.concatenate(recv_list).sum()
     assert expect == got
-
-
-def test_all_comm(n_workers=4):
-    ucp.utils.run_on_local_network(n_workers, _worker)
 
 
 @pytest.mark.asyncio
