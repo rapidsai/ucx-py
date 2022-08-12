@@ -46,16 +46,17 @@ try:
                 super().data_received(data, datatype)
 
     def _get_server_string(args, num_devs_on_net):
-        args = " ".join(
+        cmd_args = " ".join(
             [
                 "--server",
                 f"--devs {args.devs}",
+                f"--chunk-size {args.chunk_size}",
                 f"--n-devs-on-net {num_devs_on_net}",
                 f"--iter {args.iter}",
                 f"--warmup-iter {args.warmup_iter}",
             ]
         )
-        server_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {args}"
+        server_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
         logger.debug(f"{server_cmd=}")
         return server_cmd
 
@@ -66,27 +67,27 @@ try:
         node_num,
     ):
         server_address = f"{server_info['address']}:{server_info['port']}"
-        args = " ".join(
-            [
-                f"--server-address {server_address}",
-                f"--devs {args.devs}",
-                f"--chunks-per-dev {args.chunks_per_dev}",
-                f"--chunk-size {args.chunk_size}",
-                f"--frac-match {args.frac_match}",
-                f"--iter {args.iter}",
-                f"--warmup-iter {args.warmup_iter}",
-                f"--n-devs-on-net {num_devs_on_net}",
-                f"--node-num {node_num}",
-                f"--profile {args.profile}",
-                f"--rmm-init-pool-size {args.rmm_init_pool_size}",
-            ]
-        )
-        if "cuda_profile" in args:
-            args + " --cuda-profile"
-        if "collect_garbage" in args:
-            args += " --collect-garbage"
+        cmd_list = [
+            f"--server-address {server_address}",
+            f"--devs {args.devs}",
+            f"--chunks-per-dev {args.chunks_per_dev}",
+            f"--chunk-size {args.chunk_size}",
+            f"--frac-match {args.frac_match}",
+            f"--iter {args.iter}",
+            f"--warmup-iter {args.warmup_iter}",
+            f"--n-devs-on-net {num_devs_on_net}",
+            f"--node-num {node_num}",
+            f"--rmm-init-pool-size {args.rmm_init_pool_size}",
+        ]
+        if args.profile:
+            cmd_list.append(f"--profile {args.profile}")
+        if args.cuda_profile:
+            cmd_list.append("--cuda-profile")
+        if args.collect_garbage:
+            cmd_list.append("--collect-garbage")
+        cmd_args = " ".join(cmd_list)
 
-        worker_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {args}"
+        worker_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
         logger.debug(f"{worker_cmd=}")
         return worker_cmd
 
