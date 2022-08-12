@@ -9,6 +9,7 @@ import io
 import os
 import pickle
 import pstats
+import tempfile
 from time import monotonic as clock
 
 import cupy
@@ -22,8 +23,10 @@ from ucp._libs.utils import (
     print_separator,
 )
 from ucp.asyncssh_module import run_ssh_cluster
-from ucp.utils import hmean, run_on_local_network
+from ucp.utils import hmean
 from ucp.utils_multi_node import (
+    _run_on_multiple_nodes_server,
+    _run_on_multiple_nodes_worker,
     run_on_multiple_nodes_server,
     run_on_multiple_nodes_worker,
 )
@@ -456,7 +459,7 @@ def main():
             args.server_file,
             args.n_devs_on_net,
         )
-    elif args.server_info:
+    elif args.server_file or args.server_address:
         return run_on_multiple_nodes_worker(
             args.server_info,
             args.n_chunks,
@@ -467,13 +470,31 @@ def main():
             ensure_cuda_device=True,
         )
     else:
-        stats = run_on_local_network(
+        server_file = tempfile.NamedTemporaryFile()
+        server_proc, server_queue = _run_on_multiple_nodes_server(
+            server_file.name,
+            len(args.devs),
+        )
+
+        # Wait for server to become available
+        with open(server_file.name, "r") as f:
+            while len(f.read()) == 0:
+                pass
+
+        worker_procs = _run_on_multiple_nodes_worker(
+            server_file.name,
             args.n_chunks,
+            len(args.devs),
+            0,
             worker,
             worker_args=args,
-            server_address=args.listen_address,
             ensure_cuda_device=True,
         )
+
+        [p.join() for p in worker_procs]
+        server_proc.join()
+
+        stats = server_queue.get()
 
     wc = stats[0]["wallclock"]
     bw = hmean(np.array([s["bw"] for s in stats]))
