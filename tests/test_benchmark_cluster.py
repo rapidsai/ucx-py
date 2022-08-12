@@ -4,7 +4,7 @@ import tempfile
 import numpy as np
 import pytest
 
-import ucp.benchmarks.utils
+from ucp.benchmarks.utils import _run_cluster_server, _run_cluster_workers
 
 
 async def _worker(rank, eps, args):
@@ -29,9 +29,7 @@ async def _worker(rank, eps, args):
 async def test_benchmark_cluster(n_chunks=1, n_nodes=2, n_workers=2):
     server_file = tempfile.NamedTemporaryFile()
 
-    server, server_ret = ucp.utils_multi_node._run_on_multiple_nodes_server(
-        server_file.name, n_nodes * n_workers
-    )
+    server, server_ret = _run_cluster_server(server_file.name, n_nodes * n_workers)
 
     # Wait for server to become available
     with open(server_file.name, "r") as f:
@@ -39,9 +37,7 @@ async def test_benchmark_cluster(n_chunks=1, n_nodes=2, n_workers=2):
             pass
 
     workers = [
-        ucp.utils_multi_node._run_on_multiple_nodes_worker(
-            server_file.name, n_chunks, n_workers, i, _worker
-        )
+        _run_cluster_workers(server_file.name, n_chunks, n_workers, i, _worker)
         for i in range(n_nodes)
     ]
 
