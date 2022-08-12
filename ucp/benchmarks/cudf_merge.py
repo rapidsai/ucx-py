@@ -24,10 +24,10 @@ from ucp._libs.utils import (
 )
 from ucp.benchmarks.asyncssh import run_ssh_cluster
 from ucp.benchmarks.utils import (
-    _run_on_multiple_nodes_server,
-    _run_on_multiple_nodes_worker,
-    run_on_multiple_nodes_server,
-    run_on_multiple_nodes_worker,
+    _run_cluster_server,
+    _run_cluster_workers,
+    run_cluster_server,
+    run_cluster_workers,
 )
 from ucp.utils import hmean
 
@@ -458,12 +458,12 @@ def main():
             args,
         )
     elif args.server:
-        stats = run_on_multiple_nodes_server(
+        stats = run_cluster_server(
             args.server_file,
             args.n_devs_on_net,
         )
     elif args.server_file or args.server_address:
-        return run_on_multiple_nodes_worker(
+        return run_cluster_workers(
             args.server_info,
             args.n_chunks,
             args.node_n_workers,
@@ -474,7 +474,7 @@ def main():
         )
     else:
         server_file = tempfile.NamedTemporaryFile()
-        server_proc, server_queue = _run_on_multiple_nodes_server(
+        server_proc, server_queue = _run_cluster_server(
             server_file.name,
             len(args.devs),
         )
@@ -484,7 +484,7 @@ def main():
             while len(f.read()) == 0:
                 pass
 
-        worker_procs = _run_on_multiple_nodes_worker(
+        worker_procs = _run_cluster_workers(
             server_file.name,
             args.n_chunks,
             len(args.devs),

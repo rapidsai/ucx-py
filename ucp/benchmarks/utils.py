@@ -85,7 +85,7 @@ def _server_process(
         queue.put(ret)
 
 
-def _run_on_multiple_nodes_server(
+def _run_cluster_server(
     server_file,
     n_workers,
     ucx_options_list=None,
@@ -104,12 +104,12 @@ def _run_on_multiple_nodes_server(
     return p, q
 
 
-def run_on_multiple_nodes_server(
+def run_cluster_server(
     server_file,
     n_workers,
     ucx_options_list=None,
 ):
-    p, q = _run_on_multiple_nodes_server(
+    p, q = _run_cluster_server(
         server_file=server_file,
         n_workers=n_workers,
         ucx_options_list=ucx_options_list,
@@ -181,7 +181,7 @@ def _worker_process(
     queue.put(ret)
 
 
-def _run_on_multiple_nodes_worker(
+def _run_cluster_workers(
     server_info,
     n_workers,
     node_n_workers,
@@ -261,7 +261,7 @@ def _run_on_multiple_nodes_worker(
     return process_list
 
 
-def run_on_multiple_nodes_worker(
+def run_cluster_workers(
     server_info,
     n_workers,
     node_n_workers,
@@ -272,7 +272,7 @@ def run_on_multiple_nodes_worker(
     ucx_options_list=None,
     ensure_cuda_device=False,
 ):
-    process_list = _run_on_multiple_nodes_worker(
+    process_list = _run_cluster_workers(
         server_info=server_info,
         n_workers=n_workers,
         node_n_workers=node_n_workers,
