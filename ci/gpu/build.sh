@@ -89,9 +89,9 @@ function run_tests() {
     py.test --cache-clear -vs ucp/_libs/tests
 
     gpuci_logger "Run local benchmark"
-    python -m ucp.benchmarks.send_recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-    python -m ucp.benchmarks.send_recv_core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-    python -m ucp.benchmarks.cudf_merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
+    python -m ucp.benchmarks.send_recv -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python -m ucp.benchmarks.send_recv_core -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
+    python -m ucp.benchmarks.cudf_merge --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
 }
 
 ################################################################################
