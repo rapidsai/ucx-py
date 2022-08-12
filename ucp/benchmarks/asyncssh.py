@@ -7,7 +7,7 @@ import sys
 from functools import partial
 
 logger = logging.getLogger("ucx.asyncssh")
-logger.setLevel(logging.getLevelName(os.getenv("UCXPY_ASYNCSSH_LOG_LEVEL", "ERROR")))
+logger.setLevel(logging.getLevelName(os.getenv("UCXPY_ASYNCSSH_LOG_LEVEL", "WARNING")))
 
 try:
     import asyncssh
@@ -141,6 +141,17 @@ try:
 
             while not server_queue.empty():
                 print(server_queue.get())
+
+            for i, worker_queue in enumerate(workers_queue):
+                if not worker_queue.empty():
+                    logger.warning(
+                        f"Worker {worker_hosts[i]} stdout wasn't empty. This "
+                        "likely indicates errors may have occurred. You may "
+                        "run with `UCXPY_ASYNCSSH_LOG_LEVEL=DEBUG` to see the "
+                        "full output."
+                    )
+                    while not worker_queue.empty():
+                        logger.debug(worker_queue.get())
 
     def run_ssh_cluster(hosts, args):
         try:
