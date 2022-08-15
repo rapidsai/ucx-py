@@ -162,3 +162,4 @@ try:
 except ImportError:
     SSHProc = None
     SSHServerProce = None
+    run_ssh_cluster = None
