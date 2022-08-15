@@ -51,7 +51,7 @@ try:
                 "--server",
                 f"--devs {args.devs}",
                 f"--chunk-size {args.chunk_size}",
-                f"--n-devs-on-net {num_devs_on_net}",
+                f"--n-devs-on-net {num_devs_on_net * args.chunks_per_dev}",
                 f"--iter {args.iter}",
                 f"--warmup-iter {args.warmup_iter}",
             ]
@@ -75,7 +75,7 @@ try:
             f"--frac-match {args.frac_match}",
             f"--iter {args.iter}",
             f"--warmup-iter {args.warmup_iter}",
-            f"--n-devs-on-net {num_devs_on_net}",
+            f"--n-devs-on-net {num_devs_on_net * args.chunks_per_dev}",
             f"--node-num {node_num}",
             f"--rmm-init-pool-size {args.rmm_init_pool_size}",
         ]

@@ -448,9 +448,8 @@ def parse_args():
 def main():
     args = parse_args()
     if not args.server and not args.hosts:
-        ranks = range(args.n_chunks)
-        assert len(ranks) > 1
-        assert len(ranks) % 2 == 0
+        assert args.n_chunks > 1
+        assert args.n_chunks % 2 == 0
 
     if args.hosts:
         return run_ssh_cluster(
@@ -460,7 +459,7 @@ def main():
     elif args.server:
         stats = run_cluster_server(
             args.server_file,
-            args.n_devs_on_net,
+            args.n_chunks,
         )
     elif args.server_file or args.server_address:
         return run_cluster_workers(
