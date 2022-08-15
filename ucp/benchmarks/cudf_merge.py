@@ -186,7 +186,6 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
 async def worker(rank, eps, args):
     # Setting current device and make RMM use it
     rmm.reinitialize(pool_allocator=True, initial_pool_size=args.rmm_init_pool_size)
-    # rmm.reinitialize(pool_allocator=True, initial_pool_size=int(1e9))
 
     # Make cupy use RMM
     cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
@@ -410,6 +409,7 @@ def parse_args():
             )
     else:
         args.devs = [int(d) for d in args.devs.split(",")]
+        args.node_n_workers = len(args.devs) * args.chunks_per_dev
 
         if any([args.server, args.server_file, args.server_address]):
             if args.server_address:
@@ -432,9 +432,8 @@ def parse_args():
                 )
 
             args.n_chunks = args.n_devs_on_net * args.chunks_per_dev
-            args.node_n_workers = len(args.devs) * args.chunks_per_dev
         else:
-            args.n_chunks = len(args.devs) * args.chunks_per_dev
+            args.n_chunks = args.node_n_workers
 
         if args.n_chunks < 2:
             raise RuntimeError(
@@ -475,7 +474,7 @@ def main():
         server_file = tempfile.NamedTemporaryFile()
         server_proc, server_queue = _run_cluster_server(
             server_file.name,
-            len(args.devs),
+            args.n_chunks,
         )
 
         # Wait for server to become available
@@ -486,17 +485,17 @@ def main():
         worker_procs = _run_cluster_workers(
             server_file.name,
             args.n_chunks,
-            len(args.devs),
+            args.node_n_workers,
             0,
             worker,
             worker_args=args,
             ensure_cuda_device=True,
         )
 
+        stats = [server_queue.get() for i in range(args.n_chunks)]
+
         [p.join() for p in worker_procs]
         server_proc.join()
-
-        stats = server_queue.get()
 
     wc = stats[0]["wallclock"]
     bw = hmean(np.array([s["bw"] for s in stats]))
