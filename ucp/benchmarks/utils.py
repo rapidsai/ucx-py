@@ -33,7 +33,7 @@ async def recv_pickled_msg(ep):
 
 
 def _server_process(
-    queue,
+    q,
     server_file,
     n_workers,
     ucx_options_list,
@@ -47,12 +47,12 @@ def _server_process(
     async def run():
         lock = threading.Lock()
         eps = {}
-        results = []
+        results = {}
 
         async def server_handler(ep):
-            rank_ip_port = await recv_pickled_msg(ep)
+            worker_rank, worker_ip, worker_port = await recv_pickled_msg(ep)
             with lock:
-                eps[rank_ip_port[0]] = (rank_ip_port[1], rank_ip_port[2])
+                eps[worker_rank] = (worker_ip, worker_port)
 
             while len(eps) != n_workers:
                 await asyncio.sleep(0.1)
@@ -61,7 +61,7 @@ def _server_process(
 
             worker_results = await recv_pickled_msg(ep)
             with lock:
-                results.append(worker_results)
+                results[worker_rank] = worker_results
 
         lf = ucp.create_listener(server_handler)
 
@@ -79,10 +79,11 @@ def _server_process(
 
     loop = asyncio.new_event_loop()
     ret = loop.run_until_complete(run())
-    if queue is None:
-        print(ret)
-    else:
-        queue.put(ret)
+    for rank in range(n_workers):
+        if q is None:
+            print(ret[rank])
+        else:
+            q.put(ret[rank])
 
 
 def _run_cluster_server(
@@ -114,9 +115,16 @@ def run_cluster_server(
         n_workers=n_workers,
         ucx_options_list=ucx_options_list,
     )
+
+    # Joining the process if the queue is too large (reproducible for more than
+    # 32 workers) causes the process to hang. We join the queue results in a
+    # list and return the list instead.
+    ret = [q.get() for i in range(n_workers)]
+
     p.join()
     assert not p.exitcode
-    return q.get()
+
+    return ret
 
 
 def _worker_process(
