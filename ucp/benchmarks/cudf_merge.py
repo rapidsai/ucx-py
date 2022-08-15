@@ -356,16 +356,16 @@ def parse_args():
         "`--server`.",
     )
     parser.add_argument(
-        "--n-devs-on-net",
+        "--num-workers",
         type=int,
-        help="Number of devices in the entire network , mandatory when "
-        "`--server` is specified. The resulting number of workers is "
-        "`--n-devs-on-net * --chunks-per-dev`",
+        help="Number of workers in the entire cluster, mandatory when "
+        "`--server` is specified. This number can be calculated as: "
+        "`number_of_devices_per_node * number_of_nodes * chunks_per_device`.",
     )
     parser.add_argument(
-        "--node-num",
+        "--node-idx",
         type=int,
-        help="On a multi-node setup, specify the number of the node that this "
+        help="On a multi-node setup, specify the index of the node that this "
         "process is running. Must be a unique number in the "
         "[0, `--n-workers` / `len(--devs)`) range.",
     )
@@ -379,8 +379,8 @@ def parse_args():
         "synchronization) on dgx12 (first in the list), and then three workers "
         "on hosts 'dgx12', '10.10.10.10', 'dgx13'. "
         "This option cannot be used with `--server`, `--server-file`, "
-        "`--n-devs-on-net`, or `--node-num` which are all used for a manual "
-        "multi-node setup.",
+        "`--num-workers `, or `--node-idx` which are all used for a "
+        "manual multi-node setup.",
     )
     args = parser.parse_args()
 
@@ -398,18 +398,18 @@ def parse_args():
             for arg in [
                 args.server,
                 args.server_file,
-                args.n_devs_on_net,
-                args.node_num,
+                args.num_workers,
+                args.node_idx,
             ]
         ):
             raise RuntimeError(
                 "A multi-node setup using `--hosts` for automatic SSH configuration "
                 "cannot be used together with `--server`, `--server-file`, "
-                "`--n-devs-on-net` or `--node-num`."
+                "`--num-workers` or `--node-idx`."
             )
     else:
         args.devs = [int(d) for d in args.devs.split(",")]
-        args.node_n_workers = len(args.devs) * args.chunks_per_dev
+        args.num_node_workers = len(args.devs) * args.chunks_per_dev
 
         if any([args.server, args.server_file, args.server_address]):
             if args.server_address:
@@ -417,23 +417,21 @@ def parse_args():
                 args.server_address = {"address": server_host, "port": int(server_port)}
             args.server_info = args.server_file or args.server_address
 
-            if args.n_devs_on_net is None:
+            if args.num_workers is None:
                 raise RuntimeError(
-                    "A multi-node setup requires specifying `--n-devs-on-net`."
+                    "A multi-node setup requires specifying `--num-workers`."
                 )
-            elif args.n_devs_on_net < 2:
-                raise RuntimeError(
-                    "A multi-node setup requires `--n-devs-on-net >= 2`."
-                )
+            elif args.num_workers < 2:
+                raise RuntimeError("A multi-node setup requires `--num-workers >= 2`.")
 
-            if not args.server and args.node_num is None:
+            if not args.server and args.node_idx is None:
                 raise RuntimeError(
                     "Each worker on a multi-node is required to specify `--node-num`."
                 )
 
-            args.n_chunks = args.n_devs_on_net * args.chunks_per_dev
+            args.n_chunks = args.num_workers * args.chunks_per_dev
         else:
-            args.n_chunks = args.node_n_workers
+            args.n_chunks = args.num_node_workers
 
         if args.n_chunks < 2:
             raise RuntimeError(
@@ -451,10 +449,7 @@ def main():
         assert args.n_chunks % 2 == 0
 
     if args.hosts:
-        return run_ssh_cluster(
-            args.hosts,
-            args,
-        )
+        return run_ssh_cluster(args)
     elif args.server:
         stats = run_cluster_server(
             args.server_file,
@@ -464,8 +459,8 @@ def main():
         return run_cluster_workers(
             args.server_info,
             args.n_chunks,
-            args.node_n_workers,
-            args.node_num,
+            args.num_node_workers,
+            args.node_idx,
             worker,
             worker_args=args,
             ensure_cuda_device=True,

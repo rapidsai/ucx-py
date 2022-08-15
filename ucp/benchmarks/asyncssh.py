@@ -45,13 +45,13 @@ try:
             else:
                 super().data_received(data, datatype)
 
-    def _get_server_string(args, num_devs_on_net):
+    def _get_server_string(args, num_workers):
         cmd_args = " ".join(
             [
                 "--server",
                 f"--devs {args.devs}",
                 f"--chunk-size {args.chunk_size}",
-                f"--n-devs-on-net {num_devs_on_net * args.chunks_per_dev}",
+                f"--num-workers {num_workers}",
                 f"--iter {args.iter}",
                 f"--warmup-iter {args.warmup_iter}",
             ]
@@ -63,8 +63,8 @@ try:
     def _get_worker_string(
         server_info,
         args,
-        num_devs_on_net,
-        node_num,
+        num_workers,
+        node_idx,
     ):
         server_address = f"{server_info['address']}:{server_info['port']}"
         cmd_list = [
@@ -75,8 +75,8 @@ try:
             f"--frac-match {args.frac_match}",
             f"--iter {args.iter}",
             f"--warmup-iter {args.warmup_iter}",
-            f"--n-devs-on-net {num_devs_on_net * args.chunks_per_dev}",
-            f"--node-num {node_num}",
+            f"--num-workers {num_workers}",
+            f"--node-idx {node_idx}",
             f"--rmm-init-pool-size {args.rmm_init_pool_size}",
         ]
         if args.profile:
@@ -91,18 +91,30 @@ try:
         logger.debug(f"{worker_cmd=}")
         return worker_cmd
 
-    async def _run_ssh_cluster(hosts, args):
-        hosts = hosts.split(",")
+    async def _run_ssh_cluster(args):
+        """
+        Run `ucp.benchmarks.cudf_merge` in an SSH cluster.
+
+        The results are printed to stdout.
+
+        Parameters
+        ----------
+        args: Namespace
+            The arguments that were passed to `ucp.benchmarks.cudf_merge`.
+        """
+        hosts = args.hosts.split(",")
         server_host, worker_hosts = hosts[0], hosts[1:]
 
         logger.debug(f"{server_host=}, {worker_hosts=}")
 
-        num_devs_on_net = len(args.devs.split(",")) * len(worker_hosts)
+        num_workers = (
+            len(args.devs.split(",")) * len(worker_hosts) * args.chunks_per_dev
+        )
         async with asyncssh.connect(server_host, known_hosts=None) as conn:
             server_queue = queue.Queue()
             server_chan, _ = await conn.create_session(
                 partial(SSHServerProc, server_queue),
-                _get_server_string(args, num_devs_on_net),
+                _get_server_string(args, num_workers),
             )
 
             while True:
@@ -120,15 +132,15 @@ try:
             )
 
             workers_chan, workers_queue = [], []
-            for node_num, worker_conn in enumerate(workers_conn):
+            for node_idx, worker_conn in enumerate(workers_conn):
                 worker_queue = queue.Queue()
                 worker_chan, _ = await worker_conn.create_session(
                     partial(SSHProc, worker_queue),
                     _get_worker_string(
                         server_info,
                         args,
-                        num_devs_on_net,
-                        node_num,
+                        num_workers,
+                        node_idx,
                     ),
                 )
 
@@ -153,9 +165,12 @@ try:
                     while not worker_queue.empty():
                         logger.debug(worker_queue.get())
 
-    def run_ssh_cluster(hosts, args):
+    def run_ssh_cluster(args):
+        """
+        Same as `_run_ssh_cluster()` but running on event loop until completed.
+        """
         try:
-            asyncio.get_event_loop().run_until_complete(_run_ssh_cluster(hosts, args))
+            asyncio.get_event_loop().run_until_complete(_run_ssh_cluster(args))
         except (OSError, asyncssh.Error) as exc:
             sys.exit(f"SSH connection failed: {exc}")
 

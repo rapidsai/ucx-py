@@ -91,6 +91,33 @@ def _run_cluster_server(
     n_workers,
     ucx_options_list=None,
 ):
+    """
+    Create a server that synchronizes workers.
+
+    The server will wait for all `n_workers` to connect and communicate their
+    endpoint information, then send the aggregate information to all workers
+    so that they will create endpoints to each other, in a fully-connected
+    network. Each worker will then communicate its result back to the scheduler
+    which will return that result back to the caller.
+
+    Parameters
+    ----------
+    server_file: str or None
+        A string containing the path to a file that will be populated to contain
+        the address and port of the server, or `None` to print that information
+        to stdout.
+    num_workers : int
+        Number of workers in the entire network, required to infer when all
+        workers have connected and completed.
+    ucx_options_list: list of dict
+        Options to pass to UCX when initializing workers, one for each worker.
+
+    Returns
+    -------
+    return : tuple
+        A tuple with two elements: the process spawned and a queue where results
+        will eventually be stored.
+    """
     q = mp.Queue()
     p = mp.Process(
         target=_server_process,
@@ -110,6 +137,13 @@ def run_cluster_server(
     n_workers,
     ucx_options_list=None,
 ):
+    """
+    Blocking version of `_run_cluster_server()`.
+
+    Provides same behavior as `_run_cluster_server()`, except that it will join
+    processes and thus cause the function to be blocking. It will also combine
+    the queue as a list with results for each worker in the `[0..rank-1)` range.
+    """
     p, q = _run_cluster_server(
         server_file=server_file,
         n_workers=n_workers,
@@ -191,22 +225,42 @@ def _worker_process(
 
 def _run_cluster_workers(
     server_info,
-    n_workers,
-    node_n_workers,
-    node_num,
+    num_workers,
+    num_node_workers,
+    node_idx,
     worker_func,
     worker_args=None,
-    server_address=None,
     ucx_options_list=None,
     ensure_cuda_device=False,
 ):
     """
-    Creates a local UCX network of `n_workers` that runs `worker_func`
+    Create `n_workers` UCX processes that runs `worker_func`.
+
+    Each process will first connect to a server spawned with
+    `run_cluster_server()` which will synchronize workers across the nodes.
+
+    This function is non-blocking and the processes created by this function
+    call are started not joined, making this function non-blocking. It's the
+    user's responsibility to join all processes in the returned list to ensure
+    their completion.
 
     Parameters
     ----------
-    n_workers : int
-        Number of workers (nodes) in the network.
+    server_info: str or dict
+        A string containing the path to a file created by `run_cluster_server()`
+        containing the address and port of the server. Alternatively, a
+        dictionary containing keys `"address"` and `"port"` may be used the same
+        way.
+    num_workers : int
+        Number of workers in the entire network. Every node must run the same
+        number of workers, and thus this value should be equal to
+        `node_num_workers * num_cluster_nodes`.
+    num_node_workers: int
+        Number of workers that this node will run.
+    node_idx: int
+        Index of the node in the entire cluster, within in the
+        `[0..num_cluster_nodes)` range. This value is used to calculate the rank
+        of each worker. Each node must have a unique index.
     worker_func: callable (can be a coroutine)
         Function that each worker execute.
         Must have signature: `worker(rank, eps, args)` where
@@ -215,8 +269,6 @@ def _run_cluster_workers(
             - args given here as `worker_args`
     worker_args: object
         The argument to pass to `worker_func`.
-    server_address: str
-        Server address for the workers. If None, ucx_api.get_address() is used.
     ucx_options_list: list of dict
         Options to pass to UCX when initializing workers, one for each worker.
     ensure_cuda_device: bool
@@ -232,8 +284,8 @@ def _run_cluster_workers(
 
     Returns
     -------
-    results : list
-        The output of `worker_func` for each worker (sorted by rank)
+    processes : list
+        The list of processes spawned (one for each worker).
     """
 
     if isinstance(server_info, str):
@@ -246,16 +298,16 @@ def _run_cluster_workers(
             "with the unpacked values."
         )
 
-    process_list = []
-    for worker_num in range(node_n_workers):
-        rank = node_num * node_n_workers + worker_num
+    processes = []
+    for worker_num in range(num_node_workers):
+        rank = node_idx * num_node_workers + worker_num
         q = mp.Queue()
         p = mp.Process(
             target=_worker_process,
             args=(
                 q,
                 server_info,
-                node_n_workers,
+                num_node_workers,
                 rank,
                 ucx_options_list,
                 ensure_cuda_device,
@@ -264,34 +316,38 @@ def _run_cluster_workers(
             ),
         )
         p.start()
-        process_list.append(p)
+        processes.append(p)
 
-    return process_list
+    return processes
 
 
 def run_cluster_workers(
     server_info,
-    n_workers,
-    node_n_workers,
-    node_num,
+    num_workers,
+    num_node_workers,
+    node_idx,
     worker_func,
     worker_args=None,
-    server_address=None,
     ucx_options_list=None,
     ensure_cuda_device=False,
 ):
-    process_list = _run_cluster_workers(
+    """
+    Blocking version of `_run_cluster_workers()`.
+
+    Provides same behavior as `_run_cluster_workers()`, except that it will join
+    processes and thus cause the function to be blocking.
+    """
+    processes = _run_cluster_workers(
         server_info=server_info,
-        n_workers=n_workers,
-        node_n_workers=node_n_workers,
-        node_num=node_num,
+        num_workers=num_workers,
+        num_node_workers=num_node_workers,
+        node_idx=node_idx,
         worker_func=worker_func,
         worker_args=worker_args,
-        server_address=server_address,
         ucx_options_list=ucx_options_list,
         ensure_cuda_device=ensure_cuda_device,
     )
 
-    for proc in process_list:
+    for proc in processes:
         proc.join()
         assert not proc.exitcode
