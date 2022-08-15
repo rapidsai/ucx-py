@@ -480,7 +480,7 @@ def main():
         worker_procs = _run_cluster_workers(
             server_file.name,
             args.n_chunks,
-            args.node_n_workers,
+            args.num_node_workers,
             0,
             worker,
             worker_args=args,

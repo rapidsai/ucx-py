@@ -164,7 +164,7 @@ def run_cluster_server(
 def _worker_process(
     queue,
     server_info,
-    node_n_workers,
+    num_node_workers,
     rank,
     ucx_options_list,
     ensure_cuda_device,
@@ -172,7 +172,7 @@ def _worker_process(
     args,
 ):
     if ensure_cuda_device is True:
-        _ensure_cuda_device(args.devs, rank % node_n_workers)
+        _ensure_cuda_device(args.devs, rank % num_node_workers)
 
     import ucp
 
