@@ -429,7 +429,7 @@ def parse_args():
                     "Each worker on a multi-node is required to specify `--node-num`."
                 )
 
-            args.n_chunks = args.num_workers * args.chunks_per_dev
+            args.n_chunks = args.num_workers
         else:
             args.n_chunks = args.num_node_workers
 
