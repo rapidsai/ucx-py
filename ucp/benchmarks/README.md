@@ -13,7 +13,7 @@ In the following subsections we will exemplify how to launch the benchmark for e
 
 ### Local-node only
 
-This is the simplest setup and will execute the benchmark only on GPUs where the process is being launched from. In its simple form, it can be executed as:
+This is the simplest setup and will execute the benchmark only using GPUs on the host the process is being launched from. In its simple form, it can be executed as:
 
 ```bash
 python -m ucp.benchmarks.cudf_merge -d 0,1 -c 1_000_000 --iter 10
