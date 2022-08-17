@@ -48,6 +48,9 @@ cdef class UCXListener(UCXObject):
         Extra arguments to the call-back function
     cb_kwargs: dict, optional
         Extra keyword arguments to the call-back function
+    ip_address: str, optional
+        IP address to bind the listener to. Binds to `0.0.0.0` if not
+        specified.
 
     Returns
     -------
@@ -69,7 +72,8 @@ cdef class UCXListener(UCXObject):
         uint16_t port,
         cb_func,
         tuple cb_args=None,
-        dict cb_kwargs=None
+        dict cb_kwargs=None,
+        str ip_address=None,
     ):
         if cb_args is None:
             cb_args = ()
@@ -90,7 +94,13 @@ cdef class UCXListener(UCXObject):
         )
         params.conn_handler.cb = _listener_cb
         params.conn_handler.arg = <void*> self.cb_data
-        if c_util_set_sockaddr(&params.sockaddr, NULL, port):
+
+        cdef alloc_sockaddr_ret = (
+            c_util_set_sockaddr(&params.sockaddr, NULL, port)
+            if ip_address is None else
+            c_util_set_sockaddr(&params.sockaddr, ip_address.encode(), port)
+        )
+        if alloc_sockaddr_ret:
             raise MemoryError("Failed allocation of sockaddr")
 
         cdef ucs_status_t status = ucp_listener_create(
