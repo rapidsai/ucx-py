@@ -507,8 +507,8 @@ def parse_args():
 
         if args.n_chunks < 2:
             raise RuntimeError(
-                f"Number of chunks must be greater than 1 (chunks-per-dev: \
-                        {args.chunks_per_dev}, devs: {args.devs})"
+                "Number of chunks must be greater than 1 (chunks-per-dev: "
+                f"{args.chunks_per_dev}, devs: {args.devs})"
             )
 
     return args
