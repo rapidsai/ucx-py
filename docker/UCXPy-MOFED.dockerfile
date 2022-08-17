@@ -7,7 +7,7 @@ ARG DISTRIBUTION_VERSION
 # Should match host OS OFED version (as reported by ofed_info -s)
 ARG MOFED_VERSION=5.3-1.0.5.0
 # Tag to checkout from UCX repository
-ARG UCX_VERSION_TAG=v1.12.1
+ARG UCX_VERSION_TAG=v1.13.0
 # Where to install conda, and what to name the created environment
 ARG CONDA_HOME=/opt/conda
 ARG CONDA_ENV=ucx
