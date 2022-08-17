@@ -45,54 +45,14 @@ try:
             else:
                 super().data_received(data, datatype)
 
-    def _get_server_string(args, num_workers):
-        cmd_args = " ".join(
-            [
-                "--server",
-                f"--devs {args.devs}",
-                f"--chunk-size {args.chunk_size}",
-                f"--num-workers {num_workers}",
-                f"--iter {args.iter}",
-                f"--warmup-iter {args.warmup_iter}",
-            ]
-        )
-        server_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
-        logger.debug(f"{server_cmd=}")
-        return server_cmd
-
-    def _get_worker_string(
-        server_info,
+    async def _run_ssh_cluster(
         args,
+        server_host,
+        worker_hosts,
         num_workers,
-        node_idx,
+        get_server_command,
+        get_worker_command,
     ):
-        server_address = f"{server_info['address']}:{server_info['port']}"
-        cmd_list = [
-            f"--server-address {server_address}",
-            f"--devs {args.devs}",
-            f"--chunks-per-dev {args.chunks_per_dev}",
-            f"--chunk-size {args.chunk_size}",
-            f"--frac-match {args.frac_match}",
-            f"--iter {args.iter}",
-            f"--warmup-iter {args.warmup_iter}",
-            f"--num-workers {num_workers}",
-            f"--node-idx {node_idx}",
-        ]
-        if args.rmm_init_pool_size:
-            cmd_list.append(f"--rmm-init-pool-size {args.rmm_init_pool_size}")
-        if args.profile:
-            cmd_list.append(f"--profile {args.profile}")
-        if args.cuda_profile:
-            cmd_list.append("--cuda-profile")
-        if args.collect_garbage:
-            cmd_list.append("--collect-garbage")
-        cmd_args = " ".join(cmd_list)
-
-        worker_cmd = f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
-        logger.debug(f"{worker_cmd=}")
-        return worker_cmd
-
-    async def _run_ssh_cluster(args):
         """
         Run `ucp.benchmarks.cudf_merge` in an SSH cluster.
 
@@ -102,20 +62,38 @@ try:
         ----------
         args: Namespace
             The arguments that were passed to `ucp.benchmarks.cudf_merge`.
+        server_host: str
+            String containing hostname or IP address of node where the server
+            will run.
+        worker_hosts: list
+            List of strings containing hostnames or IP addresses of nodes where
+            workers will run.
+        num_workers: int
+        get_server_command: callable
+            Function returning the full command that the server node will run.
+            Must have signature `get_server_command(args, num_workers)`,
+            where:
+                - `args` is the parsed `argparse.Namespace` object as parsed by
+                  the caller application;
+                - `num_workers` number of workers in the entire cluster.
+        get_worker_command: callable
+            Function returning the full command that each worker node will run.
+            Must have signature `get_worker_command(args, num_workers, node_idx)`,
+            where:
+                - `args` is the parsed `argparse.Namespace` object as parsed by
+                  the caller application;
+                - `num_workers` number of workers in the entire cluster;
+                - `node_idx` index of the node that the process will launch.
         """
-        hosts = args.hosts.split(",")
-        server_host, worker_hosts = hosts[0], hosts[1:]
-
         logger.debug(f"{server_host=}, {worker_hosts=}")
 
-        num_workers = (
-            len(args.devs.split(",")) * len(worker_hosts) * args.chunks_per_dev
-        )
         async with asyncssh.connect(server_host, known_hosts=None) as conn:
             server_queue = queue.Queue()
+            server_cmd = (get_server_command(args, num_workers, logger=logger),)
+            logger.debug(f"[{server_host}] {server_cmd=}")
             server_chan, _ = await conn.create_session(
                 partial(SSHServerProc, server_queue),
-                _get_server_string(args, num_workers),
+                server_cmd,
             )
 
             while True:
@@ -135,14 +113,17 @@ try:
             workers_chan, workers_queue = [], []
             for node_idx, worker_conn in enumerate(workers_conn):
                 worker_queue = queue.Queue()
+                worker_cmd = get_worker_command(
+                    server_info,
+                    args,
+                    num_workers,
+                    node_idx,
+                    logger=logger,
+                )
+                logger.debug(f"[{worker_hosts[node_idx]}] {worker_cmd=}")
                 worker_chan, _ = await worker_conn.create_session(
                     partial(SSHProc, worker_queue),
-                    _get_worker_string(
-                        server_info,
-                        args,
-                        num_workers,
-                        node_idx,
-                    ),
+                    worker_cmd,
                 )
 
                 workers_chan.append(worker_chan)
@@ -166,12 +147,28 @@ try:
                     while not worker_queue.empty():
                         logger.debug(worker_queue.get())
 
-    def run_ssh_cluster(args):
+    def run_ssh_cluster(
+        args,
+        server_host,
+        worker_hosts,
+        num_workers,
+        get_server_command,
+        get_worker_command,
+    ):
         """
         Same as `_run_ssh_cluster()` but running on event loop until completed.
         """
         try:
-            asyncio.get_event_loop().run_until_complete(_run_ssh_cluster(args))
+            asyncio.get_event_loop().run_until_complete(
+                _run_ssh_cluster(
+                    args,
+                    server_host,
+                    worker_hosts,
+                    num_workers,
+                    get_server_command,
+                    get_worker_command,
+                )
+            )
         except (OSError, asyncssh.Error) as exc:
             sys.exit(f"SSH connection failed: {exc}")
 

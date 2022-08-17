@@ -9,6 +9,7 @@ import io
 import os
 import pickle
 import pstats
+import sys
 import tempfile
 from time import monotonic as clock
 
@@ -181,6 +182,62 @@ def generate_chunk(i_chunk, local_size, num_chunks, chunk_type, frac_match):
             }
         )
     return df
+
+
+def _get_server_command(args, num_workers):
+    cmd_args = " ".join(
+        [
+            "--server",
+            f"--devs {args.devs}",
+            f"--chunks-per-dev {args.chunks_per_dev}",
+            f"--chunk-size {args.chunk_size}",
+            f"--frac-match {args.frac_match}",
+            f"--iter {args.iter}",
+            f"--warmup-iter {args.warmup_iter}",
+            f"--num-workers {num_workers}",
+        ]
+    )
+    return f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
+
+
+def _get_worker_command_without_address(
+    args,
+    num_workers,
+    node_idx,
+):
+    cmd_list = [
+        f"--devs {args.devs}",
+        f"--chunks-per-dev {args.chunks_per_dev}",
+        f"--chunk-size {args.chunk_size}",
+        f"--frac-match {args.frac_match}",
+        f"--iter {args.iter}",
+        f"--warmup-iter {args.warmup_iter}",
+        f"--num-workers {num_workers}",
+        f"--node-idx {node_idx}",
+    ]
+    if args.rmm_init_pool_size:
+        cmd_list.append(f"--rmm-init-pool-size {args.rmm_init_pool_size}")
+    if args.profile:
+        cmd_list.append(f"--profile {args.profile}")
+    if args.cuda_profile:
+        cmd_list.append("--cuda-profile")
+    if args.collect_garbage:
+        cmd_list.append("--collect-garbage")
+    cmd_args = " ".join(cmd_list)
+
+    return f"{sys.executable} -m ucp.benchmarks.cudf_merge {cmd_args}"
+
+
+def _get_worker_command(
+    server_info,
+    args,
+    num_workers,
+    node_idx,
+):
+    server_address = f"{server_info['address']}:{server_info['port']}"
+    worker_cmd = _get_worker_command_without_address(args, num_workers, node_idx)
+    worker_cmd += f" --server-address {server_address}"
+    return worker_cmd
 
 
 async def worker(rank, eps, args):
@@ -382,6 +439,17 @@ def parse_args():
         "`--num-workers `, or `--node-idx` which are all used for a "
         "manual multi-node setup.",
     )
+    parser.add_argument(
+        "--print-commands-only",
+        default=False,
+        action="store_true",
+        help="Print commands for each node in case you don't want to or can't "
+        "use SSH for launching a cluster. To be used together with `--hosts`, "
+        "specifying this argument will list the commands that should be "
+        "launched in each node. This is only a convenience function, and the "
+        "user can write the same command lines by just following the guidance "
+        "in this file's argument descriptions and existing documentation.",
+    )
     args = parser.parse_args()
 
     if args.hosts:
@@ -397,15 +465,19 @@ def parse_args():
             arg
             for arg in [
                 args.server,
-                args.server_file,
                 args.num_workers,
                 args.node_idx,
             ]
         ):
             raise RuntimeError(
                 "A multi-node setup using `--hosts` for automatic SSH configuration "
-                "cannot be used together with `--server`, `--server-file`, "
-                "`--num-workers` or `--node-idx`."
+                "cannot be used together with `--server`, `--num-workers` or "
+                "`--node-idx`."
+            )
+        elif args.server_file and not args.print_commands_only:
+            raise RuntimeError(
+                "Specifying `--server-file` together with `--hosts` is not "
+                "allowed, except when used with `--print-commands-only`."
             )
     else:
         args.devs = [int(d) for d in args.devs.split(",")]
@@ -449,7 +521,34 @@ def main():
         assert args.n_chunks % 2 == 0
 
     if args.hosts:
-        return run_ssh_cluster(args)
+        hosts = args.hosts.split(",")
+        server_host, worker_hosts = hosts[0], hosts[1:]
+        num_workers = (
+            len(args.devs.split(",")) * len(worker_hosts) * args.chunks_per_dev
+        )
+
+        if args.print_commands_only:
+            server_cmd = _get_server_command(args, num_workers)
+            print(f"[{server_host}] Server command line: {server_cmd}")
+            for node_idx, worker_host in enumerate(worker_hosts):
+                worker_cmd = _get_worker_command_without_address(
+                    args, num_workers, node_idx
+                )
+                if args.server_file:
+                    worker_cmd += f" --server-file '{args.server_file}'"
+                else:
+                    worker_cmd += " --server-address 'REPLACE WITH SERVER ADDRESS'"
+                print(f"[{worker_host}] Worker command line: {worker_cmd}")
+            return
+        else:
+            return run_ssh_cluster(
+                args,
+                server_host,
+                worker_hosts,
+                num_workers,
+                _get_server_command,
+                _get_worker_command,
+            )
     elif args.server:
         stats = run_cluster_server(
             args.server_file,
