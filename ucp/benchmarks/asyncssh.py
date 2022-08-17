@@ -77,8 +77,9 @@ try:
             f"--warmup-iter {args.warmup_iter}",
             f"--num-workers {num_workers}",
             f"--node-idx {node_idx}",
-            f"--rmm-init-pool-size {args.rmm_init_pool_size}",
         ]
+        if args.rmm_init_pool_size:
+            cmd_list.append(f"--rmm-init-pool-size {args.rmm_init_pool_size}")
         if args.profile:
             cmd_list.append(f"--profile {args.profile}")
         if args.cuda_profile:
