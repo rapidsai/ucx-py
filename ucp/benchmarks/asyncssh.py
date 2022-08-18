@@ -54,9 +54,11 @@ try:
         get_worker_command,
     ):
         """
-        Run `ucp.benchmarks.cudf_merge` in an SSH cluster.
+        Run benchmarks in an SSH cluster.
 
         The results are printed to stdout.
+
+        At the moment, only `ucp.benchmarks.cudf_merge` is supported.
 
         Parameters
         ----------
