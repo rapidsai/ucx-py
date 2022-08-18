@@ -13,7 +13,7 @@ In the following subsections we will exemplify how to launch the benchmark for e
 
 ### Local-node only
 
-This is the simplest setup and will execute the benchmark only on GPUs where the process is being launched from. In its simple form, it can be executed as:
+This is the simplest setup and will execute the benchmark only using GPUs on the host the process is being launched from. In its simple form, it can be executed as:
 
 ```bash
 python -m ucp.benchmarks.cudf_merge -d 0,1 -c 1_000_000 --iter 10
@@ -36,16 +36,16 @@ Once the SSH setup is complete, we can extend the local-node example by simply i
 python -m ucp.benchmarks.cudf_merge -d 0,1,2,3 -c 1_000_000 --iter 10 --hosts dgx12,dgx12,10.10.10.10,dgx15
 ```
 
-Note that in the example above we repeated dgx12, the first node identifies the server, and the remaining arguments identify workers. Multi-node setups also require every node to use the same GPU indices, so if you specify `-d 0,1,2,3`, all worker nodes must have those 4 GPUs available.
+Note that in the example above we repeated dgx12, the first node identifies the server, and the remaining arguments identify workers. Multi-node setups also require every node to use the same GPU indices, so if you specify `-d 0,1,2,3`, all worker nodes must have those four GPUs available.
 
-Should anything go wrong, you may specify the `UCXPY_ASYNCSSH_LOG_LEVEL=DEBUG` environment variable. This will print additional information, including the exact command that is being executed in server and workers, as well as the output for each process.
+Should anything go wrong, you may specify the `UCXPY_ASYNCSSH_LOG_LEVEL=DEBUG` environment variable. This will print additional information, including the exact command that is being executed on the server and workers, as well as the output for each process.
 
 
 ### Multi-node with manual process setup
 
-This is by far the most complicated setup, and should be used only if running on a cluster where SSH isn't possible or not recommened.
+This is by far the most complicated setup, and should be used only if running on a cluster where SSH isn't possible or not recommended.
 
-Before diving in the details of this setup, the user should know there is a convenience function to generate commands for each of the nodes. To generate that, the user may refer to the SSH section, where we pass `--hosts` to specify server and worker nodes, this time with an added `--print-commands-only` argument. The output of the command will print one line for server and each node with the exact command that should be executed in those nodes.
+Before diving in to the details of this setup, the user should know there is a convenience function to generate commands for each of the nodes. To generate that, the user may refer to the SSH section, where we pass `--hosts` to specify server and worker nodes, this time with an added `--print-commands-only` argument. The output of the command will print one line for server and each node with the exact command that should be executed on those nodes.
 
 Now if the user would like to continue and learn the details this setup, the user is required specify the exact amount of workers that will be executed by the cluster, and the index of each node. Unlike the SSH setup, this time we may not use `--hosts` to specify where to launch.
 
@@ -99,10 +99,10 @@ Once the server is up and running, workers must be launched on multiple nodes. E
 
 ```bash
 # Worker 0
-/datasets/pentschev/miniconda3/envs/rn-220803/bin/python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
+python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
 
 # Worker 1
-/datasets/pentschev/miniconda3/envs/rn-220803/bin/python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
+python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
 ```
 
 
@@ -110,8 +110,8 @@ Once the server is up and running, workers must be launched on multiple nodes. E
 
 ```bash
 # Worker 0
-/datasets/pentschev/miniconda3/envs/rn-220803/bin/python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
+python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
 
 # Worker 1
-/datasets/pentschev/miniconda3/envs/rn-220803/bin/python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
+python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
 ```
