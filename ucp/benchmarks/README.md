@@ -94,24 +94,26 @@ python -m ucp.benchmarks.cudf_merge --server --devs 0,1,2,3 --chunks-per-dev 2 -
 
 Once the server is up and running, workers must be launched on multiple nodes. Each node must execute workers with all options matching other nodes, both workers and server, with the execption of `--node-idx`. The `--node-idx` argument is used as a unique identifier to each worker, so that it may compute the rank for each GPU worker.
 
+For the examples to follow, we will assume workers will run on two hosts: `worker-0` and `worker-1`.
 
-#### Server address on a file
+
+##### Server address on a file
 
 ```bash
-# Worker 0
+# Run on: worker-0
 python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
 
-# Worker 1
+# Run on: worker-1
 python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-file '/path/to/network/fs/server.json'
 ```
 
 
-#### Server address on stdout
+##### Server address on stdout
 
 ```bash
-# Worker 0
+# Run on: worker-0
 python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 0 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
 
-# Worker 1
+# Run on: worker-1
 python -m ucp.benchmarks.cudf_merge --devs 0,1,2,3 --chunks-per-dev 2 --chunk-size 1000000 --frac-match 0.5 --iter 10 --warmup-iter 5 --num-workers 16 --node-idx 1 --rmm-init-pool-size 4000000000 --server-address 'REPLACE WITH SERVER ADDRESS'
 ```
