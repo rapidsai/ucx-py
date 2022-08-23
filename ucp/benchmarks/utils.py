@@ -146,7 +146,7 @@ def run_cluster_server(
 
     Provides same behavior as `_run_cluster_server()`, except that it will join
     processes and thus cause the function to be blocking. It will also combine
-    the queue as a list with results for each worker in the `[0..rank-1)` range.
+    the queue as a list with results for each worker in the `[0..n_workers)` range.
     """
     p, q = _run_cluster_server(
         server_file=server_file,
@@ -238,13 +238,13 @@ def _run_cluster_workers(
     ensure_cuda_device=False,
 ):
     """
-    Create `n_workers` UCX processes that runs `worker_func`.
+    Create `n_workers` UCX processes that each run `worker_func`.
 
     Each process will first connect to a server spawned with
     `run_cluster_server()` which will synchronize workers across the nodes.
 
     This function is non-blocking and the processes created by this function
-    call are started not joined, making this function non-blocking. It's the
+    call are started but not joined, making this function non-blocking. It's the
     user's responsibility to join all processes in the returned list to ensure
     their completion.
 
@@ -262,11 +262,11 @@ def _run_cluster_workers(
     num_node_workers: int
         Number of workers that this node will run.
     node_idx: int
-        Index of the node in the entire cluster, within in the
-        `[0..num_cluster_nodes)` range. This value is used to calculate the rank
+        Index of the node in the entire cluster, within the range
+        `[0..num_cluster_nodes)`. This value is used to calculate the rank
         of each worker. Each node must have a unique index.
     worker_func: callable (can be a coroutine)
-        Function that each worker execute.
+        Function that each worker executes.
         Must have signature: `worker(rank, eps, args)` where
             - rank is the worker id
             - eps is a dict of ranks to ucx endpoints
