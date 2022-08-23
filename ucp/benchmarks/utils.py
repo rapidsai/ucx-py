@@ -80,10 +80,7 @@ def _server_process(
     loop = asyncio.new_event_loop()
     ret = loop.run_until_complete(run())
     for rank in range(n_workers):
-        if q is None:
-            print(ret[rank])
-        else:
-            q.put(ret[rank])
+        q.put(ret[rank])
 
 
 def _run_cluster_server(
