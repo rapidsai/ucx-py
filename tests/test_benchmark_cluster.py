@@ -1,5 +1,6 @@
 import asyncio
 import tempfile
+from itertools import chain
 
 import numpy as np
 import pytest
@@ -35,15 +36,16 @@ async def test_benchmark_cluster(n_chunks=1, n_nodes=2, n_workers=2):
         while len(f.read()) == 0:
             pass
 
-    workers = [
-        _run_cluster_workers(server_file.name, n_chunks, n_workers, i, _worker)
-        for i in range(n_nodes)
-    ]
+    workers = list(
+        chain.from_iterable(
+            _run_cluster_workers(server_file.name, n_chunks, n_workers, i, _worker)
+            for i in range(n_nodes)
+        )
+    )
 
-    for node in workers:
-        for worker in node:
-            worker.join()
-            assert not worker.exitcode
+    for worker in workers:
+        worker.join()
+        assert not worker.exitcode
 
     server.join()
     assert not server.exitcode
