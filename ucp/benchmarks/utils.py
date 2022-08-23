@@ -66,11 +66,11 @@ def _server_process(
         lf = ucp.create_listener(server_handler)
 
         if server_file is None:
-            fp = sys.stdout
+            fp = open(sys.stdout.fileno(), mode="w", closefd=False)
         else:
             fp = open(server_file, mode="w")
-        json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
-        fp.close()
+        with fp:
+            json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
 
         while len(results) != n_workers:
             await asyncio.sleep(0.1)
@@ -286,9 +286,8 @@ def _run_cluster_workers(
     """
 
     if isinstance(server_info, str):
-        fp = open(server_info, mode="r")
-        server_info = json.load(fp)
-        fp.close()
+        with open(server_info, mode="r") as fp:
+             server_info = json.load(fp)
     elif not isinstance(server_info, dict):
         raise ValueError(
             "server_info must be the path to a server file, or a dictionary "
