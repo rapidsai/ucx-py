@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 import os
 import pickle
+import sys
 import threading
 
 import numpy as np
@@ -32,6 +33,18 @@ async def recv_pickled_msg(ep):
     return pickle.loads(msg)
 
 
+def _write_server_address(server_file, server_address, server_port):
+    if server_file is None:
+        fp = sys.stdout
+    else:
+        fp = open(server_file, mode="w")
+
+    json.dump({"address": server_address, "port": server_port}, fp)
+
+    if fp is sys.stdout:
+        fp.close()
+
+
 def _server_process(
     q,
     server_file,
@@ -42,7 +55,6 @@ def _server_process(
 
     if ucx_options_list is not None:
         ucp.init(ucx_options_list)
-    import sys
 
     async def run():
         lock = threading.Lock()
@@ -65,12 +77,7 @@ def _server_process(
 
         lf = ucp.create_listener(server_handler)
 
-        if server_file is None:
-            fp = sys.stdout
-        else:
-            fp = open(server_file, mode="w")
-        json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
-        fp.close()
+        _write_server_address(server_file, ucx_api.get_address(), lf.port)
 
         while len(results) != n_workers:
             await asyncio.sleep(0.1)
@@ -80,10 +87,7 @@ def _server_process(
     loop = asyncio.new_event_loop()
     ret = loop.run_until_complete(run())
     for rank in range(n_workers):
-        if q is None:
-            print(ret[rank])
-        else:
-            q.put(ret[rank])
+        q.put(ret[rank])
 
 
 def _run_cluster_server(
