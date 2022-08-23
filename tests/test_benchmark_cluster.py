@@ -13,16 +13,15 @@ async def _worker(rank, eps, args):
     for ep in eps.values():
         futures.append(ep.send(np.array([rank], dtype="u4")))
     # Recv from all others
-    recv_list = []
-    for ep in eps.values():
-        recv_list.append(np.empty(1, dtype="u4"))
-        futures.append(ep.recv(recv_list[-1]))
+    result = np.empty(len(eps.values()), dtype="u4")
+    futures += list(ep.recv(result[i : i + 1]) for i, ep in enumerate(eps.values()))
+
+    # Wait for transfers to complete
     await asyncio.gather(*futures)
 
     # We expect to get the sum of all ranks excluding ours
     expect = sum(range(len(eps) + 1)) - rank
-    got = np.concatenate(recv_list).sum()
-    assert expect == got
+    assert expect == result.sum()
 
 
 @pytest.mark.asyncio
