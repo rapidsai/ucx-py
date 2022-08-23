@@ -287,7 +287,7 @@ def _run_cluster_workers(
 
     if isinstance(server_info, str):
         with open(server_info, mode="r") as fp:
-             server_info = json.load(fp)
+            server_info = json.load(fp)
     elif not isinstance(server_info, dict):
         raise ValueError(
             "server_info must be the path to a server file, or a dictionary "
