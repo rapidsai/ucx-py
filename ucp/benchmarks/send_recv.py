@@ -18,10 +18,8 @@ UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python send-recv.py \
         --n-iter 100
 """
 import argparse
-import asyncio
 import multiprocessing as mp
 import os
-from time import perf_counter as clock
 
 import ucp
 from ucp._libs.utils import (
@@ -30,27 +28,10 @@ from ucp._libs.utils import (
     print_key_value,
     print_separator,
 )
+from ucp.benchmarks.ucp_async_backend import UCXPyAsyncClient, UCXPyAsyncServer
 from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
-
-
-def register_am_allocators(args):
-    if not args.enable_am:
-        return
-
-    import numpy as np
-
-    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
-
-    if args.object_type == "cupy":
-        import cupy as cp
-
-        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=cp.uint8), "cuda")
-    elif args.object_type == "rmm":
-        import rmm
-
-        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
 
 
 def server(queue, args):
@@ -77,43 +58,10 @@ def server(queue, args):
         xp.cuda.runtime.setDevice(args.server_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
-
-    register_am_allocators(args)
-
-    async def run():
-        async def server_handler(ep):
-
-            if not args.enable_am:
-                msg_recv_list = []
-                if not args.reuse_alloc:
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-                else:
-                    t = xp.zeros(args.n_bytes, dtype="u1")
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(t)
-
-                assert msg_recv_list[0].nbytes == args.n_bytes
-
-            for i in range(args.n_iter + args.n_warmup_iter):
-                if args.enable_am is True:
-                    recv = await ep.am_recv()
-                    await ep.am_send(recv)
-                else:
-                    await ep.recv(msg_recv_list[i])
-                    await ep.send(msg_recv_list[i])
-            await ep.close()
-            lf.close()
-
-        lf = ucp.create_listener(server_handler, port=args.port)
-        queue.put(lf.port)
-
-        while not lf.closed():
-            await asyncio.sleep(0.5)
+    server = UCXPyAsyncServer(args, xp, queue)
 
     loop = get_event_loop()
-    loop.run_until_complete(run())
+    loop.run_until_complete(server.run())
 
 
 def client(queue, port, server_address, args):
@@ -142,53 +90,13 @@ def client(queue, port, server_address, args):
         xp.cuda.runtime.setDevice(args.client_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
-
-    register_am_allocators(args)
-
-    async def run():
-        ep = await ucp.create_endpoint(server_address, port)
-
-        if args.enable_am:
-            msg = xp.arange(args.n_bytes, dtype="u1")
-        else:
-            msg_send_list = []
-            msg_recv_list = []
-            if not args.reuse_alloc:
-                for i in range(args.n_iter + args.n_warmup_iter):
-                    msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-            else:
-                t1 = xp.arange(args.n_bytes, dtype="u1")
-                t2 = xp.zeros(args.n_bytes, dtype="u1")
-                for i in range(args.n_iter + args.n_warmup_iter):
-                    msg_send_list.append(t1)
-                    msg_recv_list.append(t2)
-            assert msg_send_list[0].nbytes == args.n_bytes
-            assert msg_recv_list[0].nbytes == args.n_bytes
-
-        if args.cuda_profile:
-            xp.cuda.profiler.start()
-        times = []
-        for i in range(args.n_iter + args.n_warmup_iter):
-            start = clock()
-            if args.enable_am:
-                await ep.am_send(msg)
-                await ep.am_recv()
-            else:
-                await ep.send(msg_send_list[i])
-                await ep.recv(msg_recv_list[i])
-            stop = clock()
-            if i >= args.n_warmup_iter:
-                times.append(stop - start)
-        if args.cuda_profile:
-            xp.cuda.profiler.stop()
-        queue.put(times)
+    client = UCXPyAsyncClient(args, xp, queue, server_address, port)
 
     loop = get_event_loop()
-    loop.run_until_complete(run())
+    loop.run_until_complete(client.run())
 
     times = queue.get()
+
     assert len(times) == args.n_iter
     bw_avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
     bw_med = format_bytes(2 * args.n_bytes / np.median(times))
