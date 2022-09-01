@@ -44,8 +44,18 @@ def _get_backend_implementation(backend):
         return {"client": UCXPyAsyncClient, "server": UCXPyAsyncServer}
     elif backend == "ucp-core":
         return {"client": UCXPyCoreClient, "server": UCXPyCoreServer}
-    else:
-        return {"client": None, "server": None}
+    elif backend == "tornado":
+        try:
+            from ucp.benchmarks.backends.tornado import (
+                TornadoClient,
+                TornadoServer,
+            )
+
+            return {"client": TornadoClient, "server": TornadoServer}
+        except ImportError:
+            pass
+
+    return {"client": None, "server": None}
 
 
 def server(queue, args):
@@ -336,6 +346,9 @@ def parse_args():
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
 
+    if not any([args.backend == b for b in ["tornado", "ucp-async", "ucp-core"]]):
+        raise RuntimeError(f"Unknown backend {args.backend}")
+
     backend_impl = _get_backend_implementation(args.backend)
     if not (
         backend_impl["client"].has_cuda_support()
@@ -345,9 +358,6 @@ def parse_args():
             raise RuntimeError(
                 f"Backend '{args.backend}' does not support CUDA transfers"
             )
-
-    if not any([args.backend == b for b in ["ucp-async", "ucp-core"]]):
-        raise RuntimeError(f"Unknown backend {args.backend}")
 
     if args.backend != "ucp-core" and args.delay_progress:
         raise RuntimeError("`--delay-progress` requires `--backend=ucp-core`")
