@@ -19,6 +19,18 @@ class BaseServer(ABC):
         """
         pass
 
+    @staticmethod
+    def has_cuda_support():
+        """
+        Check whether server implementation supports CUDA memory transfers.
+
+        Returns
+        -------
+        ret: bool
+            `True` if CUDA is supported, `False` otherwise.
+        """
+        return False
+
     @abstractmethod
     def run(self):
         """
@@ -52,6 +64,17 @@ class BaseClient(ABC):
             Queue object where to put timing results.
         """
         pass
+
+    def has_cuda_support():
+        """
+        Check whether client implementation supports CUDA memory transfers.
+
+        Returns
+        -------
+        ret: bool
+            `True` if CUDA is supported, `False` otherwise.
+        """
+        return False
 
     @abstractmethod
     def run(self):

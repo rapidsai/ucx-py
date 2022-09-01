@@ -61,6 +61,9 @@ class UCXPyCoreServer(BaseServer):
         self.xp = xp
         self.queue = queue
 
+    def has_cuda_support():
+        return True
+
     def run(self):
         ctx = ucx_api.UCXContext(
             feature_flags=(
@@ -187,6 +190,9 @@ class UCXPyCoreClient(BaseClient):
         self.queue = queue
         self.server_address = server_address
         self.port = port
+
+    def has_cuda_support():
+        return True
 
     def run(self):
         ctx = ucx_api.UCXContext(
