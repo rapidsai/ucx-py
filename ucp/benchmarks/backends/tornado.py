@@ -4,6 +4,7 @@ from time import monotonic
 from tornado.iostream import StreamClosedError
 from tornado.tcpclient import TCPClient
 from tornado.tcpserver import TCPServer
+
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
