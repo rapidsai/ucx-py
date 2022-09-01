@@ -19,6 +19,19 @@ WireupMessage = bytearray(b"wireup")
 
 
 def register_am_allocators(args, worker):
+    """
+    Register Active Message allocator in worker to correct memory type if the
+    benchmarks is set to use the Active Mesasge API.
+
+    Parameters
+    ----------
+    args: argparse.Namespace
+        Parsed command-line arguments that will be used as parameters during to
+        determine whether the caller is using the Active Message API and what
+        memory type.
+    worker: ucp._libs.UCXWorker
+        UCX-Py core Worker object where to register the allocator.
+    """
     if not args.enable_am:
         return
 

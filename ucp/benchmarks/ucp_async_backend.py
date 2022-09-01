@@ -8,6 +8,17 @@ from ucp.benchmarks.base_backend import BaseClient, BaseServer
 
 
 def register_am_allocators(args):
+    """
+    Register Active Message allocator in worker to correct memory type if the
+    benchmarks is set to use the Active Mesasge API.
+
+    Parameters
+    ----------
+    args: argparse.Namespace
+        Parsed command-line arguments that will be used as parameters during to
+        determine whether the caller is using the Active Message API and what
+        memory type.
+    """
     if not args.enable_am:
         return
 
