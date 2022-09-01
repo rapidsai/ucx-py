@@ -13,6 +13,7 @@ from ucp._libs.utils_test import (
     non_blocking_recv,
     non_blocking_send,
 )
+from ucp.benchmarks.base_backend import BaseClient, BaseServer
 
 WireupMessage = bytearray(b"wireup")
 
@@ -41,7 +42,7 @@ def register_am_allocators(args, worker):
         )
 
 
-class UCXPyCoreServer:
+class UCXPyCoreServer(BaseServer):
     def __init__(self, args, xp, queue):
         self.args = args
         self.xp = xp
@@ -166,7 +167,7 @@ class UCXPyCoreServer:
                 worker.progress()
 
 
-class UCXPyCoreClient:
+class UCXPyCoreClient(BaseClient):
     def __init__(self, args, xp, queue, server_address, port):
         self.args = args
         self.xp = xp

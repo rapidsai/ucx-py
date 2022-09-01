@@ -4,6 +4,7 @@ from time import monotonic
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
+from ucp.benchmarks.base_backend import BaseClient, BaseServer
 
 
 def register_am_allocators(args):
@@ -24,7 +25,7 @@ def register_am_allocators(args):
         ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
 
 
-class UCXPyAsyncServer:
+class UCXPyAsyncServer(BaseServer):
     def __init__(self, args, xp, queue):
         self.args = args
         self.xp = xp
@@ -67,7 +68,7 @@ class UCXPyAsyncServer:
             await asyncio.sleep(0.5)
 
 
-class UCXPyAsyncClient:
+class UCXPyAsyncClient(BaseClient):
     def __init__(self, args, xp, queue, server_address, port):
         self.args = args
         self.xp = xp
