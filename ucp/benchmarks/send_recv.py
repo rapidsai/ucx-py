@@ -18,6 +18,7 @@ UCX_MAX_RNDV_RAILS=1 UCX_TLS=tcp,cuda_copy,rc python send-recv.py \
         --n-iter 100
 """
 import argparse
+import asyncio
 import multiprocessing as mp
 import os
 
@@ -29,6 +30,7 @@ from ucp._libs.utils import (
     print_separator,
 )
 from ucp.benchmarks.ucp_async_backend import UCXPyAsyncClient, UCXPyAsyncServer
+from ucp.benchmarks.ucp_core_backend import UCXPyCoreClient, UCXPyCoreServer
 from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
@@ -58,10 +60,16 @@ def server(queue, args):
         xp.cuda.runtime.setDevice(args.server_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    server = UCXPyAsyncServer(args, xp, queue)
+    if args.backend == "ucp-async":
+        server = UCXPyAsyncServer(args, xp, queue)
+    elif args.backend == "ucp-core":
+        server = UCXPyCoreServer(args, xp, queue)
 
-    loop = get_event_loop()
-    loop.run_until_complete(server.run())
+    if asyncio.iscoroutinefunction(server.run):
+        loop = get_event_loop()
+        loop.run_until_complete(server.run())
+    else:
+        server.run()
 
 
 def client(queue, port, server_address, args):
@@ -90,10 +98,16 @@ def client(queue, port, server_address, args):
         xp.cuda.runtime.setDevice(args.client_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    client = UCXPyAsyncClient(args, xp, queue, server_address, port)
+    if args.backend == "ucp-async":
+        client = UCXPyAsyncClient(args, xp, queue, server_address, port)
+    elif args.backend == "ucp-core":
+        client = UCXPyCoreClient(args, xp, queue, server_address, port)
 
-    loop = get_event_loop()
-    loop.run_until_complete(client.run())
+    if asyncio.iscoroutinefunction(client.run):
+        loop = get_event_loop()
+        loop.run_until_complete(client.run())
+    else:
+        client.run()
 
     times = queue.get()
 
@@ -281,12 +295,45 @@ def parse_args():
         action="store_true",
         help="Disable detailed report per iteration.",
     )
+    parser.add_argument(
+        "-l",
+        "--backend",
+        default="ucp-async",
+        type=str,
+        help="Backend Library (-l) to use, options are: 'ucp-async' (default) and "
+        "'ucp-core'.",
+    )
+    parser.add_argument(
+        "--delay-progress",
+        default=False,
+        action="store_true",
+        help="Only applies to 'ucp-core' backend: delay ucp_worker_progress calls "
+        "until a minimum number of outstanding operations is reached, implies "
+        "non-blocking send/recv. The --max-outstanding argument may be used to "
+        "control number of maximum outstanding operations. (Default: disabled)",
+    )
+    parser.add_argument(
+        "--max-outstanding",
+        metavar="N",
+        default=32,
+        type=int,
+        help="Only applies to 'ucp-core' backend: number of maximum outstanding "
+        "operations, see --delay-progress. (Default: 32)",
+    )
 
     args = parser.parse_args()
+
     if args.cuda_profile and args.object_type == "numpy":
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
+
+    if not any([args.backend == b for b in ["ucp-async", "ucp-core"]]):
+        raise RuntimeError(f"Unknown backend {args.backend}")
+
+    if args.backend != "ucp-core" and args.delay_progress:
+        raise RuntimeError("`--delay-progress` requires `--backend=ucp-core`")
+
     return args
 
 
