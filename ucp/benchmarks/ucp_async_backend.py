@@ -3,6 +3,7 @@ from time import monotonic
 
 import ucp
 from ucp._libs.arr import Array
+from ucp._libs.utils import print_key_value
 
 
 def register_am_allocators(args):
@@ -116,3 +117,12 @@ class UCXPyAsyncClient:
         if self.args.cuda_profile:
             self.xp.cuda.profiler.stop()
         self.queue.put(times)
+
+    def print_backend_specific_config(self):
+        print_key_value(
+            key="Transfer API", value=f"{'AM' if self.args.enable_am else 'TAG'}"
+        )
+        print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
+        print_key_value(
+            key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}"
+        )

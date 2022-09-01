@@ -109,9 +109,7 @@ def client(queue, port, server_address, args):
     print_key_value(key="Bytes", value=f"{format_bytes(args.n_bytes)}")
     print_key_value(key="Object type", value=f"{args.object_type}")
     print_key_value(key="Reuse allocation", value=f"{args.reuse_alloc}")
-    print_key_value(key="Transfer API", value=f"{'AM' if args.enable_am else 'TAG'}")
-    print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
-    print_key_value(key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}")
+    client.print_backend_specific_config()
     print_separator(separator="=")
     if args.object_type == "numpy":
         print_key_value(key="Device(s)", value="CPU-only")

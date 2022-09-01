@@ -100,20 +100,13 @@ def client(queue, port, server_address, args):
     lat_avg = int(sum(times) * 1e9 / (2 * args.n_iter))
     lat_med = int(np.median(times) * 1e9 / 2)
 
-    delay_progress_str = (
-        f"True ({args.max_outstanding})" if args.delay_progress is True else "False"
-    )
-
     print("Roundtrip benchmark")
     print_separator(separator="=")
     print_key_value(key="Iterations", value=f"{args.n_iter}")
     print_key_value(key="Bytes", value=f"{format_bytes(args.n_bytes)}")
     print_key_value(key="Object type", value=f"{args.object_type}")
     print_key_value(key="Reuse allocation", value=f"{args.reuse_alloc}")
-    print_key_value(key="Transfer API", value=f"{'AM' if args.enable_am else 'TAG'}")
-    print_key_value(key="Delay progress", value=f"{delay_progress_str}")
-    print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
-    print_key_value(key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}")
+    client.print_backend_specific_config()
     print_separator(separator="=")
     if args.object_type == "numpy":
         print_key_value(key="Device(s)", value="CPU-only")

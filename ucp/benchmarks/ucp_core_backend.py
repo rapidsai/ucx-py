@@ -1,8 +1,10 @@
 from threading import Lock
 from time import monotonic
 
+import ucp
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
+from ucp._libs.utils import print_key_value
 from ucp._libs.utils_test import (
     blocking_am_recv,
     blocking_am_send,
@@ -253,3 +255,19 @@ class UCXPyCoreClient:
             self.xp.cuda.profiler.stop()
 
         self.queue.put(times)
+
+    def print_backend_specific_config(self):
+        delay_progress_str = (
+            f"True ({self.args.max_outstanding})"
+            if self.args.delay_progress is True
+            else "False"
+        )
+
+        print_key_value(
+            key="Transfer API", value=f"{'AM' if self.args.enable_am else 'TAG'}"
+        )
+        print_key_value(key="Delay progress", value=f"{delay_progress_str}")
+        print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
+        print_key_value(
+            key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}"
+        )
