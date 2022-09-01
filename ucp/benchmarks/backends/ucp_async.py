@@ -4,7 +4,7 @@ from time import monotonic
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
-from ucp.benchmarks.base_backend import BaseClient, BaseServer
+from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
 def register_am_allocators(args):

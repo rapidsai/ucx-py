@@ -29,8 +29,11 @@ from ucp._libs.utils import (
     print_key_value,
     print_separator,
 )
-from ucp.benchmarks.ucp_async_backend import UCXPyAsyncClient, UCXPyAsyncServer
-from ucp.benchmarks.ucp_core_backend import UCXPyCoreClient, UCXPyCoreServer
+from ucp.benchmarks.backends.ucp_async import (
+    UCXPyAsyncClient,
+    UCXPyAsyncServer,
+)
+from ucp.benchmarks.backends.ucp_core import UCXPyCoreClient, UCXPyCoreServer
 from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")

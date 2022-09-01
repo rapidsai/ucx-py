@@ -13,7 +13,7 @@ from ucp._libs.utils_test import (
     non_blocking_recv,
     non_blocking_send,
 )
-from ucp.benchmarks.base_backend import BaseClient, BaseServer
+from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 WireupMessage = bytearray(b"wireup")
 
