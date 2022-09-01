@@ -67,3 +67,9 @@ class BaseClient(ABC):
         5. Put timing results into the queue registered in constructor.
         """
         pass
+
+    def print_backend_specific_config(self):
+        """
+        Pretty print configuration specific to backend implementation.
+        """
+        pass
