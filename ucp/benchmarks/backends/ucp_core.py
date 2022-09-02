@@ -254,10 +254,9 @@ class UCXPyCoreClient(BaseClient):
                     recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
 
                 if self.args.delay_progress:
-                    maybe_progress()
+                    non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
                     non_blocking_send(worker, ep, send_msg, op_started, op_completed)
                     maybe_progress()
-                    non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
                 else:
                     blocking_send(worker, ep, send_msg)
                     blocking_recv(worker, ep, recv_msg)
