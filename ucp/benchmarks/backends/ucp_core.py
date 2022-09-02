@@ -67,9 +67,7 @@ class UCXPyCoreServer(BaseServer):
     def run(self):
         ctx = ucx_api.UCXContext(
             feature_flags=(
-                ucx_api.Feature.AM
-                if self.args.enable_am is True
-                else ucx_api.Feature.TAG,
+                ucx_api.Feature.AM if self.args.enable_am else ucx_api.Feature.TAG,
             )
         )
         worker = ucx_api.UCXWorker(ctx)

@@ -53,15 +53,15 @@ class UCXPyAsyncServer(BaseServer):
         async def server_handler(ep):
             if not self.args.enable_am:
                 msg_recv_list = []
-                if not self.args.reuse_alloc:
+                if self.args.reuse_alloc:
+                    t = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
+                        msg_recv_list.append(t)
+                else:
                     for _ in range(self.args.n_iter + self.args.n_warmup_iter):
                         msg_recv_list.append(
                             self.xp.zeros(self.args.n_bytes, dtype="u1")
                         )
-                else:
-                    t = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
-                        msg_recv_list.append(t)
 
                 assert msg_recv_list[0].nbytes == self.args.n_bytes
 
@@ -104,16 +104,17 @@ class UCXPyAsyncClient(BaseClient):
         else:
             msg_send_list = []
             msg_recv_list = []
-            if not self.args.reuse_alloc:
-                for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                    msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-            else:
+            if self.args.reuse_alloc:
                 t1 = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
                 t2 = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
                 for i in range(self.args.n_iter + self.args.n_warmup_iter):
                     msg_send_list.append(t1)
                     msg_recv_list.append(t2)
+            else:
+                for i in range(self.args.n_iter + self.args.n_warmup_iter):
+                    msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
+                    msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
             assert msg_send_list[0].nbytes == self.args.n_bytes
             assert msg_recv_list[0].nbytes == self.args.n_bytes
 
