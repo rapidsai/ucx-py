@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+from argparse import Namespace
+from queue import Queue
+from typing import Any
 
 
 class BaseServer(ABC):
     @abstractmethod
-    def __init__(self, args, xp, queue):
+    def __init__(self, args: Namespace, xp: Any, queue: Queue):
         """
         Benchmark server.
 
@@ -49,19 +52,25 @@ class BaseServer(ABC):
 
 class BaseClient(ABC):
     @abstractmethod
-    def __init__(self, args, xp, queue, server_address, port):
+    def __init__(
+        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+    ):
         """
         Benchmark client.
 
         Parameters
         ----------
-        args: argparse.Namespace
+        args
             Parsed command-line arguments that will be used as parameters during
             the `run` method.
-        xp: module
+        xp
             Module implementing the NumPy API to use for data generation.
-        queue: Queue
+        queue
             Queue object where to put timing results.
+        server_address
+            Hostname or IP address where server is listening at.
+        port
+            Port where server is listening at.
         """
         pass
 

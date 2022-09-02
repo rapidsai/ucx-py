@@ -1,5 +1,8 @@
 import asyncio
+from argparse import Namespace
+from queue import Queue
 from time import monotonic
+from typing import Any
 
 import ucp
 from ucp._libs.arr import Array
@@ -7,14 +10,14 @@ from ucp._libs.utils import print_key_value
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
-def register_am_allocators(args):
+def register_am_allocators(args: Namespace):
     """
     Register Active Message allocator in worker to correct memory type if the
-    benchmarks is set to use the Active Mesasge API.
+    benchmark is set to use the Active Message API.
 
     Parameters
     ----------
-    args: argparse.Namespace
+    args
         Parsed command-line arguments that will be used as parameters during to
         determine whether the caller is using the Active Message API and what
         memory type.
@@ -37,7 +40,7 @@ def register_am_allocators(args):
 
 
 class UCXPyAsyncServer(BaseServer):
-    def __init__(self, args, xp, queue):
+    def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -53,15 +56,15 @@ class UCXPyAsyncServer(BaseServer):
         async def server_handler(ep):
             if not self.args.enable_am:
                 msg_recv_list = []
-                if not self.args.reuse_alloc:
+                if self.args.reuse_alloc:
+                    t = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
+                        msg_recv_list.append(t)
+                else:
                     for _ in range(self.args.n_iter + self.args.n_warmup_iter):
                         msg_recv_list.append(
                             self.xp.zeros(self.args.n_bytes, dtype="u1")
                         )
-                else:
-                    t = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
-                        msg_recv_list.append(t)
 
                 assert msg_recv_list[0].nbytes == self.args.n_bytes
 
@@ -83,7 +86,9 @@ class UCXPyAsyncServer(BaseServer):
 
 
 class UCXPyAsyncClient(BaseClient):
-    def __init__(self, args, xp, queue, server_address, port):
+    def __init__(
+        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+    ):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -105,16 +110,17 @@ class UCXPyAsyncClient(BaseClient):
         else:
             msg_send_list = []
             msg_recv_list = []
-            if not self.args.reuse_alloc:
-                for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                    msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-            else:
+            if self.args.reuse_alloc:
                 t1 = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
                 t2 = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
                 for i in range(self.args.n_iter + self.args.n_warmup_iter):
                     msg_send_list.append(t1)
                     msg_recv_list.append(t2)
+            else:
+                for i in range(self.args.n_iter + self.args.n_warmup_iter):
+                    msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
+                    msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
             assert msg_send_list[0].nbytes == self.args.n_bytes
             assert msg_recv_list[0].nbytes == self.args.n_bytes
 

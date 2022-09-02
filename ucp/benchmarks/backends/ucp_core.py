@@ -1,5 +1,8 @@
+from argparse import Namespace
+from queue import Queue
 from threading import Lock
 from time import monotonic
+from typing import Any
 
 import ucp
 from ucp._libs import ucx_api
@@ -18,18 +21,18 @@ from ucp.benchmarks.backends.base import BaseClient, BaseServer
 WireupMessage = bytearray(b"wireup")
 
 
-def register_am_allocators(args, worker):
+def register_am_allocators(args: Namespace, worker: ucx_api.UCXWorker):
     """
     Register Active Message allocator in worker to correct memory type if the
-    benchmarks is set to use the Active Mesasge API.
+    benchmark is set to use the Active Message API.
 
     Parameters
     ----------
-    args: argparse.Namespace
+    args
         Parsed command-line arguments that will be used as parameters during to
         determine whether the caller is using the Active Message API and what
         memory type.
-    worker: ucp._libs.UCXWorker
+    worker
         UCX-Py core Worker object where to register the allocator.
     """
     if not args.enable_am:
@@ -56,7 +59,7 @@ def register_am_allocators(args, worker):
 
 
 class UCXPyCoreServer(BaseServer):
-    def __init__(self, args, xp, queue):
+    def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -65,20 +68,16 @@ class UCXPyCoreServer(BaseServer):
         return True
 
     def run(self):
+        self.ep = None
+
         ctx = ucx_api.UCXContext(
             feature_flags=(
-                ucx_api.Feature.AM
-                if self.args.enable_am is True
-                else ucx_api.Feature.TAG,
+                ucx_api.Feature.AM if self.args.enable_am else ucx_api.Feature.TAG,
             )
         )
         worker = ucx_api.UCXWorker(ctx)
 
         register_am_allocators(self.args, worker)
-
-        # A reference to listener's endpoint is stored to prevent it from going
-        # out of scope too early.
-        ep = None
 
         op_lock = Lock()
         finished = [0]
@@ -115,8 +114,7 @@ class UCXPyCoreServer(BaseServer):
             )
 
         def _listener_handler(conn_request, msg):
-            global ep
-            ep = ucx_api.UCXEndpoint.create_from_conn_request(
+            self.ep = ucx_api.UCXEndpoint.create_from_conn_request(
                 worker,
                 conn_request,
                 endpoint_error_handling=True,
@@ -124,7 +122,7 @@ class UCXPyCoreServer(BaseServer):
 
             # Wireup before starting to transfer data
             if self.args.enable_am is True:
-                ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
+                ucx_api.am_recv_nb(self.ep, cb_func=_am_recv_handle, cb_args=(self.ep,))
             else:
                 wireup = Array(bytearray(len(WireupMessage)))
                 op_started()
@@ -134,12 +132,14 @@ class UCXPyCoreServer(BaseServer):
                     wireup.nbytes,
                     tag=0,
                     cb_func=_tag_recv_handle,
-                    cb_args=(ep, wireup),
+                    cb_args=(self.ep, wireup),
                 )
 
             for i in range(self.args.n_iter + self.args.n_warmup_iter):
                 if self.args.enable_am is True:
-                    ucx_api.am_recv_nb(ep, cb_func=_am_recv_handle, cb_args=(ep,))
+                    ucx_api.am_recv_nb(
+                        self.ep, cb_func=_am_recv_handle, cb_args=(self.ep,)
+                    )
                 else:
                     if not self.args.reuse_alloc:
                         msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
@@ -151,7 +151,7 @@ class UCXPyCoreServer(BaseServer):
                         msg.nbytes,
                         tag=0,
                         cb_func=_tag_recv_handle,
-                        cb_args=(ep, msg),
+                        cb_args=(self.ep, msg),
                     )
 
         if not self.args.enable_am and self.args.reuse_alloc:
@@ -182,9 +182,13 @@ class UCXPyCoreServer(BaseServer):
             while finished[0] != self.args.n_iter + self.args.n_warmup_iter + 1:
                 worker.progress()
 
+        del self.ep
+
 
 class UCXPyCoreClient(BaseClient):
-    def __init__(self, args, xp, queue, server_address, port):
+    def __init__(
+        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+    ):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -244,6 +248,7 @@ class UCXPyCoreClient(BaseClient):
             self.xp.cuda.profiler.start()
 
         times = []
+        last_iter = self.args.n_iter + self.args.n_warmup_iter - 1
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
 
@@ -255,21 +260,20 @@ class UCXPyCoreClient(BaseClient):
                     recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
 
                 if self.args.delay_progress:
-                    maybe_progress()
+                    non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
                     non_blocking_send(worker, ep, send_msg, op_started, op_completed)
                     maybe_progress()
-                    non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
                 else:
                     blocking_send(worker, ep, send_msg)
                     blocking_recv(worker, ep, recv_msg)
 
+            if i == last_iter and self.args.delay_progress:
+                while finished[0] != 2 * (self.args.n_iter + self.args.n_warmup_iter):
+                    worker.progress()
+
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
-
-        if self.args.delay_progress:
-            while finished[0] != 2 * (self.args.n_iter + self.args.n_warmup_iter):
-                worker.progress()
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.stop()
