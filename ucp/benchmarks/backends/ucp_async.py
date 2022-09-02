@@ -45,7 +45,7 @@ class UCXPyAsyncServer(BaseServer):
         self.xp = xp
         self.queue = queue
 
-    def has_cuda_support():
+    def has_cuda_support() -> bool:
         return True
 
     async def run(self):
@@ -95,7 +95,7 @@ class UCXPyAsyncClient(BaseClient):
         self.server_address = server_address
         self.port = port
 
-    def has_cuda_support():
+    def has_cuda_support() -> bool:
         return True
 
     async def run(self):

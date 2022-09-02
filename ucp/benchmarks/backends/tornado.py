@@ -14,7 +14,7 @@ class TornadoServer(BaseServer):
         self.xp = xp
         self.queue = queue
 
-    def has_cuda_support():
+    def has_cuda_support() -> bool:
         return False
 
     def _start_listener(self, server, port):
@@ -82,7 +82,7 @@ class TornadoClient(BaseClient):
     def has_cuda_support():
         return False
 
-    async def run(self):
+    async def run(self) -> bool:
         client = TCPClient()
         # Set max_buffer_size to 1 GiB for now
         stream = await client.connect(

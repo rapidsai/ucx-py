@@ -64,7 +64,7 @@ class UCXPyCoreServer(BaseServer):
         self.xp = xp
         self.queue = queue
 
-    def has_cuda_support():
+    def has_cuda_support() -> bool:
         return True
 
     def run(self):
@@ -195,7 +195,7 @@ class UCXPyCoreClient(BaseClient):
         self.server_address = server_address
         self.port = port
 
-    def has_cuda_support():
+    def has_cuda_support() -> bool:
         return True
 
     def run(self):
