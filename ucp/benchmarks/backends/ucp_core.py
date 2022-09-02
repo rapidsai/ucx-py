@@ -21,7 +21,7 @@ WireupMessage = bytearray(b"wireup")
 def register_am_allocators(args, worker):
     """
     Register Active Message allocator in worker to correct memory type if the
-    benchmarks is set to use the Active Mesasge API.
+    benchmark is set to use the Active Message API.
 
     Parameters
     ----------
