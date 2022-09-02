@@ -1,5 +1,8 @@
+from argparse import Namespace
+from queue import Queue
 from threading import Lock
 from time import monotonic
+from typing import Any
 
 import ucp
 from ucp._libs import ucx_api
@@ -18,18 +21,18 @@ from ucp.benchmarks.backends.base import BaseClient, BaseServer
 WireupMessage = bytearray(b"wireup")
 
 
-def register_am_allocators(args, worker):
+def register_am_allocators(args: Namespace, worker: ucx_api.UCXWorker):
     """
     Register Active Message allocator in worker to correct memory type if the
     benchmark is set to use the Active Message API.
 
     Parameters
     ----------
-    args: argparse.Namespace
+    args
         Parsed command-line arguments that will be used as parameters during to
         determine whether the caller is using the Active Message API and what
         memory type.
-    worker: ucp._libs.UCXWorker
+    worker
         UCX-Py core Worker object where to register the allocator.
     """
     if not args.enable_am:
@@ -56,7 +59,7 @@ def register_am_allocators(args, worker):
 
 
 class UCXPyCoreServer(BaseServer):
-    def __init__(self, args, xp, queue):
+    def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -181,7 +184,9 @@ class UCXPyCoreServer(BaseServer):
 
 
 class UCXPyCoreClient(BaseClient):
-    def __init__(self, args, xp, queue, server_address, port):
+    def __init__(
+        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+    ):
         self.args = args
         self.xp = xp
         self.queue = queue

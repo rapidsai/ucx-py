@@ -1,5 +1,8 @@
 import asyncio
+from argparse import Namespace
+from queue import Queue
 from time import monotonic
+from typing import Any
 
 import ucp
 from ucp._libs.arr import Array
@@ -7,14 +10,14 @@ from ucp._libs.utils import print_key_value
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
-def register_am_allocators(args):
+def register_am_allocators(args: Namespace):
     """
     Register Active Message allocator in worker to correct memory type if the
     benchmark is set to use the Active Message API.
 
     Parameters
     ----------
-    args: argparse.Namespace
+    args
         Parsed command-line arguments that will be used as parameters during to
         determine whether the caller is using the Active Message API and what
         memory type.
@@ -37,7 +40,7 @@ def register_am_allocators(args):
 
 
 class UCXPyAsyncServer(BaseServer):
-    def __init__(self, args, xp, queue):
+    def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
         self.queue = queue
@@ -80,7 +83,9 @@ class UCXPyAsyncServer(BaseServer):
 
 
 class UCXPyAsyncClient(BaseClient):
-    def __init__(self, args, xp, queue, server_address, port):
+    def __init__(
+        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+    ):
         self.args = args
         self.xp = xp
         self.queue = queue
