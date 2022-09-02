@@ -242,6 +242,7 @@ class UCXPyCoreClient(BaseClient):
             self.xp.cuda.profiler.start()
 
         times = []
+        last_iter = self.args.n_iter + self.args.n_warmup_iter - 1
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
 
@@ -261,13 +262,13 @@ class UCXPyCoreClient(BaseClient):
                     blocking_send(worker, ep, send_msg)
                     blocking_recv(worker, ep, recv_msg)
 
+            if i == last_iter and self.args.delay_progress:
+                while finished[0] != 2 * (self.args.n_iter + self.args.n_warmup_iter):
+                    worker.progress()
+
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
-
-        if self.args.delay_progress:
-            while finished[0] != 2 * (self.args.n_iter + self.args.n_warmup_iter):
-                worker.progress()
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.stop()
