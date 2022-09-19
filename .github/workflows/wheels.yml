@@ -7,10 +7,10 @@ on:
 
 jobs:
   ucx-py-wheel:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
     with:
       package-name: ucx-py
       package-dir: .
-      python-version: "3.8 3.9"
+      python-version: "3.8"
       gpu-smoketest: "import ucp; print(ucp.get_config())"
     secrets: inherit
