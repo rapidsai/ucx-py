@@ -9,6 +9,6 @@ jobs:
   ucx-py-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
     with:
-      package-name: ucx_py
+      package-name: ucp
       package-dir: .
     secrets: inherit
