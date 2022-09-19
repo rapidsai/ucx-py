@@ -1,0 +1,14 @@
+name: ucx-py wheels
+
+on:
+  push:
+    branches:
+      - 'pull-request/[0-9]+'
+
+jobs:
+  ucx-py-wheel:
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
+    with:
+      package-name: ucx_py
+      package-dir: .
+    secrets: inherit
