@@ -7,7 +7,7 @@ on:
 
 jobs:
   ucx-py-wheel:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
       package-name: ucx-py
       package-dir: .
