@@ -11,4 +11,5 @@ jobs:
     with:
       package-name: ucp
       package-dir: .
+      python-version: "3.8 3.9"
     secrets: inherit
