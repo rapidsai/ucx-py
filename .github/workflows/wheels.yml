@@ -9,5 +9,5 @@ jobs:
       package-name: ucx_py
       package-dir: .
       python-version: "3.8 3.9"
-      cibw-environment: "LD_PRELOAD=/usr/lib/ucx/libuct_cma.so:/usr/lib/ucx/libuct_rdmacm.so:/usr/lib/ucx/libuct_cuda.so:/usr/lib/ucx/libuct_ib.so:/usr/lib/ucx/libucm_cuda.so LD_LIBRARY_PATH=/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH"
+      cibw-before-build: "export LD_PRELOAD=/usr/lib/ucx/libuct_cma.so:/usr/lib/ucx/libucx_perftest_cuda.so:/usr/lib/ucx/libuct_rdmacm.so:/usr/lib/ucx/libuct_cuda.so:/usr/lib/ucx/libuct_ib.so:/usr/lib/ucx/libucm_cuda.so"
     secrets: inherit
