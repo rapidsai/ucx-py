@@ -19,6 +19,5 @@ requires = [
     "cython>=0.29,<0.30",
     "make",
     "libtool",
-    "pkg-config",
     "psutil",
 ]
