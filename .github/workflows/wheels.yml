@@ -8,6 +8,5 @@ jobs:
     with:
       package-name: ucx_py
       package-dir: .
-      python-version: "3.8"
-      gpu-smoketest: "import ucp; print(ucp.get_config())"
+      python-version: "3.8 3.9"
     secrets: inherit
