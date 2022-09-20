@@ -6,7 +6,7 @@ jobs:
   ucx-py-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
     with:
-      package-name: ucx-py
+      package-name: ucx_py
       package-dir: .
       python-version: "3.8"
       gpu-smoketest: "import ucp; print(ucp.get_config())"
