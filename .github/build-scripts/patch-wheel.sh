@@ -22,6 +22,21 @@ do
   patchelf --replace-needed libucm.so.0 libucm-$LIBUCM.so.0.0.0 $f
   patchelf --add-rpath "\$ORIGIN/.." $f
 done
+
+# bring in cudart as well if avoid symbol collision with other
+# libraries e.g. cupy
+
+find /usr/local/cuda/ -name "libcudart*.so.11.5.117" -exec cp -P {} . \;
+mv libcudart.so.11.5.117 ucx-libcudart.so.11.5.117
+ln -s ucx-libcudart.so.11.5.117 ucx-libcudart.so.11.0
+ln -s ucx-libcudart.so.11.0 ucx-libcudart.so
+
+
+# only libuct_cuda links against cuda runtime
+# TODO: generalize cuda versioning
+patchelf --replace-needed libcudart.so.11.0 ucx-libcudart.so.11.0 libuct_cuda.so.0.0.0
+patchelf --add-rpath "\$ORIGIN/" libuct_cuda.so.0.0.0
+
 cd -
 
 zip -r $WHL ucx_py.libs/
