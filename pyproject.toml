@@ -17,7 +17,6 @@
 requires = [
     "setuptools",
     "cython>=0.29,<0.30",
-    "automake",
     "make",
     "libtool",
     "pkg-config",
