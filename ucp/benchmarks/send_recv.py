@@ -52,7 +52,7 @@ def _get_backend_implementation(backend):
 
         return {"client": TornadoClient, "server": TornadoServer}
 
-    return {"client": None, "server": None}
+    raise ValueError(f"Unknown backend {backend}")
 
 
 def server(queue, args):
@@ -342,9 +342,6 @@ def parse_args():
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
-
-    if not any([args.backend == b for b in ["tornado", "ucp-async", "ucp-core"]]):
-        raise RuntimeError(f"Unknown backend {args.backend}")
 
     backend_impl = _get_backend_implementation(args.backend)
     if not (
