@@ -5,9 +5,9 @@ set -x
 WHL=ucx_py-0.28.0a0+37.ge1f0547-cp38-cp38-manylinux_2_31_x86_64.whl
 
 # first grab the auditwheel hashes for libuc{tms}
-LIBUCM=`unzip -l $WHL | grep -E "libucm-.*.so\.0\.0\.0" | awk '{ printf "%s\n",$4 }' | cut -d '-' -f 2 | cut -d '.' -f 1`
-LIBUCT=`unzip -l $WHL | grep -E "libuct-.*.so\.0\.0\.0" | awk '{ printf "%s\n",$4 }' | cut -d '-' -f 2 | cut -d '.' -f 1`
-LIBUCS=`unzip -l $WHL | grep -E "libucs-.*.so\.0\.0\.0" | awk '{ printf "%s\n",$4 }' | cut -d '-' -f 2 | cut -d '.' -f 1`
+LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')
+LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RSTART) }')
+LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
 
 mkdir -p ucx_py.libs/ucx
 cd ucx_py.libs/ucx
