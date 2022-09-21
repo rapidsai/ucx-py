@@ -348,7 +348,7 @@ def parse_args():
         backend_impl["client"].has_cuda_support
         and backend_impl["client"].has_cuda_support
     ):
-        if any([args.object_type == t for t in ["cupy", "rmm"]]):
+        if args.object_type in {"cupy", "rmm"}:
             raise RuntimeError(
                 f"Backend '{args.backend}' does not support CUDA transfers"
             )
