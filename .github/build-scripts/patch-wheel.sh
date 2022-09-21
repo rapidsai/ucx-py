@@ -20,7 +20,7 @@ do
   patchelf --replace-needed libuct.so.0 libuct-$LIBUCT.so.0.0.0 $f
   patchelf --replace-needed libucs.so.0 libucs-$LIBUCS.so.0.0.0 $f
   patchelf --replace-needed libucm.so.0 libucm-$LIBUCM.so.0.0.0 $f
-  patchelf --add-rpath "\$ORIGIN/.." $f
+  patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 # bring in cudart as well if avoid symbol collision with other
