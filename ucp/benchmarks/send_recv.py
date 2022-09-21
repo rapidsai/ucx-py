@@ -318,8 +318,8 @@ def parse_args():
         "--backend",
         default="ucp-async",
         type=str,
-        help="Backend Library (-l) to use, options are: 'ucp-async' (default) and "
-        "'ucp-core'.",
+        help="Backend Library (-l) to use, options are: 'ucp-async' (default), "
+        "'ucp-core' and 'tornado'.",
     )
     parser.add_argument(
         "--delay-progress",
