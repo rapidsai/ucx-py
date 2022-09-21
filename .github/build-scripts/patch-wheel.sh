@@ -26,16 +26,22 @@ done
 # bring in cudart as well if avoid symbol collision with other
 # libraries e.g. cupy
 
-find /usr/local/cuda/ -name "libcudart*.so.11.5.117" -exec cp -P {} . \;
-mv libcudart.so.11.5.117 ucx-libcudart.so.11.5.117
-ln -s ucx-libcudart.so.11.5.117 ucx-libcudart.so.11.0
-ln -s ucx-libcudart.so.11.0 ucx-libcudart.so
+find /usr/local/cuda/ -name "libcudart*.so*" | xargs cp -P -t .
+src=libcudart.so
+hash=$(sha256sum ${src} | awk '{print substr($1, 0, 8)}')
+target=$(basename $(readlink -f ${src}))
 
+mv ${target} ${target/libcudart/libcudart-${hash}}
+while readlink ${src} > /dev/null; do
+    target=$(readlink ${src})
+    ln -s ${target/libcudart/libcudart-${hash}} ${src/libcudart/libcudart-${hash}}
+    rm -f ${src}
+    src=${target}
+done
 
-# only libuct_cuda links against cuda runtime
-# TODO: generalize cuda versioning
-patchelf --replace-needed libcudart.so.11.0 ucx-libcudart.so.11.0 libuct_cuda.so.0.0.0
-patchelf --add-rpath "\$ORIGIN/" libuct_cuda.so.0.0.0
+to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
+patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
+patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
 
