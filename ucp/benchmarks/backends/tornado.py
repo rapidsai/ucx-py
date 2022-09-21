@@ -9,13 +9,12 @@ from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
 class TornadoServer(BaseServer):
+    has_cuda_support = False
+
     def __init__(self, args, xp, queue):
         self.args = args
         self.xp = xp
         self.queue = queue
-
-    def has_cuda_support() -> bool:
-        return False
 
     def _start_listener(self, server, port):
         if port is not None:
@@ -72,15 +71,14 @@ class TornadoServer(BaseServer):
 
 
 class TornadoClient(BaseClient):
+    has_cuda_support = False
+
     def __init__(self, args, xp, queue, server_address, port):
         self.args = args
         self.xp = xp
         self.queue = queue
         self.server_address = server_address
         self.port = port
-
-    def has_cuda_support():
-        return False
 
     async def run(self) -> bool:
         client = TCPClient()

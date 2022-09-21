@@ -22,7 +22,8 @@ class BaseServer(ABC):
         """
         pass
 
-    @staticmethod
+    @property
+    @abstractmethod
     def has_cuda_support() -> bool:
         """
         Check whether server implementation supports CUDA memory transfers.
@@ -74,6 +75,8 @@ class BaseClient(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
     def has_cuda_support() -> bool:
         """
         Check whether client implementation supports CUDA memory transfers.

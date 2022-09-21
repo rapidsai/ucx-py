@@ -59,13 +59,12 @@ def register_am_allocators(args: Namespace, worker: ucx_api.UCXWorker):
 
 
 class UCXPyCoreServer(BaseServer):
+    has_cuda_support = True
+
     def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
         self.queue = queue
-
-    def has_cuda_support() -> bool:
-        return True
 
     def run(self):
         self.ep = None
@@ -186,6 +185,8 @@ class UCXPyCoreServer(BaseServer):
 
 
 class UCXPyCoreClient(BaseClient):
+    has_cuda_support = True
+
     def __init__(
         self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
     ):
@@ -194,9 +195,6 @@ class UCXPyCoreClient(BaseClient):
         self.queue = queue
         self.server_address = server_address
         self.port = port
-
-    def has_cuda_support() -> bool:
-        return True
 
     def run(self):
         ctx = ucx_api.UCXContext(

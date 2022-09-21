@@ -351,8 +351,8 @@ def parse_args():
 
     backend_impl = _get_backend_implementation(args.backend)
     if not (
-        backend_impl["client"].has_cuda_support()
-        and backend_impl["client"].has_cuda_support()
+        backend_impl["client"].has_cuda_support
+        and backend_impl["client"].has_cuda_support
     ):
         if any([args.object_type == t for t in ["cupy", "rmm"]]):
             raise RuntimeError(
