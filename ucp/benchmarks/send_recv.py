@@ -45,15 +45,12 @@ def _get_backend_implementation(backend):
     elif backend == "ucp-core":
         return {"client": UCXPyCoreClient, "server": UCXPyCoreServer}
     elif backend == "tornado":
-        try:
-            from ucp.benchmarks.backends.tornado import (
-                TornadoClient,
-                TornadoServer,
-            )
+        from ucp.benchmarks.backends.tornado import (
+            TornadoClient,
+            TornadoServer,
+        )
 
-            return {"client": TornadoClient, "server": TornadoServer}
-        except ImportError:
-            pass
+        return {"client": TornadoClient, "server": TornadoServer}
 
     return {"client": None, "server": None}
 
