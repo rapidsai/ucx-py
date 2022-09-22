@@ -22,6 +22,19 @@ class BaseServer(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def has_cuda_support() -> bool:
+        """
+        Check whether server implementation supports CUDA memory transfers.
+
+        Returns
+        -------
+        ret: bool
+            `True` if CUDA is supported, `False` otherwise.
+        """
+        return False
+
     @abstractmethod
     def run(self):
         """
@@ -61,6 +74,19 @@ class BaseClient(ABC):
             Port where server is listening at.
         """
         pass
+
+    @property
+    @abstractmethod
+    def has_cuda_support() -> bool:
+        """
+        Check whether client implementation supports CUDA memory transfers.
+
+        Returns
+        -------
+        ret: bool
+            `True` if CUDA is supported, `False` otherwise.
+        """
+        return False
 
     @abstractmethod
     def run(self):

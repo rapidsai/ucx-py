@@ -40,6 +40,8 @@ def register_am_allocators(args: Namespace):
 
 
 class UCXPyAsyncServer(BaseServer):
+    has_cuda_support = True
+
     def __init__(self, args: Namespace, xp: Any, queue: Queue):
         self.args = args
         self.xp = xp
@@ -83,6 +85,8 @@ class UCXPyAsyncServer(BaseServer):
 
 
 class UCXPyAsyncClient(BaseClient):
+    has_cuda_support = True
+
     def __init__(
         self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
     ):
