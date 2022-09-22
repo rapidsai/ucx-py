@@ -35,16 +35,10 @@ class TornadoServer(BaseServer):
         args = self.args
         xp = self.xp
 
-        global event
         event = asyncio.Event()
 
         class TransferServer(TCPServer):
-            def __init__(self, event, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.event = event
-
             async def handle_stream(self, stream, address):
-                global event
                 msg_recv_list = []
                 if args.reuse_alloc:
                     t = xp.zeros(args.n_bytes, dtype="u1")
@@ -64,10 +58,10 @@ class TornadoServer(BaseServer):
                         print(e)
                         break
 
-                self.event.set()
+                event.set()
 
         # Set max_buffer_size to 1 GiB for now
-        server = TransferServer(event, max_buffer_size=1024**3)
+        server = TransferServer(max_buffer_size=1024**3)
         port = self._start_listener(server, args.port)
 
         self.queue.put(port)
