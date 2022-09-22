@@ -67,7 +67,8 @@ class UCXPyAsyncServer(BaseServer):
                     if not self.args.reuse_alloc:
                         recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-                    await asyncio.gather(ep.recv(recv_msg), ep.send(recv_msg))
+                    await ep.recv(recv_msg)
+                    await ep.send(recv_msg)
             await ep.close()
             lf.close()
 
@@ -117,10 +118,10 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.am_recv()
             else:
                 if not self.args.reuse_alloc:
-                    send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
                     recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-                await asyncio.gather(ep.send(send_msg), ep.recv(recv_msg))
+                await ep.send(send_msg)
+                await ep.recv(recv_msg)
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)

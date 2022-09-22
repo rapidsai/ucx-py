@@ -49,9 +49,8 @@ class TornadoServer(BaseServer):
                         recv_msg = xp.zeros(args.n_bytes, dtype="u1")
 
                     try:
-                        await asyncio.gather(
-                            stream.read_into(recv_msg.data), stream.write(recv_msg.data)
-                        )
+                        await stream.read_into(recv_msg.data)
+                        await stream.write(recv_msg.data)
                     except StreamClosedError as e:
                         print(e)
                         break
@@ -83,11 +82,10 @@ class TornadoClient(BaseClient):
             self.server_address, self.port, max_buffer_size=1024**3
         )
 
+        send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+        assert send_msg.nbytes == self.args.n_bytes
         if self.args.reuse_alloc:
-            send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
             recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
-
-            assert send_msg.nbytes == self.args.n_bytes
             assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
@@ -97,12 +95,10 @@ class TornadoClient(BaseClient):
             start = monotonic()
 
             if not self.args.reuse_alloc:
-                send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
                 recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
 
-            await asyncio.gather(
-                stream.write(send_msg.data), stream.read_into(recv_msg.data)
-            )
+            await stream.write(send_msg.data)
+            await stream.read_into(recv_msg.data)
 
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
