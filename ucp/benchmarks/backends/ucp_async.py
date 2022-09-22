@@ -101,8 +101,8 @@ class UCXPyAsyncClient(BaseClient):
         if self.args.enable_am:
             msg = self.xp.arange(self.args.n_bytes, dtype="u1")
         else:
+            send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
             if self.args.reuse_alloc:
-                send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
                 recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
                 assert send_msg.nbytes == self.args.n_bytes
