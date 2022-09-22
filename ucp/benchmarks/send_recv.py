@@ -188,6 +188,7 @@ def parse_args():
             "--n-bytes",
             metavar="BYTES",
             default=10_000_000,
+            type=int,
             help="Message size in bytes. Default '10_000_000'.",
         )
     parser.add_argument(
