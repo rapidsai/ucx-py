@@ -46,17 +46,17 @@ class TornadoServer(BaseServer):
             async def handle_stream(self, stream, address):
                 global event
                 msg_recv_list = []
-                if not args.reuse_alloc:
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-                else:
+                if args.reuse_alloc:
                     t = xp.zeros(args.n_bytes, dtype="u1")
                     for _ in range(args.n_iter + args.n_warmup_iter):
                         msg_recv_list.append(t)
 
-                assert msg_recv_list[0].nbytes == args.n_bytes
+                    assert msg_recv_list[0].nbytes == args.n_bytes
 
                 for i in range(args.n_iter + args.n_warmup_iter):
+                    if not args.reuse_alloc:
+                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
+
                     try:
                         await stream.read_into(msg_recv_list[i].data)
                         await stream.write(msg_recv_list[i].data)
@@ -93,24 +93,25 @@ class TornadoClient(BaseClient):
 
         msg_send_list = []
         msg_recv_list = []
-        if not self.args.reuse_alloc:
-            for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-        else:
+        if self.args.reuse_alloc:
             t1 = self.xp.arange(self.args.n_bytes, dtype="u1")
             t2 = self.xp.zeros(self.args.n_bytes, dtype="u1")
             for i in range(self.args.n_iter + self.args.n_warmup_iter):
                 msg_send_list.append(t1)
                 msg_recv_list.append(t2)
-        assert msg_send_list[0].nbytes == self.args.n_bytes
-        assert msg_recv_list[0].nbytes == self.args.n_bytes
+
+            assert msg_send_list[0].nbytes == self.args.n_bytes
+            assert msg_recv_list[0].nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.start()
         times = []
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
+
+            if not self.args.reuse_alloc:
+                msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
+                msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
             await stream.write(msg_send_list[i].data)
             await stream.read_into(msg_recv_list[i].data)
