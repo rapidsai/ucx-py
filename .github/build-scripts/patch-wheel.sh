@@ -1,3 +1,5 @@
+#!/usr/bin
+set -e
 set -x
 
 WHL=ucx_py-0.28.0a0+37.ge1f0547-cp38-cp38-manylinux_2_31_x86_64.whl
@@ -39,23 +41,6 @@ done
 
 to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
 patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
-patchelf --add-rpath '$ORIGIN' libuct_cuda.so
-
-find /lib/x86_64-linux-gnu/ -name "libnvidia-ml*.so.*" | xargs cp -P -t .
-src=libnvidia-ml.so.1
-hash=$(sha256sum ${src} | awk '{print substr($1, 0, 8)}')
-target=$(basename $(readlink -f ${src}))
-
-mv ${target} ${target/libnvidia-ml/libnvidia-ml-${hash}}
-while readlink ${src} > /dev/null; do
-    target=$(readlink ${src})
-    ln -s ${target/libnvidia-ml/libnvidia-ml-${hash}} ${src/libnvidia-ml/libnvidia-ml-${hash}}
-    rm -f ${src}
-    src=${target}
-done
-
-to_rewrite=$(ldd libuct_cuda.so | awk '/libnvidia-ml/ { print $1 }')
-patchelf --replace-needed ${to_rewrite} libnvidia-ml-${hash}.so.1 libuct_cuda.so
 patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
