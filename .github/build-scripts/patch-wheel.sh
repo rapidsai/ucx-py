@@ -2,7 +2,7 @@
 set -e
 set -x
 
-WHL=ucx_py-0.28.0a0+37.ge1f0547-cp38-cp38-manylinux_2_31_x86_64.whl
+WHL=$1
 
 # first grab the auditwheel hashes for libuc{tms}
 LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')

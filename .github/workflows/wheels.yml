@@ -4,9 +4,22 @@ on: [push]
 
 jobs:
   ucx-py-wheel:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-ptaylor
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
       package-name: ucx_py
       package-dir: .
       python-version: "3.8 3.9"
+
+      manylinux-container-amd64: "rapidsai/manylinux2014"
+      manylinux-container-arm64: "rapidsai/manylinux_2_31"
+
+      # use the before-build parameter, which supports the '{package}' placeholder, to copy the custom auditwheel script to a known location
+      # in the auditwheel repair command, the '{package}' placeholder can't be used
+      cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
+
+      auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/{wheel}"
+      auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/{wheel}"
+
+      test-container-amd64: "rapidsai/manylinux_2_27"
+      test-container-arm64: "rapidsai/manylinux_2_31" 
     secrets: inherit
