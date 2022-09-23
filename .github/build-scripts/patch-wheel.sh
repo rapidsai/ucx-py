@@ -1,6 +1,6 @@
-#!/usr/bin
-set -e
-set -x
+#!/usr/bin/env bash
+
+set -Eeoxu pipefail
 
 WHL=$1
 
