@@ -17,8 +17,8 @@ jobs:
       # in the auditwheel repair command, the '{package}' placeholder can't be used
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
 
-      auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/{wheel}"
-      auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/{wheel}"
+      auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
+      auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
 
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
