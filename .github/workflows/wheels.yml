@@ -13,6 +13,9 @@ jobs:
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
 
+      cibw-before-all-amd64: "yum install -y zip"
+      cibw-before-all-arm64: "apt-get install -y zip"
+
       # use the before-build parameter, which supports the '{package}' placeholder, to copy the custom auditwheel script to a known location
       # in the auditwheel repair command, the '{package}' placeholder can't be used
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
