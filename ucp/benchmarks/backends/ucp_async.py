@@ -54,26 +54,21 @@ class UCXPyAsyncServer(BaseServer):
 
         async def server_handler(ep):
             if not self.args.enable_am:
-                msg_recv_list = []
                 if self.args.reuse_alloc:
-                    t = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
-                        msg_recv_list.append(t)
-                else:
-                    for _ in range(self.args.n_iter + self.args.n_warmup_iter):
-                        msg_recv_list.append(
-                            self.xp.zeros(self.args.n_bytes, dtype="u1")
-                        )
+                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-                assert msg_recv_list[0].nbytes == self.args.n_bytes
+                    assert recv_msg.nbytes == self.args.n_bytes
 
             for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                if self.args.enable_am is True:
+                if self.args.enable_am:
                     recv = await ep.am_recv()
                     await ep.am_send(recv)
                 else:
-                    await ep.recv(msg_recv_list[i])
-                    await ep.send(msg_recv_list[i])
+                    if not self.args.reuse_alloc:
+                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
+                    await ep.recv(recv_msg)
+                    await ep.send(recv_msg)
             await ep.close()
             lf.close()
 
@@ -106,21 +101,12 @@ class UCXPyAsyncClient(BaseClient):
         if self.args.enable_am:
             msg = self.xp.arange(self.args.n_bytes, dtype="u1")
         else:
-            msg_send_list = []
-            msg_recv_list = []
+            send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
             if self.args.reuse_alloc:
-                t1 = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                t2 = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-                for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                    msg_send_list.append(t1)
-                    msg_recv_list.append(t2)
-            else:
-                for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                    msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-            assert msg_send_list[0].nbytes == self.args.n_bytes
-            assert msg_recv_list[0].nbytes == self.args.n_bytes
+                assert send_msg.nbytes == self.args.n_bytes
+                assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.start()
@@ -131,8 +117,11 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.am_send(msg)
                 await ep.am_recv()
             else:
-                await ep.send(msg_send_list[i])
-                await ep.recv(msg_recv_list[i])
+                if not self.args.reuse_alloc:
+                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
+                await ep.send(send_msg)
+                await ep.recv(recv_msg)
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
