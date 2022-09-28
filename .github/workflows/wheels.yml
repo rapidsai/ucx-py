@@ -28,6 +28,7 @@ jobs:
 
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
+    secrets: inherit
   ucx-py-cp39-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
