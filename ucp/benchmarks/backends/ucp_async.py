@@ -7,7 +7,7 @@ from typing import Any
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
-from ucp._libs.vmm_ext import VmmArray
+from ucp._libs.vmm import VmmArray
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
