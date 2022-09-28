@@ -368,6 +368,12 @@ def parse_args():
         help="Only applies to 'ucp-core' backend: number of maximum outstanding "
         "operations, see --delay-progress. (Default: 32)",
     )
+    parser.add_argument(
+        "--vmm-debug",
+        default=False,
+        action="store_true",
+        help="Activate verbose debug prints for VMM and result checking.",
+    )
 
     args = parser.parse_args()
 

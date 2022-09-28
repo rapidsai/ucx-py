@@ -82,10 +82,10 @@ class UCXPyAsyncServer(BaseServer):
                     await ep.recv(recv_msg)
                     await ep.send(recv_msg)
 
-                if self.vmm:
+                if self.vmm and self.args.vmm_debug:
                     h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
                     recv_msg_vmm.copy_to_host(h_recv_msg)
-                    # print(f"Server: {h_recv_msg}")
+                    print(f"Server: {h_recv_msg}")
             await ep.close()
             lf.close()
 
@@ -158,15 +158,13 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.recv(recv_msg)
             stop = monotonic()
 
-            # if self.vmm:
-            #     import numpy as np
+            if self.vmm and self.args.vmm_debug:
+                import numpy as np
 
-            #     h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
-            #     # print(h_recv_msg)
-            #     send_msg_vmm.copy_to_host(h_recv_msg)
-            #     # print(h_send_msg)
-            #     # print(h_recv_msg)
-            #     np.testing.assert_equal(h_recv_msg, h_send_msg)
+                h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+                send_msg_vmm.copy_to_host(h_recv_msg)
+                print(f"Client: {h_recv_msg}")
+                np.testing.assert_equal(h_recv_msg, h_send_msg)
 
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
