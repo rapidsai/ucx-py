@@ -1,6 +1,9 @@
 name: ucx-py wheels
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'pull-request/[0-9]+'
 
 jobs:
   ucx-py-cp38-wheel:
