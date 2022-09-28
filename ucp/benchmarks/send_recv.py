@@ -65,16 +65,10 @@ def server(queue, args):
         import cupy as xp
 
         xp.cuda.runtime.setDevice(args.server_dev)
-    elif args.object_type == "vmm":
-        # from cuda import cuda
-        # err, = cuda.cuInit(0)
-        # err, cuDevice = cuda.cuDeviceGet(args.server_dev)
-        # err, context = cuda.cuCtxCreate(0, cuDevice)
+    elif args.object_type.startswith("vmm"):
         # Create CUDA context
         import cupy as cp
         import numpy as xp
-
-        from ucp._libs.vmm import VMMArray
 
         cp.cuda.runtime.setDevice(args.server_dev)
         cp.cuda.runtime.free(0)
@@ -93,8 +87,15 @@ def server(queue, args):
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
-    if args.object_type == "vmm":
-        server.vmm = VMMArray
+    if args.object_type.startswith("vmm"):
+        if args.object_type == "vmm-pool":
+            from dask_cuda.rmm_vmm_pool import VmmAllocPool
+
+            server.vmm = VmmAllocPool()
+        else:
+            from dask_cuda.rmm_vmm_pool import VmmAlloc
+
+            server.vmm = VmmAlloc()
 
     if asyncio.iscoroutinefunction(server.run):
         loop = get_event_loop()
@@ -115,18 +116,12 @@ def client(queue, port, server_address, args):
         import cupy as xp
 
         xp.cuda.runtime.setDevice(args.client_dev)
-    elif args.object_type == "vmm":
-        # from cuda import cuda
-        # err, = cuda.cuInit(0)
-        # err, cuDevice = cuda.cuDeviceGet(args.client_dev)
-        # err, context = cuda.cuCtxCreate(0, cuDevice)
+    elif args.object_type.startswith("vmm"):
         # Create CUDA context
         import cupy as cp
         import numpy as xp
 
-        from ucp._libs.vmm import VMMArray
-
-        cp.cuda.runtime.setDevice(args.client_dev)
+        cp.cuda.runtime.setDevice(args.server_dev)
         cp.cuda.runtime.free(0)
     else:
         import cupy as xp
@@ -145,8 +140,15 @@ def client(queue, port, server_address, args):
     client = _get_backend_implementation(args.backend)["client"](
         args, xp, queue, server_address, port
     )
-    if args.object_type == "vmm":
-        client.vmm = VMMArray
+    if args.object_type.startswith("vmm"):
+        if args.object_type == "vmm-pool":
+            from dask_cuda.rmm_vmm_pool import VmmAllocPool
+
+            client.vmm = VmmAllocPool()
+        else:
+            from dask_cuda.rmm_vmm_pool import VmmAlloc
+
+            client.vmm = VmmAlloc()
 
     if asyncio.iscoroutinefunction(client.run):
         loop = get_event_loop()
@@ -254,7 +256,7 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy", "rmm", "vmm"],
+        choices=["numpy", "cupy", "rmm", "vmm", "vmm-pool"],
         help="In-memory array type.",
     )
     parser.add_argument(

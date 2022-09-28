@@ -7,6 +7,7 @@ from typing import Any
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
+from ucp._libs.vmm_ext import VmmArray
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
@@ -57,7 +58,7 @@ class UCXPyAsyncServer(BaseServer):
             if not self.args.enable_am:
                 if self.args.reuse_alloc:
                     if self.vmm:
-                        recv_msg_vmm = self.vmm(self.args.server_dev, self.args.n_bytes)
+                        recv_msg_vmm = VmmArray(self.vmm, self.args.n_bytes)
                         recv_msg = Array(recv_msg_vmm)
                     else:
                         recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
@@ -71,9 +72,7 @@ class UCXPyAsyncServer(BaseServer):
                 else:
                     if not self.args.reuse_alloc:
                         if self.vmm:
-                            recv_msg_vmm = self.vmm(
-                                self.args.server_dev, self.args.n_bytes
-                            )
+                            recv_msg_vmm = VmmArray(self.vmm, self.args.n_bytes)
                             recv_msg = Array(recv_msg_vmm)
                         else:
                             recv_msg = Array(
@@ -86,7 +85,7 @@ class UCXPyAsyncServer(BaseServer):
                 if self.vmm:
                     h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
                     recv_msg_vmm.copy_to_host(h_recv_msg)
-                    print(f"Server: {h_recv_msg}")
+                    # print(f"Server: {h_recv_msg}")
             await ep.close()
             lf.close()
 
@@ -122,11 +121,11 @@ class UCXPyAsyncClient(BaseClient):
         else:
             if self.vmm:
                 h_send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
-                send_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                send_msg_vmm = VmmArray(self.vmm, self.args.n_bytes)
                 send_msg_vmm.copy_from_host(h_send_msg)
                 send_msg = Array(send_msg_vmm)
                 if self.args.reuse_alloc:
-                    recv_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                    recv_msg_vmm = VmmArray(self.vmm, self.args.n_bytes)
                     recv_msg = Array(recv_msg_vmm)
 
                     assert send_msg.nbytes == self.args.n_bytes
@@ -150,7 +149,7 @@ class UCXPyAsyncClient(BaseClient):
             else:
                 if not self.args.reuse_alloc:
                     if self.vmm:
-                        recv_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                        recv_msg_vmm = VmmArray(self.vmm, self.args.n_bytes)
                         recv_msg = Array(recv_msg_vmm)
                     else:
                         recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
@@ -159,15 +158,15 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.recv(recv_msg)
             stop = monotonic()
 
-            if self.vmm:
-                import numpy as np
+            # if self.vmm:
+            #     import numpy as np
 
-                h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
-                print(h_recv_msg)
-                send_msg_vmm.copy_to_host(h_recv_msg)
-                print(h_send_msg)
-                print(h_recv_msg)
-                np.testing.assert_equal(h_recv_msg, h_send_msg)
+            #     h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+            #     # print(h_recv_msg)
+            #     send_msg_vmm.copy_to_host(h_recv_msg)
+            #     # print(h_send_msg)
+            #     # print(h_recv_msg)
+            #     np.testing.assert_equal(h_recv_msg, h_send_msg)
 
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
