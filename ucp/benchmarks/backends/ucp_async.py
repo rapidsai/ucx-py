@@ -46,6 +46,7 @@ class UCXPyAsyncServer(BaseServer):
         self.args = args
         self.xp = xp
         self.queue = queue
+        self.vmm = None
 
     async def run(self):
         ucp.init()
@@ -55,7 +56,11 @@ class UCXPyAsyncServer(BaseServer):
         async def server_handler(ep):
             if not self.args.enable_am:
                 if self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    if self.vmm:
+                        recv_msg_vmm = self.vmm(self.args.server_dev, self.args.n_bytes)
+                        recv_msg = Array(recv_msg_vmm)
+                    else:
+                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
                     assert recv_msg.nbytes == self.args.n_bytes
 
@@ -65,10 +70,23 @@ class UCXPyAsyncServer(BaseServer):
                     await ep.am_send(recv)
                 else:
                     if not self.args.reuse_alloc:
-                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                        if self.vmm:
+                            recv_msg_vmm = self.vmm(
+                                self.args.server_dev, self.args.n_bytes
+                            )
+                            recv_msg = Array(recv_msg_vmm)
+                        else:
+                            recv_msg = Array(
+                                self.xp.zeros(self.args.n_bytes, dtype="u1")
+                            )
 
                     await ep.recv(recv_msg)
                     await ep.send(recv_msg)
+
+                if self.vmm:
+                    h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+                    recv_msg_vmm.copy_to_host(h_recv_msg)
+                    print(f"Server: {h_recv_msg}")
             await ep.close()
             lf.close()
 
@@ -88,6 +106,7 @@ class UCXPyAsyncClient(BaseClient):
         self.args = args
         self.xp = xp
         self.queue = queue
+        self.vmm = None
         self.server_address = server_address
         self.port = port
 
@@ -101,12 +120,24 @@ class UCXPyAsyncClient(BaseClient):
         if self.args.enable_am:
             msg = self.xp.arange(self.args.n_bytes, dtype="u1")
         else:
-            send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
-            if self.args.reuse_alloc:
-                recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+            if self.vmm:
+                h_send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+                send_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                send_msg_vmm.copy_from_host(h_send_msg)
+                send_msg = Array(send_msg_vmm)
+                if self.args.reuse_alloc:
+                    recv_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                    recv_msg = Array(recv_msg_vmm)
 
-                assert send_msg.nbytes == self.args.n_bytes
-                assert recv_msg.nbytes == self.args.n_bytes
+                    assert send_msg.nbytes == self.args.n_bytes
+                    assert recv_msg.nbytes == self.args.n_bytes
+            else:
+                send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
+                if self.args.reuse_alloc:
+                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
+                    assert send_msg.nbytes == self.args.n_bytes
+                    assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.start()
@@ -118,11 +149,26 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.am_recv()
             else:
                 if not self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    if self.vmm:
+                        recv_msg_vmm = self.vmm(self.args.client_dev, self.args.n_bytes)
+                        recv_msg = Array(recv_msg_vmm)
+                    else:
+                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
                 await ep.send(send_msg)
                 await ep.recv(recv_msg)
             stop = monotonic()
+
+            if self.vmm:
+                import numpy as np
+
+                h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+                print(h_recv_msg)
+                send_msg_vmm.copy_to_host(h_recv_msg)
+                print(h_send_msg)
+                print(h_recv_msg)
+                np.testing.assert_equal(h_recv_msg, h_send_msg)
+
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
         if self.args.cuda_profile:
