@@ -66,12 +66,10 @@ def server(queue, args):
 
         xp.cuda.runtime.setDevice(args.server_dev)
     elif args.object_type.startswith("vmm"):
-        # Create CUDA context
-        import cupy as cp
         import numpy as xp
+        from cuda import cudart
 
-        cp.cuda.runtime.setDevice(args.server_dev)
-        cp.cuda.runtime.free(0)
+        cudart.cudaSetDevice(args.server_dev)
     else:
         import cupy as xp
 
@@ -88,7 +86,11 @@ def server(queue, args):
 
     server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
     if args.object_type.startswith("vmm"):
-        if args.object_type == "vmm-pool":
+        if args.object_type == "vmm-block-pool":
+            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
+
+            server.vmm = VmmBlockPool()
+        elif args.object_type == "vmm-pool":
             from dask_cuda.rmm_vmm_pool import VmmAllocPool
 
             server.vmm = VmmAllocPool()
@@ -117,12 +119,10 @@ def client(queue, port, server_address, args):
 
         xp.cuda.runtime.setDevice(args.client_dev)
     elif args.object_type.startswith("vmm"):
-        # Create CUDA context
-        import cupy as cp
         import numpy as xp
+        from cuda import cudart
 
-        cp.cuda.runtime.setDevice(args.server_dev)
-        cp.cuda.runtime.free(0)
+        cudart.cudaSetDevice(args.client_dev)
     else:
         import cupy as xp
 
@@ -141,7 +141,11 @@ def client(queue, port, server_address, args):
         args, xp, queue, server_address, port
     )
     if args.object_type.startswith("vmm"):
-        if args.object_type == "vmm-pool":
+        if args.object_type == "vmm-block-pool":
+            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
+
+            client.vmm = VmmBlockPool()
+        elif args.object_type == "vmm-pool":
             from dask_cuda.rmm_vmm_pool import VmmAllocPool
 
             client.vmm = VmmAllocPool()
@@ -256,7 +260,7 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy", "rmm", "vmm", "vmm-pool"],
+        choices=["numpy", "cupy", "rmm", "vmm", "vmm-pool", "vmm-block-pool"],
         help="In-memory array type.",
     )
     parser.add_argument(
