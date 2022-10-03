@@ -81,19 +81,8 @@ class UCXPyAsyncServer(BaseServer):
                                 self.xp.empty(self.args.n_bytes, dtype="u1")
                             )
 
-                    if recv_msg.blocks is not None:
-                        for recv_block in recv_msg.blocks:
-                            await ep.recv(recv_block)
-                            await ep.send(recv_block)
-
-                            # h_recv_block = self.xp.empty(
-                            #     recv_block.shape[0], dtype="u1"
-                            # )
-                            # recv_block.copy_to_host(h_recv_block)
-                            # print(f"Server recv block: {h_recv_block}")
-                    else:
-                        await ep.recv(recv_msg)
-                        await ep.send(recv_msg)
+                    await ep.recv(recv_msg)
+                    await ep.send(recv_msg)
 
                 if self.vmm and self.args.vmm_debug:
                     h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
@@ -139,10 +128,6 @@ class UCXPyAsyncClient(BaseClient):
                 print(f"Client send: {h_send_msg}")
                 send_msg = Array(vmm_allocator(self.args.n_bytes))
                 copy_to_device(send_msg.ptr, h_send_msg, send_msg.shape[0])
-                # for send_block in send_msg_vmm.get_blocks():
-                #     h_send_block = self.xp.arange(send_block.shape[0], dtype="u1")
-                #     send_block.copy_from_host(h_send_block)
-                #     print(f"Client send block: {h_send_block}")
                 if self.args.reuse_alloc:
                     recv_msg = Array(vmm_allocator(self.args.n_bytes))
 
@@ -170,22 +155,8 @@ class UCXPyAsyncClient(BaseClient):
                     else:
                         recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-                if recv_msg.blocks is not None:
-                    for send_block, recv_block in zip(send_msg.blocks, recv_msg.blocks):
-                        await ep.send(send_block)
-                        await ep.recv(recv_block)
-
-                        # send_block_size = send_block.shape[0]
-                        # h_send_block = self.xp.empty(send_block_size, dtype="u1")
-                        # copy_to_host(h_send_block, send_block.ptr, send_block_size)
-                        # print(f"Client send block: {h_send_block}")
-                        # recv_block_size = recv_block.shape[0]
-                        # h_recv_block = self.xp.empty(recv_block_size, dtype="u1")
-                        # copy_to_host(h_recv_block, recv_block.ptr, recv_block_size)
-                        # print(f"Client send block: {h_recv_block}")
-                else:
-                    await ep.send(send_msg)
-                    await ep.recv(recv_msg)
+                await ep.send(send_msg)
+                await ep.recv(recv_msg)
             stop = monotonic()
 
             if self.vmm and self.args.vmm_debug:

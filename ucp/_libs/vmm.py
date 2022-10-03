@@ -74,6 +74,10 @@ class VmmAllocBase:
             "version": 2,
         }
 
+    @property
+    def nbytes(self):
+        return self.shape[0]
+
 
 class VmmArraySlice(VmmAllocBase):
     pass
