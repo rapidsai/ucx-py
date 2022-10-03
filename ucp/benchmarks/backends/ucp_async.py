@@ -1,6 +1,5 @@
 import asyncio
 from argparse import Namespace
-from functools import partial
 from queue import Queue
 from time import monotonic
 from typing import Any
@@ -8,7 +7,7 @@ from typing import Any
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
-from ucp._libs.vmm import VmmArray, VmmBlockArray
+from ucp._libs.vmm import get_vmm_allocator
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
@@ -55,16 +54,10 @@ class UCXPyAsyncServer(BaseServer):
 
         register_am_allocators(self.args)
 
-        from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
-
-        vmm_is_block_pool = isinstance(self.vmm, VmmBlockPool)
-        print(f"Server vmm_is_block_pool: {vmm_is_block_pool}")
-
-        if self.vmm:
-            vmm_allocator = VmmBlockArray if vmm_is_block_pool else VmmArray
-            vmm_allocator = partial(vmm_allocator, self.vmm)
+        vmm_allocator = get_vmm_allocator(self.vmm)
 
         async def server_handler(ep):
+            recv_msg_vmm = None
             if not self.args.enable_am:
                 if self.args.reuse_alloc:
                     if self.vmm:
@@ -89,7 +82,7 @@ class UCXPyAsyncServer(BaseServer):
                                 self.xp.empty(self.args.n_bytes, dtype="u1")
                             )
 
-                    if vmm_is_block_pool:
+                    if hasattr(recv_msg_vmm, "get_blocks"):
                         recv_blocks = recv_msg_vmm.get_blocks()
                         for recv_block in recv_blocks:
                             await ep.recv(recv_block)
@@ -136,16 +129,10 @@ class UCXPyAsyncClient(BaseClient):
 
         register_am_allocators(self.args)
 
-        from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
-
-        vmm_is_block_pool = isinstance(self.vmm, VmmBlockPool)
-        print(f"Client vmm_is_block_pool: {vmm_is_block_pool}")
-
-        if self.vmm:
-            vmm_allocator = VmmBlockArray if vmm_is_block_pool else VmmArray
-            vmm_allocator = partial(vmm_allocator, self.vmm)
+        vmm_allocator = get_vmm_allocator(self.vmm)
 
         ep = await ucp.create_endpoint(self.server_address, self.port)
+        recv_msg_vmm = None
 
         if self.args.enable_am:
             msg = self.xp.arange(self.args.n_bytes, dtype="u1")
@@ -188,7 +175,7 @@ class UCXPyAsyncClient(BaseClient):
                     else:
                         recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
-                if vmm_is_block_pool:
+                if hasattr(recv_msg_vmm, "get_blocks"):
                     recv_blocks = recv_msg_vmm.get_blocks()
                     send_blocks = send_msg_vmm.get_blocks()
                     for send_block, recv_block in zip(send_blocks, recv_blocks):

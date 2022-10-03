@@ -55,6 +55,30 @@ def _get_backend_implementation(backend):
     raise ValueError(f"Unknown backend {backend}")
 
 
+def _get_vmm_allocator(object_type):
+    print(object_type)
+    if object_type.startswith("vmm"):
+        if object_type == "vmm-block-pool":
+            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
+
+            return VmmBlockPool()
+        elif object_type == "vmm-pool":
+            from dask_cuda.vmm_pool import VmmPool
+
+            return VmmPool()
+        elif object_type == "vmm-default-pool":
+            from dask_cuda.rmm_vmm_pool import VmmAllocPool
+
+            return VmmAllocPool()
+        elif object_type == "vmm-default":
+            from dask_cuda.rmm_vmm_pool import VmmAlloc
+
+            return VmmAlloc()
+        else:
+            raise ValueError(f"Unknown VMM type {object_type}")
+    return None
+
+
 def server(queue, args):
     if args.server_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.server_cpu_affinity])
@@ -85,19 +109,8 @@ def server(queue, args):
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
     server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
-    if args.object_type.startswith("vmm"):
-        if args.object_type == "vmm-block-pool":
-            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
-
-            server.vmm = VmmBlockPool()
-        elif args.object_type == "vmm-pool":
-            from dask_cuda.rmm_vmm_pool import VmmAllocPool
-
-            server.vmm = VmmAllocPool()
-        else:
-            from dask_cuda.rmm_vmm_pool import VmmAlloc
-
-            server.vmm = VmmAlloc()
+    server.vmm = _get_vmm_allocator(args.object_type)
+    print(server.vmm)
 
     if asyncio.iscoroutinefunction(server.run):
         loop = get_event_loop()
@@ -140,19 +153,8 @@ def client(queue, port, server_address, args):
     client = _get_backend_implementation(args.backend)["client"](
         args, xp, queue, server_address, port
     )
-    if args.object_type.startswith("vmm"):
-        if args.object_type == "vmm-block-pool":
-            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
-
-            client.vmm = VmmBlockPool()
-        elif args.object_type == "vmm-pool":
-            from dask_cuda.rmm_vmm_pool import VmmAllocPool
-
-            client.vmm = VmmAllocPool()
-        else:
-            from dask_cuda.rmm_vmm_pool import VmmAlloc
-
-            client.vmm = VmmAlloc()
+    client.vmm = _get_vmm_allocator(args.object_type)
+    print(client.vmm)
 
     if asyncio.iscoroutinefunction(client.run):
         loop = get_event_loop()
@@ -260,7 +262,15 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy", "rmm", "vmm", "vmm-pool", "vmm-block-pool"],
+        choices=[
+            "numpy",
+            "cupy",
+            "rmm",
+            "vmm-default",
+            "vmm-default-pool",
+            "vmm-block-pool",
+            "vmm-pool",
+        ],
         help="In-memory array type.",
     )
     parser.add_argument(
