@@ -20,6 +20,8 @@ cdef class Array:
 
     cdef readonly bint cuda
 
+    cdef readonly list _blocks
+
     cpdef bint _c_contiguous(self)
     cpdef bint _f_contiguous(self)
     cpdef bint _contiguous(self)

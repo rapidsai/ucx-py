@@ -1,5 +1,7 @@
 from functools import partial
+from typing import Union
 
+import numpy as np
 from cuda import cuda
 
 from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
@@ -9,9 +11,6 @@ from dask_cuda.vmm_pool import VmmPool
 
 def get_vmm_allocator(vmm):
     if vmm:
-        vmm_is_block_pool = isinstance(vmm, VmmBlockPool)
-        print(f"Server vmm_is_block_pool: {vmm_is_block_pool}")
-
         if isinstance(vmm, VmmBlockPool) or isinstance(vmm, VmmPool):
             vmm_allocator = VmmBlockPoolArray
         else:
@@ -21,42 +20,47 @@ def get_vmm_allocator(vmm):
     return None
 
 
-class VmmSingleArray:
-    def __init__(self, vmm_allocator, size):
-        self.vmm_allocator = vmm_allocator
-
-        self.ptr = cuda.CUdeviceptr(self.vmm_allocator.allocate(size))
-        self.shape = (size,)
-
-    def __del__(self):
-        self.vmm_allocator.deallocate(int(self.ptr), self.shape[0])
-
-    @property
-    def __cuda_array_interface__(self):
-        return {
-            "shape": (self.shape),
-            "typestr": "u1",
-            "data": (self.ptr, False),
-            "version": 2,
-        }
-
-    def copy_from_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_from_host: {hex(int(self.ptr))}", flush=True)
-        print(f"copy_from_host: {type(arr)}")
-        checkCudaErrors(
-            cuda.cuMemcpyHtoDAsync(self.ptr, arr.ctypes.data, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))
-
-    def copy_to_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_to_host: {hex(int(self.ptr))}", flush=True)
-        checkCudaErrors(
-            cuda.cuMemcpyDtoHAsync(arr.ctypes.data, self.ptr, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))
+def copy_to_host(
+    dst: np.ndarray,
+    src: Union[int, cuda.CUdeviceptr],
+    size: int,
+    stream: cuda.CUstream = cuda.CUstream(0),
+):
+    if isinstance(src, int):
+        src = cuda.CUdeviceptr(src)
+    assert isinstance(src, cuda.CUdeviceptr)
+    assert isinstance(dst, np.ndarray)
+    assert isinstance(size, int)
+    assert size > 0
+    # print(
+    #     f"copy_to_host src: {hex(int(src))}, dst: {hex(int(dst.ctypes.data))}",
+    #     flush=True
+    # )
+    checkCudaErrors(cuda.cuMemcpyDtoHAsync(dst.ctypes.data, src, size, stream))
+    checkCudaErrors(cuda.cuStreamSynchronize(stream))
 
 
-class VmmArraySlice:
+def copy_to_device(
+    dst: Union[int, cuda.CUdeviceptr],
+    src: np.ndarray,
+    size: int,
+    stream: cuda.CUstream = cuda.CUstream(0),
+):
+    assert isinstance(src, np.ndarray)
+    if isinstance(dst, int):
+        dst = cuda.CUdeviceptr(dst)
+    assert isinstance(dst, cuda.CUdeviceptr)
+    assert isinstance(size, int)
+    assert size > 0
+    # print(
+    #     f"copy_to_device src: {hex(int(src.ctypes.data))}, dst: {hex(int(dst))}",
+    #     flush=True
+    # )
+    checkCudaErrors(cuda.cuMemcpyHtoDAsync(dst, src.ctypes.data, size, stream))
+    checkCudaErrors(cuda.cuStreamSynchronize(stream))
+
+
+class VmmAllocBase:
     def __init__(self, ptr, size):
         self.ptr = cuda.CUdeviceptr(ptr)
         self.shape = (size,)
@@ -70,43 +74,31 @@ class VmmArraySlice:
             "version": 2,
         }
 
-    def copy_from_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_from_host: {hex(int(self.ptr))}", flush=True)
-        print(f"copy_from_host: {type(arr)}")
-        checkCudaErrors(
-            cuda.cuMemcpyHtoDAsync(self.ptr, arr.ctypes.data, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))
 
-    def copy_to_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_to_host: {hex(int(self.ptr))}", flush=True)
-        checkCudaErrors(
-            cuda.cuMemcpyDtoHAsync(arr.ctypes.data, self.ptr, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))
+class VmmArraySlice(VmmAllocBase):
+    pass
 
 
-class VmmBlockPoolArray:
-    def __init__(self, vmm_block_pool_allocator, size):
-        self.vmm_allocator = vmm_block_pool_allocator
+class VmmSingleArray(VmmAllocBase):
+    def __init__(self, vmm_allocator, size):
+        ptr = cuda.CUdeviceptr(vmm_allocator.allocate(size))
+        super().__init__(ptr, size)
 
-        self.ptr = cuda.CUdeviceptr(self.vmm_allocator.allocate(size))
-        self.shape = (size,)
+        self.vmm_allocator = vmm_allocator
 
     def __del__(self):
-        try:
-            self.vmm_allocator.deallocate(int(self.ptr), self.shape[0])
-        except Exception:
-            print("EXCEPTION")
+        self.vmm_allocator.deallocate(int(self.ptr), self.shape[0])
 
-    @property
-    def __cuda_array_interface__(self):
-        return {
-            "shape": (self.shape),
-            "typestr": "u1",
-            "data": (int(self.ptr), False),
-            "version": 2,
-        }
+
+class VmmBlockPoolArray(VmmAllocBase):
+    def __init__(self, vmm_block_pool_allocator, size):
+        ptr = cuda.CUdeviceptr(vmm_block_pool_allocator.allocate(size))
+        super().__init__(ptr, size)
+
+        self.vmm_allocator = vmm_block_pool_allocator
+
+    def __del__(self):
+        self.vmm_allocator.deallocate(int(self.ptr), self.shape[0])
 
     def get_blocks(self):
         if isinstance(self.vmm_allocator, VmmBlockPool):
@@ -115,18 +107,3 @@ class VmmBlockPoolArray:
         else:
             blocks = self.vmm_allocator._allocs[int(self.ptr)].blocks
             return list([VmmArraySlice(block._ptr, block.size) for block in blocks])
-
-    def copy_from_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_from_host: {hex(int(self.ptr))}", flush=True)
-        print(f"copy_from_host: {type(arr)}")
-        checkCudaErrors(
-            cuda.cuMemcpyHtoDAsync(self.ptr, arr.ctypes.data, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))
-
-    def copy_to_host(self, arr, stream=cuda.CUstream(0)):
-        print(f"copy_to_host: {hex(int(self.ptr))}", flush=True)
-        checkCudaErrors(
-            cuda.cuMemcpyDtoHAsync(arr.ctypes.data, self.ptr, self.shape[0], stream)
-        )
-        checkCudaErrors(cuda.cuStreamSynchronize(stream))

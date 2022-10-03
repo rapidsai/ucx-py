@@ -132,6 +132,12 @@ cdef class Array:
             else:
                 self.shape_mv = None
                 self.strides_mv = None
+
+            # Multi-block VMM property
+            if hasattr(obj, "get_blocks"):
+                self._blocks = obj.get_blocks()
+            else:
+                self._blocks = None
         else:
             mv = PyMemoryView_FromObject(obj)
             pybuf = PyMemoryView_GET_BUFFER(mv)
@@ -236,6 +242,10 @@ cdef class Array:
                 PyTuple_SET_ITEM(strides, i, o)
                 s *= self.shape_mv[i]
         return strides
+
+    @property
+    def blocks(self):
+        return self._blocks
 
 
 @boundscheck(False)
