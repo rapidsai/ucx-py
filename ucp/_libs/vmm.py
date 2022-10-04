@@ -1,12 +1,12 @@
 from functools import partial
-from typing import Union
+from typing import List, Tuple, Union
 
 import numpy as np
 from cuda import cuda
 
 from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
 from dask_cuda.rmm_vmm_pool import checkCudaErrors
-from dask_cuda.vmm_pool import VmmPool
+from dask_cuda.vmm_pool import VmmBlock, VmmPool
 
 
 def get_vmm_allocator(vmm):
@@ -65,6 +65,9 @@ class VmmAllocBase:
         self.ptr = cuda.CUdeviceptr(ptr)
         self.shape = (size,)
 
+    def __repr__(self) -> str:
+        return f"<VmmAllocBase ptr={hex(int(self.ptr))}, size={self.shape[0]}>"
+
     @property
     def __cuda_array_interface__(self):
         return {
@@ -107,7 +110,26 @@ class VmmBlockPoolArray(VmmAllocBase):
     def get_blocks(self):
         if isinstance(self.vmm_allocator, VmmBlockPool):
             blocks = self.vmm_allocator.get_allocation_blocks(int(self.ptr))
-            return list([VmmArraySlice(block[0], block[1]) for block in blocks])
         else:
             blocks = self.vmm_allocator._allocs[int(self.ptr)].blocks
-            return list([VmmArraySlice(block._ptr, block.size) for block in blocks])
+        return build_slices(blocks, self.shape[0])
+
+
+def build_slices(
+    blocks: List[Union[Tuple, VmmBlock]], alloc_size: int
+) -> List[VmmArraySlice]:
+    assert len(blocks) > 0
+
+    cur_size = 0
+    ret = []
+    if isinstance(blocks[0], VmmBlock):
+        for block in blocks:
+            block_size = min(alloc_size - cur_size, block.size)
+            ret.append(VmmArraySlice(block._ptr, block_size))
+            cur_size += block.size
+    else:
+        for block in blocks:
+            block_size = min(alloc_size - cur_size, block[1])
+            ret.append(VmmArraySlice(block[0], block_size))
+            cur_size += block[1]
+    return ret
