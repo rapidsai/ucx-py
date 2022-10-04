@@ -636,7 +636,11 @@ class Endpoint:
         elif not force_tag:
             tag = hash64bits(self._tags["msg_send"], hash(tag))
         if buffer.blocks:
-            return await asyncio.gather(*[self.send(block) for block in buffer.blocks])
+            # `asyncio.gather` may not be used here to guarantee ordering
+            ret = []
+            for block in buffer.blocks:
+                ret.append(await self.send(block))
+            return ret
         else:
             nbytes = buffer.nbytes
             log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
@@ -716,7 +720,11 @@ class Endpoint:
             buffer = Array(buffer)
 
         if buffer.blocks:
-            return await asyncio.gather(*[self.recv(block) for block in buffer.blocks])
+            # `asyncio.gather` may not be used here to guarantee ordering
+            ret = []
+            for block in buffer.blocks:
+                ret.append(await self.recv(block))
+            return ret
         else:
             nbytes = buffer.nbytes
             log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
