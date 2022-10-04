@@ -56,7 +56,6 @@ def _get_backend_implementation(backend):
 
 
 def _get_vmm_allocator(object_type):
-    print(object_type)
     if object_type.startswith("vmm"):
         if object_type == "vmm-block-pool":
             from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
@@ -79,22 +78,16 @@ def _get_vmm_allocator(object_type):
     return None
 
 
-def server(queue, args):
-    if args.server_cpu_affinity >= 0:
-        os.sched_setaffinity(0, [args.server_cpu_affinity])
-
-    if args.object_type == "numpy":
+def _initialize_object_type_allocator(
+    object_type: str, device: int, rmm_init_pool_size: int
+) -> object:
+    if object_type == "numpy":
         import numpy as xp
-    elif args.object_type == "cupy":
+    elif object_type == "cupy":
         import cupy as xp
 
-        xp.cuda.runtime.setDevice(args.server_dev)
-    elif args.object_type.startswith("vmm"):
-        import numpy as xp
-        from cuda import cudart
-
-        cudart.cudaSetDevice(args.server_dev)
-    else:
+        xp.cuda.runtime.setDevice(device)
+    elif object_type == "rmm":
         import cupy as xp
 
         import rmm
@@ -102,15 +95,45 @@ def server(queue, args):
         rmm.reinitialize(
             pool_allocator=True,
             managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.server_dev],
+            initial_pool_size=rmm_init_pool_size,
+            devices=[device],
         )
-        xp.cuda.runtime.setDevice(args.server_dev)
+        xp.cuda.runtime.setDevice(device)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    elif object_type == "rmm-vmm-pool":
+        import cupy as xp
+
+        from dask_cuda.vmm_pool import rmm_set_current_vmm_pool
+
+        import rmm
+
+        xp.cuda.runtime.setDevice(device)
+
+        rmm_set_current_vmm_pool()
+
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
+    elif object_type.startswith("vmm"):
+        import numpy as xp
+        from cuda import cudart
+
+        cudart.cudaSetDevice(device)
+    else:
+        raise ValueError(f"Unknown objet type {object_type}")
+
+    return xp
+
+
+def server(queue, args):
+    if args.server_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.server_cpu_affinity])
+
+    xp = _initialize_object_type_allocator(
+        args.object_type, args.server_dev, args.rmm_init_pool_size
+    )
 
     server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
     server.vmm = _get_vmm_allocator(args.object_type)
-    print(server.vmm)
 
     if asyncio.iscoroutinefunction(server.run):
         loop = get_event_loop()
@@ -125,36 +148,14 @@ def client(queue, port, server_address, args):
 
     import numpy as np
 
-    if args.object_type == "numpy":
-        import numpy as xp
-    elif args.object_type == "cupy":
-        import cupy as xp
-
-        xp.cuda.runtime.setDevice(args.client_dev)
-    elif args.object_type.startswith("vmm"):
-        import numpy as xp
-        from cuda import cudart
-
-        cudart.cudaSetDevice(args.client_dev)
-    else:
-        import cupy as xp
-
-        import rmm
-
-        rmm.reinitialize(
-            pool_allocator=True,
-            managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.client_dev],
-        )
-        xp.cuda.runtime.setDevice(args.client_dev)
-        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    xp = _initialize_object_type_allocator(
+        args.object_type, args.client_dev, args.rmm_init_pool_size
+    )
 
     client = _get_backend_implementation(args.backend)["client"](
         args, xp, queue, server_address, port
     )
     client.vmm = _get_vmm_allocator(args.object_type)
-    print(client.vmm)
 
     if asyncio.iscoroutinefunction(client.run):
         loop = get_event_loop()
@@ -266,6 +267,7 @@ def parse_args():
             "numpy",
             "cupy",
             "rmm",
+            "rmm-vmm-pool",
             "vmm-default",
             "vmm-default-pool",
             "vmm-block-pool",
