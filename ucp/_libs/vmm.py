@@ -127,9 +127,13 @@ def build_slices(
             block_size = min(alloc_size - cur_size, block.size)
             ret.append(VmmArraySlice(block._ptr, block_size))
             cur_size += block.size
+            if cur_size >= alloc_size:
+                break
     else:
         for block in blocks:
             block_size = min(alloc_size - cur_size, block[1])
             ret.append(VmmArraySlice(block[0], block_size))
             cur_size += block[1]
+            if cur_size >= alloc_size:
+                break
     return ret
