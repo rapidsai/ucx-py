@@ -30,10 +30,9 @@ jobs:
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
 
-      test-checkout-src: "false"
       test-extras: "test"
       test-requires: "cloudpickle"
-      test-unittest: "pytest -v"
+      test-unittest: "pytest -v ./"
     secrets: inherit
   ucx-py-cp39-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
@@ -59,8 +58,7 @@ jobs:
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
 
-      test-checkout-src: "false"
       test-extras: "test"
       test-requires: "cloudpickle"
-      test-unittest: "pytest -v"
+      test-unittest: "pytest -v ./"
     secrets: inherit
