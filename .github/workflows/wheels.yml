@@ -30,7 +30,7 @@ jobs:
 
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
-      test-docker-options: "-cap-add CAP_SYS_PTRACE --shm-size=8g"
+      test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
 
       test-before-amd64: "pip install cupy-cuda115"
       test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
@@ -62,7 +62,7 @@ jobs:
 
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
-      test-docker-options: "-cap-add CAP_SYS_PTRACE --shm-size=8g"
+      test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
 
       test-before-amd64: "pip install cupy-cuda115"
       test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
