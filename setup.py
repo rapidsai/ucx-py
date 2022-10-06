@@ -77,7 +77,7 @@ extras_require = {
 }
 
 setup(
-    name="ucx-py"+os.getenv("RAPIDS_PY_WHEEL_CUDA_SUFFIX", default=""),
+    name="ucx-py",
     packages=find_packages(exclude=["tests*"]),
     package_data={"": ["*.pyi"]},
     ext_modules=ext_modules,
