@@ -30,7 +30,9 @@ jobs:
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
 
+      test-checkout-src: "false"
       test-extras: "test"
+      test-requires: "cloudpickle"
       test-unittest: "pytest -v"
     secrets: inherit
   ucx-py-cp39-wheel:
@@ -57,6 +59,8 @@ jobs:
       test-container-amd64: "rapidsai/manylinux_2_27"
       test-container-arm64: "rapidsai/manylinux_2_31" 
 
+      test-checkout-src: "false"
       test-extras: "test"
+      test-requires: "cloudpickle"
       test-unittest: "pytest -v"
     secrets: inherit
