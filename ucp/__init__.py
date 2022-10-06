@@ -34,10 +34,6 @@ if "UCX_RNDV_THRESH" not in os.environ:
     logger.info("Setting UCX_RNDV_THRESH=8192")
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
-if "UCX_RNDV_SCHEME" not in os.environ:
-    logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
-    os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
-
 if (
     pynvml is not None
     and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
