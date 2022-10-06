@@ -22,6 +22,43 @@ def _ensure_cuda_device(devs, rank):
     numba.cuda.current_context()
 
 
+def get_allocator(
+    object_type: str, rmm_init_pool_size: int, rmm_managed_memory: bool
+) -> object:
+    """
+    Initialize and return array-allocator based on arguments passed.
+
+    Parameters
+    ----------
+    object_type: str
+        The type of object the allocator should return. Options are: "numpy", "cupy"
+        or "rmm".
+    rmm_init_pool_size: int
+        If the object type is "rmm" (implies usage of RMM pool), define the initial
+        pool size.
+    rmm_managed_memory: bool
+        If the object type is "rmm", use managed memory if `True`, or default memory
+        otherwise.
+    """
+    if object_type == "numpy":
+        import numpy as xp
+    elif object_type == "cupy":
+        import cupy as xp
+    else:
+        import cupy as xp
+
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=rmm_managed_memory,
+            initial_pool_size=rmm_init_pool_size,
+        )
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
+    return xp
+
+
 async def send_pickled_msg(ep, obj):
     msg = pickle.dumps(obj)
     await ep.send_obj(msg)

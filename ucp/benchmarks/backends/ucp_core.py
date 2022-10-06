@@ -2,7 +2,6 @@ from argparse import Namespace
 from queue import Queue
 from threading import Lock
 from time import monotonic
-from typing import Any
 
 import ucp
 from ucp._libs import ucx_api
@@ -17,6 +16,7 @@ from ucp._libs.utils_test import (
     non_blocking_send,
 )
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
+from ucp.benchmarks.utils import get_allocator
 
 WireupMessage = bytearray(b"wireup")
 
@@ -61,9 +61,12 @@ def register_am_allocators(args: Namespace, worker: ucx_api.UCXWorker):
 class UCXPyCoreServer(BaseServer):
     has_cuda_support = True
 
-    def __init__(self, args: Namespace, xp: Any, queue: Queue):
+    def __init__(
+        self,
+        args: Namespace,
+        queue: Queue,
+    ):
         self.args = args
-        self.xp = xp
         self.queue = queue
 
     def run(self):
@@ -75,6 +78,12 @@ class UCXPyCoreServer(BaseServer):
             )
         )
         worker = ucx_api.UCXWorker(ctx)
+
+        xp = get_allocator(
+            self.args.object_type,
+            self.args.rmm_init_pool_size,
+            self.args.rmm_managed_memory,
+        )
 
         register_am_allocators(self.args, worker)
 
@@ -141,7 +150,7 @@ class UCXPyCoreServer(BaseServer):
                     )
                 else:
                     if not self.args.reuse_alloc:
-                        msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                        msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
 
                     op_started()
                     ucx_api.tag_recv_nb(
@@ -154,7 +163,7 @@ class UCXPyCoreServer(BaseServer):
                     )
 
         if not self.args.enable_am and self.args.reuse_alloc:
-            msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+            msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
         else:
             msg = None
 
@@ -188,10 +197,13 @@ class UCXPyCoreClient(BaseClient):
     has_cuda_support = True
 
     def __init__(
-        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+        self,
+        args: Namespace,
+        queue: Queue,
+        server_address: str,
+        port: int,
     ):
         self.args = args
-        self.xp = xp
         self.queue = queue
         self.server_address = server_address
         self.port = port
@@ -205,6 +217,13 @@ class UCXPyCoreClient(BaseClient):
             )
         )
         worker = ucx_api.UCXWorker(ctx)
+
+        xp = get_allocator(
+            self.args.object_type,
+            self.args.rmm_init_pool_size,
+            self.args.rmm_managed_memory,
+        )
+
         register_am_allocators(self.args, worker)
         ep = ucx_api.UCXEndpoint.create(
             worker,
@@ -213,9 +232,9 @@ class UCXPyCoreClient(BaseClient):
             endpoint_error_handling=True,
         )
 
-        send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+        send_msg = xp.arange(self.args.n_bytes, dtype="u1")
         if self.args.reuse_alloc:
-            recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
+            recv_msg = xp.zeros(self.args.n_bytes, dtype="u1")
 
         if self.args.enable_am:
             blocking_am_send(worker, ep, send_msg)
@@ -243,7 +262,7 @@ class UCXPyCoreClient(BaseClient):
                 finished[0] += 1
 
         if self.args.cuda_profile:
-            self.xp.cuda.profiler.start()
+            xp.cuda.profiler.start()
 
         times = []
         last_iter = self.args.n_iter + self.args.n_warmup_iter - 1
@@ -255,7 +274,7 @@ class UCXPyCoreClient(BaseClient):
                 blocking_am_recv(worker, ep)
             else:
                 if not self.args.reuse_alloc:
-                    recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
+                    recv_msg = xp.zeros(self.args.n_bytes, dtype="u1")
 
                 if self.args.delay_progress:
                     non_blocking_recv(worker, ep, recv_msg, op_started, op_completed)
@@ -274,7 +293,7 @@ class UCXPyCoreClient(BaseClient):
                 times.append(stop - start)
 
         if self.args.cuda_profile:
-            self.xp.cuda.profiler.stop()
+            xp.cuda.profiler.stop()
 
         self.queue.put(times)
 
