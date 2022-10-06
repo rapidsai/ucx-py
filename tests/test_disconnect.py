@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 import ucp
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -54,7 +55,7 @@ def _test_shutdown_unexpected_closed_peer_server(
 
     log_stream = StringIO()
     logging.basicConfig(stream=log_stream, level=logging.DEBUG)
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
     log = log_stream.getvalue()
 
     if endpoint_error_handling is True:
@@ -77,7 +78,7 @@ def _test_shutdown_unexpected_closed_peer_client(
         msg = np.empty(100, dtype=np.int64)
         await ep.recv(msg)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 @pytest.mark.parametrize("endpoint_error_handling", [True, False])

@@ -14,6 +14,7 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
+from ucp.utils import get_event_loop
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
@@ -68,7 +69,7 @@ def client(env, port, func, enable_rmm):
 
     for i in range(EP_ITERATIONS):
         print("ITER: ", i)
-        asyncio.get_event_loop().run_until_complete(read())
+        get_event_loop().run_until_complete(read())
 
     print("FINISHED")
 
@@ -86,7 +87,7 @@ def server(env, port, func, enable_rmm, num_workers, proc_conn):
 
     numba.cuda.current_context()
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
 
     # Creates frames only once to prevent filling the entire GPU
     print("CREATING CUDA OBJECT IN SERVER...")
@@ -157,7 +158,7 @@ def dataframe():
 
     # always generate the same random numbers
     np.random.seed(0)
-    size = 2 ** 26
+    size = 2**26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -179,7 +180,7 @@ def empty_dataframe():
 def cupy_obj():
     import cupy
 
-    size = 10 ** 8
+    size = 10**8
     return cupy.arange(size)
 
 

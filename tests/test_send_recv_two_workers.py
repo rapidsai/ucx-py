@@ -8,6 +8,7 @@ import pytest
 from utils import am_recv, am_send, get_cuda_devices, get_num_gpus, recv, send
 
 import ucp
+from ucp.utils import get_event_loop
 
 cupy = pytest.importorskip("cupy")
 rmm = pytest.importorskip("rmm")
@@ -70,7 +71,7 @@ def client(port, func, comm_api):
         print("Shutting Down Client...")
         return msg["data"]
 
-    rx_cuda_obj = asyncio.get_event_loop().run_until_complete(read())
+    rx_cuda_obj = get_event_loop().run_until_complete(read())
     rx_cuda_obj + rx_cuda_obj
     num_bytes = nbytes(rx_cuda_obj)
     print(f"TOTAL DATA RECEIVED: {num_bytes}")
@@ -143,7 +144,7 @@ def server(port, func, comm_api):
         except ucp.UCXCloseError:
             pass
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     loop.run_until_complete(f(port))
 
 
@@ -154,7 +155,7 @@ def dataframe():
 
     # always generate the same random numbers
     np.random.seed(0)
-    size = 2 ** 26
+    size = 2**26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size)},
         index=np.random.randint(size, size=size),
@@ -176,7 +177,7 @@ def empty_dataframe():
 def cupy_obj():
     import cupy
 
-    size = 10 ** 8
+    size = 10**8
     return cupy.arange(size)
 
 

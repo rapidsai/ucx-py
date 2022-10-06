@@ -3,11 +3,13 @@ import multiprocessing as mp
 import os
 import re
 import time
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
 import ucp
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -33,7 +35,7 @@ def _test_from_worker_address_error_server(q1, q2, error_type):
 
             q1.put("disconnected")
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_error_client(q1, q2, error_type):
@@ -108,7 +110,7 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
 
                     await task
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 @pytest.mark.parametrize(
@@ -121,22 +123,28 @@ def _test_from_worker_address_error_client(q1, q2, error_type):
         "timeout_recv",
     ],
 )
+@patch.dict(
+    os.environ,
+    {
+        "UCX_WARN_UNUSED_ENV_VARS": "n",
+        # Set low timeouts to ensure tests quickly raise as expected
+        "UCX_KEEPALIVE_INTERVAL": "100ms",
+        "UCX_UD_TIMEOUT": "100ms",
+    },
+)
 def test_from_worker_address_error(error_type):
-    os.environ["UCX_WARN_UNUSED_ENV_VARS"] = "n"
-    # Set low timeouts to ensure tests quickly raise as expected
-    os.environ["UCX_KEEPALIVE_INTERVAL"] = "100ms"
-    os.environ["UCX_UD_TIMEOUT"] = "100ms"
-
     q1 = mp.Queue()
     q2 = mp.Queue()
 
     server = mp.Process(
-        target=_test_from_worker_address_error_server, args=(q1, q2, error_type),
+        target=_test_from_worker_address_error_server,
+        args=(q1, q2, error_type),
     )
     server.start()
 
     client = mp.Process(
-        target=_test_from_worker_address_error_client, args=(q1, q2, error_type),
+        target=_test_from_worker_address_error_client,
+        args=(q1, q2, error_type),
     )
     client.start()
 

@@ -22,6 +22,11 @@ from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
 from ._libs.ucx_api import get_address  # noqa
 
+try:
+    import pynvml
+except ImportError:
+    pynvml = None
+
 # Setup UCX-Py logger
 logger = get_ucxpy_logger()
 
@@ -33,16 +38,33 @@ if "UCX_RNDV_SCHEME" not in os.environ:
     logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
     os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
 
-if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 12, 0):
+if (
+    pynvml is not None
+    and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
+    and get_ucx_version() >= (1, 12, 0)
+):
     try:
-        import pynvml
-
         pynvml.nvmlInit()
         device_count = pynvml.nvmlDeviceGetCount()
         large_bar1 = [False] * device_count
 
+        def _is_mig_device(handle):
+            try:
+                pynvml.nvmlDeviceGetMigMode(handle)[0]
+            except pynvml.NVMLError:
+                return False
+            return True
+
         for dev_idx in range(device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
+
+            # Ignore MIG devices and use rely on UCX's default for now. Increasing
+            # `UCX_CUDA_COPY_MAX_REG_RATIO` should be thoroughly tested, as it's
+            # not yet clear whether it would be safe to set `1.0` for those
+            # instances too.
+            if _is_mig_device(handle):
+                continue
+
             total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
             bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
 
@@ -53,7 +75,6 @@ if "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ and get_ucx_version() >= (1, 
             logger.info("Setting UCX_CUDA_COPY_MAX_REG_RATIO=1.0")
             os.environ["UCX_CUDA_COPY_MAX_REG_RATIO"] = "1.0"
     except (
-        ImportError,
         pynvml.NVMLError_LibraryNotFound,
         pynvml.NVMLError_DriverNotLoaded,
         pynvml.NVMLError_Unknown,

@@ -87,7 +87,11 @@ UCX_MAX_RNDV_RAILS
 
 Limiting the number of rails (network devices) to ``1`` allows UCX to use only the closest device according to NUMA locality and system topology. Particularly useful with InfiniBand and CUDA GPUs, ensuring all transfers from/to the GPU will use the closest InfiniBand device and thus implicitly enable GPUDirectRDMA.
 
-Values: Int (UCX default: ``2``)
+.. note::
+
+    On CPU-only systems, better network bandwidth performance with infiniband transports may be achieved by letting UCX use more than a single network device. This can be achieved by explicitly setting ``UCX_MAX_RNDV_RAILS`` to ``2`` or higher.
+
+Values: Int (UCX-Py default: ``1``)
 
 UCX_RNDV_THRESH
 ```````````````

@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import ucp
+from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
@@ -33,7 +34,7 @@ def _test_from_worker_address_server(queue):
         send_msg = np.arange(10, dtype=np.int64)
         await ep.send(send_msg, tag=1, force_tag=True)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_client(queue):
@@ -56,16 +57,22 @@ def _test_from_worker_address_client(queue):
 
         np.testing.assert_array_equal(recv_msg, np.arange(10, dtype=np.int64))
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def test_from_worker_address():
     queue = mp.Queue()
 
-    server = mp.Process(target=_test_from_worker_address_server, args=(queue,),)
+    server = mp.Process(
+        target=_test_from_worker_address_server,
+        args=(queue,),
+    )
     server.start()
 
-    client = mp.Process(target=_test_from_worker_address_client, args=(queue,),)
+    client = mp.Process(
+        target=_test_from_worker_address_client,
+        args=(queue,),
+    )
     client.start()
 
     client.join()
@@ -123,7 +130,8 @@ def _unpack_address_and_tag(address_packed):
     address_info = _get_address_info()
 
     recv_tag, send_tag, address_length, address_padded = struct.unpack(
-        address_info["fixed_size_address_buffer_fmt"], address_packed,
+        address_info["fixed_size_address_buffer_fmt"],
+        address_packed,
     )
 
     # Swap send and recv tags, as they are used by the remote process in the
@@ -175,7 +183,7 @@ def _test_from_worker_address_server_fixedsize(num_nodes, queue):
         # Await handling each client request
         await asyncio.gather(*server_tasks)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 def _test_from_worker_address_client_fixedsize(queue):
@@ -204,7 +212,7 @@ def _test_from_worker_address_client_fixedsize(queue):
         send_msg = np.arange(20, dtype=np.int64)
         await ep.send(send_msg, tag=send_tag, force_tag=True)
 
-    asyncio.get_event_loop().run_until_complete(run())
+    get_event_loop().run_until_complete(run())
 
 
 @pytest.mark.parametrize("num_nodes", [1, 2, 4, 8])
@@ -212,14 +220,16 @@ def test_from_worker_address_multinode(num_nodes):
     queue = mp.Queue()
 
     server = mp.Process(
-        target=_test_from_worker_address_server_fixedsize, args=(num_nodes, queue),
+        target=_test_from_worker_address_server_fixedsize,
+        args=(num_nodes, queue),
     )
     server.start()
 
     clients = []
     for i in range(num_nodes):
         client = mp.Process(
-            target=_test_from_worker_address_client_fixedsize, args=(queue,),
+            target=_test_from_worker_address_client_fixedsize,
+            args=(queue,),
         )
         client.start()
         clients.append(client)

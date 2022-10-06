@@ -10,6 +10,7 @@ from distributed.comm.utils import to_frames
 from distributed.protocol import to_serialize
 
 import ucp
+from ucp.utils import get_event_loop
 
 cmd = "nvidia-smi nvlink --setcontrol 0bz"  # Get output in bytes
 # subprocess.check_call(cmd, shell=True)
@@ -64,7 +65,7 @@ def server(env, port, func, verbose):
         except ucp.UCXCloseError:
             pass
 
-    loop = asyncio.get_event_loop()
+    loop = get_event_loop()
     while True:
         loop.run_until_complete(f(port))
 

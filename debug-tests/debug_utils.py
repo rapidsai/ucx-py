@@ -112,7 +112,7 @@ def cudf_obj():
 
     import cudf
 
-    size = 2 ** 26
+    size = 2**26
     return cudf.DataFrame(
         {"a": np.random.random(size), "b": np.random.random(size), "c": ["a"] * size}
     )
@@ -124,7 +124,7 @@ def cudf_from_cupy_obj():
 
     import cudf
 
-    size = 9 ** 5
+    size = 9**5
     obj = cupy.arange(size)
     data = [obj for i in range(10)]
     data.extend([np.arange(10) for i in range(10)])
@@ -137,14 +137,14 @@ def cudf_from_cupy_obj():
 def cupy_obj():
     import cupy as cp
 
-    size = 10 ** 9
+    size = 10**9
     return cp.arange(size)
 
 
 def numpy_obj():
     import numpy as np
 
-    size = 2 ** 20
+    size = 2**20
     obj = np.arange(size)
     return obj
 

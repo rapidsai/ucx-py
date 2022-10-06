@@ -39,8 +39,7 @@ def get_cuda_devices():
 
 @contextmanager
 def captured_logger(logger, level=logging.INFO, propagate=None):
-    """Capture output from the given Logger.
-    """
+    """Capture output from the given Logger."""
     if isinstance(logger, str):
         logger = logging.getLogger(logger)
     orig_level = logger.level

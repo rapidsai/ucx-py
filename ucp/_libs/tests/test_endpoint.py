@@ -31,7 +31,9 @@ def _server(queue, server_close_callback):
     def _listener_handler(conn_request):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True,
+            worker,
+            conn_request,
+            endpoint_error_handling=True,
         )
         if server_close_callback is True:
             ep.set_close_callback(functools.partial(_close_callback, closed))
@@ -53,7 +55,10 @@ def _client(port, server_close_callback):
     ctx = ucx_api.UCXContext(feature_flags=(ucx_api.Feature.TAG,))
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
-        worker, ucx_api.get_address(), port, endpoint_error_handling=True,
+        worker,
+        ucx_api.get_address(),
+        port,
+        endpoint_error_handling=True,
     )
     if server_close_callback is True:
         ep.close()
@@ -68,10 +73,16 @@ def _client(port, server_close_callback):
 @pytest.mark.parametrize("server_close_callback", [True, False])
 def test_close_callback(server_close_callback):
     queue = mp.Queue()
-    server = mp.Process(target=_server, args=(queue, server_close_callback),)
+    server = mp.Process(
+        target=_server,
+        args=(queue, server_close_callback),
+    )
     server.start()
     port = queue.get()
-    client = mp.Process(target=_client, args=(port, server_close_callback),)
+    client = mp.Process(
+        target=_client,
+        args=(port, server_close_callback),
+    )
     client.start()
     client.join(timeout=10)
     server.join(timeout=10)

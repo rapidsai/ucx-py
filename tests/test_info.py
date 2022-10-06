@@ -21,7 +21,8 @@ def test_worker_info():
 
 
 @pytest.mark.parametrize(
-    "transports", ["posix", "tcp", "posix,tcp"],
+    "transports",
+    ["posix", "tcp", "posix,tcp"],
 )
 def test_check_transport(transports):
     transports_list = transports.split(",")

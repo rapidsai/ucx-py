@@ -35,7 +35,9 @@ def _server_probe(queue, transfer_api):
 
     def _listener_handler(conn_request):
         ep[0] = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True,
+            worker,
+            conn_request,
+            endpoint_error_handling=True,
         )
 
     listener = ucx_api.UCXListener(worker=worker, port=0, cb_func=_listener_handler)
@@ -81,7 +83,10 @@ def _client_probe(queue, transfer_api):
     worker = ucx_api.UCXWorker(ctx)
     port = queue.get()
     ep = ucx_api.UCXEndpoint.create(
-        worker, get_address(), port, endpoint_error_handling=True,
+        worker,
+        get_address(),
+        port,
+        endpoint_error_handling=True,
     )
 
     _send = blocking_am_send if transfer_api == "am" else blocking_send
@@ -96,9 +101,15 @@ def _client_probe(queue, transfer_api):
 @pytest.mark.parametrize("transfer_api", ["am", "tag"])
 def test_message_probe(transfer_api):
     queue = mp.Queue()
-    server = mp.Process(target=_server_probe, args=(queue, transfer_api),)
+    server = mp.Process(
+        target=_server_probe,
+        args=(queue, transfer_api),
+    )
     server.start()
-    client = mp.Process(target=_client_probe, args=(queue, transfer_api),)
+    client = mp.Process(
+        target=_client_probe,
+        args=(queue, transfer_api),
+    )
     client.start()
     client.join(timeout=10)
     server.join(timeout=10)

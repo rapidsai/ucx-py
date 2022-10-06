@@ -138,7 +138,9 @@ def server(queue, args):
     def _listener_handler(conn_request, msg):
         global ep
         ep = ucx_api.UCXEndpoint.create_from_conn_request(
-            worker, conn_request, endpoint_error_handling=True,
+            worker,
+            conn_request,
+            endpoint_error_handling=True,
         )
 
         # Wireup before starting to transfer data
@@ -232,7 +234,10 @@ def client(queue, port, server_address, args):
     worker = ucx_api.UCXWorker(ctx)
     register_am_allocators(args, worker)
     ep = ucx_api.UCXEndpoint.create(
-        worker, server_address, port, endpoint_error_handling=True,
+        worker,
+        server_address,
+        port,
+        endpoint_error_handling=True,
     )
 
     send_msg = xp.arange(args.n_bytes, dtype="u1")

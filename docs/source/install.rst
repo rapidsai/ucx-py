@@ -84,9 +84,9 @@ Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), m
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
     # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt CPPFLAGS="-I$CUDA_HOME/include"
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
     make -j install
 
 
@@ -112,8 +112,7 @@ Building UCX >= 1.11.1 as shown previously should automatically include IB/RDMA 
     --with-cuda="$CUDA_HOME" \
     --enable-mt \
     --with-rdmacm \
-    --with-verbs \
-    CPPFLAGS="-I$CUDA_HOME/include"
+    --with-verbs
 
 
 UCX-Py

@@ -51,4 +51,4 @@ async def test_many_servers_many_clients(num_servers, num_clients):
         clients = []
         for __ in range(i, min(i + somaxconn, num_clients * num_servers)):
             clients.append(client_node(listeners[__ % num_servers].port))
-        await asyncio.gather(*clients, loop=asyncio.get_event_loop())
+        await asyncio.gather(*clients)
