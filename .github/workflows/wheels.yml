@@ -21,7 +21,7 @@ jobs:
       cibw-before-all-amd64: "yum install -y zip"
       cibw-before-all-arm64: "apt-get install -y zip"
 
-      # use the before-build parameter, which supports the '{package}' placeholder, to copy the custom auditwheel script to a known location
+      # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
 
@@ -53,8 +53,6 @@ jobs:
       cibw-before-all-amd64: "yum install -y zip"
       cibw-before-all-arm64: "apt-get install -y zip"
 
-      # use the before-build parameter, which supports the '{package}' placeholder, to copy the custom auditwheel script to a known location
-      # in the auditwheel repair command, the '{package}' placeholder can't be used
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
 
       auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
