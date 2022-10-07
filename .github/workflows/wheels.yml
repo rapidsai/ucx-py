@@ -9,7 +9,7 @@ jobs:
   ucx-py-cp38-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
-      package-name: ucx_py
+      package-name: ucx_py_cu11
       package-dir: .
       python-version: "3.8"
       python-package-versioneer-override: "0.28.00a"
@@ -41,7 +41,7 @@ jobs:
   ucx-py-cp39-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
-      package-name: ucx_py
+      package-name: ucx_py_cu11
       package-dir: .
       python-version: "3.9"
       python-package-versioneer-override: "0.28.00a"
