@@ -13,7 +13,7 @@ jobs:
       package-dir: .
       python-version: "3.8"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "1"
+      python-package-build-tag: "2"
 
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
@@ -36,7 +36,7 @@ jobs:
       test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
       test-extras: "test"
       test-requires: "cloudpickle dask distributed"
-        #test-unittest: "pytest --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
+      test-unittest: "pytest -k 'not test_server_client[cupy-10]' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
     secrets: inherit
   ucx-py-cp39-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
@@ -45,7 +45,7 @@ jobs:
       package-dir: .
       python-version: "3.9"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "1"
+      python-package-build-tag: "2"
 
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
@@ -66,5 +66,5 @@ jobs:
       test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
       test-extras: "test"
       test-requires: "cloudpickle dask distributed"
-        #test-unittest: "pytest --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
+      test-unittest: "pytest -k 'not test_server_client[cupy-10]' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
     secrets: inherit
