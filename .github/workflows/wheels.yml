@@ -5,6 +5,10 @@ on:
     branches:
       - 'pull-request/[0-9]+'
 
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   ucx-py-cp38-wheel:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
@@ -13,7 +17,7 @@ jobs:
       package-dir: .
       python-version: "3.8"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "2"
+      python-package-build-tag: "3"
 
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
@@ -45,7 +49,7 @@ jobs:
       package-dir: .
       python-version: "3.9"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "2"
+      python-package-build-tag: "3"
 
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
