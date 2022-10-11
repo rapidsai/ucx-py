@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import pickle
 import threading
+from types import ModuleType
 
 import numpy as np
 
@@ -24,7 +25,7 @@ def _ensure_cuda_device(devs, rank):
 
 def get_allocator(
     object_type: str, rmm_init_pool_size: int, rmm_managed_memory: bool
-) -> object:
+) -> ModuleType:
     """
     Initialize and return array-allocator based on arguments passed.
 
@@ -41,8 +42,9 @@ def get_allocator(
         otherwise.
     Returns
     -------
-    A handle to a module, one of ``numpy`` or ``cupy`` (if device memory is requested). 
-    If the object type is ``rmm``, then ``cupy`` is configured to use RMM as an allocator.
+    A handle to a module, one of ``numpy`` or ``cupy`` (if device memory is requested).
+    If the object type is ``rmm``, then ``cupy`` is configured to use RMM as an
+    allocator.
     """
     if object_type == "numpy":
         import numpy as xp
