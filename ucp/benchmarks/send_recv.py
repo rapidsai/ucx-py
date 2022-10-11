@@ -321,7 +321,7 @@ def parse_args():
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
-    if args.rmm_managed_memory is True and args.object_type != "rmm":
+    if args.rmm_managed_memory and args.object_type != "rmm":
         raise RuntimeError("`--rmm-managed-memory` requires `--object_type=rmm`")
 
     backend_impl = _get_backend_implementation(args.backend)
