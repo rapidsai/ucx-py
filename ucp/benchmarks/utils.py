@@ -39,6 +39,10 @@ def get_allocator(
     rmm_managed_memory: bool
         If the object type is "rmm", use managed memory if `True`, or default memory
         otherwise.
+    Returns
+    -------
+    A handle to a module, one of ``numpy`` or ``cupy`` (if device memory is requested). 
+    If the object type is ``rmm``, then ``cupy`` is configured to use RMM as an allocator.
     """
     if object_type == "numpy":
         import numpy as xp
