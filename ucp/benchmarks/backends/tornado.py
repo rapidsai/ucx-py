@@ -39,21 +39,18 @@ class TornadoServer(BaseServer):
 
         class TransferServer(TCPServer):
             async def handle_stream(self, stream, address):
-                msg_recv_list = []
-                if not args.reuse_alloc:
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-                else:
-                    t = xp.zeros(args.n_bytes, dtype="u1")
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(t)
+                if args.reuse_alloc:
+                    recv_msg = xp.zeros(args.n_bytes, dtype="u1")
 
-                assert msg_recv_list[0].nbytes == args.n_bytes
+                    assert recv_msg.nbytes == args.n_bytes
 
                 for i in range(args.n_iter + args.n_warmup_iter):
+                    if not args.reuse_alloc:
+                        recv_msg = xp.zeros(args.n_bytes, dtype="u1")
+
                     try:
-                        await stream.read_into(msg_recv_list[i].data)
-                        await stream.write(msg_recv_list[i].data)
+                        await stream.read_into(recv_msg.data)
+                        await stream.write(recv_msg.data)
                     except StreamClosedError as e:
                         print(e)
                         break
@@ -85,20 +82,11 @@ class TornadoClient(BaseClient):
             self.server_address, self.port, max_buffer_size=1024**3
         )
 
-        msg_send_list = []
-        msg_recv_list = []
-        if not self.args.reuse_alloc:
-            for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                msg_send_list.append(self.xp.arange(self.args.n_bytes, dtype="u1"))
-                msg_recv_list.append(self.xp.zeros(self.args.n_bytes, dtype="u1"))
-        else:
-            t1 = self.xp.arange(self.args.n_bytes, dtype="u1")
-            t2 = self.xp.zeros(self.args.n_bytes, dtype="u1")
-            for i in range(self.args.n_iter + self.args.n_warmup_iter):
-                msg_send_list.append(t1)
-                msg_recv_list.append(t2)
-        assert msg_send_list[0].nbytes == self.args.n_bytes
-        assert msg_recv_list[0].nbytes == self.args.n_bytes
+        send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+        assert send_msg.nbytes == self.args.n_bytes
+        if self.args.reuse_alloc:
+            recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
+            assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.start()
@@ -106,8 +94,11 @@ class TornadoClient(BaseClient):
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
 
-            await stream.write(msg_send_list[i].data)
-            await stream.read_into(msg_recv_list[i].data)
+            if not self.args.reuse_alloc:
+                recv_msg = self.xp.zeros(self.args.n_bytes, dtype="u1")
+
+            await stream.write(send_msg.data)
+            await stream.read_into(recv_msg.data)
 
             stop = monotonic()
             if i >= self.args.n_warmup_iter:

@@ -63,8 +63,8 @@ for tls in "tcp" "all"; do
     pytest --cache-clear -vs tests/
 
     logger "Benchmarks (UCX_TLS=$UCX_TLS)"
-    python benchmarks/send-recv.py -o numpy \
+    python -m ucp.benchmarks.send_recv -l ucp-async -o numpy \
         --server-dev 0 --client-dev 0 --reuse-alloc
-    python benchmarks/send-recv-core.py -o numpy \
+    python -m ucp.benchmarks.send_recv -l ucp-core -o numpy \
         --server-dev 0 --client-dev 0 --reuse-alloc
 done
