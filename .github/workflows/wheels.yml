@@ -10,14 +10,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ucx-py-cp38-wheel:
+  ucx-py-wheels:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
       package-name: ucx_py_cu11
       package-dir: .
-      python-version: "3.8"
+      python-version: "3.8 3.9"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "3"
+      python-package-build-tag: "4"
 
       manylinux-container-amd64: "rapidsai/manylinux2014"
       manylinux-container-arm64: "rapidsai/manylinux_2_31"
@@ -27,36 +27,6 @@ jobs:
 
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
-      cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
-
-      auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
-      auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
-
-      test-container-amd64: "rapidsai/manylinux_2_27"
-      test-container-arm64: "rapidsai/manylinux_2_31" 
-      test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
-
-      test-before-amd64: "pip install cupy-cuda115"
-      test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
-      test-extras: "test"
-      test-requires: "cloudpickle dask distributed"
-      test-unittest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
-    secrets: inherit
-  ucx-py-cp39-wheel:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
-    with:
-      package-name: ucx_py_cu11
-      package-dir: .
-      python-version: "3.9"
-      python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "3"
-
-      manylinux-container-amd64: "rapidsai/manylinux2014"
-      manylinux-container-arm64: "rapidsai/manylinux_2_31"
-
-      cibw-before-all-amd64: "yum install -y zip"
-      cibw-before-all-arm64: "apt-get install -y zip"
-
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
 
       auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"

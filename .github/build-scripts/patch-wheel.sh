@@ -2,6 +2,11 @@
 
 set -Eeoxu pipefail
 
+mypyver=$(python --version)
+repair_dir="repair-${mypyver}"
+
+mkdir -p "${repair_dir}" && cd "${repair_dir}"
+
 WHL=$1
 
 # first grab the auditwheel hashes for libuc{tms}
