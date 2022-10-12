@@ -29,6 +29,13 @@ export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
 export RAPIDS_VERSION="22.04"
 export TEST_UCX_MASTER=0
 
+# Install dask and distributed from main branch. Usually needed during
+# development time and disabled before a new dask-cuda release.
+export INSTALL_DASK_MAIN=1
+
+# Dask version to install when `INSTALL_DASK_MAIN=0`
+export DASK_STABLE_VERSION="2022.7.1"
+
 ################################################################################
 # SETUP - Check environment
 ################################################################################
@@ -46,11 +53,16 @@ gpuci_mamba_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
               "rapids-build-env=${RAPIDS_VERSION}"
 
-# Install the main version of dask and distributed
-gpuci_logger "pip install git+https://github.com/dask/distributed.git@main --upgrade --no-deps"
-pip install "git+https://github.com/dask/distributed.git@main" --upgrade --no-deps
-gpuci_logger "pip install git+https://github.com/dask/dask.git@main --upgrade --no-deps"
-pip install "git+https://github.com/dask/dask.git@main" --upgrade --no-deps
+# Install latest nightly version for dask and distributed if needed
+if [[ "${INSTALL_DASK_MAIN}" == 1 ]]; then
+  gpuci_logger "Installing dask and distributed from dask nightly channel"
+  gpuci_mamba_retry install -c dask/label/dev \
+    "dask/label/dev::dask" \
+    "dask/label/dev::distributed"
+else
+  gpuci_logger "gpuci_mamba_retry install conda-forge::dask==${DASK_STABLE_VERSION} conda-forge::distributed==${DASK_STABLE_VERSION} conda-forge::dask-core==${DASK_STABLE_VERSION} --force-reinstall"
+  gpuci_mamba_retry install conda-forge::dask==${DASK_STABLE_VERSION} conda-forge::distributed==${DASK_STABLE_VERSION} conda-forge::dask-core==${DASK_STABLE_VERSION} --force-reinstall
+fi
 
 gpuci_logger "Check versions"
 python --version
@@ -89,9 +101,9 @@ function run_tests() {
     py.test --cache-clear -vs ucp/_libs/tests
 
     gpuci_logger "Run local benchmark"
-    python benchmarks/send-recv.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-    python benchmarks/send-recv-core.py -o cupy --server-dev 0 --client-dev 0 --reuse-alloc
-    python benchmarks/cudf-merge.py --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
+    python -m ucp.benchmarks.send_recv -o cupy --server-dev 0 --client-dev 0 --reuse-alloc --backend ucp-async
+    python -m ucp.benchmarks.send_recv -o cupy --server-dev 0 --client-dev 0 --reuse-alloc --backend ucp-core
+    python -m ucp.benchmarks.cudf_merge --chunks-per-dev 4 --chunk-size 10000 --rmm-init-pool-size 2097152
 }
 
 ################################################################################

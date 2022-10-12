@@ -21,7 +21,6 @@ import argparse
 import asyncio
 import multiprocessing as mp
 import os
-from time import perf_counter as clock
 
 import ucp
 from ucp._libs.utils import (
@@ -30,27 +29,30 @@ from ucp._libs.utils import (
     print_key_value,
     print_separator,
 )
+from ucp.benchmarks.backends.ucp_async import (
+    UCXPyAsyncClient,
+    UCXPyAsyncServer,
+)
+from ucp.benchmarks.backends.ucp_core import UCXPyCoreClient, UCXPyCoreServer
 from ucp.utils import get_event_loop
 
 mp = mp.get_context("spawn")
 
 
-def register_am_allocators(args):
-    if not args.enable_am:
-        return
+def _get_backend_implementation(backend):
+    if backend == "ucp-async":
+        return {"client": UCXPyAsyncClient, "server": UCXPyAsyncServer}
+    elif backend == "ucp-core":
+        return {"client": UCXPyCoreClient, "server": UCXPyCoreServer}
+    elif backend == "tornado":
+        from ucp.benchmarks.backends.tornado import (
+            TornadoClient,
+            TornadoServer,
+        )
 
-    import numpy as np
+        return {"client": TornadoClient, "server": TornadoServer}
 
-    ucp.register_am_allocator(lambda n: np.empty(n, dtype=np.uint8), "host")
-
-    if args.object_type == "cupy":
-        import cupy as cp
-
-        ucp.register_am_allocator(lambda n: cp.empty(n, dtype=cp.uint8), "cuda")
-    elif args.object_type == "rmm":
-        import rmm
-
-        ucp.register_am_allocator(lambda n: rmm.DeviceBuffer(size=n), "cuda")
+    raise ValueError(f"Unknown backend {backend}")
 
 
 def server(queue, args):
@@ -77,43 +79,13 @@ def server(queue, args):
         xp.cuda.runtime.setDevice(args.server_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
+    server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
 
-    register_am_allocators(args)
-
-    async def run():
-        async def server_handler(ep):
-
-            if not args.enable_am:
-                msg_recv_list = []
-                if not args.reuse_alloc:
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-                else:
-                    t = xp.zeros(args.n_bytes, dtype="u1")
-                    for _ in range(args.n_iter + args.n_warmup_iter):
-                        msg_recv_list.append(t)
-
-                assert msg_recv_list[0].nbytes == args.n_bytes
-
-            for i in range(args.n_iter + args.n_warmup_iter):
-                if args.enable_am is True:
-                    recv = await ep.am_recv()
-                    await ep.am_send(recv)
-                else:
-                    await ep.recv(msg_recv_list[i])
-                    await ep.send(msg_recv_list[i])
-            await ep.close()
-            lf.close()
-
-        lf = ucp.create_listener(server_handler, port=args.port)
-        queue.put(lf.port)
-
-        while not lf.closed():
-            await asyncio.sleep(0.5)
-
-    loop = get_event_loop()
-    loop.run_until_complete(run())
+    if asyncio.iscoroutinefunction(server.run):
+        loop = get_event_loop()
+        loop.run_until_complete(server.run())
+    else:
+        server.run()
 
 
 def client(queue, port, server_address, args):
@@ -142,53 +114,18 @@ def client(queue, port, server_address, args):
         xp.cuda.runtime.setDevice(args.client_dev)
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
-    ucp.init()
+    client = _get_backend_implementation(args.backend)["client"](
+        args, xp, queue, server_address, port
+    )
 
-    register_am_allocators(args)
-
-    async def run():
-        ep = await ucp.create_endpoint(server_address, port)
-
-        if args.enable_am:
-            msg = xp.arange(args.n_bytes, dtype="u1")
-        else:
-            msg_send_list = []
-            msg_recv_list = []
-            if not args.reuse_alloc:
-                for i in range(args.n_iter + args.n_warmup_iter):
-                    msg_send_list.append(xp.arange(args.n_bytes, dtype="u1"))
-                    msg_recv_list.append(xp.zeros(args.n_bytes, dtype="u1"))
-            else:
-                t1 = xp.arange(args.n_bytes, dtype="u1")
-                t2 = xp.zeros(args.n_bytes, dtype="u1")
-                for i in range(args.n_iter + args.n_warmup_iter):
-                    msg_send_list.append(t1)
-                    msg_recv_list.append(t2)
-            assert msg_send_list[0].nbytes == args.n_bytes
-            assert msg_recv_list[0].nbytes == args.n_bytes
-
-        if args.cuda_profile:
-            xp.cuda.profiler.start()
-        times = []
-        for i in range(args.n_iter + args.n_warmup_iter):
-            start = clock()
-            if args.enable_am:
-                await ep.am_send(msg)
-                await ep.am_recv()
-            else:
-                await ep.send(msg_send_list[i])
-                await ep.recv(msg_recv_list[i])
-            stop = clock()
-            if i >= args.n_warmup_iter:
-                times.append(stop - start)
-        if args.cuda_profile:
-            xp.cuda.profiler.stop()
-        queue.put(times)
-
-    loop = get_event_loop()
-    loop.run_until_complete(run())
+    if asyncio.iscoroutinefunction(client.run):
+        loop = get_event_loop()
+        loop.run_until_complete(client.run())
+    else:
+        client.run()
 
     times = queue.get()
+
     assert len(times) == args.n_iter
     bw_avg = format_bytes(2 * args.n_iter * args.n_bytes / sum(times))
     bw_med = format_bytes(2 * args.n_bytes / np.median(times))
@@ -201,9 +138,7 @@ def client(queue, port, server_address, args):
     print_key_value(key="Bytes", value=f"{format_bytes(args.n_bytes)}")
     print_key_value(key="Object type", value=f"{args.object_type}")
     print_key_value(key="Reuse allocation", value=f"{args.reuse_alloc}")
-    print_key_value(key="Transfer API", value=f"{'AM' if args.enable_am else 'TAG'}")
-    print_key_value(key="UCX_TLS", value=f"{ucp.get_config()['TLS']}")
-    print_key_value(key="UCX_NET_DEVICES", value=f"{ucp.get_config()['NET_DEVICES']}")
+    client.print_backend_specific_config()
     print_separator(separator="=")
     if args.object_type == "numpy":
         print_key_value(key="Device(s)", value="CPU-only")
@@ -253,6 +188,7 @@ def parse_args():
             "--n-bytes",
             metavar="BYTES",
             default=10_000_000,
+            type=int,
             help="Message size in bytes. Default '10_000_000'.",
         )
     parser.add_argument(
@@ -375,12 +311,52 @@ def parse_args():
         action="store_true",
         help="Disable detailed report per iteration.",
     )
+    parser.add_argument(
+        "-l",
+        "--backend",
+        default="ucp-async",
+        type=str,
+        help="Backend Library (-l) to use, options are: 'ucp-async' (default), "
+        "'ucp-core' and 'tornado'.",
+    )
+    parser.add_argument(
+        "--delay-progress",
+        default=False,
+        action="store_true",
+        help="Only applies to 'ucp-core' backend: delay ucp_worker_progress calls "
+        "until a minimum number of outstanding operations is reached, implies "
+        "non-blocking send/recv. The --max-outstanding argument may be used to "
+        "control number of maximum outstanding operations. (Default: disabled)",
+    )
+    parser.add_argument(
+        "--max-outstanding",
+        metavar="N",
+        default=32,
+        type=int,
+        help="Only applies to 'ucp-core' backend: number of maximum outstanding "
+        "operations, see --delay-progress. (Default: 32)",
+    )
 
     args = parser.parse_args()
+
     if args.cuda_profile and args.object_type == "numpy":
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
+
+    backend_impl = _get_backend_implementation(args.backend)
+    if not (
+        backend_impl["client"].has_cuda_support
+        and backend_impl["server"].has_cuda_support
+    ):
+        if args.object_type in {"cupy", "rmm"}:
+            raise RuntimeError(
+                f"Backend '{args.backend}' does not support CUDA transfers"
+            )
+
+    if args.backend != "ucp-core" and args.delay_progress:
+        raise RuntimeError("`--delay-progress` requires `--backend=ucp-core`")
+
     return args
 
 
