@@ -3,7 +3,7 @@
 set -Eeoxu pipefail
 
 mypyver=$(python --version)
-repair_dir="repair-${mypyver}"
+repair_dir="repair-${mypyver// /_}"
 
 mkdir -p "${repair_dir}" && cd "${repair_dir}"
 
