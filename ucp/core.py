@@ -635,24 +635,31 @@ class Endpoint:
             tag = self._tags["msg_send"]
         elif not force_tag:
             tag = hash64bits(self._tags["msg_send"], hash(tag))
-        nbytes = buffer.nbytes
-        log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._send_count,
-            hex(self.uid),
-            hex(tag),
-            nbytes,
-            type(buffer.obj),
-        )
-        logger.debug(log)
-        self._send_count += 1
+        if buffer.blocks:
+            # `asyncio.gather` may not be used here to guarantee ordering
+            ret = []
+            for block in buffer.blocks:
+                ret.append(await self.send(block))
+            return ret
+        else:
+            nbytes = buffer.nbytes
+            log = "[Send #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+                self._send_count,
+                hex(self.uid),
+                hex(tag),
+                nbytes,
+                type(buffer.obj),
+            )
+            logger.debug(log)
+            self._send_count += 1
 
-        try:
-            return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
-        except UCXCanceled as e:
-            # If self._ep has already been closed and destroyed, we reraise the
-            # UCXCanceled exception.
-            if self._ep is None:
-                raise e
+            try:
+                return await comm.tag_send(self._ep, buffer, nbytes, tag, name=log)
+            except UCXCanceled as e:
+                # If self._ep has already been closed and destroyed, we reraise the
+                # UCXCanceled exception.
+                if self._ep is None:
+                    raise e
 
     @ucx_api.nvtx_annotate("UCXPY_AM_SEND", color="green", domain="ucxpy")
     async def am_send(self, buffer):
@@ -711,26 +718,34 @@ class Endpoint:
 
         if not isinstance(buffer, Array):
             buffer = Array(buffer)
-        nbytes = buffer.nbytes
-        log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
-            self._recv_count,
-            hex(self.uid),
-            hex(tag),
-            nbytes,
-            type(buffer.obj),
-        )
-        logger.debug(log)
-        self._recv_count += 1
 
-        ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+        if buffer.blocks:
+            # `asyncio.gather` may not be used here to guarantee ordering
+            ret = []
+            for block in buffer.blocks:
+                ret.append(await self.recv(block))
+            return ret
+        else:
+            nbytes = buffer.nbytes
+            log = "[Recv #%03d] ep: %s, tag: %s, nbytes: %d, type: %s" % (
+                self._recv_count,
+                hex(self.uid),
+                hex(tag),
+                nbytes,
+                type(buffer.obj),
+            )
+            logger.debug(log)
+            self._recv_count += 1
 
-        self._finished_recv_count += 1
-        if (
-            self._close_after_n_recv is not None
-            and self._finished_recv_count >= self._close_after_n_recv
-        ):
-            self.abort()
-        return ret
+            ret = await comm.tag_recv(self._ep, buffer, nbytes, tag, name=log)
+
+            self._finished_recv_count += 1
+            if (
+                self._close_after_n_recv is not None
+                and self._finished_recv_count >= self._close_after_n_recv
+            ):
+                self.abort()
+            return ret
 
     @ucx_api.nvtx_annotate("UCXPY_AM_RECV", color="red", domain="ucxpy")
     async def am_recv(self):

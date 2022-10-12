@@ -132,6 +132,29 @@ cdef class Array:
             else:
                 self.shape_mv = None
                 self.strides_mv = None
+
+            # Multi-block VMM property
+            self._blocks = None
+            try:
+                from dask_cuda.vmm_pool import rmm_get_current_vmm_pool
+
+                try:
+                    vmm_pool = rmm_get_current_vmm_pool()
+                    try:
+                        from ucp._libs.vmm import build_slices
+                        blocks = vmm_pool._allocs[self.ptr].blocks
+                        try:
+                            # self._blocks = build_slices(blocks, obj.shape[0])
+                            self._blocks = build_slices(blocks, self.nbytes)
+                        except AttributeError:
+                            print(f"AttributeError: {type(obj)}, {obj}")
+                    except KeyError as e:
+                        pass
+                except ValueError as e:
+                    pass
+            except ImportError as e:
+                if hasattr(obj, "get_blocks"):
+                    self._blocks = obj.get_blocks()
         else:
             mv = PyMemoryView_FromObject(obj)
             pybuf = PyMemoryView_GET_BUFFER(mv)
@@ -236,6 +259,10 @@ cdef class Array:
                 PyTuple_SET_ITEM(strides, i, o)
                 s *= self.shape_mv[i]
         return strides
+
+    @property
+    def blocks(self):
+        return self._blocks
 
 
 @boundscheck(False)

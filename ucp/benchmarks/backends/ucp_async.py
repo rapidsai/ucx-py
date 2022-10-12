@@ -7,6 +7,7 @@ from typing import Any
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
+from ucp._libs.vmm import copy_to_device, copy_to_host, get_vmm_allocator
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
 
 
@@ -46,16 +47,24 @@ class UCXPyAsyncServer(BaseServer):
         self.args = args
         self.xp = xp
         self.queue = queue
+        self.vmm = None
 
     async def run(self):
         ucp.init()
 
         register_am_allocators(self.args)
 
+        vmm_allocator = get_vmm_allocator(self.vmm)
+
         async def server_handler(ep):
+            recv_msg_vmm = None
             if not self.args.enable_am:
                 if self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    if self.vmm:
+                        recv_msg_vmm = vmm_allocator(self.args.n_bytes)
+                        recv_msg = Array(recv_msg_vmm)
+                    else:
+                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
                     assert recv_msg.nbytes == self.args.n_bytes
 
@@ -65,10 +74,20 @@ class UCXPyAsyncServer(BaseServer):
                     await ep.am_send(recv)
                 else:
                     if not self.args.reuse_alloc:
-                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                        if self.vmm:
+                            recv_msg = Array(vmm_allocator(self.args.n_bytes))
+                        else:
+                            recv_msg = Array(
+                                self.xp.empty(self.args.n_bytes, dtype="u1")
+                            )
 
                     await ep.recv(recv_msg)
                     await ep.send(recv_msg)
+
+                if self.vmm and self.args.vmm_debug:
+                    h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+                    copy_to_host(h_recv_msg, recv_msg.ptr, self.args.n_bytes)
+                    print(f"Server recv msg: {h_recv_msg}")
             await ep.close()
             lf.close()
 
@@ -88,6 +107,7 @@ class UCXPyAsyncClient(BaseClient):
         self.args = args
         self.xp = xp
         self.queue = queue
+        self.vmm = None
         self.server_address = server_address
         self.port = port
 
@@ -96,17 +116,29 @@ class UCXPyAsyncClient(BaseClient):
 
         register_am_allocators(self.args)
 
+        vmm_allocator = get_vmm_allocator(self.vmm)
+
         ep = await ucp.create_endpoint(self.server_address, self.port)
 
         if self.args.enable_am:
             msg = self.xp.arange(self.args.n_bytes, dtype="u1")
         else:
-            send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
-            if self.args.reuse_alloc:
-                recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+            if self.vmm:
+                h_send_msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+                print(f"Client send: {h_send_msg}")
+                send_msg = Array(vmm_allocator(self.args.n_bytes))
+                copy_to_device(send_msg.ptr, h_send_msg, send_msg.shape[0])
+                if self.args.reuse_alloc:
+                    recv_msg = Array(vmm_allocator(self.args.n_bytes))
 
-                assert send_msg.nbytes == self.args.n_bytes
-                assert recv_msg.nbytes == self.args.n_bytes
+                    assert recv_msg.nbytes == self.args.n_bytes
+            else:
+                send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
+                if self.args.reuse_alloc:
+                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+
+                    assert send_msg.nbytes == self.args.n_bytes
+                    assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
             self.xp.cuda.profiler.start()
@@ -118,11 +150,23 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.am_recv()
             else:
                 if not self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    if self.vmm:
+                        recv_msg = Array(vmm_allocator(self.args.n_bytes))
+                    else:
+                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
 
                 await ep.send(send_msg)
                 await ep.recv(recv_msg)
             stop = monotonic()
+
+            if self.vmm and self.args.vmm_debug:
+                import numpy as np
+
+                h_recv_msg = self.xp.empty(self.args.n_bytes, dtype="u1")
+                copy_to_host(h_recv_msg, recv_msg.ptr, recv_msg.shape[0])
+                print(f"Client recv: {h_recv_msg}")
+                np.testing.assert_equal(h_recv_msg, h_send_msg)
+
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
         if self.args.cuda_profile:

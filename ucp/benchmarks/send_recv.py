@@ -55,17 +55,39 @@ def _get_backend_implementation(backend):
     raise ValueError(f"Unknown backend {backend}")
 
 
-def server(queue, args):
-    if args.server_cpu_affinity >= 0:
-        os.sched_setaffinity(0, [args.server_cpu_affinity])
+def _get_vmm_allocator(object_type):
+    if object_type.startswith("vmm"):
+        if object_type == "vmm-block-pool":
+            from dask_cuda.rmm_vmm_block_pool import VmmBlockPool
 
-    if args.object_type == "numpy":
+            return VmmBlockPool()
+        elif object_type == "vmm-pool":
+            from dask_cuda.vmm_pool import VmmPool
+
+            return VmmPool()
+        elif object_type == "vmm-default-pool":
+            from dask_cuda.rmm_vmm_pool import VmmAllocPool
+
+            return VmmAllocPool()
+        elif object_type == "vmm-default":
+            from dask_cuda.rmm_vmm_pool import VmmAlloc
+
+            return VmmAlloc()
+        else:
+            raise ValueError(f"Unknown VMM type {object_type}")
+    return None
+
+
+def _initialize_object_type_allocator(
+    object_type: str, device: int, rmm_init_pool_size: int
+) -> object:
+    if object_type == "numpy":
         import numpy as xp
-    elif args.object_type == "cupy":
+    elif object_type == "cupy":
         import cupy as xp
 
-        xp.cuda.runtime.setDevice(args.server_dev)
-    else:
+        xp.cuda.runtime.setDevice(device)
+    elif object_type == "rmm":
         import cupy as xp
 
         import rmm
@@ -73,13 +95,45 @@ def server(queue, args):
         rmm.reinitialize(
             pool_allocator=True,
             managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.server_dev],
+            initial_pool_size=rmm_init_pool_size,
+            devices=[device],
         )
-        xp.cuda.runtime.setDevice(args.server_dev)
+        xp.cuda.runtime.setDevice(device)
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    elif object_type == "rmm-vmm-pool":
+        import cupy as xp
+
+        from dask_cuda.vmm_pool import rmm_set_current_vmm_pool
+
+        import rmm
+
+        xp.cuda.runtime.setDevice(device)
+
+        rmm_set_current_vmm_pool()
+
         xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
 
+    elif object_type.startswith("vmm"):
+        import numpy as xp
+        from cuda import cudart
+
+        cudart.cudaSetDevice(device)
+    else:
+        raise ValueError(f"Unknown objet type {object_type}")
+
+    return xp
+
+
+def server(queue, args):
+    if args.server_cpu_affinity >= 0:
+        os.sched_setaffinity(0, [args.server_cpu_affinity])
+
+    xp = _initialize_object_type_allocator(
+        args.object_type, args.server_dev, args.rmm_init_pool_size
+    )
+
     server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
+    server.vmm = _get_vmm_allocator(args.object_type)
 
     if asyncio.iscoroutinefunction(server.run):
         loop = get_event_loop()
@@ -94,29 +148,14 @@ def client(queue, port, server_address, args):
 
     import numpy as np
 
-    if args.object_type == "numpy":
-        import numpy as xp
-    elif args.object_type == "cupy":
-        import cupy as xp
-
-        xp.cuda.runtime.setDevice(args.client_dev)
-    else:
-        import cupy as xp
-
-        import rmm
-
-        rmm.reinitialize(
-            pool_allocator=True,
-            managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.client_dev],
-        )
-        xp.cuda.runtime.setDevice(args.client_dev)
-        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    xp = _initialize_object_type_allocator(
+        args.object_type, args.client_dev, args.rmm_init_pool_size
+    )
 
     client = _get_backend_implementation(args.backend)["client"](
         args, xp, queue, server_address, port
     )
+    client.vmm = _get_vmm_allocator(args.object_type)
 
     if asyncio.iscoroutinefunction(client.run):
         loop = get_event_loop()
@@ -224,7 +263,16 @@ def parse_args():
         "-o",
         "--object_type",
         default="numpy",
-        choices=["numpy", "cupy", "rmm"],
+        choices=[
+            "numpy",
+            "cupy",
+            "rmm",
+            "rmm-vmm-pool",
+            "vmm-default",
+            "vmm-default-pool",
+            "vmm-block-pool",
+            "vmm-pool",
+        ],
         help="In-memory array type.",
     )
     parser.add_argument(
@@ -335,6 +383,12 @@ def parse_args():
         type=int,
         help="Only applies to 'ucp-core' backend: number of maximum outstanding "
         "operations, see --delay-progress. (Default: 32)",
+    )
+    parser.add_argument(
+        "--vmm-debug",
+        default=False,
+        action="store_true",
+        help="Activate verbose debug prints for VMM and result checking.",
     )
 
     args = parser.parse_args()
