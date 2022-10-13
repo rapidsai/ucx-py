@@ -11,16 +11,13 @@ concurrency:
 
 jobs:
   ucx-py-wheels:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
+    uses: vyasr/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-cleanup
     with:
       package-name: ucx_py_cu11
       package-dir: .
       python-version: "3.8 3.9"
       python-package-versioneer-override: "0.28.00a"
       python-package-build-tag: "4"
-
-      manylinux-container-amd64: "rapidsai/manylinux2014"
-      manylinux-container-arm64: "rapidsai/manylinux_2_31"
 
       cibw-before-all-amd64: "yum install -y zip"
       cibw-before-all-arm64: "apt-get install -y zip"
@@ -32,8 +29,6 @@ jobs:
       auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
       auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
 
-      test-container-amd64: "rapidsai/manylinux_2_27"
-      test-container-arm64: "rapidsai/manylinux_2_31" 
       test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
 
       test-before-amd64: "pip install cupy-cuda115"
