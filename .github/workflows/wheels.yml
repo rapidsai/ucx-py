@@ -17,7 +17,7 @@ jobs:
       package-dir: .
       python-version: "3.8 3.9"
       python-package-versioneer-override: "0.28.00a"
-      python-package-build-tag: "4"
+      python-package-build-tag: "5"
 
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
