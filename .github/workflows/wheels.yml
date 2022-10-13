@@ -11,16 +11,13 @@ concurrency:
 
 jobs:
   ucx-py-wheels:
-    uses: vyasr/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-cleanup
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
     with:
       package-name: ucx_py_cu11
       package-dir: .
       python-version: "3.8 3.9"
       python-package-versioneer-override: "0.28.00a"
       python-package-build-tag: "4"
-
-      cibw-before-all-amd64: "yum install -y zip"
-      cibw-before-all-arm64: "apt-get install -y zip"
 
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
