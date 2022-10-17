@@ -15,7 +15,6 @@ jobs:
     with:
       package-name: ucx_py_cu11
       package-dir: .
-      python-version: "3.8 3.9"
       python-package-versioneer-override: "0.28.00"
 
       # copy custom auditwheel script to known location with '{package}' placeholder
