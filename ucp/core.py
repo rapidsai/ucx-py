@@ -234,6 +234,7 @@ class ApplicationContext:
         callback_func,
         port=0,
         endpoint_error_handling=True,
+        ip_address=None,
     ):
         """Create and start a listener to accept incoming connections
 
@@ -257,6 +258,9 @@ class ApplicationContext:
             but prevents a process from terminating unexpectedly that may
             happen when disabled. If `False` endpoint endpoint error handling
             is disabled.
+        ip_address: str, optional
+            IP address to bind the listener to. Binds to `0.0.0.0` if not
+            specified.
 
         Returns
         -------
@@ -274,6 +278,7 @@ class ApplicationContext:
                 port=port,
                 cb_func=_listener_handler,
                 cb_args=(callback_func, self, endpoint_error_handling),
+                ip_address=ip_address,
             )
         )
         return ret
@@ -992,11 +997,14 @@ def register_am_allocator(allocator, allocator_type):
     return _get_ctx().register_am_allocator(allocator, allocator_type)
 
 
-def create_listener(callback_func, port=None, endpoint_error_handling=True):
+def create_listener(
+    callback_func, port=None, endpoint_error_handling=True, ip_address=None
+):
     return _get_ctx().create_listener(
         callback_func,
         port,
         endpoint_error_handling=endpoint_error_handling,
+        ip_address=ip_address,
     )
 
 
