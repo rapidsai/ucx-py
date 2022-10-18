@@ -28,7 +28,7 @@ from .exceptions import UCXConfigError, UCXError
 from .ucx_api_dep cimport *
 
 
-cdef FILE * create_text_fd():
+cdef FILE * create_text_fd() except *:
     cdef FILE *text_fd = tmpfile()
     if text_fd == NULL:
         raise IOError("tmpfile() failed")
