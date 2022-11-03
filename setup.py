@@ -69,10 +69,12 @@ install_requires = [
     "pynvml",
 ]
 
-tests_require = [
-    "pytest",
-    "pytest-asyncio",
-]
+extras_require = {
+    "test": [
+        "pytest",
+        "pytest-asyncio",
+    ],
+}
 
 setup(
     name="ucx-py",
@@ -83,7 +85,7 @@ setup(
     version=versioneer.get_version(),
     python_requires=">=3.6",
     install_requires=install_requires,
-    tests_require=tests_require,
+    extras_require=extras_require,
     description="Python Bindings for the Unified Communication X library (UCX)",
     long_description=readme,
     author="NVIDIA Corporation",
