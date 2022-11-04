@@ -17,4 +17,5 @@ build-backend = "setuptools.build_meta:__legacy__"
 requires = [
     "setuptools",
     "cython>=0.29,<0.30",
+    "tomli  ; python_version < '3.11'",
 ]

@@ -21,6 +21,7 @@ requirements:
     - pip
     - cython
     - ucx
+    - tomli  # [py<311]
   run:
     - python
     - numpy
