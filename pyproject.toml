@@ -58,6 +58,50 @@ test = [
 [project.urls]
 Homepage = "https://github.com/rapidsai/ucx-py"
 
+[tool.isort]
+line_length = 79
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+order_by_type = true
+known_dask = [
+    "dask",
+    "distributed",
+    "dask_cuda",
+]
+known_rapids = [
+    "rmm",
+    "cuml",
+    "cugraph",
+    "dask_cudf",
+    "cudf",
+]
+known_first_party = [
+    "ucp",
+]
+default_section = "THIRDPARTY"
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "DASK",
+    "RAPIDS",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+skip = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+    "__init__.py",
+]
+
 [tool.setuptools]
 license-files = ["LICENSE"]
 package-dir = {"" = "."}
