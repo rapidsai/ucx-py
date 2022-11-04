@@ -96,4 +96,5 @@ if get_ucx_version() < (1, 11, 1):
     )
 
 from . import _version
-__version__ = _version.get_versions()['version']
+
+__version__ = _version.get_versions()["version"]
