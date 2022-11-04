@@ -94,3 +94,6 @@ if get_ucx_version() < (1, 11, 1):
         f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
         "1.11.1 or newer."
     )
+
+from . import _version
+__version__ = _version.get_versions()['version']
