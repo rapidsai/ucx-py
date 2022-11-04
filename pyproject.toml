@@ -63,3 +63,11 @@ license-files = ["LICENSE"]
 package-dir = {"" = "."}
 packages = ["ucp"]
 zip-safe = false
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "ucp/_version.py"
+versionfile_build = "ucp/_version.py"
+tag_prefix = "v"
+parentdir_prefix = "ucp-"
