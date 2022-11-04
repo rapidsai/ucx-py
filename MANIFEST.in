@@ -1,2 +1,3 @@
+# Versioneer
 include versioneer.py
 include ucp/_version.py
