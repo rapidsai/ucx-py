@@ -79,7 +79,6 @@ extras_require = {
 setup(
     name="ucx-py",
     packages=find_packages(exclude=["tests*"]),
-    package_data={"": ["*.pyi"]},
     ext_modules=ext_modules,
     cmdclass=cmdclass,
     version=versioneer.get_version(),

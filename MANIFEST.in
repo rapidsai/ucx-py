@@ -1,3 +1,6 @@
+# Python type stubs
+recursive-include rmm *.pyi
+
 # Versioneer
 include versioneer.py
 include ucp/_version.py
