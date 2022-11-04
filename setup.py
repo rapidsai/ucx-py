@@ -9,7 +9,6 @@ import os
 import re
 from distutils.sysconfig import get_config_var, get_python_inc
 
-from Cython.Build import cythonize
 from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import find_packages, setup
 from setuptools.extension import Extension
@@ -37,27 +36,25 @@ def get_ucp_version():
         return (major, minor)
 
 
-ext_modules = cythonize(
-    [
-        Extension(
-            "ucp._libs.ucx_api",
-            sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
-            depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
-            include_dirs=include_dirs,
-            library_dirs=library_dirs,
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-        Extension(
-            "ucp._libs.arr",
-            sources=["ucp/_libs/arr.pyx"],
-            include_dirs=include_dirs,
-            library_dirs=library_dirs,
-            libraries=libraries,
-            extra_compile_args=extra_compile_args,
-        ),
-    ],
-)
+ext_modules = [
+    Extension(
+        "ucp._libs.ucx_api",
+        sources=["ucp/_libs/ucx_api.pyx", "ucp/_libs/src/c_util.c"],
+        depends=["ucp/_libs/src/c_util.h", "ucp/_libs/ucx_api_dep.pxd"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+    Extension(
+        "ucp._libs.arr",
+        sources=["ucp/_libs/arr.pyx"],
+        include_dirs=include_dirs,
+        library_dirs=library_dirs,
+        libraries=libraries,
+        extra_compile_args=extra_compile_args,
+    ),
+]
 
 cmdclass = dict()
 cmdclass.update(versioneer.get_cmdclass())
