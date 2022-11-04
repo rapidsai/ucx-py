@@ -19,3 +19,47 @@ requires = [
     "cython>=0.29,<0.30",
     "tomli  ; python_version < '3.11'",
 ]
+
+[project]
+name = "ucx-py"
+dynamic = [
+    "version",
+]
+description = "Python Bindings for the Unified Communication X library (UCX)"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+    { name = "NVIDIA Corporation" },
+]
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.6"
+dependencies = [
+    "numpy",
+    "psutil",
+    "pynvml",
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[project.urls]
+Homepage = "https://github.com/rapidsai/ucx-py"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
+package-dir = {"" = "."}
+packages = ["ucp"]
+zip-safe = false
