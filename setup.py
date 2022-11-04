@@ -56,9 +56,8 @@ ext_modules = [
     ),
 ]
 
-cmdclass = dict()
-cmdclass.update(versioneer.get_cmdclass())
-cmdclass["build_ext"] = build_ext
+cmdclass = dict(build_ext=build_ext)
+cmdclass = versioneer.get_cmdclass(cmdclass)
 
 install_requires = [
     "numpy",
