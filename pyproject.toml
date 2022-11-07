@@ -34,7 +34,6 @@ license = { text = "BSD-3-Clause" }
 requires-python = ">=3.6"
 dependencies = [
     "numpy",
-    "psutil",
     "pynvml",
 ]
 classifiers = [

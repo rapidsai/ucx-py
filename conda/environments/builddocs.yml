@@ -15,7 +15,6 @@ dependencies:
 - recommonmark
 - pandoc=<2.0.0
 - pip
-- psutil
 - ucx
 - cython
 - tomli
