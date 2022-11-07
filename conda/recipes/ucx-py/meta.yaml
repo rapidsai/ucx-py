@@ -22,6 +22,7 @@ requirements:
     - cython
     - ucx
     - tomli  # [py<311]
+    - versioneer >=0.24
   run:
     - python
     - numpy
