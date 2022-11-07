@@ -1,5 +1,5 @@
 # Python type stubs
-recursive-include rmm *.pyi
+recursive-include ucp *.pyi
 
 # Versioneer
 include versioneer.py
