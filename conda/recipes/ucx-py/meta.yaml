@@ -24,7 +24,6 @@ requirements:
   run:
     - python
     - numpy
-    - psutil
     - ucx
   run_constrained:
     - pynvml {{ pynvml }}
