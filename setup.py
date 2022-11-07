@@ -9,11 +9,10 @@ import os
 import re
 from distutils.sysconfig import get_config_var, get_python_inc
 
+import versioneer
 from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import setup
 from setuptools.extension import Extension
-
-import versioneer
 
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
