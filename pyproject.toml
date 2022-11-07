@@ -106,8 +106,6 @@ xfail_strict = true
 
 [tool.setuptools]
 license-files = ["LICENSE"]
-package-dir = {"" = "."}
-packages = ["ucp"]
 zip-safe = false
 
 [tool.versioneer]
