@@ -51,7 +51,8 @@ gpuci_logger "Activate conda env"
 conda activate rapids
 gpuci_mamba_retry install "cudatoolkit=${CUDA_REL}" \
               "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
-              "rapids-build-env=${RAPIDS_VERSION}"
+              "rapids-build-env=${RAPIDS_VERSION}" \
+	      "versioneer>=0.24"
 
 # Install latest nightly version for dask and distributed if needed
 if [[ "${INSTALL_DASK_MAIN}" == 1 ]]; then

@@ -17,3 +17,5 @@ dependencies:
 - pip
 - ucx
 - cython
+- tomli
+- versioneer
