@@ -22,6 +22,8 @@ import asyncio
 import multiprocessing as mp
 import os
 
+import numpy as np
+
 import ucp
 from ucp._libs.utils import (
     format_bytes,
@@ -55,31 +57,21 @@ def _get_backend_implementation(backend):
     raise ValueError(f"Unknown backend {backend}")
 
 
+def _set_cuda_device(object_type, device):
+    if object_type in ["cupy", "rmm"]:
+        import numba.cuda
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
+        numba.cuda.current_context()
+
+
 def server(queue, args):
     if args.server_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.server_cpu_affinity])
 
-    if args.object_type == "numpy":
-        import numpy as xp
-    elif args.object_type == "cupy":
-        import cupy as xp
+    _set_cuda_device(args.object_type, args.server_dev)
 
-        xp.cuda.runtime.setDevice(args.server_dev)
-    else:
-        import cupy as xp
-
-        import rmm
-
-        rmm.reinitialize(
-            pool_allocator=True,
-            managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.server_dev],
-        )
-        xp.cuda.runtime.setDevice(args.server_dev)
-        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
-
-    server = _get_backend_implementation(args.backend)["server"](args, xp, queue)
+    server = _get_backend_implementation(args.backend)["server"](args, queue)
 
     if asyncio.iscoroutinefunction(server.run):
         loop = get_event_loop()
@@ -92,30 +84,10 @@ def client(queue, port, server_address, args):
     if args.client_cpu_affinity >= 0:
         os.sched_setaffinity(0, [args.client_cpu_affinity])
 
-    import numpy as np
-
-    if args.object_type == "numpy":
-        import numpy as xp
-    elif args.object_type == "cupy":
-        import cupy as xp
-
-        xp.cuda.runtime.setDevice(args.client_dev)
-    else:
-        import cupy as xp
-
-        import rmm
-
-        rmm.reinitialize(
-            pool_allocator=True,
-            managed_memory=False,
-            initial_pool_size=args.rmm_init_pool_size,
-            devices=[args.client_dev],
-        )
-        xp.cuda.runtime.setDevice(args.client_dev)
-        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    _set_cuda_device(args.object_type, args.client_dev)
 
     client = _get_backend_implementation(args.backend)["client"](
-        args, xp, queue, server_address, port
+        args, queue, server_address, port
     )
 
     if asyncio.iscoroutinefunction(client.run):
@@ -306,6 +278,12 @@ def parse_args():
         help="Use Active Message API instead of TAG for transfers",
     )
     parser.add_argument(
+        "--rmm-managed-memory",
+        default=False,
+        action="store_true",
+        help="Use RMM managed memory (requires `--object-type rmm`)",
+    )
+    parser.add_argument(
         "--no-detailed-report",
         default=False,
         action="store_true",
@@ -343,6 +321,8 @@ def parse_args():
         raise RuntimeError(
             "`--cuda-profile` requires `--object_type=cupy` or `--object_type=rmm`"
         )
+    if args.rmm_managed_memory and args.object_type != "rmm":
+        raise RuntimeError("`--rmm-managed-memory` requires `--object_type=rmm`")
 
     backend_impl = _get_backend_implementation(args.backend)
     if not (
