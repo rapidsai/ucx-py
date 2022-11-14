@@ -53,6 +53,10 @@ classifiers = [
 test = [
     "pytest",
     "pytest-asyncio",
+    "cloudpickle",
+    "dask",
+    "distributed",
+    "cupy-cuda11x",
 ]
 
 [project.urls]

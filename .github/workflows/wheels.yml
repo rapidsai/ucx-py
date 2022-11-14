@@ -4,18 +4,49 @@ on:
   push:
     branches:
       - 'pull-request/[0-9]+'
+  workflow_call:
+    inputs:
+      versioneer-override:
+        type: string
+        default: ''
+      build-tag:
+        type: string
+        default: ''
+      branch:
+        required: true
+        type: string
+      date:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+      build-type:
+        type: string
+        default: nightly
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: "${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
   ucx-py-wheels:
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@feat/wheel-ci-actions-2
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux.yml@main
     with:
-      package-name: ucx_py_cu11
+      repo: rapidsai/ucx-py
+
+      build-type: ${{ inputs.build-type || 'pull-request' }}
+      branch: ${{ inputs.branch }}
+      sha: ${{ inputs.sha }}
+      date: ${{ inputs.date }}
+
       package-dir: .
-      python-package-versioneer-override: "0.28.00"
+      # TODO: Should the package-name be suffixed here? I think it's because
+      # we're faking ucx-py becing CUDA dependent even though it isn't really.
+      package-name: ucx_py_cu11
+
+      python-package-versioneer-override: ${{ inputs.versioneer-override }}
+      python-package-build-tag: ${{ inputs.build-tag }}
 
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
@@ -26,9 +57,7 @@ jobs:
 
       test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
 
-      test-before-amd64: "pip install cupy-cuda115"
       test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
-      test-extras: "test"
-      test-requires: "cloudpickle dask distributed"
+      test-extras: test
       test-unittest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
     secrets: inherit
