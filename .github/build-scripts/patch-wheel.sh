@@ -18,7 +18,7 @@ mkdir -p ucx_py.libs/ucx
 cd ucx_py.libs/ucx
 cp -P /usr/lib/ucx/* .
 
-# we link against <python>/lib/site-packages/ucx_py_cu11.lib/libuc{ptsm}
+# we link against <python>/lib/site-packages/ucx_py.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so.0.0.0
 do
