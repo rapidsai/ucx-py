@@ -41,9 +41,7 @@ jobs:
       date: ${{ inputs.date }}
 
       package-dir: .
-      # TODO: Should the package-name be suffixed here? I think it's because
-      # we're faking ucx-py becing CUDA dependent even though it isn't really.
-      package-name: ucx_py_cu11
+      package-name: ucx_py
 
       python-package-versioneer-override: ${{ inputs.versioneer-override }}
       python-package-build-tag: ${{ inputs.build-tag }}
