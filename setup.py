@@ -13,7 +13,6 @@ from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import setup
 from setuptools.extension import Extension
 
-
 # Patch versioneer version for wheel builds.
 if "RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE" in os.environ:
     orig_get_versions = versioneer.get_versions
