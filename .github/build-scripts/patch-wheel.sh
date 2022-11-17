@@ -16,19 +16,20 @@ LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RS
 
 # TODO: This directory is currently hardcoded, but it actually needs to take
 # another script argument to get the CUDA suffix used for the current build.
+ldd /usr/lib/ucx/libuct_cuda.so
 mkdir -p ucx_py.libs/ucx
 cd ucx_py.libs/ucx
 cp -P /usr/lib/ucx/* .
 
 # we link against <python>/lib/site-packages/ucx_py.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
-for f in libu*.so.0.0.0
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --add-rpath '$ORIGIN/..' $f
-done
+#for f in libu*.so.0.0.0
+#do
+#  patchelf --replace-needed libuct.so.0 $LIBUCT $f
+#  patchelf --replace-needed libucs.so.0 $LIBUCS $f
+#  patchelf --replace-needed libucm.so.0 $LIBUCM $f
+#  patchelf --add-rpath '$ORIGIN/..' $f
+#done
 
 # bring in cudart as well if avoid symbol collision with other
 # libraries e.g. cupy
