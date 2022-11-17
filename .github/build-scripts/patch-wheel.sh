@@ -16,11 +16,11 @@ LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RS
 
 # TODO: This directory is currently hardcoded, but it actually needs to take
 # another script argument to get the CUDA suffix used for the current build.
-mkdir -p ucx_py_cu11.libs/ucx
-cd ucx_py_cu11.libs/ucx
+mkdir -p ucx_py.libs/ucx
+cd ucx_py.libs/ucx
 cp -P /usr/lib/ucx/* .
 
-# we link against <python>/lib/site-packages/ucx_py_cu11.lib/libuc{ptsm}
+# we link against <python>/lib/site-packages/ucx_py.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so.0.0.0
 do
@@ -52,5 +52,5 @@ patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
 
-zip -r $WHL ucx_py_cu11.libs/
+zip -r $WHL ucx_py.libs/
 # python3 -m ucp.benchmarks.send_recv -o numpy -n 100000000 -d 0 -e 1 --reuse-alloc   --backend ucp-core -o cupy

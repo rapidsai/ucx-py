@@ -43,7 +43,8 @@ cmdclass = dict(build_ext=build_ext)
 cmdclass = versioneer.get_cmdclass(cmdclass)
 
 setup(
-    name="ucx-py" + os.getenv("RAPIDS_PY_WHEEL_CUDA_SUFFIX", default=""),
+    # TODO: This naming scheme will not match the rest of the RAPIDS wheels.
+    name="ucx-py",
     ext_modules=ext_modules,
     cmdclass=cmdclass,
     version=os.getenv(
