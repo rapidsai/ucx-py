@@ -13,6 +13,21 @@ from Cython.Distutils.build_ext import new_build_ext as build_ext
 from setuptools import setup
 from setuptools.extension import Extension
 
+
+# Patch versioneer version for wheel builds.
+if "RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE" in os.environ:
+    orig_get_versions = versioneer.get_versions
+
+    version_override = os.environ["RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE"]
+
+    def get_versions():
+        data = orig_get_versions()
+        data["version"] = version_override
+        return data
+
+    versioneer.get_versions = get_versions
+
+
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs"]
@@ -49,7 +64,5 @@ setup(
     # name="ucx-py" + os.getenv("RAPIDS_PY_WHEEL_CUDA_SUFFIX", default=""),
     ext_modules=ext_modules,
     cmdclass=cmdclass,
-    version=os.getenv(
-        "RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE", default=versioneer.get_version()
-    ),
+    version=versioneer.get_version(),
 )
