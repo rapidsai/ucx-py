@@ -14,6 +14,8 @@ LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RS
 LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RSTART) }')
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
 
+# TODO: This directory is currently hardcoded, but it actually needs to take
+# another script argument to get the CUDA suffix used for the current build.
 mkdir -p ucx_py_cu11.libs/ucx
 cd ucx_py_cu11.libs/ucx
 cp -P /usr/lib/ucx/* .
