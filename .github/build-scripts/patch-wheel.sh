@@ -13,74 +13,44 @@ WHL=$1
 LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')
 LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RSTART) }')
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
+LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
 # TODO: This directory is currently hardcoded, but it actually needs to take
 # another script argument to get the CUDA suffix used for the current build.
->&2 echo `ldd /usr/lib/ucx/libuct_cuda.so`
 mkdir -p ucx_py.libs/ucx
 cd ucx_py.libs/ucx
 cp -P /usr/lib/ucx/* .
 
 # we link against <python>/lib/site-packages/ucx_py.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
->&2 echo `ldd libuct_cuda.so.0.0.0`
-#for f in libu*.so.0.0.0
-
-#libucm_cuda.so.0.0.0  libuct_cma.so.0.0.0  libuct_cuda.so.0.0.0  libucx_perftest_cuda.so.0.0.0
-
-for f in `ls libucm_cuda.so.0.0.0`
+for f in libu*.so.0.0.0
 do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
-done
-
-for f in `ls libuct_cma.so.0.0.0`
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
-done
-
-for f in `ls libuct_cuda.so.0.0.0`
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
+  patchelf --replace-needed libnuma.so.0 $LIBNUMA $f
   patchelf --add-rpath '$ORIGIN/..' $f
 done
-
-for f in `ls libucx_perftest_cuda.so.0.0.0`
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
-done
-
->&2 echo `ldd libuct_cuda.so.0.0.0`
 
 # bring in cudart as well if avoid symbol collision with other
 # libraries e.g. cupy
 
-#find /usr/local/cuda/ -name "libcudart*.so*" | xargs cp -P -t .
-#src=libcudart.so
-#hash=$(sha256sum ${src} | awk '{print substr($1, 0, 8)}')
-#target=$(basename $(readlink -f ${src}))
-#
-#mv ${target} ${target/libcudart/libcudart-${hash}}
-#while readlink ${src} > /dev/null; do
-#    target=$(readlink ${src})
-#    ln -s ${target/libcudart/libcudart-${hash}} ${src/libcudart/libcudart-${hash}}
-#    rm -f ${src}
-#    src=${target}
-#done
-#
-#to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
-#patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
-#patchelf --add-rpath '$ORIGIN' libuct_cuda.so
+find /usr/local/cuda/ -name "libcudart*.so*" | xargs cp -P -t .
+src=libcudart.so
+hash=$(sha256sum ${src} | awk '{print substr($1, 0, 8)}')
+target=$(basename $(readlink -f ${src}))
+
+mv ${target} ${target/libcudart/libcudart-${hash}}
+while readlink ${src} > /dev/null; do
+    target=$(readlink ${src})
+    ln -s ${target/libcudart/libcudart-${hash}} ${src/libcudart/libcudart-${hash}}
+    rm -f ${src}
+    src=${target}
+done
+
+to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
+patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
+patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
 
