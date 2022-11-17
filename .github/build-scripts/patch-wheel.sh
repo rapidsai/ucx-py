@@ -33,7 +33,7 @@ do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --add-rpath '$ORIGIN/..' $f
+  #patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 for f in `ls libuct_cma.so.0.0.0`
@@ -41,7 +41,7 @@ do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --add-rpath '$ORIGIN/..' $f
+  #patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 for f in `ls libuct_cuda.so.0.0.0`
@@ -49,7 +49,7 @@ do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --add-rpath '$ORIGIN/..' $f
+  #patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 for f in `ls libucx_perftest_cuda.so.0.0.0`
@@ -57,7 +57,7 @@ do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --add-rpath '$ORIGIN/..' $f
+  #patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 >&2 echo `ldd libuct_cuda.so.0.0.0`
