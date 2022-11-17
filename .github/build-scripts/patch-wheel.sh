@@ -23,25 +23,15 @@ cp -P /usr/lib/ucx/* .
 
 # we link against <python>/lib/site-packages/ucx_py.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
-f=libuct_cuda.so
 >&2 echo `ldd libuct_cuda.so`
-#for f in libu*.so.0.0.0
-#do
-#  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-#  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-#  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-#  patchelf --add-rpath '$ORIGIN/..' $f
-#done
-
-patchelf --replace-needed libuct.so.0 $LIBUCT $f
+for f in libu*.so*
+do
+  patchelf --replace-needed libuct.so.0 $LIBUCT $f
+  patchelf --replace-needed libucs.so.0 $LIBUCS $f
+  patchelf --replace-needed libucm.so.0 $LIBUCM $f
+  patchelf --add-rpath '$ORIGIN/..' $f
+done
 >&2 echo `ldd libuct_cuda.so`
-
-patchelf --replace-needed libucs.so.0 $LIBUCS $f
->&2 echo `ldd libuct_cuda.so`
-
-patchelf --replace-needed libucm.so.0 $LIBUCM $f
->&2 echo `ldd libuct_cuda.so`
-
 
 # bring in cudart as well if avoid symbol collision with other
 # libraries e.g. cupy
