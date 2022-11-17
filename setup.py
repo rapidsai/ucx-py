@@ -39,8 +39,9 @@ ext_modules = [
     ),
 ]
 
-cmdclass = dict(build_ext=build_ext)
-cmdclass = versioneer.get_cmdclass(cmdclass)
+cmdclass = dict()
+cmdclass.update(versioneer.get_cmdclass())
+cmdclass["build_ext"] = build_ext
 
 setup(
     # TODO: This naming scheme will not match the rest of the RAPIDS wheels.
