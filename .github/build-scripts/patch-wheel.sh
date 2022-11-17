@@ -28,7 +28,7 @@ do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --replace-needed libnuma.so.0 $LIBNUMA $f
+  patchelf --replace-needed libnuma.so.1 $LIBNUMA $f
   patchelf --add-rpath '$ORIGIN/..' $f
 done
 
