@@ -25,33 +25,39 @@ cp -P /usr/lib/ucx/* .
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 >&2 echo `ldd libuct_cuda.so.0.0.0`
 #for f in libu*.so.0.0.0
-for f in `ls libuct_cuda.so.0.0.0`
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
-done
-for f in `ls libuct_cma.so.0.0.0`
-do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
-done
+
+#libucm_cuda.so.0.0.0  libuct_cma.so.0.0.0  libuct_cuda.so.0.0.0  libucx_perftest_cuda.so.0.0.0
+
 for f in `ls libucm_cuda.so.0.0.0`
 do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
+  patchelf --add-rpath '$ORIGIN/..' $f
 done
+
+for f in `ls libuct_cma.so.0.0.0`
+do
+  patchelf --replace-needed libuct.so.0 $LIBUCT $f
+  patchelf --replace-needed libucs.so.0 $LIBUCS $f
+  patchelf --replace-needed libucm.so.0 $LIBUCM $f
+  patchelf --add-rpath '$ORIGIN/..' $f
+done
+
+for f in `ls libuct_cuda.so.0.0.0`
+do
+  patchelf --replace-needed libuct.so.0 $LIBUCT $f
+  patchelf --replace-needed libucs.so.0 $LIBUCS $f
+  patchelf --replace-needed libucm.so.0 $LIBUCM $f
+  patchelf --add-rpath '$ORIGIN/..' $f
+done
+
 for f in `ls libucx_perftest_cuda.so.0.0.0`
 do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
   patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  #patchelf --add-rpath '$ORIGIN/..' $f
+  patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 >&2 echo `ldd libuct_cuda.so.0.0.0`
