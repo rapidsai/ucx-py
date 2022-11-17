@@ -44,9 +44,9 @@ cmdclass.update(versioneer.get_cmdclass())
 cmdclass["build_ext"] = build_ext
 
 setup(
-    # TODO: At present the ucx-py naming scheme will not match the rest of the
-    # RAPIDS wheels. It is hardcoded in pyproject.toml, so overriding it here
-    # will not work and wheels will always just be called ucx_py.
+    # TODO: At present the ucx-py naming scheme is not dynamic and will not
+    # support different CUDA major versions if we need to build wheels. It is
+    # hardcoded in pyproject.toml, so overriding it here will not work.
     # name="ucx-py" + os.getenv("RAPIDS_PY_WHEEL_CUDA_SUFFIX", default=""),
     ext_modules=ext_modules,
     cmdclass=cmdclass,

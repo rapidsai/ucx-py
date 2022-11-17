@@ -41,7 +41,7 @@ jobs:
       date: ${{ inputs.date }}
 
       package-dir: .
-      package-name: ucx_py
+      package-name: ucx_py_cu11
 
       python-package-versioneer-override: ${{ inputs.versioneer-override }}
       python-package-build-tag: ${{ inputs.build-tag }}
