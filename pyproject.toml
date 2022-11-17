@@ -22,7 +22,6 @@ requires = [
 ]
 
 [project]
-name = "ucx-py"
 dynamic = [
     "version",
 ]
