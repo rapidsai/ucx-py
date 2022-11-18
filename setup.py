@@ -18,6 +18,12 @@ if "RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE" in os.environ:
     orig_get_versions = versioneer.get_versions
 
     version_override = os.environ["RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE"]
+    if not version_override:
+        raise RuntimeError(
+            "An empty RAPIDS_PY_WHEEL_VERSIONEER_OVERRIDE is not supported. "
+            "Either remove this variable from your environment or specify a "
+            "valid version override."
+        )
 
     def get_versions():
         data = orig_get_versions()

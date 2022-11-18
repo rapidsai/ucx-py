@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Auditwheel rewrites dynamic libraries that are referenced at link time in the
+# package. However, UCX loads a number of sub-libraries at runtime via dlopen;
+# these are not picked up by auditwheel. Since we have a priori knowledge of
+# what these libraries are, we mimic the behaviour of auditwheel by using the
+# same hash-based uniqueness scheme and rewriting the link paths.
 
 set -Eeoxu pipefail
 
@@ -32,8 +37,11 @@ do
   patchelf --add-rpath '$ORIGIN/..' $f
 done
 
-# bring in cudart as well if avoid symbol collision with other
-# libraries e.g. cupy
+# Bring in cudart as well. To avoid symbol collision with other libraries e.g.
+# cupy we mimic auditwheel by renaming the libraries to include the hashes of
+# their names. Since there will typically be a chain of symlinks
+# libcudart.so->libcudart.so.X->libcudart.so.X.Y.Z we need to follow the chain
+# and rename all of them.
 
 find /usr/local/cuda/ -name "libcudart*.so*" | xargs cp -P -t .
 src=libcudart.so
@@ -55,4 +63,3 @@ patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 cd -
 
 zip -r $WHL ucx_py_cu11.libs/
-# python3 -m ucp.benchmarks.send_recv -o numpy -n 100000000 -d 0 -e 1 --reuse-alloc   --backend ucp-core -o cupy
