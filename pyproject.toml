@@ -22,7 +22,7 @@ requires = [
 ]
 
 [project]
-name = "ucx-py-cu11"
+name = "ucx-py"
 dynamic = [
     "version",
 ]
