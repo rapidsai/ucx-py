@@ -28,7 +28,7 @@ cp -P /usr/lib/ucx/* .
 
 # we link against <python>/lib/site-packages/ucx_py_cu11.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
-for f in libu*.so.0.0.0
+for f in libu*.so*
 do
   patchelf --replace-needed libuct.so.0 $LIBUCT $f
   patchelf --replace-needed libucs.so.0 $LIBUCS $f
