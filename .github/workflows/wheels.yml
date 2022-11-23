@@ -48,7 +48,9 @@ jobs:
 
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
-      cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh"
+      # Also rewrite the name in the pyproject.toml file.
+      # TODO: Eventually this needs to be done more generically.
+      cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh && sed -i 's/name = \"ucx-py\"/name = \"ucx-py-cu11\"/g'  {package}/pyproject.toml"
 
       auditwheel-repair-command-amd64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_17_x86_64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
       auditwheel-repair-command-arm64: "auditwheel --verbose repair -w {dest_dir} --plat manylinux_2_31_aarch64 {wheel} && /patch-wheel.sh {dest_dir}/*.whl"
