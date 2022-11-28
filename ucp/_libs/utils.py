@@ -104,7 +104,7 @@ def get_address(ifname=None):
             )
 
     def _try_interfaces():
-        prefix_priority = ["ib", "eth", "en"]
+        prefix_priority = ["ib", "eth", "en", "docker"]
         iftypes = {p: [] for p in prefix_priority}
         for i in glob.glob("/sys/class/net/*"):
             name = i.split("/")[-1]
