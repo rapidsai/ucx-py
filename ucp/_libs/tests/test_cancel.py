@@ -3,9 +3,9 @@ import re
 
 import pytest
 
-from ucp import get_address
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
+from ucp._libs.utils import get_address
 from ucp.exceptions import UCXCanceled
 
 mp = mp.get_context("spawn")
