@@ -85,6 +85,11 @@ def get_address(ifname=None):
     address : str
         The inet addr associated with an interface.
 
+    Raises
+    ------
+    RuntimeError
+        If a network address could not be determined.
+
     Examples
     --------
     >>> get_address()
@@ -119,6 +124,11 @@ def get_address(ifname=None):
                     return _get_address(i)
                 except OSError:
                     pass
+
+        raise RuntimeError(
+            "A network address could not be determined, an interface that has a valid "
+            "IP address with the environment variable `UCXPY_IFNAME`."
+        )
 
     if ifname is None:
         ifname = os.environ.get("UCXPY_IFNAME")
