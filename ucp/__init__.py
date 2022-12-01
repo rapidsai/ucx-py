@@ -20,7 +20,7 @@ from ._version import get_versions as _get_versions  # noqa
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
-from ._libs.ucx_api import get_address  # noqa
+from ._libs.utils import get_address  # noqa
 
 try:
     import pynvml
