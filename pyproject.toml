@@ -1,0 +1,125 @@
+# Copyright (c) 2021-2022, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools>=64.0.0",
+    "cython>=0.29,<0.30",
+    "tomli; python_version < '3.11'",
+    "versioneer>=0.24",
+]
+
+[project]
+name = "ucx-py"
+dynamic = [
+    "version",
+]
+description = "Python Bindings for the Unified Communication X library (UCX)"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+    { name = "NVIDIA Corporation" },
+]
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.6"
+dependencies = [
+    "numpy",
+    "pynvml",
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Hardware",
+    "Topic :: System :: Systems Administration",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "cloudpickle",
+    "dask",
+    "distributed",
+    "cupy-cuda11x",
+]
+
+[project.urls]
+Homepage = "https://github.com/rapidsai/ucx-py"
+
+[tool.isort]
+line_length = 79
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+order_by_type = true
+known_dask = [
+    "dask",
+    "distributed",
+    "dask_cuda",
+]
+known_rapids = [
+    "rmm",
+    "cuml",
+    "cugraph",
+    "dask_cudf",
+    "cudf",
+]
+known_first_party = [
+    "ucp",
+]
+default_section = "THIRDPARTY"
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "DASK",
+    "RAPIDS",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+skip = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+    "__init__.py",
+]
+
+[tool.pytest.ini_options]
+xfail_strict = true
+
+[tool.setuptools]
+license-files = ["LICENSE"]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+exclude=["tests*"]
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "ucp/_version.py"
+versionfile_build = "ucp/_version.py"
+tag_prefix = "v"
+parentdir_prefix = "ucp-"

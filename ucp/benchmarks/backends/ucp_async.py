@@ -2,12 +2,12 @@ import asyncio
 from argparse import Namespace
 from queue import Queue
 from time import monotonic
-from typing import Any
 
 import ucp
 from ucp._libs.arr import Array
 from ucp._libs.utils import print_key_value
 from ucp.benchmarks.backends.base import BaseClient, BaseServer
+from ucp.benchmarks.utils import get_allocator
 
 
 def register_am_allocators(args: Namespace):
@@ -42,20 +42,29 @@ def register_am_allocators(args: Namespace):
 class UCXPyAsyncServer(BaseServer):
     has_cuda_support = True
 
-    def __init__(self, args: Namespace, xp: Any, queue: Queue):
+    def __init__(
+        self,
+        args: Namespace,
+        queue: Queue,
+    ):
         self.args = args
-        self.xp = xp
         self.queue = queue
 
     async def run(self):
         ucp.init()
+
+        xp = get_allocator(
+            self.args.object_type,
+            self.args.rmm_init_pool_size,
+            self.args.rmm_managed_memory,
+        )
 
         register_am_allocators(self.args)
 
         async def server_handler(ep):
             if not self.args.enable_am:
                 if self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    recv_msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
 
                     assert recv_msg.nbytes == self.args.n_bytes
 
@@ -65,7 +74,7 @@ class UCXPyAsyncServer(BaseServer):
                     await ep.am_send(recv)
                 else:
                     if not self.args.reuse_alloc:
-                        recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                        recv_msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
 
                     await ep.recv(recv_msg)
                     await ep.send(recv_msg)
@@ -83,10 +92,13 @@ class UCXPyAsyncClient(BaseClient):
     has_cuda_support = True
 
     def __init__(
-        self, args: Namespace, xp: Any, queue: Queue, server_address: str, port: int
+        self,
+        args: Namespace,
+        queue: Queue,
+        server_address: str,
+        port: int,
     ):
         self.args = args
-        self.xp = xp
         self.queue = queue
         self.server_address = server_address
         self.port = port
@@ -94,22 +106,28 @@ class UCXPyAsyncClient(BaseClient):
     async def run(self):
         ucp.init()
 
+        xp = get_allocator(
+            self.args.object_type,
+            self.args.rmm_init_pool_size,
+            self.args.rmm_managed_memory,
+        )
+
         register_am_allocators(self.args)
 
         ep = await ucp.create_endpoint(self.server_address, self.port)
 
         if self.args.enable_am:
-            msg = self.xp.arange(self.args.n_bytes, dtype="u1")
+            msg = xp.arange(self.args.n_bytes, dtype="u1")
         else:
-            send_msg = Array(self.xp.arange(self.args.n_bytes, dtype="u1"))
+            send_msg = Array(xp.arange(self.args.n_bytes, dtype="u1"))
             if self.args.reuse_alloc:
-                recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                recv_msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
 
                 assert send_msg.nbytes == self.args.n_bytes
                 assert recv_msg.nbytes == self.args.n_bytes
 
         if self.args.cuda_profile:
-            self.xp.cuda.profiler.start()
+            xp.cuda.profiler.start()
         times = []
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
@@ -118,7 +136,7 @@ class UCXPyAsyncClient(BaseClient):
                 await ep.am_recv()
             else:
                 if not self.args.reuse_alloc:
-                    recv_msg = Array(self.xp.zeros(self.args.n_bytes, dtype="u1"))
+                    recv_msg = Array(xp.zeros(self.args.n_bytes, dtype="u1"))
 
                 await ep.send(send_msg)
                 await ep.recv(recv_msg)
@@ -126,7 +144,7 @@ class UCXPyAsyncClient(BaseClient):
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
         if self.args.cuda_profile:
-            self.xp.cuda.profiler.stop()
+            xp.cuda.profiler.stop()
         self.queue.put(times)
 
     def print_backend_specific_config(self):

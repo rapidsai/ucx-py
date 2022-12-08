@@ -15,7 +15,7 @@ LANG=C.UTF-8
 conda activate rapids
 
 # Run isort and get results/return code
-ISORT=`isort --check-only . --settings-path=setup.cfg`
+ISORT=`isort --check-only . --settings-path=pyproject.toml`
 ISORT_RETVAL=$?
 
 # Run black and get results/return code

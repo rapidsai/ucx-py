@@ -5,10 +5,11 @@ import multiprocessing as mp
 import os
 import pickle
 import threading
+from types import ModuleType
 
 import numpy as np
 
-from ucp._libs import ucx_api
+from ucp._libs.utils import get_address
 
 logger = logging.getLogger("ucx")
 
@@ -20,6 +21,48 @@ def _ensure_cuda_device(devs, rank):
     os.environ["CUDA_VISIBLE_DEVICES"] = str(dev_id)
     logger.debug(f"{dev_id=}, {rank=}")
     numba.cuda.current_context()
+
+
+def get_allocator(
+    object_type: str, rmm_init_pool_size: int, rmm_managed_memory: bool
+) -> ModuleType:
+    """
+    Initialize and return array-allocator based on arguments passed.
+
+    Parameters
+    ----------
+    object_type: str
+        The type of object the allocator should return. Options are: "numpy", "cupy"
+        or "rmm".
+    rmm_init_pool_size: int
+        If the object type is "rmm" (implies usage of RMM pool), define the initial
+        pool size.
+    rmm_managed_memory: bool
+        If the object type is "rmm", use managed memory if `True`, or default memory
+        otherwise.
+    Returns
+    -------
+    A handle to a module, one of ``numpy`` or ``cupy`` (if device memory is requested).
+    If the object type is ``rmm``, then ``cupy`` is configured to use RMM as an
+    allocator.
+    """
+    if object_type == "numpy":
+        import numpy as xp
+    elif object_type == "cupy":
+        import cupy as xp
+    else:
+        import cupy as xp
+
+        import rmm
+
+        rmm.reinitialize(
+            pool_allocator=True,
+            managed_memory=rmm_managed_memory,
+            initial_pool_size=rmm_init_pool_size,
+        )
+        xp.cuda.set_allocator(rmm.rmm_cupy_allocator)
+
+    return xp
 
 
 async def send_pickled_msg(ep, obj):
@@ -70,7 +113,7 @@ def _server_process(
         else:
             fp = open(server_file, mode="w")
         with fp:
-            json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
+            json.dump({"address": get_address(), "port": lf.port}, fp)
 
         while len(results) != n_workers:
             await asyncio.sleep(0.1)
@@ -191,7 +234,7 @@ def _worker_process(
         server_ep = await ucp.create_endpoint(
             server_info["address"], server_info["port"]
         )
-        await send_pickled_msg(server_ep, (rank, ucx_api.get_address(), lf.port))
+        await send_pickled_msg(server_ep, (rank, get_address(), lf.port))
 
         logger.debug(f"Receiving network info from server {rank=}")
         workers_info = await recv_pickled_msg(server_ep)

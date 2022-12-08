@@ -20,7 +20,7 @@ from ._version import get_versions as _get_versions  # noqa
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
-from ._libs.ucx_api import get_address  # noqa
+from ._libs.utils import get_address  # noqa
 
 try:
     import pynvml
@@ -34,9 +34,9 @@ if "UCX_RNDV_THRESH" not in os.environ:
     logger.info("Setting UCX_RNDV_THRESH=8192")
     os.environ["UCX_RNDV_THRESH"] = "8192"
 
-if "UCX_RNDV_SCHEME" not in os.environ:
-    logger.info("Setting UCX_RNDV_SCHEME=get_zcopy")
-    os.environ["UCX_RNDV_SCHEME"] = "get_zcopy"
+if "UCX_RNDV_FRAG_MEM_TYPE" not in os.environ:
+    logger.info("Setting UCX_RNDV_FRAG_MEM_TYPE=cuda")
+    os.environ["UCX_RNDV_FRAG_MEM_TYPE"] = "cuda"
 
 if (
     pynvml is not None

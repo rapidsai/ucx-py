@@ -41,7 +41,7 @@ To use one of these images, first build it
 ```bash
 docker build -t ucx-py-mofed -f UCXPy-MOFED.dockerfile .
 # or
-docker built -t ucx-py-rdma -f UCXPy-rdma-core.dockerfile .
+docker build -t ucx-py-rdma -f UCXPy-rdma-core.dockerfile .
 ```
 
 ### Controlling build-args
