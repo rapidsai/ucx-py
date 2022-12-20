@@ -6,6 +6,7 @@ import pytest
 
 from ucp._libs import ucx_api
 from ucp._libs.arr import Array
+from ucp._libs.utils import get_address
 from ucp._libs.utils_test import blocking_recv, blocking_send
 
 mp = mp.get_context("spawn")
@@ -65,7 +66,7 @@ def _echo_client(msg_size, port):
     worker = ucx_api.UCXWorker(ctx)
     ep = ucx_api.UCXEndpoint.create(
         worker,
-        ucx_api.get_address(),
+        get_address(),
         port,
         endpoint_error_handling=True,
     )

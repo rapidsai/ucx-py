@@ -9,7 +9,7 @@ from types import ModuleType
 
 import numpy as np
 
-from ucp._libs import ucx_api
+from ucp._libs.utils import get_address
 
 logger = logging.getLogger("ucx")
 
@@ -113,7 +113,7 @@ def _server_process(
         else:
             fp = open(server_file, mode="w")
         with fp:
-            json.dump({"address": ucx_api.get_address(), "port": lf.port}, fp)
+            json.dump({"address": get_address(), "port": lf.port}, fp)
 
         while len(results) != n_workers:
             await asyncio.sleep(0.1)
@@ -234,7 +234,7 @@ def _worker_process(
         server_ep = await ucp.create_endpoint(
             server_info["address"], server_info["port"]
         )
-        await send_pickled_msg(server_ep, (rank, ucx_api.get_address(), lf.port))
+        await send_pickled_msg(server_ep, (rank, get_address(), lf.port))
 
         logger.debug(f"Receiving network info from server {rank=}")
         workers_info = await recv_pickled_msg(server_ep)

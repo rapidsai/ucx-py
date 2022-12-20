@@ -2,8 +2,8 @@ import multiprocessing as mp
 
 import pytest
 
-from ucp import get_address
 from ucp._libs import ucx_api
+from ucp._libs.utils import get_address
 from ucp._libs.utils_test import (
     blocking_am_recv,
     blocking_am_send,
