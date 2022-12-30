@@ -22,7 +22,7 @@ jobs:
     with:
       build_type: pull-request
       package-name: ucx_py
-      package-dir: python/ucx-py
+      package-dir: .
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh && sed -i 's/name = \"ucx-py\"/name = \"ucx-py-cu11\"/g'  {package}/pyproject.toml"
       post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
       post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
