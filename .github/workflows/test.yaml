@@ -1,0 +1,29 @@
+name: test
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+      date:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+
+jobs:
+  wheel-tests-ucx-py:
+    secrets: inherit
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@upkeep/manylinux-improvements
+    with:
+      build_type: nightly
+      repo: rapidsai/ucx-py
+      branch: ${{ inputs.branch }}
+      date: ${{ inputs.date }}
+      sha: ${{ inputs.sha }}
+      package-name: ucx_py
+      test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
+      test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
+      test-unittest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"

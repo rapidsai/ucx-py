@@ -1,0 +1,65 @@
+name: build
+
+on:
+  push:
+    branches:
+      - "branch-*"
+    tags:
+      - v[0-9][0-9].[0-9][0-9].[0-9][0-9]
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+      date:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+      build_type:
+        type: string
+        default: nightly
+      wheel_versioneer_override:
+        type: string
+        default: ''
+      wheel_build_tag:
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wheel-build-ucx-py:
+    secrets: inherit
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@upkeep/manylinux-improvements
+    with:
+      build_type: ${{ inputs.build_type || 'branch' }}
+      repo: rapidsai/ucx-py
+      branch: ${{ inputs.branch }}
+      sha: ${{ inputs.sha }}
+      date: ${{ inputs.date }}
+      package-name: ucx_py
+      package-dir: .
+      versioneer-override: ${{ inputs.wheel_versioneer_override }}
+      # copy custom auditwheel script to known location with '{package}' placeholder
+      # in the auditwheel repair command, the '{package}' placeholder can't be used
+      # Also rewrite the name in the pyproject.toml file.
+      # TODO: Eventually this needs to be done more generically.
+      cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh && sed -i 's/name = \"ucx-py\"/name = \"ucx-py-cu11\"/g'  {package}/pyproject.toml"
+      post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
+      post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
+  wheel-publish-ucx-py:
+    needs: wheel-build-ucx-py
+    secrets: inherit
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@upkeep/manylinux-improvements
+    with:
+      build_type: ${{ inputs.build_type || 'branch' }}
+      repo: rapidsai/ucx-py
+      branch: ${{ inputs.branch }}
+      sha: ${{ inputs.sha }}
+      date: ${{ inputs.date }}
+      package-name: ucx_py
+      build-tag: ${{ inputs.wheel_build_tag }}
