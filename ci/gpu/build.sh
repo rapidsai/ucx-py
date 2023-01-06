@@ -26,7 +26,7 @@ export HOME=$WORKSPACE
 cd $WORKSPACE
 export GIT_DESCRIBE_TAG=`git describe --tags`
 export MINOR_VERSION=`echo $GIT_DESCRIBE_TAG | grep -o -E '([0-9]+\.[0-9]+)'`
-export RAPIDS_VERSION="22.04"
+export RAPIDS_VERSION="23.02"
 export TEST_UCX_MASTER=0
 
 # Install dask and distributed from main branch. Usually needed during
@@ -50,9 +50,9 @@ gpuci_logger "Activate conda env"
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
 gpuci_mamba_retry install "cudatoolkit=${CUDA_REL}" \
-              "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
-              "rapids-build-env=${RAPIDS_VERSION}" \
-	      "versioneer>=0.24"
+    "cudf=${RAPIDS_VERSION}" "dask-cudf=${RAPIDS_VERSION}" \
+    "rapids-build-env=${RAPIDS_VERSION}" \
+    "versioneer>=0.24"
 
 # Install latest nightly version for dask and distributed if needed
 if [[ "${INSTALL_DASK_MAIN}" == 1 ]]; then
