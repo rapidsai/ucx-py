@@ -16,7 +16,7 @@ on:
 jobs:
   wheel-tests-ucx-py:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@upkeep/manylinux-improvements
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@main
     with:
       build_type: nightly
       repo: rapidsai/ucx-py

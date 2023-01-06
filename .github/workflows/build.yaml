@@ -28,7 +28,7 @@ concurrency:
 jobs:
   wheel-build-ucx-py:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@upkeep/manylinux-improvements
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@main
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       repo: rapidsai/ucx-py
@@ -47,7 +47,7 @@ jobs:
   wheel-publish-ucx-py:
     needs: wheel-build-ucx-py
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@upkeep/manylinux-improvements
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@main
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       repo: rapidsai/ucx-py
