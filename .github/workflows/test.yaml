@@ -14,7 +14,7 @@ on:
         type: string
 
 jobs:
-  wheel-tests-ucx-py:
+  wheel-tests:
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@main
     with:

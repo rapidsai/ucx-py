@@ -12,11 +12,11 @@ concurrency:
 jobs:
   pr-builder:
     needs:
-      - wheel-build-ucx-py
-      - wheel-tests-ucx-py
+      - wheel-build
+      - wheel-tests
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@main
-  wheel-build-ucx-py:
+  wheel-build:
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@main
     with:
@@ -26,8 +26,8 @@ jobs:
       cibw-before-build: "cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh && sed -i 's/name = \"ucx-py\"/name = \"ucx-py-cu11\"/g'  {package}/pyproject.toml"
       post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
       post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
-  wheel-tests-ucx-py:
-    needs: wheel-build-ucx-py
+  wheel-tests:
+    needs: wheel-build
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@main
     with:
