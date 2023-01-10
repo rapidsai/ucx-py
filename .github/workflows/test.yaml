@@ -19,7 +19,6 @@ jobs:
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@main
     with:
       build_type: nightly
-      repo: rapidsai/ucx-py
       branch: ${{ inputs.branch }}
       date: ${{ inputs.date }}
       sha: ${{ inputs.sha }}
