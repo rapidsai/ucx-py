@@ -12,6 +12,9 @@ concurrency:
 jobs:
   pr-builder:
     needs:
+      - checks
+      - conda-python-build
+      - conda-python-tests
       - wheel-build
       - wheel-tests
     secrets: inherit
@@ -32,6 +35,7 @@ jobs:
     with:
       build_type: pull-request
   wheel-build:
+    needs: checks
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@main
     with:
