@@ -78,3 +78,4 @@ dependencies:
       - output_types: [conda, requirements]
         packages:
           - pytest
+          - numba
