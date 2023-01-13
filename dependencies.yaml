@@ -65,6 +65,9 @@ dependencies:
               py: "3.10"
             packages:
               - python=3.10
+          - matrix:
+            packages:
+              - python>=3.8,<3.11
   run:
     common:
       - output_types: [conda, requirements]
