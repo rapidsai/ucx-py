@@ -79,3 +79,4 @@ dependencies:
           - cupy
           - numba
           - pytest
+          - pytest-asyncio
