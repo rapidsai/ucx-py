@@ -1,6 +1,6 @@
 {% set version = environ.get('GIT_DESCRIBE_TAG', '0.0.0.dev').lstrip('v') + environ.get('VERSION_SUFFIX', '') %}
-{% set py_version = environ.get('CONDA_PY', '38') %}
-{% set cuda_version = '.'.join(environ.get('CUDA', '11.2').split('.')[:2]) %}
+{% set py_version = environ['CONDA_PY'] %}
+{% set cuda_version = '.'.join(environ['RAPIDS_CUDA_VERSION'].split('.')[:2]) %}
 
 package:
   name: ucx-py
@@ -17,15 +17,15 @@ build:
 
 requirements:
   host:
-    - python
-    - pip
     - cython
-    - ucx
+    - pip
+    - python
     - tomli  # [py<311]
+    - ucx
     - versioneer >=0.24
   run:
-    - python
     - numpy
+    - python
     - ucx
   run_constrained:
     - pynvml {{ pynvml }}
