@@ -37,7 +37,7 @@ test:
     - ucp
 
 about:
-  home: http://rapids.ai/
+  home: https://rapids.ai/
   license: BSD-3-Clause
   license_family: BSD
   license_file: ../../../LICENSE
