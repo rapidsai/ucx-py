@@ -35,3 +35,7 @@ function sed_runner() {
 }
 
 sed_runner "s/cudf=.*/cudf=${NEXT_RAPIDS_VERSION}/g" dependencies.yaml
+
+for FILE in .github/workflows/*.yaml; do
+  sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_VERSION}/g" "${FILE}"
+done
