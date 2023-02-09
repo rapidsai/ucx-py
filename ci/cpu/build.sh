@@ -9,6 +9,10 @@ set -e
 export PATH=/opt/conda/bin:/usr/local/cuda/bin:$PATH
 export PARALLEL_LEVEL=${PARALLEL_LEVEL:-4}
 
+# Workaround to keep Jenkins builds working
+# until we migrate fully to GitHub Actions
+export RAPIDS_CUDA_VERSION="${CUDA}"
+
 # Set home to the job's workspace
 export HOME=$WORKSPACE
 
@@ -66,5 +70,6 @@ gpuci_conda_retry build conda/recipes/ucx-py --python=${PYTHON}
 # UPLOAD - Conda packages
 ################################################################################
 
-gpuci_logger "Upload conda pkgs"
-source ci/cpu/upload.sh
+# Uploads disabled due to new GH Actions implementation
+# gpuci_logger "Upload conda pkgs"
+# source ci/cpu/upload.sh
