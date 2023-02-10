@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (c) 2022-2023, NVIDIA CORPORATION.
 
 set -euo pipefail
 
@@ -56,6 +57,10 @@ rapids-mamba-retry install \
   --channel "${PYTHON_CHANNEL}" \
   ucx-py
 
+EXITCODE=0
+trap "EXITCODE=1" ERR
+set +e
+
 rapids-logger "Run tests with conda package"
 run_tests
 
@@ -81,3 +86,6 @@ if [[ "${TEST_UCX_MASTER}" == 1 ]]; then
     rapids-logger "Run tests with pip package against ucx master"
     run_tests
 fi
+
+rapids-logger "Test script exiting with value: $EXITCODE"
+exit ${EXITCODE}
