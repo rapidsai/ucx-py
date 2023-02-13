@@ -25,10 +25,6 @@ class ProgressTask(object):
         self.event_loop = event_loop
         self.asyncio_task = None
 
-    def __del__(self):
-        if self.asyncio_task is not None:
-            self.asyncio_task.cancel()
-
     # Hash and equality is based on the event loop
     def __hash__(self):
         return hash(self.event_loop)
@@ -83,6 +79,11 @@ class BlockingMode(ProgressTask):
         # Notice, we can safely overwrite `self.dangling_arm_task`
         # since previous arm task is finished by now.
         assert self.asyncio_task is None or self.asyncio_task.done()
+        from .core import has_context_referrers
+
+        if not has_context_referrers():
+            self.asyncio_task = None
+            return
         self.asyncio_task = self.event_loop.create_task(self._arm_worker())
 
     async def _arm_worker(self):
