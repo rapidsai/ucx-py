@@ -1,5 +1,2 @@
 # Python type stubs
 recursive-include ucp *.pyi
-
-# Versioneer
-include ucp/_version.py
