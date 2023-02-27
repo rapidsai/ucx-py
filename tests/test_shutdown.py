@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 import numpy as np
 import pytest
@@ -46,9 +45,6 @@ async def test_server_shutdown(message_type):
     await client_node(listener.port)
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 7), reason="test currently fails for python3.6"
-)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("message_type", ["tag", "am"])
 async def test_client_shutdown(message_type):
