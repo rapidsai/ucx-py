@@ -1,3 +1,7 @@
+# Copyright (c) 2019-2023, NVIDIA CORPORATION.
+
+{% set data = load_file_data("pyproject.toml") %}
+
 {% set version = environ.get('GIT_DESCRIBE_TAG', '0.0.0.dev').lstrip('v') %}
 {% set py_version = environ['CONDA_PY'] %}
 {% set cuda_version = '.'.join(environ['RAPIDS_CUDA_VERSION'].split('.')[:2]) %}
@@ -21,18 +25,17 @@ requirements:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
   host:
-    - cython
+    - python
     - pip
-    - python
-    - tomli  # [py<311]
     - ucx
-    - versioneer >=0.24
+    {% for r in data.get("build-system", {}).get("requires", []) %}
+    - {{ r }}
+    {% endfor %}
   run:
-    - numpy
     - python
-    - ucx
-  run_constrained:
-    - pynvml {{ pynvml }}
+    {% for r in data.get("project", {}).get("dependencies", []) %}
+    - {{ r }}
+    {% endfor %}
 
 test:
   requires:
@@ -41,10 +44,12 @@ test:
     - ucp
 
 about:
-  home: https://rapids.ai/
-  license: BSD-3-Clause
-  license_family: BSD
-  license_file: ../../../LICENSE
-  summary: Python bindings for UCX
-  dev_url: https://github.com/rapidsai/ucx-py
-  doc_url: https://ucx-py.readthedocs.io
+  home: {{ data.get("project", {}).get("urls", {}).get("Homepage", "") }}
+  license: {{ data.get("project", {}).get("license", {}).get("text", "") }}
+  license_file:
+    {% for e in data.get("tool", {}).get("setuptools", {}).get("license-files", []) %}
+    - ../../../{{ e }}
+    {% endfor %}
+  summary: {{ data.get("project", {}).get("description", "") }}
+  dev_url: {{ data.get("project", {}).get("urls", {}).get("Source", "") }}
+  doc_url: {{ data.get("project", {}).get("urls", {}).get("Documentation", "") }}
