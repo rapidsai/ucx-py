@@ -1,7 +1,7 @@
 c_compiler_version:
-  - 9
+  - 11
 cxx_compiler_version:
-  - 9
+  - 11
 
 ucx:
   - 1.13.0
