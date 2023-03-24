@@ -86,6 +86,14 @@ class TornadoClient(BaseClient):
             recv_msg = np.zeros(self.args.n_bytes, dtype="u1")
             assert recv_msg.nbytes == self.args.n_bytes
 
+        if self.args.report_gil_contention:
+            from gilknocker import KnockKnock
+
+            # Use smallest polling interval possible to ensure, contention will always
+            # be zero for small messages otherwise and inconsistent for large messages.
+            knocker = KnockKnock(polling_interval_micros=1)
+            knocker.start()
+
         times = []
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
@@ -99,4 +107,11 @@ class TornadoClient(BaseClient):
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
+
+        if self.args.report_gil_contention:
+            knocker.stop()
+            knocker.stop()
+
         self.queue.put(times)
+        if self.args.report_gil_contention:
+            self.queue.put(knocker.contention_metric)
