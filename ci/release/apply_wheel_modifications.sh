@@ -6,7 +6,5 @@
 VERSION=${1}
 CUDA_SUFFIX=${2}
 
-sed -i "s/__version__ = .*/__version__ = \"${VERSION}\"/g" ucp/__init__.py
 sed -i "s/^version = .*/version = \"${VERSION}\"/g" pyproject.toml
-
 sed -i "s/^name = \"ucx-py\"/name = \"ucx-py${CUDA_SUFFIX}\"/g" pyproject.toml
