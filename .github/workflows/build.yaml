@@ -58,7 +58,6 @@ jobs:
       cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
       post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
       post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
-      uses-setup-env-vars: false
   wheel-publish:
     needs: wheel-build
     secrets: inherit
