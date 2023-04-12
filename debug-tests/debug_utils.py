@@ -8,6 +8,7 @@ from utils import get_num_gpus
 from dask.utils import parse_bytes
 
 import rmm
+from rmm.allocators.cupy import rmm_cupy_allocator
 
 ITERATIONS = 100
 
@@ -16,7 +17,7 @@ def set_rmm():
     rmm.reinitialize(
         pool_allocator=True, managed_memory=False, initial_pool_size=parse_bytes("6GB")
     )
-    cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    cupy.cuda.set_allocator(rmm_cupy_allocator)
 
 
 def parse_args(server_address=False):

@@ -28,7 +28,7 @@ concurrency:
 jobs:
   conda-python-build:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.02
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.04
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
@@ -37,7 +37,7 @@ jobs:
   upload-conda:
     needs: [conda-python-build]
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-upload-packages.yaml@branch-23.02
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-upload-packages.yaml@branch-23.04
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
@@ -45,7 +45,7 @@ jobs:
       sha: ${{ inputs.sha }}
   wheel-build:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.02
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.04
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
@@ -55,15 +55,14 @@ jobs:
       package-dir: .
       # copy custom auditwheel script to known location with '{package}' placeholder
       # in the auditwheel repair command, the '{package}' placeholder can't be used
-      # Also rewrite the name in the pyproject.toml file.
-      # TODO: Eventually this needs to be done more generically.
-      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh && sed -i ''s/name = "ucx-py"/name = "ucx-py-cu11"/g''  {package}/pyproject.toml'
+      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
       post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
       post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
+      uses-setup-env-vars: false
   wheel-publish:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@branch-23.02
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@branch-23.04
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}

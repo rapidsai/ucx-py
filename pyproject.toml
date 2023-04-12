@@ -15,27 +15,24 @@
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=64.0.0",
-    "cython>=0.29,<0.30",
-    "tomli; python_version < '3.11'",
-    "versioneer>=0.24",
+    "setuptools >=64.0.0",
+    "cython >=0.29.14,<0.30.0a0",
+    "tomli",                       # Unneeded for Python 3.11+
 ]
 
 [project]
 name = "ucx-py"
-dynamic = [
-    "version",
-]
+version = "0.31.0"
 description = "Python Bindings for the Unified Communication X library (UCX)"
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
     { name = "NVIDIA Corporation" },
 ]
 license = { text = "BSD-3-Clause" }
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 dependencies = [
     "numpy",
-    "pynvml",
+    "pynvml >=11.4.1",
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -61,6 +58,8 @@ test = [
 
 [project.urls]
 Homepage = "https://github.com/rapidsai/ucx-py"
+Documentation = "https://ucx-py.readthedocs.io/en/stable/"
+Source = "https://github.com/rapidsai/ucx-py"
 
 [tool.isort]
 line_length = 79
@@ -115,11 +114,3 @@ zip-safe = false
 
 [tool.setuptools.packages.find]
 exclude=["tests*"]
-
-[tool.versioneer]
-VCS = "git"
-style = "pep440"
-versionfile_source = "ucp/_version.py"
-versionfile_build = "ucp/_version.py"
-tag_prefix = "v"
-parentdir_prefix = "ucp-"

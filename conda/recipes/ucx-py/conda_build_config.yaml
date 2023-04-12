@@ -1,12 +1,7 @@
 c_compiler_version:
-  - 9
-
+  - 11
 cxx_compiler_version:
-  - 9
+  - 11
 
-cython:
-  - " >=0.29.14,<3.0.0a0"
-pynvml:
-  - " >=11.4.1"
 ucx:
-  - 1.13.0
+  - ">=1.13.0,<1.15.0"

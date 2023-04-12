@@ -36,8 +36,9 @@ from ucp.utils import hmean
 os.environ["RAPIDS_NO_INITIALIZE"] = "True"
 
 
-import cudf  # noqa
-import rmm  # noqa
+import cudf  # noqa: E402
+import rmm  # noqa: E402
+from rmm.allocators.cupy import rmm_cupy_allocator  # noqa: E402
 
 
 def sizeof_cudf_dataframe(df):
@@ -245,7 +246,7 @@ async def worker(rank, eps, args):
     rmm.reinitialize(pool_allocator=True, initial_pool_size=args.rmm_init_pool_size)
 
     # Make cupy use RMM
-    cupy.cuda.set_allocator(rmm.rmm_cupy_allocator)
+    cupy.cuda.set_allocator(rmm_cupy_allocator)
 
     df1 = generate_chunk(rank, args.chunk_size, args.n_chunks, "build", args.frac_match)
     df2 = generate_chunk(rank, args.chunk_size, args.n_chunks, "other", args.frac_match)
