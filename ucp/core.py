@@ -205,7 +205,7 @@ class ApplicationContext:
     """
 
     def __init__(self, config_dict={}, blocking_progress_mode=None):
-        self.progress_tasks = []
+        self.progress_tasks = dict()
 
         # For now, a application context only has one worker
         self.context = ucx_api.UCXContext(config_dict)
@@ -407,7 +407,7 @@ class ApplicationContext:
             task = BlockingMode(self.worker, loop, self.epoll_fd)
         else:
             task = NonBlockingMode(self.worker, loop)
-        self.progress_tasks.append(task)
+        self.progress_tasks[loop] = task
 
     def get_ucp_worker(self):
         """Returns the underlying UCP worker handle (ucp_worker_h)
@@ -924,6 +924,14 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
                     f"Ignoring environment {env_k}={env_v}; using option {k}={v}"
                 )
     _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
+
+
+def has_context_referrers():
+    global _ctx
+    if _ctx is not None:
+        weakref_ctx = weakref.ref(_ctx)
+        # gc.collect()
+        return weakref_ctx() is None
 
 
 def reset():
