@@ -27,14 +27,14 @@ With GPU support:
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.8
+      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.9
 
 Without GPU support:
 
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      ucx-proc=*=cpu ucx ucx-py python=3.8
+      ucx-proc=*=cpu ucx ucx-py python=3.9
 
 
 Source
@@ -55,7 +55,7 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        "python=3.8" setuptools "cython>=0.29.14,<3.0.0a0"
+        "python=3.9" setuptools "cython>=0.29.14,<3.0.0a0"
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~
