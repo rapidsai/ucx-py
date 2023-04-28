@@ -30,11 +30,11 @@ cp -P /usr/lib/ucx/* .
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so*
 do
-  patchelf --replace-needed libuct.so.0 $LIBUCT $f
-  patchelf --replace-needed libucs.so.0 $LIBUCS $f
-  patchelf --replace-needed libucm.so.0 $LIBUCM $f
-  patchelf --replace-needed libnuma.so.1 $LIBNUMA $f
-  patchelf --add-rpath '$ORIGIN/..' $f
+  python -m patchelf --replace-needed libuct.so.0 $LIBUCT $f
+  python -m patchelf --replace-needed libucs.so.0 $LIBUCS $f
+  python -m patchelf --replace-needed libucm.so.0 $LIBUCM $f
+  python -m patchelf --replace-needed libnuma.so.1 $LIBNUMA $f
+  python -m patchelf --add-rpath '$ORIGIN/..' $f
 done
 
 # Bring in cudart as well. To avoid symbol collision with other libraries e.g.
@@ -57,8 +57,8 @@ while readlink ${src} > /dev/null; do
 done
 
 to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
-patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
-patchelf --add-rpath '$ORIGIN' libuct_cuda.so
+python -m patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
+python -m patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
 
