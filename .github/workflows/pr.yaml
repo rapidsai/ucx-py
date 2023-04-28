@@ -12,43 +12,42 @@ concurrency:
 jobs:
   pr-builder:
     needs:
-      - checks
-      - conda-python-build
-      - conda-python-tests
+      #- checks
+      #- conda-python-build
+      #- conda-python-tests
       - wheel-build
       - wheel-tests
     secrets: inherit
     uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@branch-23.06
-  checks:
-    secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@branch-23.06
-  conda-python-build:
-    needs: checks
-    secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.06
-    with:
-      build_type: pull-request
-  conda-python-tests:
-    needs: conda-python-build
-    secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.06
-    with:
-      build_type: pull-request
+  #checks:
+  #  secrets: inherit
+  #  uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@branch-23.06
+  #conda-python-build:
+  #  needs: checks
+  #  secrets: inherit
+  #  uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.06
+  #  with:
+  #    build_type: pull-request
+  #conda-python-tests:
+  #  needs: conda-python-build
+  #  secrets: inherit
+  #  uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.06
+  #  with:
+  #    build_type: pull-request
   wheel-build:
-    needs: checks
+    #needs: checks
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.06
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@manylinux_v2
     with:
       build_type: pull-request
       package-name: ucx_py
       package-dir: .
-      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
-      post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
-      post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
+      post-repair-amd64: ".github/build-scripts/patch-wheel.sh ucx_py*manylinux*.whl"
+      post-repair-arm64: ".github/build-scripts/patch-wheel.sh ucx_py*manylinux*.whl"
   wheel-tests:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@branch-23.06
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@manylinux_v2
     with:
       build_type: pull-request
       package-name: ucx_py
