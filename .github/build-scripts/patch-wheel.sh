@@ -7,6 +7,8 @@
 
 set -Eeoxu pipefail
 
+pyenv rehash
+
 mypyver=$(python --version)
 repair_dir="repair-${mypyver// /_}"
 
