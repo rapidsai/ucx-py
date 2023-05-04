@@ -52,7 +52,6 @@ jobs:
       build_type: pull-request
       package-name: ucx_py
       test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
-      test-before-arm64: "python -m pip install 'cupy-cuda11x<12.0.0' -f https://pip.cupy.dev/aarch64"
       # skipped test context: https://github.com/rapidsai/ucx-py/pull/909
       test-unittest: "cd tests && python -m pytest --cache-clear -vs . && cd ../ucp && python -m pytest -k 'not test_send_recv_am' --cache-clear -vs ./_libs/tests/; cd .."
       test-smoketest: "cd tests && python -m pytest --cache-clear -vs . && cd ../ucp && python -m pytest -k 'not test_send_recv_am' --cache-clear -vs ./_libs/tests/; cd .."
