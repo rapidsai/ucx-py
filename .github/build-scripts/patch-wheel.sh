@@ -21,11 +21,11 @@ LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RS
 LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
 suffix=${RAPIDS_PY_WHEEL_CUDA_SUFFIX/-/_}
-mkdir -p ucx_py_${suffix}.libs/ucx
-cd ucx_py_${suffix}.libs/ucx
+mkdir -p ucx_py${suffix}.libs/ucx
+cd ucx_py${suffix}.libs/ucx
 cp -P /usr/lib/ucx/* .
 
-# we link against <python>/lib/site-packages/ucx_py_${suffix}.lib/libuc{ptsm}
+# we link against <python>/lib/site-packages/ucx_py${suffix}.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so*
 do
@@ -61,4 +61,4 @@ patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
 cd -
 
-zip -r $WHL ucx_py_${suffix}.libs/
+zip -r $WHL ucx_py${suffix}.libs/
