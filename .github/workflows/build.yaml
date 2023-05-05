@@ -53,11 +53,8 @@ jobs:
       date: ${{ inputs.date }}
       package-name: ucx_py
       package-dir: .
-      # copy custom auditwheel script to known location with '{package}' placeholder
-      # in the auditwheel repair command, the '{package}' placeholder can't be used
-      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
-      post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
-      post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
+      post-repair-amd64: "${GITHUB_WORKSPACE}/.github/build-scripts/patch-wheel.sh $(realpath ucx_py*manylinux*.whl)"
+      post-repair-arm64: "${GITHUB_WORKSPACE}/.github/build-scripts/patch-wheel.sh $(realpath ucx_py*manylinux*.whl)"
   wheel-publish:
     needs: wheel-build
     secrets: inherit
