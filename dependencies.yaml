@@ -74,7 +74,7 @@ dependencies:
     common:
       - output_types: [conda, requirements]
         packages:
-          - cudf=23.06
+          - cudf=23.08
           - cupy
           - numba
           - pytest
