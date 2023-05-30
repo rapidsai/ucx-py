@@ -85,7 +85,7 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
-__version__ = "0.31.0"
+__version__ = "0.32.0"
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
 if get_ucx_version() < (1, 11, 1):
