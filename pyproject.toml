@@ -31,7 +31,7 @@ authors = [
 license = { text = "BSD-3-Clause" }
 requires-python = ">=3.9"
 dependencies = [
-    "numpy",
+    "numpy >=1.21",
     "pynvml >=11.4.1",
 ]
 classifiers = [
