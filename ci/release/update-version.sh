@@ -39,3 +39,6 @@ sed_runner "s/cudf=.*/cudf=${NEXT_RAPIDS_VERSION}/g" dependencies.yaml
 for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_VERSION}/g" "${FILE}"
 done
+
+sed -i "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" pyproject.toml
+sed -i "s/^__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" ucp/__init__.py
