@@ -19,6 +19,29 @@ files:
     includes:
       - checks
       - py_version
+  py_build:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: build-system
+    includes:
+      - build_python
+  py_run:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: project
+    includes:
+      - run
+  py_optional_test:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: project.optional-dependencies
+      key: test
+    includes:
+      - test_python
+
 channels:
   - rapidsai
   - rapidsai-nightly
@@ -64,18 +87,37 @@ dependencies:
           - matrix:
             packages:
               - python>=3.9,<3.11
+  build_python:
+    common:
+      - output_types: [conda, requirements, pyproject]
+        packages:
+          - setuptools >=64.0.0
+          - cython >=0.29.14,<0.30.0a0
+          - tomli
   run:
     common:
-      - output_types: [conda, requirements]
+      - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy>=1.21
+          - numpy >=1.21
+          - pynvml >=11.4.1
+      - output_types: [conda]
+        packages:
           - ucx
   test_python:
     common:
-      - output_types: [conda, requirements]
+      - output_types: [conda, requirements, pyproject]
         packages:
-          - cudf=23.06
-          - cupy
-          - numba>=0.57
+          - cloudpickle
+          - dask
+          - distributed
+          - numba >=0.57
           - pytest
           - pytest-asyncio
+      - output_types: [conda]
+        packages:
+          - cudf==23.06
+          - cupy >=12.0.0
+      - output_types: [requirements, pyproject]
+        packages:
+          - cudf-cu11=23.06
+          - cupy-cuda11x >=12.0.0

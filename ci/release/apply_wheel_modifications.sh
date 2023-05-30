@@ -11,4 +11,5 @@ sed -i "s/^name = \"ucx-py\"/name = \"ucx-py${CUDA_SUFFIX}\"/g" pyproject.toml
 
 if [[ $CUDA_SUFFIX == "-cu12" ]]; then
     sed -i "s/cupy-cuda11x/cupy-cuda12x/g" pyproject.toml
+    sed -i "s/cudf-cu11/cudf-cu12/g" pyproject.toml
 fi
