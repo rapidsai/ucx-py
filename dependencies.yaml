@@ -91,15 +91,15 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - setuptools >=64.0.0
-          - cython >=0.29.14,<0.30.0a0
+          - setuptools>=64.0.0
+          - cython>=0.29.14,<0.30.0a0
           - tomli
   run:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy >=1.21
-          - pynvml >=11.4.1
+          - numpy>=1.21
+          - pynvml>=11.4.1
       - output_types: [conda]
         packages:
           - ucx
@@ -108,16 +108,15 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
+          - cudf==23.06
           - dask
           - distributed
-          - numba >=0.57
+          - numba>=0.57
           - pytest
           - pytest-asyncio
       - output_types: [conda]
         packages:
-          - cudf==23.06
-          - cupy >=12.0.0
+          - cupy>=12.0.0
       - output_types: [requirements, pyproject]
         packages:
-          - cudf-cu11=23.06
-          - cupy-cuda11x >=12.0.0
+          - cupy-cuda11x>=12.0.0
