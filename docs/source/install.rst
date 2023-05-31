@@ -19,7 +19,7 @@ Conda
 -----
 
 Some preliminary Conda packages can be installed as so. Replace
-``<CUDA version>`` with either ``11.0`` or ``11.2``. These are
+``<CUDA version>`` with the desired version. These are
 available both on ``rapidsai`` and ``rapidsai-nightly``.
 
 With GPU support:
@@ -64,8 +64,8 @@ Test Dependencies
 
     conda install -n ucx -c rapidsai -c nvidia -c conda-forge \
         pytest pytest-asyncio \
-        cupy "numba>=0.57" rmm \
-        distributed
+        cupy "numba>=0.57" cudf \
+        dask distributed cloudpickle
 
 
 UCX >= 1.11.1

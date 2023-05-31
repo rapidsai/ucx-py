@@ -41,7 +41,6 @@ files:
       key: test
     includes:
       - test_python
-
 channels:
   - rapidsai
   - rapidsai-nightly
@@ -93,7 +92,7 @@ dependencies:
         packages:
           - setuptools>=64.0.0
           - cython>=0.29.14,<0.30.0a0
-          - tomli
+          - tomli  # Not needed for Python 3.11+
   run:
     common:
       - output_types: [conda, requirements, pyproject]
