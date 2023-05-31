@@ -19,7 +19,7 @@ Conda
 -----
 
 Some preliminary Conda packages can be installed as so. Replace
-``<CUDA version>`` with the desired version. These are
+``<CUDA version>`` with the desired version (minimum ``11.0``). These are
 available both on ``rapidsai`` and ``rapidsai-nightly``.
 
 With GPU support:
