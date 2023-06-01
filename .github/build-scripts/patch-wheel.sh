@@ -20,7 +20,7 @@ LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RS
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
 LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
-suffix=${RAPIDS_PY_WHEEL_CUDA_SUFFIX/-/_}
+suffix="_$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 mkdir -p ucx_py${suffix}.libs/ucx
 cd ucx_py${suffix}.libs/ucx
 cp -P /usr/lib/ucx/* .
