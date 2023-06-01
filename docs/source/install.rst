@@ -22,7 +22,7 @@ Some preliminary Conda packages can be installed as so. Replace
 ``<CUDA version>`` with the desired version (minimum ``11.0``). These are
 available both on ``rapidsai`` and ``rapidsai-nightly``. Starting with the
 UCX 1.14.1 conda-forge package, InfiniBand support is available again via
-rdma-core, MOFED 5.0 or higher is necessary on the host, but compiling UCX
+rdma-core.  While MOFED 5.0 or higher is necessary on the host, compiling UCX
 from source is not needed anymore.
 
 With GPU support (UCX 1.14.0 and higher):
