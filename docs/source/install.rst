@@ -6,9 +6,9 @@ Prerequisites
 
 UCX depends on the following system libraries being present:
 
-* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
-* For MOFED 5.x support: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
 * For system topology identification: ``libnuma`` (``numactl`` on Enterprise Linux)
+* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
+* For MOFED 5.0 or higher: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
 
 Please install the packages above with your Linux system's package manager.
 When building from source you will also need the ``*-dev`` (``*-devel`` on
@@ -20,14 +20,24 @@ Conda
 
 Some preliminary Conda packages can be installed as so. Replace
 ``<CUDA version>`` with the desired version (minimum ``11.0``). These are
-available both on ``rapidsai`` and ``rapidsai-nightly``.
+available both on ``rapidsai`` and ``rapidsai-nightly``. Starting with the
+UCX 1.14.1 conda-forge package, InfiniBand support is available again via
+rdma-core.  While MOFED 5.0 or higher is necessary on the host, compiling UCX
+from source is not needed anymore.
 
-With GPU support:
+With GPU support (UCX 1.14.0 and higher):
 
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.9
+      cudatoolkit=<CUDA version> ucx>=1.14.0 ucx-py python=3.9
+
+With GPU support (UCX>=1.11.1 and UCX<1.14):
+
+::
+
+    conda create -n ucx -c conda-forge -c rapidsai \
+      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx<1.14 ucx-py python=3.9
 
 Without GPU support:
 
@@ -40,12 +50,10 @@ Without GPU support:
 Source
 ------
 
-The following instructions assume you'll be using ucx-py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
+The following instructions assume you'll be using UCX-Py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 .. note::
-    As of version 0.15, the UCX conda package build will no longer include IB/RDMA support.  This is largely due to compatibility issues
-    between OFED versions.  We do however provide instructions below for how to build UCX with IB/RDMA support in the `UCX + OFED`_
-    section.
+    UCX conda-force package older than UCX 1.14.1 do not include InfiniBand support.
 
 
 Build Dependencies
@@ -71,7 +79,7 @@ Test Dependencies
 UCX >= 1.11.1
 ~~~~~~~~~~~~~
 
-Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), make sure to change `git checkout v1.11.1` to a newer version if desired:
+Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), make sure to change ``git checkout v1.11.1`` to a newer version if desired:
 
 ::
 
@@ -89,22 +97,58 @@ Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), m
     make -j install
 
 
-UCX + OFED
-~~~~~~~~~~
+UCX + rdma-core
+~~~~~~~~~~~~~~~
 
-As noted above, the UCX conda package no longer builds support for IB/RDMA.  To build UCX with IB/RDMA support first confirm OFED is installed properly:
+It is possible to enable InfiniBand support via the conda-forge rdma-core package. To do so, first activate the environment created previously and install conda-forge compilers and rdma-core:
+
+::
+
+    conda activate ucx
+    conda install -c conda-forge c-compiler cxx-compiler gcc_linux-64=11.* rdma-core=28.*
+
+
+After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.11.1`` to a newer version if desired:
+
+
+    git clone https://github.com/openucx/ucx
+    cd ucx
+    git checkout v1.11.1
+    ./autogen.sh
+    mkdir build
+    cd build
+    # Performance build
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    # Debug build
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    make -j install
+
+
+UCX + MOFED
+~~~~~~~~~~~
+
+It is still possible to build UCX and use the MOFED system install. Unlike the case above, we must not install conda-forge compilers, this
+is because conda-forge compilers can't look for libraries in the system directories (e.g., ``/usr``). Additionally, the rdma-core conda-forge package
+should not be installed either, because compiling with a newer MOFED version will cause ABI incompatibilities.
+
+Before continuing, first ensure MOFED 5.0 or higher is installed, for example in the example below we have MOFED ``5.4-3.5.8.0``:
 
 ::
 
     (ucx) user@dgx:~$ ofed_info -s
-    OFED-internal-4.7-3.2.9
+    MLNX_OFED_LINUX-5.4-3.5.8.0:
 
-If OFED drivers are not installed on the machine, you can download drivers at directly from `Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.  For versions older than 5.1 click on, *archive versions*.
+If MOFED drivers are not installed on the machine, you can download drivers directly from
+`Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
 
-Building UCX >= 1.11.1 as shown previously should automatically include IB/RDMA support if available in the system. It is possible to explicitly activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags. For example:
+Building UCX >= 1.11.1 as shown previously should automatically include InfiniBand support if available in the system. It is possible to explicitly
+activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags.
+Additionally, we want to make sure UCX uses compilers from the system, we do so by specifying ``CC=/usr/bin/gcc`` and ``CXX=/usr/bin/g++``, be sure
+to adjust that for the path to your system compilers. For example:
 
 ::
 
+    CC=/usr/bin/gcc CXX=/usr/bin/g++ \
     ../contrib/configure-release \
     --enable-mt \
     --prefix="$CONDA_PREFIX" \
@@ -116,6 +160,8 @@ Building UCX >= 1.11.1 as shown previously should automatically include IB/RDMA 
 
 UCX-Py
 ~~~~~~
+
+Building and installing UCX-Py can be done via `pip install`. For example:
 
 ::
 
