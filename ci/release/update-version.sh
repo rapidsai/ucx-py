@@ -24,8 +24,10 @@ NEXT_MINOR=$(echo $NEXT_FULL_TAG | awk '{split($0, a, "."); print a[2]}')
 NEXT_SHORT_TAG=${NEXT_MAJOR}.${NEXT_MINOR}
 
 # Get RAPIDS version associated w/ ucx-py version
-NEXT_RAPIDS_VERSION="$(curl -sL https://version.gpuci.io/ucx-py/${NEXT_SHORT_TAG})"
+NEXT_RAPIDS_SHORT_TAG="$(curl -sL https://version.gpuci.io/ucx-py/${NEXT_SHORT_TAG})"
 
+# Need to distutils-normalize the versions for some use cases
+NEXT_RAPIDS_SHORT_TAG_PEP440=$(python -c "from setuptools.extern import packaging; print(packaging.version.Version('${NEXT_RAPIDS_SHORT_TAG}'))")
 
 echo "Preparing release $CURRENT_TAG => $NEXT_FULL_TAG"
 
@@ -34,10 +36,17 @@ function sed_runner() {
     sed -i.bak ''"$1"'' $2 && rm -f ${2}.bak
 }
 
-sed_runner "s/cudf=.*/cudf=${NEXT_RAPIDS_VERSION}/g" dependencies.yaml
+DEPENDENCIES=(
+  cudf
+)
+for FILE in dependencies.yaml; do
+  for DEP in "${DEPENDENCIES[@]}"; do
+    sed_runner "/-.* ${DEP}==/ s/==.*/==${NEXT_RAPIDS_SHORT_TAG_PEP440}\.*/g" ${FILE};
+  done
+done
 
 for FILE in .github/workflows/*.yaml; do
-  sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_VERSION}/g" "${FILE}"
+  sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
 
 sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" pyproject.toml
