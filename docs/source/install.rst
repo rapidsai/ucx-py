@@ -118,9 +118,9 @@ After installing the necessary dependencies, it's now time to build UCX from sou
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --with-verbs --with-rdmacm
     # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --with-verbs --with-rdmacm
     make -j install
 
 
