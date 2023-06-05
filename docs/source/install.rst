@@ -7,13 +7,26 @@ Prerequisites
 UCX depends on the following system libraries being present:
 
 * For system topology identification: ``libnuma`` (``numactl`` on Enterprise Linux)
-* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
-* For MOFED 5.0 or higher: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
 
 Please install the packages above with your Linux system's package manager.
 When building from source you will also need the ``*-dev`` (``*-devel`` on
 Enterprise Linux) packages as well.
 
+Optional Packages
+~~~~~~~~~~~~~~~~~
+
+Enabling InfiniBand requires that host is running a build of Linux kernel with InfiniBand active or `Mellanox OFED Drivers 5.0 or higher <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
+
+To verify that InfiniBand support is active it's recommended to check for the presence of ``/dev/infiniband/rdma_cm`` and ``/dev/infiniband/uverbs*``:
+
+::
+
+    $ ls -l /dev/infiniband/{rdma_cm,uverbs*}
+    crw-rw-rw- 1 root root  10,  58 May 18 20:43 /dev/infiniband/rdma_cm
+    crw-rw-rw- 1 root root 231, 192 May 18 20:43 /dev/infiniband/uverbs0
+    crw-rw-rw- 1 root root 231, 193 May 18 20:43 /dev/infiniband/uverbs1
+    crw-rw-rw- 1 root root 231, 194 May 18 20:43 /dev/infiniband/uverbs2
+    crw-rw-rw- 1 root root 231, 195 May 18 20:43 /dev/infiniband/uverbs3
 
 Conda
 -----
