@@ -16,7 +16,7 @@ Optional Packages
 ~~~~~~~~~~~~~~~~~
 
 Enabling InfiniBand requires that host is running a build of Linux kernel 5.6 or higher with InfiniBand active or
-`Mellanox OFED Drivers 5.0 or higher <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
+`NVIDIA MLNX_OFED Drivers 5.0 or higher <https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/>`_.
 
 Once the existence of either Linux kernel 5.6 or higher or MOFED 5.0 or higher is confirmed, verify that InfiniBand
 support is active by checking for the presence of ``/dev/infiniband/rdma_cm`` and ``/dev/infiniband/uverbs*``:
@@ -155,7 +155,7 @@ Before continuing, first ensure MOFED 5.0 or higher is installed, for example in
     MLNX_OFED_LINUX-5.4-3.5.8.0:
 
 If MOFED drivers are not installed on the machine, you can download drivers directly from
-`Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
+`NVIDIA <https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/>`_.
 
 Building UCX >= 1.11.1 as shown previously should automatically include InfiniBand support if available in the system. It is possible to explicitly
 activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags.
