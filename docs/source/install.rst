@@ -126,6 +126,7 @@ It is possible to enable InfiniBand support via the conda-forge rdma-core packag
 
 After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.11.1`` to a newer version if desired:
 
+::
 
     git clone https://github.com/openucx/ucx
     cd ucx
