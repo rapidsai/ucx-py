@@ -15,9 +15,11 @@ Enterprise Linux) packages as well.
 Optional Packages
 ~~~~~~~~~~~~~~~~~
 
-Enabling InfiniBand requires that host is running a build of Linux kernel with InfiniBand active or `Mellanox OFED Drivers 5.0 or higher <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
+Enabling InfiniBand requires that host is running a build of Linux kernel 5.6 or higher with InfiniBand active or
+`Mellanox OFED Drivers 5.0 or higher <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
 
-To verify that InfiniBand support is active it's recommended to check for the presence of ``/dev/infiniband/rdma_cm`` and ``/dev/infiniband/uverbs*``:
+Once the existence of either Linux kernel 5.6 or higher or MOFED 5.0 or higher is confirmed, verify that InfiniBand
+support is active by checking for the presence of ``/dev/infiniband/rdma_cm`` and ``/dev/infiniband/uverbs*``:
 
 ::
 
@@ -35,8 +37,9 @@ Some preliminary Conda packages can be installed as so. Replace
 ``<CUDA version>`` with the desired version (minimum ``11.0``). These are
 available both on ``rapidsai`` and ``rapidsai-nightly``. Starting with the
 UCX 1.14.1 conda-forge package, InfiniBand support is available again via
-rdma-core.  While MOFED 5.0 or higher is necessary on the host, compiling UCX
-from source is not needed anymore.
+rdma-core, thus building UCX from source is not required solely for that
+purpose anymore but may still be done if desired (e.g., to test for new
+capabilities or bug fixes).
 
 With GPU support (UCX 1.14.0 and higher):
 
