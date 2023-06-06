@@ -7,13 +7,28 @@ Prerequisites
 UCX depends on the following system libraries being present:
 
 * For system topology identification: ``libnuma`` (``numactl`` on Enterprise Linux)
-* For MOFED 4.x support: ``libibcm``, ``libibverbs`` and ``librdmacm``. Ideally installed from `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
-* For MOFED 5.0 or higher: `Mellanox OFED Drivers <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_
 
 Please install the packages above with your Linux system's package manager.
 When building from source you will also need the ``*-dev`` (``*-devel`` on
 Enterprise Linux) packages as well.
 
+Optional Packages
+~~~~~~~~~~~~~~~~~
+
+Enabling InfiniBand requires that host is running a build of Linux kernel 5.6 or higher with InfiniBand active or
+`NVIDIA MLNX_OFED Drivers 5.0 or higher <https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/>`_.
+
+Once the existence of either Linux kernel 5.6 or higher or MOFED 5.0 or higher is confirmed, verify that InfiniBand
+support is active by checking for the presence of ``/dev/infiniband/rdma_cm`` and ``/dev/infiniband/uverbs*``:
+
+::
+
+    $ ls -l /dev/infiniband/{rdma_cm,uverbs*}
+    crw-rw-rw- 1 root root  10,  58 May 18 20:43 /dev/infiniband/rdma_cm
+    crw-rw-rw- 1 root root 231, 192 May 18 20:43 /dev/infiniband/uverbs0
+    crw-rw-rw- 1 root root 231, 193 May 18 20:43 /dev/infiniband/uverbs1
+    crw-rw-rw- 1 root root 231, 194 May 18 20:43 /dev/infiniband/uverbs2
+    crw-rw-rw- 1 root root 231, 195 May 18 20:43 /dev/infiniband/uverbs3
 
 Conda
 -----
@@ -22,8 +37,9 @@ Some preliminary Conda packages can be installed as so. Replace
 ``<CUDA version>`` with the desired version (minimum ``11.0``). These are
 available both on ``rapidsai`` and ``rapidsai-nightly``. Starting with the
 UCX 1.14.1 conda-forge package, InfiniBand support is available again via
-rdma-core.  While MOFED 5.0 or higher is necessary on the host, compiling UCX
-from source is not needed anymore.
+rdma-core, thus building UCX from source is not required solely for that
+purpose anymore but may still be done if desired (e.g., to test for new
+capabilities or bug fixes).
 
 With GPU support (UCX 1.14.0 and higher):
 
@@ -119,9 +135,9 @@ After installing the necessary dependencies, it's now time to build UCX from sou
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --with-verbs --with-rdmacm
     # Debug build
-    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --enable-verbs --enable-rdmacm
+    ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt --with-verbs --with-rdmacm
     make -j install
 
 
@@ -140,7 +156,7 @@ Before continuing, first ensure MOFED 5.0 or higher is installed, for example in
     MLNX_OFED_LINUX-5.4-3.5.8.0:
 
 If MOFED drivers are not installed on the machine, you can download drivers directly from
-`Mellanox <https://www.mellanox.com/products/infiniband-drivers/linux/mlnx_ofed>`_.
+`NVIDIA <https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/>`_.
 
 Building UCX >= 1.11.1 as shown previously should automatically include InfiniBand support if available in the system. It is possible to explicitly
 activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags.
