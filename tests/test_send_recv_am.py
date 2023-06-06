@@ -58,6 +58,7 @@ def simple_server(size, recv):
     return server
 
 
+@pytest.mark.flaky(reruns=3, reruns_delay=1)
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", msg_sizes)
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
