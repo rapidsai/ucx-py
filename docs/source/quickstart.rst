@@ -10,14 +10,14 @@ With GPU support:
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.8
+      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx ucx-py python=3.9
 
 Without GPU support:
 
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      ucx-proc=*=cpu ucx ucx-py python=3.8
+      ucx-proc=*=cpu ucx ucx-py python=3.9
 
 For a more detailed guide on installation options please refer to the :doc:`install` page.
 

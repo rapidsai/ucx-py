@@ -16,7 +16,7 @@ on:
 jobs:
   conda-python-tests:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.06
     with:
       build_type: nightly
       branch: ${{ inputs.branch }}
@@ -24,7 +24,7 @@ jobs:
       sha: ${{ inputs.sha }}
   wheel-tests:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@branch-23.06
     with:
       build_type: nightly
       branch: ${{ inputs.branch }}
@@ -32,6 +32,5 @@ jobs:
       sha: ${{ inputs.sha }}
       package-name: ucx_py
       test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
-      test-before-arm64: "pip install 'cupy-cuda11x<12.0.0' -f https://pip.cupy.dev/aarch64"
-      # skipped test context: https://github.com/rapidsai/ucx-py/pull/909
-      test-unittest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
+      # skipped test context: https://github.com/rapidsai/ucx-py/issues/797
+      test-unittest: "cd tests && python -m pytest --cache-clear -vs . && cd ../ucp && python -m pytest -k 'not test_send_recv_am' --cache-clear -vs ./_libs/tests/; cd .."
