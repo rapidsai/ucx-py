@@ -71,6 +71,10 @@ dependencies:
               cuda: "11.8"
             packages:
               - cudatoolkit=11.8
+          - matrix:
+              cuda: "12.0"
+            packages:
+              - cuda-version=12.0
   py_version:
     specific:
       - output_types: conda
