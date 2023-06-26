@@ -39,7 +39,7 @@ requirements:
 
 test:
   requires:
-    - cudatoolkit {{ cuda_version }}.*
+    - cuda-version {{ cuda_version }}.*
   imports:
     - ucp
 
