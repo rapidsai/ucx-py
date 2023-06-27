@@ -38,8 +38,6 @@ requirements:
     {% endfor %}
 
 test:
-  requires:
-    - cudatoolkit {{ cuda_version }}.*
   imports:
     - ucp
 
