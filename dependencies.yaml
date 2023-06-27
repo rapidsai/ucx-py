@@ -79,6 +79,7 @@ dependencies:
               cuda: "12.0"
             packages:
               - cuda-version=12.0
+              - cuda-cudart
   py_version:
     specific:
       - output_types: conda
