@@ -116,7 +116,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==23.8.*
+          - cudf==23.10.*
           - dask
           - distributed
           - numba>=0.57
