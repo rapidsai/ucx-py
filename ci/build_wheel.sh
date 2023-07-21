@@ -28,7 +28,6 @@ python -m auditwheel repair -w final_dist dist/*
 # same hash-based uniqueness scheme and rewriting the link paths.
 
 WHL=$(realpath final_dist/ucx_py*manylinux*.whl)
-mkdir -p repair_dist && cd repair_dist
 
 # first grab the auditwheel hashes for libuc{tms}
 LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')
@@ -36,8 +35,8 @@ LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RS
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
 LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
-mkdir -p ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
-pushd ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
+mkdir -p repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
+pushd repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
 cp -P /usr/lib/ucx/* .
 
 # we link against <python>/lib/site-packages/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.lib/libuc{ptsm}
@@ -74,9 +73,10 @@ to_rewrite=$(ldd libuct_cuda.so | awk '/libcudart/ { print $1 }')
 patchelf --replace-needed ${to_rewrite} libcudart-${hash}.so libuct_cuda.so
 patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 
-# Back to repair_dist
 popd
 
+pushd repair_dist
 zip -r $WHL ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/
+popd
 
-RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 .
+RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
