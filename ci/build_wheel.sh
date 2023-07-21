@@ -35,7 +35,22 @@ LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RS
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
 LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
+# Extract the libraries that have already been patched in by auditwheel
 mkdir -p repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
+unzip $WHL "ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/*.so*" -d repair_dist/
+
+# Patch the RPATH to include ORIGIN for each library
+pushd repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs
+for f in libu*.so*
+do
+    if [[ -f $f ]]; then
+        patchelf --add-rpath '$ORIGIN' $f
+    fi
+done
+
+popd
+
+# Now copy in all the extra libraries that are only ever loaded at runtime
 pushd repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
 cp -P /usr/lib/ucx/* .
 
@@ -43,6 +58,7 @@ cp -P /usr/lib/ucx/* .
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so*
 do
+    # Avoid patching symlinks, which is redundant
     if [[ ! -L $f ]]; then
         patchelf --replace-needed libuct.so.0 $LIBUCT $f
         patchelf --replace-needed libucs.so.0 $LIBUCS $f
