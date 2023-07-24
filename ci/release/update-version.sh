@@ -28,6 +28,7 @@ NEXT_RAPIDS_SHORT_TAG="$(curl -sL https://version.gpuci.io/ucx-py/${NEXT_SHORT_T
 
 # Need to distutils-normalize the versions for some use cases
 NEXT_RAPIDS_SHORT_TAG_PEP440=$(python -c "from setuptools.extern import packaging; print(packaging.version.Version('${NEXT_RAPIDS_SHORT_TAG}'))")
+NEXT_RAPIDS_FULL_TAG_PEP440=$(python -c "from setuptools.extern import packaging; print(packaging.version.Version('${NEXT_FULL_TAG}'))")
 
 echo "Preparing release $CURRENT_TAG => $NEXT_FULL_TAG"
 
@@ -49,5 +50,5 @@ for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
 
-sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" pyproject.toml
-sed_runner "s/^__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" ucp/__init__.py
+sed_runner "s/^version = .*/version = \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" pyproject.toml
+sed_runner "s/^__version__ = .*/__version__ = \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" ucp/__init__.py
