@@ -45,23 +45,20 @@ jobs:
       sha: ${{ inputs.sha }}
   wheel-build:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.10
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-build.yaml@branch-23.10
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
-      package-name: ucx_py
-      package-dir: .
-      post-repair-amd64: "${GITHUB_WORKSPACE}/.github/build-scripts/patch-wheel.sh $(realpath ucx_py*manylinux*.whl)"
-      post-repair-arm64: "${GITHUB_WORKSPACE}/.github/build-scripts/patch-wheel.sh $(realpath ucx_py*manylinux*.whl)"
+      script: ci/build_wheel.sh
   wheel-publish:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@branch-23.10
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-publish.yaml@branch-23.10
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
-      package-name: ucx_py
+      script: ci/test_wheel.sh
