@@ -51,8 +51,6 @@ jobs:
       branch: ${{ inputs.branch }}
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
-      package-name: ucx_py
-      package-dir: .
       script: ci/build_wheel.sh
   wheel-publish:
     needs: wheel-build
