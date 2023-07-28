@@ -47,7 +47,7 @@ cdef _drain_worker_tag_recv(ucp_worker_h handle):
 
         buf = malloc(info.length)
         status = ucp_tag_msg_recv_nb(
-            handle, buf, info.length, ucp_dt_make_contig(1), message, _tag_recv_callback
+            handle, buf, info.length, ucp_dt_make_contig(1), message, _tag_recv_cb
         )
 
         try:
@@ -130,7 +130,7 @@ cdef class UCXWorker(UCXObject):
                 UCP_AM_HANDLER_PARAM_FIELD_ARG
             )
             am_handler_param.id = AM_MSG_ID
-            am_handler_param.cb = _am_recv_callback
+            am_handler_param.cb = <ucp_am_recv_callback_t>_am_recv_callback
             am_handler_param.arg = <void *>self
             status = ucp_worker_set_am_recv_handler(self._handle, &am_handler_param)
 
