@@ -100,7 +100,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - setuptools>=64.0.0
-          - cython>=0.29.14,<0.30.0a0
+          - cython>=3.0.0
           - tomli  # Not needed for Python 3.11+
   run:
     common:
