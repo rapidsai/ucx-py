@@ -58,19 +58,28 @@ dependencies:
           - matrix:
               cuda: "11.2"
             packages:
-              - cudatoolkit=11.2
+              - cuda-version=11.2
+              - cudatoolkit
           - matrix:
               cuda: "11.4"
             packages:
-              - cudatoolkit=11.4
+              - cuda-version=11.4
+              - cudatoolkit
           - matrix:
               cuda: "11.5"
             packages:
-              - cudatoolkit=11.5
+              - cuda-version=11.5
+              - cudatoolkit
           - matrix:
               cuda: "11.8"
             packages:
-              - cudatoolkit=11.8
+              - cuda-version=11.8
+              - cudatoolkit
+          - matrix:
+              cuda: "12.0"
+            packages:
+              - cuda-version=12.0
+              - cuda-cudart
   py_version:
     specific:
       - output_types: conda
@@ -107,7 +116,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==23.6.*
+          - cudf==23.8.*
           - dask
           - distributed
           - numba>=0.57

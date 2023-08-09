@@ -22,7 +22,7 @@ requires = [
 
 [project]
 name = "ucx-py"
-version = "0.32.00"
+version = "0.33.0"
 description = "Python Bindings for the Unified Communication X library (UCX)"
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
@@ -49,7 +49,7 @@ classifiers = [
 [project.optional-dependencies]
 test = [
     "cloudpickle",
-    "cudf==23.6.*",
+    "cudf==23.8.*",
     "cupy-cuda11x>=12.0.0",
     "dask",
     "distributed",
