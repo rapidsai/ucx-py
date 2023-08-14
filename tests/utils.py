@@ -76,9 +76,7 @@ async def send(ep, frames):
 
     await ep.send(np.array([len(frames)], dtype=np.uint64))
     await ep.send(
-        np.array(
-            [hasattr(f, "__cuda_array_interface__") for f in frames], dtype=np.bool
-        )
+        np.array([hasattr(f, "__cuda_array_interface__") for f in frames], dtype=bool)
     )
     await ep.send(np.array([nbytes(f) for f in frames], dtype=np.uint64))
     # Send frames
@@ -96,7 +94,7 @@ async def recv(ep):
         # Recv meta data
         nframes = np.empty(1, dtype=np.uint64)
         await ep.recv(nframes)
-        is_cudas = np.empty(nframes[0], dtype=np.bool)
+        is_cudas = np.empty(nframes[0], dtype=bool)
         await ep.recv(is_cudas)
         sizes = np.empty(nframes[0], dtype=np.uint64)
         await ep.recv(sizes)
