@@ -64,9 +64,13 @@ if (
             if _is_mig_device(handle):
                 continue
 
-            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
-            bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+            try:
+                bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+            except pynvml.nvml.NVMLError_NotSupported:
+                # Bar1 access not supported on this device
+                continue
 
+            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
             if total_memory <= bar1_total:
                 large_bar1[dev_idx] = True
 
