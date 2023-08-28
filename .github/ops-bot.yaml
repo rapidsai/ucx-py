@@ -5,5 +5,4 @@ auto_merger: true
 branch_checker: false
 label_checker: false
 release_drafter: false
-copy_prs: true
 recently_updated: true
