@@ -5,6 +5,7 @@
 {% set version = environ.get('GIT_DESCRIBE_TAG', '0.0.0.dev').lstrip('v') %}
 {% set py_version = environ['CONDA_PY'] %}
 {% set cuda_version = '.'.join(environ['RAPIDS_CUDA_VERSION'].split('.')[:2]) %}
+{% set cuda_major = cuda_version.split('.')[0] %}
 {% set date_string = environ['RAPIDS_DATE_STRING'] %}
 
 package:
@@ -27,7 +28,13 @@ requirements:
   host:
     - python
     - pip
+    {% if cuda_major == "11" %}
     - ucx
+    {% else %}
+    # Temporary pin because the subsequent build (h64cca9d_3) is missing proper
+    # CUDA support
+    - ucx==1.14.1=h195a15c_3
+    {% endif %}
     {% for r in data.get("build-system", {}).get("requires", []) %}
     - {{ r }}
     {% endfor %}
