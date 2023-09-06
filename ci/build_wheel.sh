@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+package_name="ucx-py"
+underscore_package_name=$(echo "${package_name}" | tr "-" "_")
+
 source rapids-configure-sccache
 source rapids-date-string
 
@@ -12,9 +15,29 @@ version_override="$(rapids-pip-wheel-version ${RAPIDS_DATE_STRING})"
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
-bash ci/release/apply_wheel_modifications.sh ${version_override} "-${RAPIDS_PY_CUDA_SUFFIX}"
-echo "The package name and/or version was modified in the package source. The git diff is:"
-git diff
+# This is the version of the suffix with a preceding hyphen. It's used
+# everywhere except in the final wheel name.
+PACKAGE_CUDA_SUFFIX="-${RAPIDS_PY_CUDA_SUFFIX}"
+
+# Patch project metadata files to include the CUDA version suffix and version override.
+pyproject_file="pyproject.toml"
+
+sed -i "s/^version = .*/version = \"${version_override}\"/g" ${pyproject_file}
+sed -i "s/name = \"${package_name}\"/name = \"${package_name}${PACKAGE_CUDA_SUFFIX}\"/g" ${pyproject_file}
+
+# For nightlies we want to ensure that we're pulling in alphas as well. The
+# easiest way to do so is to augment the spec with a constraint containing a
+# min alpha version that doesn't affect the version bounds but does allow usage
+# of alpha versions for that dependency without --pre
+alpha_spec=''
+if ! rapids-is-release-build; then
+    alpha_spec=',>=0.0.0a0'
+fi
+
+if [[ $PACKAGE_CUDA_SUFFIX == "-cu12" ]]; then
+    sed -i "s/cupy-cuda11x/cupy-cuda12x/g" ${pyproject_file}
+fi
+
 
 python -m pip wheel . -w dist -vvv --no-deps --disable-pip-version-check
 
@@ -27,7 +50,7 @@ python -m auditwheel repair -w final_dist dist/*
 # what these libraries are, we mimic the behaviour of auditwheel by using the
 # same hash-based uniqueness scheme and rewriting the link paths.
 
-WHL=$(realpath final_dist/ucx_py*manylinux*.whl)
+WHL=$(realpath final_dist/${underscore_package_name}*manylinux*.whl)
 
 # first grab the auditwheel hashes for libuc{tms}
 LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')
@@ -36,11 +59,11 @@ LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RS
 LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
 # Extract the libraries that have already been patched in by auditwheel
-mkdir -p repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
-unzip $WHL "ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/*.so*" -d repair_dist/
+mkdir -p repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
+unzip $WHL "${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/*.so*" -d repair_dist/
 
 # Patch the RPATH to include ORIGIN for each library
-pushd repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs
+pushd repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs
 for f in libu*.so*
 do
     if [[ -f $f ]]; then
@@ -51,10 +74,10 @@ done
 popd
 
 # Now copy in all the extra libraries that are only ever loaded at runtime
-pushd repair_dist/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
+pushd repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
 cp -P /usr/lib/ucx/* .
 
-# we link against <python>/lib/site-packages/ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.lib/libuc{ptsm}
+# we link against <python>/lib/site-packages/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
 for f in libu*.so*
 do
@@ -94,7 +117,7 @@ patchelf --add-rpath '$ORIGIN' libuct_cuda.so
 popd
 
 pushd repair_dist
-zip -r $WHL ucx_py_${RAPIDS_PY_CUDA_SUFFIX}.libs/
+zip -r $WHL ${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/
 popd
 
-RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
+RAPIDS_PY_WHEEL_NAME="${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
