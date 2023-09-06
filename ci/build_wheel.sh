@@ -34,6 +34,8 @@ if ! rapids-is-release-build; then
     alpha_spec=',>=0.0.0a0'
 fi
 
+sed -r -i "s/cudf==(.*)\"/cudf${PACKAGE_CUDA_SUFFIX}==\1${alpha_spec}\"/g" ${pyproject_file}
+
 if [[ $PACKAGE_CUDA_SUFFIX == "-cu12" ]]; then
     sed -i "s/cupy-cuda11x/cupy-cuda12x/g" ${pyproject_file}
 fi
