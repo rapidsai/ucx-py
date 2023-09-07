@@ -43,6 +43,14 @@ requirements:
     {% for r in data.get("project", {}).get("dependencies", []) %}
     - {{ r }}
     {% endfor %}
+    # Something seems wrong with the run export as well now
+    {% if cuda_major == "11" %}
+    - ucx
+    {% else %}
+    # Temporary pin because the subsequent build (h64cca9d_3) is missing proper
+    # CUDA support
+    - ucx==1.14.1=h195a15c_3
+    {% endif %}
 
 test:
   imports:
