@@ -108,19 +108,9 @@ dependencies:
         packages:
           - numpy>=1.21
           - pynvml>=11.4.1
-    specific:
       - output_types: conda
-        matrices:
-          - matrix:
-              cuda: "12.0"
-            packages:
-              # Temporary pin because the subsequent build (h64cca9d_3) is
-              # missing proper CUDA support
-              - ucx==1.14.1=h195a15c_3
-          - matrix:
-              cuda: "11.8"
-            packages:
-              - ucx
+        packages:
+          - ucx
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
