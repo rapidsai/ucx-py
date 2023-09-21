@@ -36,7 +36,6 @@ requirements:
     {% for r in data.get("project", {}).get("dependencies", []) %}
     - {{ r }}
     {% endfor %}
-    - ucx
 
 test:
   imports:
