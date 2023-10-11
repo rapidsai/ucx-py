@@ -13,5 +13,4 @@ python -m pip install $(echo ./dist/ucx_py*.whl)[test]
 cd tests
 python -m pytest --cache-clear -vs .
 cd ../ucp
-# skipped test context: https://github.com/rapidsai/ucx-py/issues/797
 python -m pytest --cache-clear -vs ./_libs/tests/
