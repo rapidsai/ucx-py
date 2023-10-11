@@ -48,3 +48,4 @@ def event_loop(scope="session"):
     yield loop
     ucp.reset()
     loop.run_until_complete(asyncio.sleep(0))
+    loop.close()
