@@ -100,7 +100,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - setuptools>=64.0.0
-          - cython>=0.29.14,<0.30.0a0
+          - cython>=3.0.0
           - tomli  # Not needed for Python 3.11+
   run:
     common:
@@ -108,7 +108,7 @@ dependencies:
         packages:
           - numpy>=1.21
           - pynvml>=11.4.1
-      - output_types: [conda]
+      - output_types: conda
         packages:
           - ucx
   test_python:
@@ -116,7 +116,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==23.8.*
+          - cudf==23.10.*
           - dask
           - distributed
           - numba>=0.57
