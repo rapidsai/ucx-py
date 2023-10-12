@@ -35,43 +35,23 @@ support is active by checking for the presence of ``/dev/infiniband/rdma_cm`` an
 Conda
 -----
 
-Some preliminary Conda packages can be installed as so. Replace
-``<CUDA version>`` with the desired version (minimum ``11.0``). These are
-available both on ``rapidsai`` and ``rapidsai-nightly``. Starting with the
-UCX 1.14.1 conda-forge package, InfiniBand support is available again via
-rdma-core, thus building UCX from source is not required solely for that
-purpose anymore but may still be done if desired (e.g., to test for new
-capabilities or bug fixes).
-
-With GPU support (UCX 1.14.0 and higher):
+Conda packages can be installed as so. Replace ``<CUDA version>`` with the
+desired version (minimum ``11.2``). These are available both on ``rapidsai``
+and ``rapidsai-nightly``. Starting with the UCX 1.14.1 conda-forge package,
+InfiniBand support is available again via rdma-core, thus building UCX
+from source is not required solely for that purpose anymore but may still
+be done if desired (e.g., to test for new capabilities or bug fixes).
 
 ::
 
     conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx>=1.14.0 ucx-py python=3.9
-
-With GPU support (UCX>=1.11.1 and UCX<1.14):
-
-::
-
-    conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx-proc=*=gpu ucx<1.14 ucx-py python=3.9
-
-Without GPU support:
-
-::
-
-    conda create -n ucx -c conda-forge -c rapidsai \
-      ucx-proc=*=cpu ucx ucx-py python=3.9
+      cudatoolkit=<CUDA version> ucx-py
 
 
 Source
 ------
 
 The following instructions assume you'll be using UCX-Py on a CUDA enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
-
-.. note::
-    UCX conda-force package older than UCX 1.14.1 do not include InfiniBand support.
 
 
 Build Dependencies
@@ -81,7 +61,11 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        "python=3.9" setuptools "cython>=0.29.14,<3.0.0a0"
+        "python=3.9" setuptools "cython>=3.0.0"
+
+.. note::
+    The Python version must be explicitly specified here, UCX-Py currently supports
+    only Python 3.9 and 3.10.
 
 Test Dependencies
 ~~~~~~~~~~~~~~~~~

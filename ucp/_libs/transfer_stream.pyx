@@ -73,9 +73,9 @@ def stream_send_nb(
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
-            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-            "variable and that the ucx-proc=*=gpu package is "
-            "installed. See "
+            "`cuda_copy` and/or `cuda_ipc` to the `UCX_TLS` environment"
+            "variable if you're manually setting a different value. If you"
+            "are building UCX from source, please see "
             "https://ucx-py.readthedocs.io/en/latest/install.html for "
             "more information."
         )
@@ -204,9 +204,9 @@ def stream_recv_nb(
     if buffer.cuda and not ep.worker._context.cuda_support:
         raise ValueError(
             "UCX is not configured with CUDA support, please add "
-            "`cuda_copy` and/or `cuda_ipc` to the UCX_TLS environment"
-            "variable and that the ucx-proc=*=gpu package is "
-            "installed. See "
+            "`cuda_copy` and/or `cuda_ipc` to the `UCX_TLS` environment"
+            "variable if you're manually setting a different value. If you"
+            "are building UCX from source, please see "
             "https://ucx-py.readthedocs.io/en/latest/install.html for "
             "more information."
         )
