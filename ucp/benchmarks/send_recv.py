@@ -353,7 +353,7 @@ def parse_args():
         except ImportError:
             raise RuntimeError(
                 "Could not import `gilknocker`. Make sure it is installed or "
-                "remove the `--measure-gil-contention` argument."
+                "remove the `--report-gil-contention` argument."
             )
 
     return args

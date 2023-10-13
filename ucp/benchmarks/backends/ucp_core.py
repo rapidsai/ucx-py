@@ -301,7 +301,6 @@ class UCXPyCoreClient(BaseClient):
 
         if self.args.report_gil_contention:
             knocker.stop()
-            knocker.stop()
         if self.args.cuda_profile:
             xp.cuda.profiler.stop()
 
