@@ -19,6 +19,28 @@ files:
     includes:
       - checks
       - py_version
+  py_build:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: build-system
+    includes:
+      - build_python
+  py_run:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: project
+    includes:
+      - run
+  py_optional_test:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: project.optional-dependencies
+      key: test
+    includes:
+      - test_python
 channels:
   - rapidsai
   - rapidsai-nightly
@@ -36,27 +58,32 @@ dependencies:
           - matrix:
               cuda: "11.2"
             packages:
-              - cudatoolkit=11.2
+              - cuda-version=11.2
+              - cudatoolkit
           - matrix:
               cuda: "11.4"
             packages:
-              - cudatoolkit=11.4
+              - cuda-version=11.4
+              - cudatoolkit
           - matrix:
               cuda: "11.5"
             packages:
-              - cudatoolkit=11.5
+              - cuda-version=11.5
+              - cudatoolkit
           - matrix:
               cuda: "11.8"
             packages:
-              - cudatoolkit=11.8
+              - cuda-version=11.8
+              - cudatoolkit
+          - matrix:
+              cuda: "12.0"
+            packages:
+              - cuda-version=12.0
+              - cuda-cudart
   py_version:
     specific:
       - output_types: conda
         matrices:
-          - matrix:
-              py: "3.8"
-            packages:
-              - python=3.8
           - matrix:
               py: "3.9"
             packages:
@@ -67,19 +94,38 @@ dependencies:
               - python=3.10
           - matrix:
             packages:
-              - python>=3.8,<3.11
+              - python>=3.9,<3.11
+  build_python:
+    common:
+      - output_types: [conda, requirements, pyproject]
+        packages:
+          - setuptools>=64.0.0
+          - cython>=3.0.0
+          - tomli  # Not needed for Python 3.11+
   run:
     common:
-      - output_types: [conda, requirements]
+      - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy
+          - numpy>=1.21
+          - pynvml>=11.4.1
+      - output_types: conda
+        packages:
           - ucx
   test_python:
     common:
-      - output_types: [conda, requirements]
+      - output_types: [conda, requirements, pyproject]
         packages:
-          - cudf=23.04
-          - cupy
-          - numba
+          - cloudpickle
+          - cudf==23.12.*
+          - dask
+          - distributed
+          - numba>=0.57
           - pytest
           - pytest-asyncio
+          - pytest-rerunfailures
+      - output_types: [conda]
+        packages:
+          - cupy>=12.0.0
+      - output_types: [requirements, pyproject]
+        packages:
+          - cupy-cuda11x>=12.0.0

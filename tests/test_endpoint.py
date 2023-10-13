@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 import ucp
@@ -16,6 +18,7 @@ async def test_close_callback(server_close_callback):
             ep.set_close_callback(_close_callback)
         if server_close_callback is False:
             await ep.close()
+        listener.close()
 
     async def client_node(port):
         ep = await ucp.create_endpoint(
@@ -31,6 +34,8 @@ async def test_close_callback(server_close_callback):
         server_node,
     )
     await client_node(listener.port)
+    while not listener.closed():
+        await asyncio.sleep(0.01)
     assert closed[0] is True
 
 

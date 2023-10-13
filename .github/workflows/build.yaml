@@ -28,7 +28,7 @@ concurrency:
 jobs:
   conda-python-build:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@cuda-120-arm
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
@@ -37,7 +37,7 @@ jobs:
   upload-conda:
     needs: [conda-python-build]
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-upload-packages.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-upload-packages.yaml@cuda-120-arm
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
@@ -45,24 +45,17 @@ jobs:
       sha: ${{ inputs.sha }}
   wheel-build:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-build.yaml@cuda-120-arm
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
-      package-name: ucx_py
-      package-dir: .
-      # copy custom auditwheel script to known location with '{package}' placeholder
-      # in the auditwheel repair command, the '{package}' placeholder can't be used
-      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
-      post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
-      post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
-      uses-setup-env-vars: false
+      script: ci/build_wheel.sh
   wheel-publish:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-publish.yml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-publish.yaml@cuda-120-arm
     with:
       build_type: ${{ inputs.build_type || 'branch' }}
       branch: ${{ inputs.branch }}

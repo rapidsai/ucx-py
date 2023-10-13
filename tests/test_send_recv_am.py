@@ -52,7 +52,8 @@ def get_data():
 
 def simple_server(size, recv):
     async def server(ep):
-        recv.append(await ep.am_recv())
+        recv = await ep.am_recv()
+        await ep.am_send(recv)
         await ep.close()
 
     return server
@@ -87,6 +88,7 @@ async def test_send_recv_am(size, blocking_progress_mode, recv_wait, data):
             # immediately as receive data is already available.
             await asyncio.sleep(1)
         await c.am_send(msg)
+        recv_msg = await c.am_recv()
     for c in clients:
         await c.close()
     listener.close()
@@ -94,6 +96,6 @@ async def test_send_recv_am(size, blocking_progress_mode, recv_wait, data):
     if data["memory_type"] == "cuda" and msg.nbytes < rndv_thresh:
         # Eager messages are always received on the host, if no host
         # allocator is registered UCX-Py defaults to `bytearray`.
-        assert recv[0] == bytearray(msg.get())
+        assert recv_msg == bytearray(msg.get())
     else:
-        data["validator"](recv[0], msg)
+        data["validator"](recv_msg, msg)

@@ -18,43 +18,34 @@ jobs:
       - wheel-build
       - wheel-tests
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@cuda-120-arm
   checks:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@cuda-120-arm
   conda-python-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@cuda-120-arm
     with:
       build_type: pull-request
   conda-python-tests:
     needs: conda-python-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@cuda-120-arm
     with:
       build_type: pull-request
   wheel-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-build.yml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-build.yaml@cuda-120-arm
     with:
       build_type: pull-request
-      package-name: ucx_py
-      package-dir: .
-      cibw-before-build: 'cp {package}/.github/build-scripts/patch-wheel.sh /patch-wheel.sh'
-      post-repair-amd64: "/patch-wheel.sh {dest_dir}/*.whl"
-      post-repair-arm64: "/patch-wheel.sh {dest_dir}/*.whl"
-      uses-setup-env-vars: false
+      script: ci/build_wheel.sh
   wheel-tests:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-manylinux-test.yml@branch-23.04
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-test.yaml@cuda-120-arm
     with:
       build_type: pull-request
-      package-name: ucx_py
+      script: ci/test_wheel.sh
       test-docker-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g"
-      test-before-arm64: "pip install cupy-cuda11x -f https://pip.cupy.dev/aarch64"
-      # skipped test context: https://github.com/rapidsai/ucx-py/pull/909
-      test-unittest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"
-      test-smoketest: "pytest -k 'not test_send_recv_am' --cache-clear -vs ./ucp/_libs/tests/ && pytest --cache-clear -vs ./tests"

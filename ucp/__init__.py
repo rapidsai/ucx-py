@@ -64,9 +64,14 @@ if (
             if _is_mig_device(handle):
                 continue
 
-            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
-            bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+            try:
+                bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
+            except pynvml.nvml.NVMLError_NotSupported:
+                # Bar1 access not supported on this device, set it to
+                # zero (always lower than device memory).
+                bar1_total = 0
 
+            total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
             if total_memory <= bar1_total:
                 large_bar1[dev_idx] = True
 
@@ -85,7 +90,7 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
-__version__ = "0.31.0"
+__version__ = "0.35.0"
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
 if get_ucx_version() < (1, 11, 1):
