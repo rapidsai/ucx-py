@@ -2,7 +2,7 @@
 
 {% set data = load_file_data("pyproject.toml") %}
 
-{% set version = environ.get('GIT_DESCRIBE_TAG', '0.0.0.dev').lstrip('v') %}
+{% set version = environ.get('RAPIDS_PACKAGE_VERSION', '0.0.0.dev').strip('"').lstrip('v') %}
 {% set py_version = environ['CONDA_PY'] %}
 {% set cuda_version = '.'.join(environ['RAPIDS_CUDA_VERSION'].split('.')[:2]) %}
 {% set date_string = environ['RAPIDS_DATE_STRING'] %}
@@ -12,7 +12,7 @@ package:
   version: {{ version }}
 
 source:
-  git_url: ../../..
+  path: ../../..
 
 build:
   number: {{ GIT_DESCRIBE_NUMBER }}
