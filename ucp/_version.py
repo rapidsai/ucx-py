@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "23.12.00"
+__version__ = "0.35.00"
 __git_commit__ = ""
