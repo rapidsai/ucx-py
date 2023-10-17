@@ -3,6 +3,6 @@
 
 auto_merger: true
 branch_checker: false
-label_checker: false
+label_checker: true
 release_drafter: false
 recently_updated: true
