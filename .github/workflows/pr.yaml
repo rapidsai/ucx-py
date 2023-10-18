@@ -17,34 +17,35 @@ jobs:
       - conda-python-tests
       - wheel-build
       - wheel-tests
+
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/pr-builder.yaml@increase-ulimit-nofile
   checks:
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/checks.yaml@increase-ulimit-nofile
   conda-python-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-build.yaml@increase-ulimit-nofile
     with:
       build_type: pull-request
   conda-python-tests:
     needs: conda-python-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/conda-python-tests.yaml@increase-ulimit-nofile
     with:
       build_type: pull-request
   wheel-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-build.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-build.yaml@increase-ulimit-nofile
     with:
       build_type: pull-request
       script: ci/build_wheel.sh
   wheel-tests:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-test.yaml@branch-23.12
+    uses: rapidsai/shared-action-workflows/.github/workflows/wheels-test.yaml@increase-ulimit-nofile
     with:
       build_type: pull-request
       script: ci/test_wheel.sh

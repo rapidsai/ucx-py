@@ -22,6 +22,9 @@ rapids-logger "Check NICs"
 awk 'END{print $1}' /etc/hosts
 cat /etc/hosts
 
+rapids-logger "Check ulimit"
+ulimit -a
+
 run_tests() {
   rapids-logger "UCX Version and Build Configuration"
   ucx_info -v
