@@ -50,4 +50,4 @@ for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-action-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
 
-sed_runner "/__version__ / s/= .*/= \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" ucp/_version.py
+sed_runner "/^__version__ / s/= .*/= \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" ucp/_version.py
