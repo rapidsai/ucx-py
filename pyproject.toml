@@ -119,4 +119,4 @@ zip-safe = false
 exclude=["tests*"]
 
 [tool.setuptools.dynamic]
-version = {attr = "ucp._version.__version__"}
+version = {file = "ucp/VERSION"}
