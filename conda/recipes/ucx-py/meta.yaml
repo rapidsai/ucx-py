@@ -19,13 +19,13 @@ build:
   string: py{{ py_version }}_{{ date_string }}_{{ GIT_DESCRIBE_HASH }}_{{ GIT_DESCRIBE_NUMBER }}
   script:
     - {{ PYTHON }} -m pip install . -vv
+  ignore_run_exports_from:
+    - ucx
 
 requirements:
   build:
     - {{ compiler('c') }}
     - {{ compiler('cxx') }}
-    ignore_run_exports_from:
-      - ucx
   host:
     - python
     - pip
