@@ -18,34 +18,34 @@ jobs:
       - wheel-build
       - wheel-tests
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@test-new-runners
   checks:
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@test-new-runners
   conda-python-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-build.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-build.yaml@test-new-runners
     with:
       build_type: pull-request
   conda-python-tests:
     needs: conda-python-build
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@test-new-runners
     with:
       build_type: pull-request
       container-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g --ulimit=nofile=1000000:1000000"
   wheel-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@test-new-runners
     with:
       build_type: pull-request
       script: ci/build_wheel.sh
   wheel-tests:
     needs: wheel-build
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@test-new-runners
     with:
       build_type: pull-request
       script: ci/test_wheel.sh
