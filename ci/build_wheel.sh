@@ -77,7 +77,14 @@ popd
 
 # Now copy in all the extra libraries that are only ever loaded at runtime
 pushd repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
-cp -P /usr/lib/ucx/* .
+if [[ -d /usr/lib64/ucx ]]; then
+    cp -P /usr/lib64/ucx/* .
+elif [[ -d /usr/lib/ucx ]]; then
+    cp -P /usr/lib/ucx/* .
+else
+    echo "Could not find ucx libraries"
+    exit 1
+fi
 
 # we link against <python>/lib/site-packages/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
