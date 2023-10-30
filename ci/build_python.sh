@@ -10,7 +10,7 @@ rapids-print-env
 version=$(rapids-generate-version)
 commit=$(git rev-parse HEAD)
 
-echo "${version}" | tr -d '"' > VERSION
+echo "${version}" > VERSION
 sed -i "/^__git_commit__/ s/= .*/= \"${commit}\"/g" ucp/_version.py
 
 rapids-logger "Begin py build"

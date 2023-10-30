@@ -2,7 +2,7 @@
 
 {% set data = load_file_data("pyproject.toml") %}
 
-{% set version = environ['RAPIDS_PACKAGE_VERSION'].strip('"').lstrip('v') %}
+{% set version = environ['RAPIDS_PACKAGE_VERSION'].lstrip('v') %}
 {% set py_version = environ['CONDA_PY'] %}
 {% set cuda_version = '.'.join(environ['RAPIDS_CUDA_VERSION'].split('.')[:2]) %}
 {% set date_string = environ['RAPIDS_DATE_STRING'] %}

@@ -50,4 +50,4 @@ for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
 
-echo "${NEXT_RAPIDS_FULL_TAG_PEP440}" | tr -d '"' > VERSION
+echo "${NEXT_RAPIDS_FULL_TAG_PEP440}" > VERSION
