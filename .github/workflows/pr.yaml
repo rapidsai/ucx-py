@@ -38,7 +38,7 @@ jobs:
   wheel-build:
     needs: checks
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@branch-23.12
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-build.yaml@feat/remove_redundant_builds
     with:
       build_type: pull-request
       script: ci/build_wheel.sh
