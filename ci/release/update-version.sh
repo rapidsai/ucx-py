@@ -50,5 +50,4 @@ for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
 
-sed_runner "s/^version = .*/version = \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" pyproject.toml
-sed_runner "s/^__version__ = .*/__version__ = \"${NEXT_RAPIDS_FULL_TAG_PEP440}\"/g" ucp/__init__.py
+echo "${NEXT_RAPIDS_FULL_TAG_PEP440}" > VERSION

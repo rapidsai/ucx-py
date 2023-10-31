@@ -22,7 +22,7 @@ requires = [
 
 [project]
 name = "ucx-py"
-version = "0.35.0"
+dynamic = ["version"]
 description = "Python Bindings for the Unified Communication X library (UCX)"
 readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
@@ -117,3 +117,6 @@ zip-safe = false
 
 [tool.setuptools.packages.find]
 exclude=["tests*"]
+
+[tool.setuptools.dynamic]
+version = {file = "ucp/VERSION"}

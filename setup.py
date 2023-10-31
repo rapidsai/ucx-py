@@ -41,4 +41,5 @@ ext_modules = [
 setup(
     ext_modules=ext_modules,
     cmdclass={"build_ext": new_build_ext},
+    package_data={"ucp": ["VERSION"]},
 )
