@@ -125,7 +125,7 @@ class UCXPyCoreServer(BaseServer):
             self.ep = ucx_api.UCXEndpoint.create_from_conn_request(
                 worker,
                 conn_request,
-                endpoint_error_handling=True,
+                endpoint_error_handling=self.args.error_handling,
             )
 
             # Wireup before starting to transfer data
@@ -229,7 +229,7 @@ class UCXPyCoreClient(BaseClient):
             worker,
             self.server_address,
             self.port,
-            endpoint_error_handling=True,
+            endpoint_error_handling=self.args.error_handling,
         )
 
         send_msg = xp.arange(self.args.n_bytes, dtype="u1")

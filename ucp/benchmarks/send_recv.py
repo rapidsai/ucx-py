@@ -324,6 +324,12 @@ def parse_args():
         help="Only applies to 'ucp-core' backend: number of maximum outstanding "
         "operations, see --delay-progress. (Default: 32)",
     )
+    parser.add_argument(
+        "--error-handling",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Disable endpoint error handling.",
+    )
 
     args = parser.parse_args()
 
