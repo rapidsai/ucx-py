@@ -328,7 +328,7 @@ def parse_args():
         "--error-handling",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Disable endpoint error handling.",
+        help="Enable endpoint error handling.",
     )
 
     args = parser.parse_args()
