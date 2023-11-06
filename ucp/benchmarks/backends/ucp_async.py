@@ -81,7 +81,11 @@ class UCXPyAsyncServer(BaseServer):
             await ep.close()
             lf.close()
 
-        lf = ucp.create_listener(server_handler, port=self.args.port)
+        lf = ucp.create_listener(
+            server_handler,
+            port=self.args.port,
+            endpoint_error_handling=self.args.error_handling,
+        )
         self.queue.put(lf.port)
 
         while not lf.closed():
@@ -114,7 +118,11 @@ class UCXPyAsyncClient(BaseClient):
 
         register_am_allocators(self.args)
 
-        ep = await ucp.create_endpoint(self.server_address, self.port)
+        ep = await ucp.create_endpoint(
+            self.server_address,
+            self.port,
+            endpoint_error_handling=self.args.error_handling,
+        )
 
         if self.args.enable_am:
             msg = xp.arange(self.args.n_bytes, dtype="u1")
