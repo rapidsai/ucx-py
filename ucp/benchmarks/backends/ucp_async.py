@@ -81,7 +81,11 @@ class UCXPyAsyncServer(BaseServer):
             await ep.close()
             lf.close()
 
-        lf = ucp.create_listener(server_handler, port=self.args.port)
+        lf = ucp.create_listener(
+            server_handler,
+            port=self.args.port,
+            endpoint_error_handling=self.args.error_handling,
+        )
         self.queue.put(lf.port)
 
         while not lf.closed():
@@ -114,7 +118,11 @@ class UCXPyAsyncClient(BaseClient):
 
         register_am_allocators(self.args)
 
-        ep = await ucp.create_endpoint(self.server_address, self.port)
+        ep = await ucp.create_endpoint(
+            self.server_address,
+            self.port,
+            endpoint_error_handling=self.args.error_handling,
+        )
 
         if self.args.enable_am:
             msg = xp.arange(self.args.n_bytes, dtype="u1")
@@ -128,6 +136,15 @@ class UCXPyAsyncClient(BaseClient):
 
         if self.args.cuda_profile:
             xp.cuda.profiler.start()
+
+        if self.args.report_gil_contention:
+            from gilknocker import KnockKnock
+
+            # Use smallest polling interval possible to ensure, contention will always
+            # be zero for small messages otherwise and inconsistent for large messages.
+            knocker = KnockKnock(polling_interval_micros=1)
+            knocker.start()
+
         times = []
         for i in range(self.args.n_iter + self.args.n_warmup_iter):
             start = monotonic()
@@ -143,9 +160,15 @@ class UCXPyAsyncClient(BaseClient):
             stop = monotonic()
             if i >= self.args.n_warmup_iter:
                 times.append(stop - start)
+
+        if self.args.report_gil_contention:
+            knocker.stop()
         if self.args.cuda_profile:
             xp.cuda.profiler.stop()
+
         self.queue.put(times)
+        if self.args.report_gil_contention:
+            self.queue.put(knocker.contention_metric)
 
     def print_backend_specific_config(self):
         print_key_value(

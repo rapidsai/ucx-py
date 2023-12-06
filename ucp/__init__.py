@@ -20,6 +20,7 @@ from .core import *  # noqa
 from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
 from ._libs.utils import get_address  # noqa
+from ._version import __git_commit__, __version__
 
 try:
     import pynvml
@@ -90,7 +91,6 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
-__version__ = "0.34.0"
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
 if get_ucx_version() < (1, 11, 1):

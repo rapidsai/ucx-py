@@ -9,9 +9,8 @@ underscore_package_name=$(echo "${package_name}" | tr "-" "_")
 source rapids-configure-sccache
 source rapids-date-string
 
-# Use gha-tools rapids-pip-wheel-version to generate wheel version then
-# update the necessary files
-version_override="$(rapids-pip-wheel-version ${RAPIDS_DATE_STRING})"
+version=$(rapids-generate-version)
+commit=$(git rev-parse HEAD)
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
@@ -22,8 +21,9 @@ PACKAGE_CUDA_SUFFIX="-${RAPIDS_PY_CUDA_SUFFIX}"
 # Patch project metadata files to include the CUDA version suffix and version override.
 pyproject_file="pyproject.toml"
 
-sed -i "s/^version = .*/version = \"${version_override}\"/g" ${pyproject_file}
 sed -i "s/name = \"${package_name}\"/name = \"${package_name}${PACKAGE_CUDA_SUFFIX}\"/g" ${pyproject_file}
+echo "${version}" > VERSION
+sed -i "/^__git_commit__/ s/= .*/= \"${commit}\"/g" ucp/_version.py
 
 # For nightlies we want to ensure that we're pulling in alphas as well. The
 # easiest way to do so is to augment the spec with a constraint containing a
@@ -77,7 +77,14 @@ popd
 
 # Now copy in all the extra libraries that are only ever loaded at runtime
 pushd repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
-cp -P /usr/lib/ucx/* .
+if [[ -d /usr/lib64/ucx ]]; then
+    cp -P /usr/lib64/ucx/* .
+elif [[ -d /usr/lib/ucx ]]; then
+    cp -P /usr/lib/ucx/* .
+else
+    echo "Could not find ucx libraries"
+    exit 1
+fi
 
 # we link against <python>/lib/site-packages/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.lib/libuc{ptsm}
 # we also amend the rpath to search one directory above to *find* libuc{tsm}
