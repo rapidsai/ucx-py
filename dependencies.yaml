@@ -124,7 +124,7 @@ dependencies:
           - dask
           - distributed
           - numba>=0.57
-          - pytest
+          - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
       - output_types: [conda]
