@@ -35,9 +35,6 @@ run_tests() {
   # list test directory
   ls tests/
 
-  # Setting UCX options
-  export UCX_TLS=tcp,cuda_copy
-
   # Test with TCP/Sockets
   rapids-logger "TEST WITH TCP ONLY"
   ./ci/run_pytests.sh
