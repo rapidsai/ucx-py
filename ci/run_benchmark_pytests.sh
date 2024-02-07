@@ -3,9 +3,6 @@
 
 set -euo pipefail
 
-# Support invoking run_pytests.sh outside the script directory
-cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/../
-
 # cd to root directory to prevent repo's `ucp` directory from being used
 # in subsequent commands
 pushd /
