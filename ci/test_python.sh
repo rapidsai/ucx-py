@@ -1,6 +1,10 @@
 #!/bin/bash
+# Copyright (c) 2024, NVIDIA CORPORATION.
 
 set -euo pipefail
+
+# Support invoking test_python.sh outside the script directory
+  "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 
 rapids-logger "Create test conda environment"
 . /opt/conda/etc/profile.d/conda.sh
@@ -36,8 +40,7 @@ run_tests() {
 
   # Test with TCP/Sockets
   rapids-logger "TEST WITH TCP ONLY"
-  # Support invoking test_python.sh outside the script directory
-  "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/run_pytests.sh
+  ./run_pytests.sh
 
   rapids-logger "Run local benchmark"
   # cd to root directory to prevent repo's `ucp` directory from being used

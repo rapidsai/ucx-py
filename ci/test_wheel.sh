@@ -10,5 +10,7 @@ RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-download-wheels-fr
 # echo to expand wildcard before adding `[extra]` requires for pip
 python -m pip install $(echo ./dist/ucx_py*.whl)[test]
 
-# Support invoking test_wheel.sh outside the script directory
-"$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/run_pytests.sh
+cd tests
+python -m pytest --cache-clear -vs .
+cd ../ucp
+python -m pytest --cache-clear -vs ./_libs/tests/
