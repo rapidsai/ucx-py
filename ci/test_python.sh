@@ -36,8 +36,8 @@ run_tests() {
 
   # Test with TCP/Sockets
   rapids-logger "TEST WITH TCP ONLY"
-  timeout 10m pytest --cache-clear -vs tests/
-  timeout 2m pytest --cache-clear -vs ucp/_libs/tests
+  # Support invoking test_python.sh outside the script directory
+  "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/run_pytests.sh
 
   rapids-logger "Run local benchmark"
   # cd to root directory to prevent repo's `ucp` directory from being used
