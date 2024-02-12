@@ -4,14 +4,15 @@ files:
     output: none
     includes:
       - checks
-      - cudatoolkit
+      - cuda
+      - cuda_version
       - py_version
       - run
       - test_python
   test_python:
     output: none
     includes:
-      - cudatoolkit
+      - cuda_version
       - py_version
       - test_python
   checks:
@@ -51,34 +52,33 @@ dependencies:
       - output_types: [conda, requirements]
         packages:
           - pre-commit
-  cudatoolkit:
+  cuda_version:
     specific:
       - output_types: conda
         matrices:
           - matrix:
-              cuda: "11.2"
-            packages:
-              - cuda-version=11.2
-              - cudatoolkit
-          - matrix:
               cuda: "11.4"
             packages:
               - cuda-version=11.4
-              - cudatoolkit
-          - matrix:
-              cuda: "11.5"
-            packages:
-              - cuda-version=11.5
-              - cudatoolkit
           - matrix:
               cuda: "11.8"
             packages:
               - cuda-version=11.8
-              - cudatoolkit
           - matrix:
               cuda: "12.0"
             packages:
               - cuda-version=12.0
+  cuda:
+    specific:
+      - output_types: conda
+        matrices:
+          - matrix:
+              cuda: "11.*"
+            packages:
+              - cudatoolkit
+          - matrix:
+              cuda: "12.*"
+            packages:
               - cuda-cudart
   py_version:
     specific:
@@ -116,11 +116,11 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==23.12.*
+          - cudf==24.2.*
           - dask
           - distributed
           - numba>=0.57
-          - pytest
+          - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
       - output_types: [conda]
