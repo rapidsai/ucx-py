@@ -114,7 +114,7 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy>=1.21
+          - numpy>=1.23
           - pynvml>=11.4.1
       - output_types: conda
         packages:
