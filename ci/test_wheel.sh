@@ -11,6 +11,6 @@ RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-download-wheels-fr
 python -m pip install $(echo ./dist/ucx_py*.whl)[test]
 
 cd tests
-python -m pytest --cache-clear -vs .
+timeout 10m python -m pytest --cache-clear -vs .
 cd ../ucp
-python -m pytest --cache-clear -vs ./_libs/tests/
+timeout 2m python -m pytest --cache-clear -vs ./_libs/tests/
