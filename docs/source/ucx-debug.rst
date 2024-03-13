@@ -33,7 +33,7 @@ For example, we can check if UCX has been built correctly with ``RDMA`` and if i
     #define HAVE_DECL_RDMA_ESTABLISH  1
     #define HAVE_DECL_RDMA_INIT_QP_ATTR 1
     #define HAVE_RDMACM_QP_LESS       1
-    #define UCX_CONFIGURE_FLAGS       "--disable-logging --disable-debug --disable-assertions --disable-params-check --prefix=/gpfs/fs1/user/miniconda3/envs/ucx-dev --with-sysroot --enable-cma --enable-mt --enable-numa --with-gnu-ld --with-rdmacm --with-verbs --with-cuda=/gpfs/fs1/SHARE/Utils/CUDA/10.2.89.0_440.33.01"
+    #define UCX_CONFIGURE_FLAGS       "--disable-logging --disable-debug --disable-assertions --disable-params-check --prefix=/gpfs/fs1/user/miniconda3/envs/ucx-dev --with-sysroot --enable-cma --enable-mt --with-gnu-ld --with-rdmacm --with-verbs --with-cuda=/gpfs/fs1/SHARE/Utils/CUDA/10.2.89.0_440.33.01"
     #define uct_MODULES               ":cuda:ib:rdmacm:cma"
 
 

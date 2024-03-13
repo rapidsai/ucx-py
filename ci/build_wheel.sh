@@ -58,7 +58,6 @@ WHL=$(realpath final_dist/${underscore_package_name}*manylinux*.whl)
 LIBUCM=$(unzip -l $WHL | awk 'match($4, /libucm-[^\.]+\./) { print substr($4, RSTART) }')
 LIBUCT=$(unzip -l $WHL | awk 'match($4, /libuct-[^\.]+\./) { print substr($4, RSTART) }')
 LIBUCS=$(unzip -l $WHL | awk 'match($4, /libucs-[^\.]+\./) { print substr($4, RSTART) }')
-LIBNUMA=$(unzip -l $WHL | awk 'match($4, /libnuma-[^\.]+\./) { print substr($4, RSTART) }')
 
 # Extract the libraries that have already been patched in by auditwheel
 mkdir -p repair_dist/${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}.libs/ucx
@@ -95,9 +94,6 @@ do
         patchelf --replace-needed libuct.so.0 $LIBUCT $f
         patchelf --replace-needed libucs.so.0 $LIBUCS $f
         patchelf --replace-needed libucm.so.0 $LIBUCM $f
-        if [[ -n "$LIBNUMA" ]]; then
-            patchelf --replace-needed libnuma.so.1 $LIBNUMA $f
-        fi
         patchelf --add-rpath '$ORIGIN/..' $f
     fi
 done
