@@ -118,7 +118,7 @@ dependencies:
           - pynvml>=11.4.1
       - output_types: conda
         packages:
-          - ucx
+          - ucx>=1.15.0,<1.16
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
