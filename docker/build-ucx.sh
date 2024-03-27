@@ -19,7 +19,7 @@ git checkout ${UCX_VERSION_TAG}
 ./autogen.sh
 mkdir build-linux && cd build-linux
 ../contrib/configure-release --prefix=${CONDA_PREFIX} --with-sysroot --enable-cma \
-    --enable-mt --enable-numa --with-gnu-ld --with-rdmacm --with-verbs \
+    --enable-mt --with-gnu-ld --with-rdmacm --with-verbs \
     --with-cuda=${CUDA_HOME} \
     ${CONFIGURE_ARGS}
 make -j install

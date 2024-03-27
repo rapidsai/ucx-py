@@ -31,7 +31,6 @@ RUN apt-get update -y \
         dh-make \
         git \
         libcap2 \
-        libnuma-dev \
         libtool \
         make \
         pkg-config \

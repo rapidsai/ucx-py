@@ -35,7 +35,7 @@ requirements:
     {% endfor %}
   run:
     - python
-    - ucx >=1.14.1,<1.16.0
+    - ucx >=1.15.0,<1.16.0
     {% for r in data.get("project", {}).get("dependencies", []) %}
     - {{ r }}
     {% endfor %}
