@@ -4,4 +4,4 @@ cxx_compiler_version:
   - 11
 
 ucx:
-  - "==1.14.*"
+  - "==1.15.*"

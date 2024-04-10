@@ -6,3 +6,4 @@ branch_checker: false
 label_checker: true
 release_drafter: false
 recently_updated: true
+forward_merger: true

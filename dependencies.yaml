@@ -68,6 +68,10 @@ dependencies:
               cuda: "12.0"
             packages:
               - cuda-version=12.0
+          - matrix:
+              cuda: "12.2"
+            packages:
+              - cuda-version=12.2
   cuda:
     specific:
       - output_types: conda
@@ -93,8 +97,12 @@ dependencies:
             packages:
               - python=3.10
           - matrix:
+              py: "3.11"
             packages:
-              - python>=3.9,<3.11
+              - python=3.11
+          - matrix:
+            packages:
+              - python>=3.9,<3.12
   build_python:
     common:
       - output_types: [conda, requirements, pyproject]
@@ -106,17 +114,17 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy>=1.21
+          - numpy>=1.23,<2.0a0
           - pynvml>=11.4.1
       - output_types: conda
         packages:
-          - ucx
+          - ucx>=1.15.0,<1.16
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==24.2.*
+          - cudf==24.4.*
           - dask
           - distributed
           - numba>=0.57
