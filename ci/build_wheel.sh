@@ -43,7 +43,7 @@ if ! rapids-is-release-build; then
 fi
 
 sed -r -i "s/cudf==(.*)\"/cudf${PACKAGE_CUDA_SUFFIX}==\1${alpha_spec}\"/g" ${pyproject_file}
-sed -r -i "s/\"libucx>/\"libucx${PACKAGE_CUDA_SUFFIX}>/g" ${pyproject_file}
+sed -r -i "/\"libucx([=><]+)/ s/\"libucx/\"libucx${PACKAGE_CUDA_SUFFIX}/g" ${pyproject_file}
 
 if [[ $PACKAGE_CUDA_SUFFIX == "-cu12" ]]; then
     sed -i "s/cupy-cuda11x/cupy-cuda12x/g" ${pyproject_file}
