@@ -27,6 +27,17 @@ try:
 except ImportError:
     pynvml = None
 
+# If libucx was installed as a wheel, we must request it to load the library symbols.
+# Otherwise, we assume that the library was installed in a system path that ld can find.
+try:
+    import libucx
+except ModuleNotFoundError:
+    pass
+else:
+    libucx.load_library()
+    del libucx
+
+
 # Setup UCX-Py logger
 logger = get_ucxpy_logger()
 
