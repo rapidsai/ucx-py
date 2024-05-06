@@ -12,8 +12,24 @@ from Cython.Distutils.build_ext import new_build_ext
 from setuptools import setup
 from setuptools.extension import Extension
 
-include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
+
+# if the 'libucx' wheel was installed, add its library location to
+# library_dirs so it'll be linked against
+#
+# NOTE: doing this '.__file__' stuff because `sysconfig.get_path("platlib")` and similar
+#       can return paths to the main Python interpreters' installation locations...
+#       not where 'libucx' is going to be installed at build time when using
+#       build isolation
+try:
+    import libucx
+
+    libucx_libdir = os.path.join(os.path.dirname(libucx.__file__), "lib")
+    library_dirs.append(libucx_libdir)
+except ImportError:
+    pass
+
+include_dirs = [os.path.dirname(get_python_inc())]
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99", "-Werror"]
 
