@@ -27,6 +27,7 @@ files:
       table: build-system
     includes:
       - build_python
+      - depends_on_ucx_build
   py_run:
     output: pyproject
     pyproject_dir: .
@@ -117,6 +118,28 @@ dependencies:
         packages:
           - numpy>=1.23,<2.0a0
           - pynvml>=11.4.1
+  depends_on_ucx_build:
+    common:
+      - output_types: conda
+        packages:
+          - &ucx_conda_build ucx==1.15.0
+      - output_types: requirements
+        packages:
+          # pip recognizes the index as a global option for the requirements.txt file
+          - --extra-index-url=https://pypi.nvidia.com
+          - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix: {cuda: "12.*"}
+            packages:
+              - libucx-cu12==1.15.0
+          - matrix: {cuda: "11.*"}
+            packages:
+              - libucx-cu11==1.15.0
+          - matrix: null
+            packages:
+              - libucx==1.15.0
   depends_on_ucx_run:
     common:
       - output_types: conda

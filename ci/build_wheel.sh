@@ -6,6 +6,14 @@ set -euo pipefail
 package_name="ucx-py"
 underscore_package_name=$(echo "${package_name}" | tr "-" "_")
 
+# Clear out system ucx files to ensure that we're getting ucx from the wheel.
+rm -rf /usr/lib64/ucx
+rm -rf /usr/lib64/libucm.*
+rm -rf /usr/lib64/libucp.*
+rm -rf /usr/lib64/libucs.*
+rm -rf /usr/lib64/libucs_signal.*
+rm -rf /usr/lib64/libuct.*
+
 source rapids-configure-sccache
 source rapids-date-string
 
