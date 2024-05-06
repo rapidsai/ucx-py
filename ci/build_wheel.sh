@@ -35,6 +35,7 @@ if ! rapids-is-release-build; then
 fi
 
 sed -r -i "s/cudf==(.*)\"/cudf${PACKAGE_CUDA_SUFFIX}==\1${alpha_spec}\"/g" ${pyproject_file}
+sed -r -i "s/\"libucx>/\"libucx${PACKAGE_CUDA_SUFFIX}>/g" ${pyproject_file}
 
 if [[ $PACKAGE_CUDA_SUFFIX == "-cu12" ]]; then
     sed -i "s/cupy-cuda11x/cupy-cuda12x/g" ${pyproject_file}
@@ -51,4 +52,4 @@ python -m auditwheel repair \
     --exclude "libuct.so.0" \
     dist/*
 
-RAPIDS_PY_WHEEL_NAME="${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
+#RAPIDS_PY_WHEEL_NAME="${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
