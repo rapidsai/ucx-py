@@ -4,6 +4,9 @@ build:
   os: "ubuntu-22.04"
   tools:
     python: "mambaforge-22.9"
+  jobs:
+    pre_install:
+      - bash ci/build_docs_pre_install.sh
 
 python:
   install:
