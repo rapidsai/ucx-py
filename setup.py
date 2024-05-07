@@ -18,7 +18,7 @@ library_dirs = [get_config_var("LIBDIR")]
 # library_dirs so it'll be linked against
 #
 # NOTE: doing this '.__file__' stuff because `sysconfig.get_path("platlib")` and similar
-#       can return paths to the main Python interpreters' installation locations...
+#       can return paths to the main Python interpreter's installation locations...
 #       not where 'libucx' is going to be installed at build time when using
 #       build isolation
 try:
