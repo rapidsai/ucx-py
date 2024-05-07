@@ -121,7 +121,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - &ucx_conda_build ucx==1.15.0
+          - ucx==1.15.0
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
