@@ -22,10 +22,27 @@ library_dirs = [get_config_var("LIBDIR")]
 #       not where 'libucx' is going to be installed at build time when using
 #       build isolation
 try:
+    import glob
+
     import libucx
 
-    libucx_libdir = os.path.join(os.path.dirname(libucx.__file__), "lib")
-    library_dirs.append(libucx_libdir)
+    # find 'libucx'
+    module_dir = os.path.dirname(libucx.__file__)
+
+    # find where it stores files like 'libucm.so.0'
+    libs = glob.glob(f"{module_dir}/**/lib*.so*", recursive=True)
+
+    # deduplicate those library paths
+    lib_dirs = {os.path.dirname(f) for f in libs}
+    if not lib_dirs:
+        raise RuntimeError(
+            f"Did not find shared libraries in 'libucx' install location ({module_dir})"
+        )
+
+    # add all the places 'libucx' stores libraries to that paths
+    # considered by the linker when compiling extensions
+    library_dirs.extend(lib_dirs)
+
 except ImportError:
     pass
 
