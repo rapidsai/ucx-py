@@ -21,7 +21,7 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
 # Otherwise, we assume that the library was installed in a system path that ld can find.
 try:
     import libucx
-except ImportError:
+except (ImportError, OSError, RuntimeError):
     pass
 else:
     libucx.load_library()
