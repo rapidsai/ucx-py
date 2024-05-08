@@ -39,7 +39,7 @@ try:
             f"Did not find shared libraries in 'libucx' install location ({module_dir})"
         )
 
-    # add all the places 'libucx' stores libraries to that paths
+    # add all the places 'libucx' stores libraries to the paths
     # considered by the linker when compiling extensions
     library_dirs.extend(lib_dirs)
 
