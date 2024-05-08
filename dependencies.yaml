@@ -136,9 +136,11 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11==1.15.0
+          # NOTE: this fallback needs to be a real, suffixed version
+          #       so 'pip install .' (e.g. as used in docs builds) will work
           - matrix: null
             packages:
-              - libucx==1.15.0
+              - libucx-cu11==1.15.0
   depends_on_ucx_run:
     common:
       - output_types: conda
