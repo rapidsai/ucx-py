@@ -21,11 +21,19 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
 # Otherwise, we assume that the library was installed in a system path that ld can find.
 try:
     import libucx
-except (ImportError, OSError, RuntimeError):
+except ImportError:
     pass
 else:
-    libucx.load_library()
-    del libucx
+    try:
+        libucx.load_library()
+        del libucx
+    except RuntimeError as err:
+        msg = (
+            "Loading 'libucx' failed. Ignore this warning on CPU-only systems, "
+            "but on a system with GPUs this could indicate a more serious issue. "
+            f"Full error: {str(err)}"
+        )
+        logger.warning(msg)
 
 
 from .core import *  # noqa
