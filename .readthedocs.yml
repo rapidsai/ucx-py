@@ -5,7 +5,7 @@ build:
   tools:
     python: "mambaforge-22.9"
   jobs:
-    pre_install:
+    post_checkout:
       - bash ci/build_docs_pre_install.sh
 
 conda:
