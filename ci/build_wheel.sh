@@ -14,6 +14,11 @@ rm -rf /usr/lib64/libucs.*
 rm -rf /usr/lib64/libucs_signal.*
 rm -rf /usr/lib64/libuct.*
 
+rm -rf /usr/include/ucm
+rm -rf /usr/include/ucp
+rm -rf /usr/include/ucs
+rm -rf /usr/include/uct
+
 source rapids-configure-sccache
 source rapids-date-string
 

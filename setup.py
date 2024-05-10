@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import, print_function
 
+import glob
 import os
 from distutils.sysconfig import get_config_var, get_python_inc
 
@@ -12,19 +13,21 @@ from Cython.Distutils.build_ext import new_build_ext
 from setuptools import setup
 from setuptools.extension import Extension
 
-library_dirs = [get_config_var("LIBDIR")]
 
-# if the 'libucx' wheel was installed, add its library location to
-# library_dirs so it'll be linked against
-#
-# NOTE: doing this '.__file__' stuff because `sysconfig.get_path("platlib")` and similar
-#       can return paths to the main Python interpreter's installation locations...
-#       not where 'libucx' is going to be installed at build time when using
-#       build isolation
-try:
-    import glob
+def _find_libucx_libs_and_headers():
+    """
+    If the 'libucx' wheel is not installed, returns a tuple of empty lists.
+    In that case, the project will be compiled against system installations
+    of the UCX libraries.
 
-    import libucx
+    If 'libucx' is installed, returns lists of library and header paths to help
+    the compiler and linker find its contents. In that case, the project will
+    be compiled against those libucx-wheel-provided versions of the UCX libraries.
+    """
+    try:
+        import libucx
+    except ImportError:
+        return [], []
 
     # find 'libucx'
     module_dir = os.path.dirname(libucx.__file__)
@@ -39,16 +42,29 @@ try:
             f"Did not find shared libraries in 'libucx' install location ({module_dir})"
         )
 
-    # add all the places 'libucx' stores libraries to the paths
-    # considered by the linker when compiling extensions
-    library_dirs.extend(lib_dirs)
+    # find where it stores headers
+    headers = glob.glob(f"{module_dir}/**/include", recursive=True)
 
-except ImportError:
-    pass
+    # deduplicate those header paths (and ensure the list only includes directories)
+    header_dirs = {f for f in headers if os.path.isdir(f)}
+    if not header_dirs:
+        raise RuntimeError(
+            f"Did not find UCX headers 'libucx' install location ({module_dir})"
+        )
+
+    return list(lib_dirs), list(header_dirs)
+
 
 include_dirs = [os.path.dirname(get_python_inc())]
+library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs"]
 extra_compile_args = ["-std=c99", "-Werror"]
+
+# tell the compiler and linker where to find UCX libraries and their headers
+# provided by the 'libucx' wheel
+libucx_lib_dirs, libucx_header_dirs = _find_libucx_libs_and_headers()
+library_dirs.extend(libucx_lib_dirs)
+include_dirs.extend(libucx_header_dirs)
 
 
 ext_modules = [
