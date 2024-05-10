@@ -17,5 +17,4 @@ dependencies:
 - pip:
   - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
   - ../../
-- ucx
 - cython
