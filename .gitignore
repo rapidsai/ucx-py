@@ -10,8 +10,9 @@ dask-worker-space
 __pytestcache__
 __pycache__
 *.egg-info/
+final_dist/
 dist/
 .vscode
 
 *.sw[po]
-
+*.whl
