@@ -57,6 +57,7 @@ python -m auditwheel repair \
     --exclude "libucm.so.0" \
     --exclude "libucp.so.0" \
     --exclude "libucs.so.0" \
+    --exclude "libucs_signal.so.0" \
     --exclude "libuct.so.0" \
     dist/*
 
