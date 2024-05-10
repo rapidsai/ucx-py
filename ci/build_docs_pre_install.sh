@@ -14,4 +14,4 @@
 
 set -euo pipefail
 
-sed -r -i "s/libucx==(.*)\"/libucx-cu12==\1\"/g" ./pyproject.toml
+sed -r -i "s/\"libucx/\"libucx-cu12/g" ./pyproject.toml
