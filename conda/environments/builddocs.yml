@@ -16,5 +16,11 @@ dependencies:
 - pip
 - pip:
   - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
+  # NOTE: this correctly changes dependencies like 'libucx' to their suffixed,
+  #       existing versions like 'libucx-cu12' via an environment variable set
+  #       in the readthedocs UI:
+  # 
+  #         - RAPIDS_MATRIX_ENTRY="cuda=12.2"
+  #
   - ../../
 - cython
