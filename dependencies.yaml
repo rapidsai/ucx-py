@@ -27,6 +27,13 @@ files:
       table: build-system
     includes:
       - build_python
+  py_rapids_build:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: tool.rapids-build-backend
+      key: requires
+    includes:
       - depends_on_ucx_build
   py_run:
     output: pyproject
