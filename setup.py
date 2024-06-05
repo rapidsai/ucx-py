@@ -9,9 +9,6 @@ import glob
 import os
 from distutils.sysconfig import get_config_var, get_python_inc
 
-# TODO: delete this before merging. Just checking if this has to be available
-#       when setup.py is run.
-import libucx  # noqa: F401
 from Cython.Distutils.build_ext import new_build_ext
 from setuptools import setup
 from setuptools.extension import Extension
