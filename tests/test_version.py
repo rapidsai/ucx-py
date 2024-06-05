@@ -9,6 +9,11 @@ def test_get_ucx_version():
     assert ucp.core._ctx is None
 
 
+def test_git_commit_constant():
+    # __git_commit__ will only be non-empty in a built distribution
+    assert isinstance(ucp.__git_commit__, str)
+
+
 def test_version_constant():
     assert isinstance(ucp.__version__, str)
 
