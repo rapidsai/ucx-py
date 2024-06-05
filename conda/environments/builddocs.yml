@@ -14,6 +14,7 @@ dependencies:
 - recommonmark
 - pandoc=<2.0.0
 - pip
-- ucx
+- pip:
+  - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
+  - ../../
 - cython
-- tomli

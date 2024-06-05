@@ -4,11 +4,9 @@ build:
   os: "ubuntu-22.04"
   tools:
     python: "mambaforge-22.9"
-
-python:
-  install:
-    - method: pip
-      path: .
+  jobs:
+    post_checkout:
+      - bash ci/build_docs_pre_install.sh
 
 conda:
   environment: conda/environments/builddocs.yml

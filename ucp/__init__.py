@@ -16,6 +16,18 @@ if "UCX_MEMTYPE_CACHE" not in os.environ:
     logger.debug("Setting env UCX_MEMTYPE_CACHE=n, which is required by UCX")
     os.environ["UCX_MEMTYPE_CACHE"] = "n"
 
+
+# If libucx was installed as a wheel, we must request it to load the library symbols.
+# Otherwise, we assume that the library was installed in a system path that ld can find.
+try:
+    import libucx
+except ImportError:
+    pass
+else:
+    libucx.load_library()
+    del libucx
+
+
 from .core import *  # noqa
 from .core import get_ucx_version  # noqa
 from .utils import get_ucxpy_logger  # noqa
