@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (c) 2023, NVIDIA CORPORATION.
 
-set -euo pipefail
+set -euo pipefail -x
 
 package_name="ucx-py"
 underscore_package_name=$(echo "${package_name}" | tr "-" "_")
@@ -26,6 +26,12 @@ rapids-generate-version > ./VERSION
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
+cat /etc/xdg/pip/pip.conf <<EOF
+[global]
+quiet = 0
+verbose = 1
+EOF
+
 # TODO: remove before merging (when new rapids-build-backend is released)
 git clone \
     -b setuptools \
@@ -40,6 +46,8 @@ popd
 export PIP_FIND_LINKS="file:///tmp/delete-me/rapids-build-backend/dist"
 
 python -m pip wheel . -w dist--no-deps --disable-pip-version-check
+
+unset PIP_FIND_LINKS
 
 mkdir -p final_dist
 python -m auditwheel repair \
