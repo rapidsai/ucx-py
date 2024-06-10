@@ -7,6 +7,7 @@ files:
       - cuda
       - cuda_version
       - py_version
+      - rapids_build_setuptools
       - run
       - test_python
   test_python:
@@ -25,6 +26,14 @@ files:
     pyproject_dir: .
     extras:
       table: build-system
+    includes:
+      - rapids_build_setuptools
+  py_rapids_build:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: tool.rapids-build-backend
+      key: requires
     includes:
       - build_python
       - depends_on_ucx_build
@@ -110,6 +119,10 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cython>=3.0.0
+  rapids_build_setuptools:
+    common:
+      - output_types: [conda, requirements, pyproject]
+        packages:
           - rapids-build-backend>=0.3.1,<0.4.0dev0
           - setuptools>=64.0.0
   run:
