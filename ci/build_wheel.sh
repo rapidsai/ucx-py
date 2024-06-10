@@ -26,7 +26,7 @@ rapids-generate-version > ./VERSION
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
-cat /etc/xdg/pip/pip.conf <<EOF
+cat > /etc/xdg/pip/pip.conf <<EOF
 [global]
 quiet = 0
 verbose = 1
@@ -45,9 +45,7 @@ popd
 
 export PIP_FIND_LINKS="file:///tmp/delete-me/rapids-build-backend/dist"
 
-python -m pip wheel . -w dist--no-deps --disable-pip-version-check
-
-unset PIP_FIND_LINKS
+python -m pip wheel . -w dist --no-deps --disable-pip-version-check
 
 mkdir -p final_dist
 python -m auditwheel repair \
