@@ -26,25 +26,6 @@ rapids-generate-version > ./VERSION
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
-cat > /etc/xdg/pip/pip.conf <<EOF
-[global]
-quiet = 0
-verbose = 1
-EOF
-
-# TODO: remove before merging (when new rapids-build-backend is released)
-git clone \
-    -b setuptools \
-    https://github.com/jameslamb/rapids-build-backend.git \
-    /tmp/delete-me/rapids-build-backend
-
-pushd /tmp/delete-me/rapids-build-backend
-sed -e 's/^version =.*/version = "0.3.1"/' -i pyproject.toml
-python -m pip wheel --wheel-dir ./dist .
-popd
-
-export PIP_FIND_LINKS="file:///tmp/delete-me/rapids-build-backend/dist"
-
 python -m pip wheel . -w dist --no-deps --disable-pip-version-check
 
 mkdir -p final_dist
