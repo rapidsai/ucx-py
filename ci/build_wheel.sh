@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (c) 2023, NVIDIA CORPORATION.
 
-set -euo pipefail -x
+set -euo pipefail
 
 package_name="ucx-py"
 underscore_package_name=$(echo "${package_name}" | tr "-" "_")

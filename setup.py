@@ -25,7 +25,7 @@ def _find_libucx_libs_and_headers():
     be compiled against those libucx-wheel-provided versions of the UCX libraries.
     """
     try:
-        import libucx  # noqa: F811
+        import libucx
     except ImportError:
         return [], []
 

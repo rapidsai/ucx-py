@@ -16,12 +16,15 @@ dependencies:
 - pip
 - pip:
   - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
-  # NOTE: this correctly changes dependencies like 'libucx' to their suffixed,
-  #       existing versions like 'libucx-cu12' via an environment variables set
-  #       in the readthedocs UI:
+  # NOTE: this 'pip install' working correctly depends on two environment variables
+  #       used by rapids-build-backend, set in the readthedocs UI
   #
-  #         - RAPIDS_DISABLE_CUDA=true
-  #         - RAPIDS_MATRIX_ENTRY="cuda=12.2"
+  #       # do not try to run 'nvcc --version' to determine CUDA version
+  #       RAPIDS_DISABLE_CUDA=true
+  #
+  #       # install CUDA-12-specific dependencies
+  #       # (e.g. libucx-cu12)
+  #       RAPIDS_MATRIX_ENTRY="cuda=12.2"
   #
   - ../../
 - cython
