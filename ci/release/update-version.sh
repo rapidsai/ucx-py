@@ -42,7 +42,7 @@ DEPENDENCIES=(
 )
 for FILE in dependencies.yaml; do
   for DEP in "${DEPENDENCIES[@]}"; do
-    sed_runner "/-.* ${DEP}\(-cu[[:digit:]]\{2\}\)\{0,1\}==/ s/==.*/==${NEXT_RAPIDS_SHORT_TAG_PEP440}.*/g" "${FILE}"
+    sed_runner "/-.* ${DEP}\(-cu[[:digit:]]\{2\}\)\{0,1\}==/ s/==.*/==${NEXT_RAPIDS_SHORT_TAG_PEP440}.*,>=0.0.0a0/g" "${FILE}"
   done
 done
 

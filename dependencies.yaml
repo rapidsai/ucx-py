@@ -7,6 +7,7 @@ files:
       - cuda
       - cuda_version
       - py_version
+      - rapids_build_setuptools
       - run
       - test_python
   test_python:
@@ -25,6 +26,14 @@ files:
     pyproject_dir: .
     extras:
       table: build-system
+    includes:
+      - rapids_build_setuptools
+  py_rapids_build:
+    output: pyproject
+    pyproject_dir: .
+    extras:
+      table: tool.rapids-build-backend
+      key: requires
     includes:
       - build_python
       - depends_on_ucx_build
@@ -109,8 +118,13 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - setuptools>=64.0.0
           - cython>=3.0.0
+  rapids_build_setuptools:
+    common:
+      - output_types: [conda, requirements, pyproject]
+        packages:
+          - rapids-build-backend>=0.3.1,<0.4.0dev0
+          - setuptools>=64.0.0
   run:
     common:
       - output_types: [conda, requirements, pyproject]
@@ -136,8 +150,6 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11==1.15.0
-          # NOTE: this fallback needs to be a real, suffixed version
-          #       so 'pip install .' (e.g. as used in docs builds) will work
           - matrix: null
             packages:
               - libucx==1.15.0
@@ -160,8 +172,6 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11>=1.15.0,<1.16
-          # NOTE: this fallback needs to be a real, suffixed version
-          #       so "pip install ." (e.g. as used in docs builds) will work
           - matrix: null
             packages:
               - libucx>=1.15.0,<1.16
@@ -170,7 +180,6 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - cudf==24.8.*
           - dask
           - distributed
           - numba>=0.57
@@ -179,7 +188,20 @@ dependencies:
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
+          - &cudf_conda cudf==24.8.*,>=0.0.0a0
           - cupy>=12.0.0
+    specific:
       - output_types: [requirements, pyproject]
-        packages:
-          - cupy-cuda11x>=12.0.0
+        matrices:
+          - matrix: {cuda: "12.*"}
+            packages:
+              - cudf-cu12==24.8.*,>=0.0.0a0
+              - cupy-cuda12x>=12.0.0
+          - matrix: {cuda: "11.*"}
+            packages:
+              - cudf-cu11==24.8.*,>=0.0.0a0
+              - &cupy_cu11 cupy-cuda11x>=12.0.0
+          - matrix:
+            packages:
+              - *cudf_conda
+              - *cupy_cu11
