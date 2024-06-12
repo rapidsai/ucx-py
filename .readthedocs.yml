@@ -5,8 +5,12 @@ build:
   tools:
     python: "mambaforge-22.9"
   jobs:
-    post_create_environment:
-      - pip install -C rapidsai.disable-cuda=true -C rapidsai.matrix-entry="cuda-12.2" .
+    post_create_environment: |
+      pip install \
+        --extra-index-url "https://pypi.anaconda.org/rapidsai-wheels-nightly/simple/" \
+        -C rapidsai.disable-cuda=true \
+        -C rapidsai.matrix-entry="cuda-12.2" \
+        .
 
 conda:
   environment: conda/environments/builddocs.yml
