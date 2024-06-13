@@ -116,6 +116,8 @@ build-backend = "setuptools.build_meta"
 commit-files = [
     "ucp/COMMIT_FILE"
 ]
+# by default, do not rename the package 'ucx-py-cu${ver}'
+disable-cuda=true
 dependencies-file = "dependencies.yaml"
 requires = [
     "cython>=3.0.0",
