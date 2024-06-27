@@ -170,6 +170,6 @@ Building and installing UCX-Py can be done via `pip install`. For example:
     conda activate ucx
     git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
-    pip install -v -C rapidsai.matrix-entry="cuda=12.2" .
+    pip install -v .
     # or for develop build
-    pip install -v -e -C rapidsai.matrix-entry="cuda=12.2" .
+    pip install -v -e .

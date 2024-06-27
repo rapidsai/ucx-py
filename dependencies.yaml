@@ -152,9 +152,10 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11>=1.15.0,<1.15.1
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx==1.15.0,<1.15.1
+            packages: null
   depends_on_ucx_run:
     common:
       - output_types: conda
@@ -174,9 +175,10 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11>=1.15.0,<1.16
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx>=1.15.0,<1.16
+            packages: null
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
