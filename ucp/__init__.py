@@ -50,11 +50,7 @@ if "UCX_RNDV_FRAG_MEM_TYPE" not in os.environ:
     logger.info("Setting UCX_RNDV_FRAG_MEM_TYPE=cuda")
     os.environ["UCX_RNDV_FRAG_MEM_TYPE"] = "cuda"
 
-if (
-    pynvml is not None
-    and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
-    and get_ucx_version() >= (1, 12, 0)
-):
+if pynvml is not None and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ:
     try:
         pynvml.nvmlInit()
         device_count = pynvml.nvmlDeviceGetCount()
@@ -98,15 +94,9 @@ if (
     ):
         pass
 
-if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
+if "UCX_MAX_RNDV_RAILS" not in os.environ:
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
 
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
-
-if get_ucx_version() < (1, 11, 1):
-    raise ImportError(
-        f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
-        "1.11.1 or newer."
-    )

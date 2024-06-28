@@ -38,18 +38,6 @@ def test_init_options():
     assert config["SEG_SIZE"] == options["SEG_SIZE"]
 
 
-@pytest.mark.skipif(
-    ucx_api.get_ucx_version() >= (1, 12, 0),
-    reason="Beginning with UCX >= 1.12, it's only possible to validate "
-    "UCP options but not options from other modules such as UCT. "
-    "See https://github.com/openucx/ucx/issues/7519.",
-)
-def test_init_unknown_option():
-    options = {"UNKNOWN_OPTION": "3M"}
-    with pytest.raises(UCXConfigError):
-        ucx_api.UCXContext(options)
-
-
 def test_init_invalid_option():
     options = {"SEG_SIZE": "invalid-size"}
     with pytest.raises(UCXConfigError):

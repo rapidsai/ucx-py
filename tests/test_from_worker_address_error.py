@@ -152,14 +152,4 @@ def test_from_worker_address_error(error_type):
     client.join()
 
     assert not server.exitcode
-
-    if ucp.get_ucx_version() < (1, 12, 0) and client.exitcode == 1:
-        if all(t in error_type for t in ["timeout", "send"]):
-            pytest.xfail(
-                "Requires https://github.com/openucx/ucx/pull/7527 with rc/ud."
-            )
-        elif all(t in error_type for t in ["timeout", "recv"]):
-            pytest.xfail(
-                "Requires https://github.com/openucx/ucx/pull/7531 with rc/ud."
-            )
     assert not client.exitcode
