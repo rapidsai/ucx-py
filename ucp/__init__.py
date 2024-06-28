@@ -50,7 +50,11 @@ if "UCX_RNDV_FRAG_MEM_TYPE" not in os.environ:
     logger.info("Setting UCX_RNDV_FRAG_MEM_TYPE=cuda")
     os.environ["UCX_RNDV_FRAG_MEM_TYPE"] = "cuda"
 
-if pynvml is not None and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ:
+if (
+    pynvml is not None
+    and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
+    and get_ucx_version() >= (1, 12, 0)
+):
     try:
         pynvml.nvmlInit()
         device_count = pynvml.nvmlDeviceGetCount()
@@ -94,11 +98,11 @@ if pynvml is not None and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ:
     ):
         pass
 
-if "UCX_MAX_RNDV_RAILS" not in os.environ:
+if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
-if "UCX_PROTO_ENABLE" not in os.environ:
+if "UCX_PROTO_ENABLE" not in os.environ and get_ucx_version() >= (1, 12, 0):
     # UCX protov2 still doesn't support CUDA async/managed memory
     logger.info("Setting UCX_PROTO_ENABLE=n")
     os.environ["UCX_PROTO_ENABLE"] = "n"
@@ -106,7 +110,7 @@ if "UCX_PROTO_ENABLE" not in os.environ:
 
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
-if get_ucx_version() < (1, 11, 1):
+if get_ucx_version() < (1, 15, 0):
     raise ImportError(
         f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
         "1.11.1 or newer."

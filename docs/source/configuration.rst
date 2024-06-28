@@ -24,10 +24,17 @@ UCX-Py redefines some of the UCX defaults for a variety of reasons, including be
 
 Below is a list of the UCX-Py redefined default values, and what conditions are required for them to apply.
 
+Apply to all UCX versions:
+
 ::
 
     UCX_RNDV_THRESH=8192
     UCX_RNDV_SCHEME=get_zcopy
+
+Apply to UCX >= 1.12.0, older UCX versions rely on UCX defaults:
+
+::
+
     UCX_CUDA_COPY_MAX_REG_RATIO=1.0
     UCX_MAX_RNDV_RAILS=1
     UCX_PROTO_ENABLE=n
