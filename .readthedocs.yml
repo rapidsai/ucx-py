@@ -6,10 +6,7 @@ build:
     python: "mambaforge-22.9"
   jobs:
     post_create_environment:
-      - |
-        pip install \
-          -C rapidsai.matrix-entry="cuda=12.2" \
-          .
+      - pip install .
 
 conda:
   environment: conda/environments/builddocs.yml
