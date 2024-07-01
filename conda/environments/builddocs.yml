@@ -12,6 +12,7 @@ dependencies:
 - nbsphinx
 - numpydoc
 - recommonmark
+- ucx
 - pandoc=<2.0.0
 - pip
 - cython
