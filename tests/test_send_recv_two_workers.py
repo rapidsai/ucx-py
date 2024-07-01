@@ -82,7 +82,7 @@ def client(port, func, comm_api):
     if isinstance(rx_cuda_obj, cupy.ndarray):
         cupy.testing.assert_allclose(rx_cuda_obj, pure_cuda_obj)
     else:
-        from cudf.testing._utils import assert_eq
+        from cudf.testing import assert_eq
 
         assert_eq(rx_cuda_obj, pure_cuda_obj)
 
