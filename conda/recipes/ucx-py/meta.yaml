@@ -39,7 +39,7 @@ requirements:
     {% endfor %}
   run:
     - python
-    - ucx >=1.15.0,<1.16.0
+    - ucx >=1.15.0,<1.18.0
     # 'libucx' wheel dependency is unnecessary... the 'ucx' conda-forge package is used here instead
     {% for req in data["project"]["dependencies"] if not req.startswith("libucx") %}
     - {{ req }}

@@ -157,7 +157,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx>=1.15.0,<1.16
+          - ucx>=1.15.0,<1.18
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
@@ -168,13 +168,13 @@ dependencies:
         matrices:
           - matrix: {cuda: "12.*"}
             packages:
-              - libucx-cu12>=1.15.0,<1.16
+              - libucx-cu12>=1.15.0,<1.18
           - matrix: {cuda: "11.*"}
             packages:
-              - libucx-cu11>=1.15.0,<1.16
+              - libucx-cu11>=1.15.0,<1.18
           - matrix: null
             packages:
-              - libucx>=1.15.0,<1.16
+              - libucx>=1.15.0,<1.18
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
