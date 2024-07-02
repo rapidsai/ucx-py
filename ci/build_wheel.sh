@@ -13,7 +13,7 @@ rapids-generate-version > ./VERSION
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
-python -m pip wheel . -w dist --no-deps --disable-pip-version-check
+python -m pip wheel . -w dist --no-deps --disable-pip-version-check --config-settings rapidsai.disable-cuda=false
 
 mkdir -p final_dist
 python -m auditwheel repair \
