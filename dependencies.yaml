@@ -142,17 +142,20 @@ dependencies:
           - --extra-index-url=https://pypi.nvidia.com
           - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
     specific:
+      # very tight >=x.x.x,<x.x.(x+1) here allows for installation of
+      # post release like 1.15.0.post1
       - output_types: [requirements, pyproject]
         matrices:
           - matrix: {cuda: "12.*"}
             packages:
-              - libucx-cu12==1.15.0
+              - libucx-cu12>=1.15.0,<1.15.1
           - matrix: {cuda: "11.*"}
             packages:
-              - libucx-cu11==1.15.0
+              - libucx-cu11>=1.15.0,<1.15.1
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx==1.15.0
+            packages: null
   depends_on_ucx_run:
     common:
       - output_types: conda
@@ -172,9 +175,10 @@ dependencies:
           - matrix: {cuda: "11.*"}
             packages:
               - libucx-cu11>=1.15.0,<1.18
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx>=1.15.0,<1.18
+            packages: null
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
