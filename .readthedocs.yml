@@ -10,7 +10,7 @@ build:
       # and therefore tested in this no-CUDA environment
       - |
         pip install \
-          -C rapidsai.matrix-entry="cuda=12.2" \
+          -C rapidsai.matrix-entry="cuda=12.2;cuda_suffixed=true" \
           .
 
 conda:
