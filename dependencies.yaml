@@ -150,12 +150,26 @@ dependencies:
       # post release like 1.15.0.post1
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu12>=1.15.0,<1.15.1
-          - matrix: {cuda: "11.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "false"
+            packages:
+              - &libucx_build libucx>=1.15.0,<1.15.1
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu11>=1.15.0,<1.15.1
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "false"
+            packages:
+              - *libucx_build
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
@@ -173,12 +187,26 @@ dependencies:
     specific:
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu12>=1.15.0,<1.16
-          - matrix: {cuda: "11.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "false"
+            packages:
+              - &libucx_run libucx>=1.15.0,<1.16
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu11>=1.15.0,<1.16
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "false"
+            packages:
+              - *libucx_run
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
@@ -201,14 +229,34 @@ dependencies:
     specific:
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
               - cudf-cu12==24.8.*,>=0.0.0a0
-              - cupy-cuda12x>=12.0.0
-          - matrix: {cuda: "11.*"}
+              - &cupy_cu12 cupy-cuda12x>=12.0.0
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "false"
+            packages:
+              - *cudf_conda
+              # NOTE: cupy still has a "-cuda12x" suffix here, because it's suffixed
+              #       in DLFW builds
+              - *cupy_cu12
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
               - cudf-cu11==24.8.*,>=0.0.0a0
               - &cupy_cu11 cupy-cuda11x>=12.0.0
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "false"
+            packages:
+              - *cudf_conda
+              # NOTE: cupy still has a "-cuda11x" suffix here, because it's suffixed
+              #       in DLFW builds
+              - *cupy_cu11
           - matrix:
             packages:
               - *cudf_conda
