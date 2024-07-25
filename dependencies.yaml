@@ -150,12 +150,12 @@ dependencies:
       - output_types: [requirements, pyproject]
         matrices:
           - matrix: {cuda: "12.*"}
-            packages: &cupy_packages_cu12
-              - cupy-cuda12x>=12.0.0
+            packages:
+              - &cupy_cu12 cupy-cuda12x>=12.0.0
           - matrix: {cuda: "11.*"}
             packages:
               - cupy-cuda11x>=12.0.0
-          - {matrix: null, packages: *cupy_packages_cu12}
+          - {matrix: null, packages: [*cupy_cu12]}
   depends_on_ucx_build:
     common:
       - output_types: conda
