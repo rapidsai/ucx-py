@@ -23,6 +23,11 @@ repos:
                 name: flake8-cython
                 args: ["--config=.flake8.cython"]
                 types: [cython]
+      - repo: https://github.com/rapidsai/pre-commit-hooks
+        rev: v0.3.0
+        hooks:
+              - id: verify-alpha-spec
+                args: [--fix, --rapids-version=24.10]
       - repo: https://github.com/rapidsai/dependency-file-generator
         rev: v1.13.11
         hooks:

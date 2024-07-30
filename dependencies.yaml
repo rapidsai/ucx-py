@@ -6,6 +6,7 @@ files:
       - checks
       - cuda
       - cuda_version
+      - depends_on_cupy
       - py_version
       - rapids_build_setuptools
       - run
@@ -14,6 +15,7 @@ files:
     output: none
     includes:
       - cuda_version
+      - depends_on_cupy
       - py_version
       - test_python
   checks:
@@ -52,6 +54,7 @@ files:
       table: project.optional-dependencies
       key: test
     includes:
+      - depends_on_cupy
       - test_python
 channels:
   - rapidsai
@@ -83,6 +86,10 @@ dependencies:
               cuda: "12.2"
             packages:
               - cuda-version=12.2
+          - matrix:
+              cuda: "12.5"
+            packages:
+              - cuda-version=12.5
   cuda:
     specific:
       - output_types: conda
@@ -131,6 +138,24 @@ dependencies:
         packages:
           - numpy>=1.23,<2.0a0
           - pynvml>=11.4.1
+  depends_on_cupy:
+    common:
+      - output_types: conda
+        packages:
+          - cupy>=12.0.0
+    # NOTE: This is intentionally not broken into groups by a 'cuda_suffixed' selector like
+    #       other packages with -cu{nn}x suffixes in this file.
+    #       All RAPIDS wheel builds (including in devcontainers) expect cupy to be suffixed.
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix: {cuda: "12.*"}
+            packages:
+              - &cupy_cu12 cupy-cuda12x>=12.0.0
+          - matrix: {cuda: "11.*"}
+            packages:
+              - cupy-cuda11x>=12.0.0
+          - {matrix: null, packages: [*cupy_cu12]}
   depends_on_ucx_build:
     common:
       - output_types: conda
@@ -142,17 +167,24 @@ dependencies:
           - --extra-index-url=https://pypi.nvidia.com
           - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
     specific:
+      # very tight >=x.x.x,<x.x.(x+1) here allows for installation of
+      # post release like 1.15.0.post1
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
-              - libucx-cu12==1.15.0
-          - matrix: {cuda: "11.*"}
+              - libucx-cu12>=1.15.0,<1.15.1
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
-              - libucx-cu11==1.15.0
+              - libucx-cu11>=1.15.0,<1.15.1
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx==1.15.0
+            packages: null
   depends_on_ucx_run:
     common:
       - output_types: conda
@@ -166,15 +198,20 @@ dependencies:
     specific:
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu12>=1.15.0,<1.18
-          - matrix: {cuda: "11.*"}
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
               - libucx-cu11>=1.15.0,<1.18
+          # this fallback is intentionally empty... it simplifies building from source
+          # without CUDA, e.g. 'pip install .'
           - matrix: null
-            packages:
-              - libucx>=1.15.0,<1.18
+            packages: null
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
@@ -188,20 +225,20 @@ dependencies:
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
-          - &cudf_conda cudf==24.8.*,>=0.0.0a0
-          - cupy>=12.0.0
+          - &cudf_unsuffixed cudf==24.10.*,>=0.0.0a0
     specific:
       - output_types: [requirements, pyproject]
         matrices:
-          - matrix: {cuda: "12.*"}
+          - matrix:
+              cuda: "12.*"
+              cuda_suffixed: "true"
             packages:
-              - cudf-cu12==24.8.*,>=0.0.0a0
-              - cupy-cuda12x>=12.0.0
-          - matrix: {cuda: "11.*"}
+              - cudf-cu12==24.10.*,>=0.0.0a0
+          - matrix:
+              cuda: "11.*"
+              cuda_suffixed: "true"
             packages:
-              - cudf-cu11==24.8.*,>=0.0.0a0
-              - &cupy_cu11 cupy-cuda11x>=12.0.0
+              - cudf-cu11==24.10.*,>=0.0.0a0
           - matrix:
             packages:
-              - *cudf_conda
-              - *cupy_cu11
+              - *cudf_unsuffixed
