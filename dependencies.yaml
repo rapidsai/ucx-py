@@ -189,7 +189,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx>=1.15.0,<1.16
+          - ucx>=1.15.0,<1.18
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
@@ -202,12 +202,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu12>=1.15.0,<1.16
+              - libucx-cu12>=1.15.0,<1.18
           - matrix:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu11>=1.15.0,<1.16
+              - libucx-cu11>=1.15.0,<1.18
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
