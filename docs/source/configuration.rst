@@ -58,7 +58,7 @@ Values: y, n
 
 Enable the new protocol selection logic, also known as "protov2". Its default has been changed to ``y`` starting with UCX 1.16.0.
 
-The new protocol solves various limitations from the original "protov1" including, for example, invalid choice of transport in systems with hybrid interconnectivity, such as a DGX-1 where only a subset of GPU pairs are interconnected via NVLink. On the other hand, it may still lack proper support on not be as well tested for lesser common use cases, such as CUDA async and managed memory.
+The new protocol solves various limitations from the original "protov1" including, for example, invalid choice of transport in systems with hybrid interconnectivity, such as a DGX-1 where only a subset of GPU pairs are interconnected via NVLink. On the other hand, it may still lack proper support or not be as well tested for less common use cases, such as CUDA async and managed memory.
 
 
 DEBUG
