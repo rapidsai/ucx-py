@@ -204,7 +204,7 @@ dependencies:
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
-          - &cudf_unsuffixed cudf==24.8.*
+          - &cudf_unsuffixed cudf==24.8.*,>=0.0.0a0
           - cupy>=12.0.0
     specific:
       - output_types: [requirements, pyproject]
@@ -213,7 +213,7 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu12==24.8.*
+              - cudf-cu12==24.8.*,>=0.0.0a0
               - &cupy_cu12 cupy-cuda12x>=12.0.0
           - matrix:
               cuda: "12.*"
@@ -227,7 +227,7 @@ dependencies:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu11==24.8.*
+              - cudf-cu11==24.8.*,>=0.0.0a0
               - &cupy_cu11 cupy-cuda11x>=12.0.0
           - matrix:
               cuda: "11.*"
