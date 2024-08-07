@@ -5,8 +5,13 @@ build:
   tools:
     python: "mambaforge-22.9"
   jobs:
-    post_checkout:
-      - bash ci/build_docs_pre_install.sh
+    post_create_environment:
+      # explicitly passing matrix-entry so that 'libucx' is pulled in,
+      # and therefore tested in this no-CUDA environment
+      - |
+        pip install \
+          -C rapidsai.matrix-entry="cuda=12.2;cuda_suffixed=true" \
+          .
 
 conda:
   environment: conda/environments/builddocs.yml

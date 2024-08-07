@@ -18,7 +18,7 @@ build:
   number: {{ GIT_DESCRIBE_NUMBER }}
   string: py{{ py_version }}_{{ date_string }}_{{ GIT_DESCRIBE_HASH }}_{{ GIT_DESCRIBE_NUMBER }}
   script:
-    - {{ PYTHON }} -m pip install . -vv
+    - {{ PYTHON }} -m pip install --config-settings rapidsai.disable-cuda=true . -vv
   ignore_run_exports_from:
     - ucx
 
@@ -30,16 +30,19 @@ requirements:
     - python
     - pip
     - ucx
+    {% for build_req in data["build-system"]["requires"] %}
+    - {{ build_req }}
+    {% endfor %}
     # 'libucx' wheel dependency is unnecessary... the 'ucx' conda-forge package is used here instead
-    {% for r in data.get("build-system", {}).get("requires", []) if not r.startswith("libucx") %}
-    - {{ r }}
+    {% for rbb_req in data["tool"]["rapids-build-backend"]["requires"] if not rbb_req.startswith("libucx") %}
+    - {{ rbb_req }}
     {% endfor %}
   run:
     - python
     - ucx >=1.15.0,<1.16.0
     # 'libucx' wheel dependency is unnecessary... the 'ucx' conda-forge package is used here instead
-    {% for r in data.get("project", {}).get("dependencies", []) if not r.startswith("libucx") %}
-    - {{ r }}
+    {% for req in data["project"]["dependencies"] if not req.startswith("libucx") %}
+    - {{ req }}
     {% endfor %}
 
 test:
@@ -47,12 +50,12 @@ test:
     - ucp
 
 about:
-  home: {{ data.get("project", {}).get("urls", {}).get("Homepage", "") }}
-  license: {{ data.get("project", {}).get("license", {}).get("text", "") }}
+  home: {{ data["project"]["urls"]["Homepage"] }}
+  license: {{ data["project"]["license"]["text"] }}
   license_file:
-    {% for e in data.get("tool", {}).get("setuptools", {}).get("license-files", []) %}
+    {% for e in data["tool"]["setuptools"]["license-files"] %}
     - ../../../{{ e }}
     {% endfor %}
-  summary: {{ data.get("project", {}).get("description", "") }}
-  dev_url: {{ data.get("project", {}).get("urls", {}).get("Source", "") }}
-  doc_url: {{ data.get("project", {}).get("urls", {}).get("Documentation", "") }}
+  summary: {{ data["project"]["description"] }}
+  dev_url: {{ data["project"]["urls"]["Source"] }}
+  doc_url: {{ data["project"]["urls"]["Documentation"] }}
