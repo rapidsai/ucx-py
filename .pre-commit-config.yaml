@@ -24,7 +24,7 @@ repos:
                 args: ["--config=.flake8.cython"]
                 types: [cython]
       - repo: https://github.com/rapidsai/pre-commit-hooks
-        rev: v0.3.0
+        rev: v0.3.1
         hooks:
               - id: verify-alpha-spec
                 args: [--fix, --rapids-version=24.10]
