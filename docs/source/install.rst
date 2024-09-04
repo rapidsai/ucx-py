@@ -89,7 +89,7 @@ Build Dependencies
 
 .. note::
     The Python version must be explicitly specified here, UCX-Py currently supports
-    only Python 3.10 and 3.11.
+    Python versions 3.10, 3.11, and 3.12.
 
 Test Dependencies
 ^^^^^^^^^^^^^^^^^
