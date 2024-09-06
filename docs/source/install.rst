@@ -85,11 +85,11 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        "python=3.11" setuptools "cython>=3.0.0"
+        "python=3.12" setuptools "cython>=3.0.0"
 
 .. note::
     The Python version must be explicitly specified here, UCX-Py currently supports
-    only Python 3.10 and 3.11.
+    Python versions 3.10, 3.11, and 3.12.
 
 Test Dependencies
 ^^^^^^^^^^^^^^^^^
