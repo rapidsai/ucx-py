@@ -11,18 +11,14 @@ repos:
         rev: 22.3.0
         hooks:
               - id: black
-      - repo: https://github.com/pycqa/flake8
-        rev: 5.0.4
+      - repo: https://github.com/PyCQA/flake8
+        rev: 7.1.1
         hooks:
               - id: flake8
-      - repo: https://github.com/pycqa/flake8
-        rev: 5.0.4
-        hooks:
-              - id: flake8
-                alias: flake8-cython
-                name: flake8-cython
-                args: ["--config=.flake8.cython"]
-                types: [cython]
+                args: ["--config=.flake8"]
+                types: [file]
+                types_or: [python, cython]
+                additional_dependencies: ["flake8-force"]
       - repo: https://github.com/rapidsai/pre-commit-hooks
         rev: v0.4.0
         hooks:
