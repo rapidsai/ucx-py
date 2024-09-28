@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
@@ -297,3 +297,10 @@ cdef inline Py_ssize_t _nbytes(Py_ssize_t itemsize,
     for i in range(ndim):
         nbytes *= shape_mv[i]
     return nbytes
+
+
+cpdef Array asarray(obj):
+    if isinstance(obj, Array):
+        return <Array>obj
+    else:
+        return Array(obj)
