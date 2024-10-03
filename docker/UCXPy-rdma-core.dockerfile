@@ -1,15 +1,15 @@
-ARG CUDA_VERSION=11.5.2
-ARG DISTRIBUTION_VERSION=ubuntu20.04
+ARG CUDA_VERSION=12.5.1
+ARG DISTRIBUTION_VERSION=ubuntu22.04
 FROM nvidia/cuda:${CUDA_VERSION}-devel-${DISTRIBUTION_VERSION}
 
 # Tag to checkout from UCX repository
-ARG UCX_VERSION_TAG=v1.13.0
+ARG UCX_VERSION_TAG=v1.17.0
 # Where to install conda, and what to name the created environment
 ARG CONDA_HOME=/opt/conda
 ARG CONDA_ENV=ucx
 # Name of conda spec file in the current working directory that
 # will be used to build the conda environment.
-ARG CONDA_ENV_SPEC=ucx-py-cuda11.5.yml
+ARG CONDA_ENV_SPEC=ucx-py-cuda12.5.yml
 
 ENV CONDA_ENV="${CONDA_ENV}"
 ENV CONDA_HOME="${CONDA_HOME}"
@@ -32,8 +32,6 @@ RUN apt-get update -y \
         pkg-config \
         udev \
         curl \
-        librdmacm-dev \
-        rdma-core \
     && apt-get autoremove -y \
     && apt-get clean
 
