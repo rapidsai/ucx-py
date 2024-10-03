@@ -32,6 +32,8 @@ RUN apt-get update -y \
         pkg-config \
         udev \
         curl \
+        librdmacm-dev \
+        rdma-core \
     && apt-get autoremove -y \
     && apt-get clean
 
