@@ -37,6 +37,7 @@ Apply to UCX >= 1.12.0, older UCX versions rely on UCX defaults:
 
     UCX_CUDA_COPY_MAX_REG_RATIO=1.0
     UCX_MAX_RNDV_RAILS=1
+    UCX_PROTO_ENABLE=n
 
 Please note that ``UCX_CUDA_COPY_MAX_REG_RATIO=1.0`` is only set provided at least one GPU is present with a BAR1 size smaller than its total memory (e.g., NVIDIA T4).
 
@@ -44,6 +45,21 @@ UCX Environment Variables in UCX-Py
 -----------------------------------
 
 In this section we go over a brief overview of some of the more relevant variables for current UCX-Py usage, along with some comments on their uses and limitations. To see a complete list of UCX environment variables, their descriptions and default values, please run the command-line tool ``ucx_info -f``.
+
+UCP CONTEXT CONFIGURATION
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Configuration variables applying to the UCP context.
+
+UCX_PROTO_ENABLE
+````````````````
+
+Values: y, n
+
+Enable the new protocol selection logic, also known as "protov2". Its default has been changed to ``y`` starting with UCX 1.16.0.
+
+The new protocol solves various limitations from the original "protov1" including, for example, invalid choice of transport in systems with hybrid interconnectivity, such as a DGX-1 where only a subset of GPU pairs are interconnected via NVLink. On the other hand, it may still lack proper support or not be as well tested for less common use cases, such as CUDA async and managed memory.
+
 
 DEBUG
 ~~~~~

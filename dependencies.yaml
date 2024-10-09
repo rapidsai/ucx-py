@@ -6,6 +6,7 @@ files:
       - checks
       - cuda
       - cuda_version
+      - depends_on_cupy
       - py_version
       - rapids_build_setuptools
       - run
@@ -14,6 +15,7 @@ files:
     output: none
     includes:
       - cuda_version
+      - depends_on_cupy
       - py_version
       - test_python
   checks:
@@ -52,6 +54,7 @@ files:
       table: project.optional-dependencies
       key: test
     includes:
+      - depends_on_cupy
       - test_python
 channels:
   - rapidsai
@@ -104,10 +107,6 @@ dependencies:
       - output_types: conda
         matrices:
           - matrix:
-              py: "3.9"
-            packages:
-              - python=3.9
-          - matrix:
               py: "3.10"
             packages:
               - python=3.10
@@ -116,8 +115,12 @@ dependencies:
             packages:
               - python=3.11
           - matrix:
+              py: "3.12"
             packages:
-              - python>=3.9,<3.12
+              - python=3.12
+          - matrix:
+            packages:
+              - python>=3.10,<3.13
   build_python:
     common:
       - output_types: [conda, requirements, pyproject]
@@ -133,8 +136,26 @@ dependencies:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
-          - numpy>=1.23,<2.0a0
+          - numpy>=1.23,<3.0a0
           - pynvml>=11.4.1
+  depends_on_cupy:
+    common:
+      - output_types: conda
+        packages:
+          - cupy>=12.0.0
+    # NOTE: This is intentionally not broken into groups by a 'cuda_suffixed' selector like
+    #       other packages with -cu{nn}x suffixes in this file.
+    #       All RAPIDS wheel builds (including in devcontainers) expect cupy to be suffixed.
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix: {cuda: "12.*"}
+            packages:
+              - &cupy_cu12 cupy-cuda12x>=12.0.0
+          - matrix: {cuda: "11.*"}
+            packages:
+              - cupy-cuda11x>=12.0.0
+          - {matrix: null, packages: [*cupy_cu12]}
   depends_on_ucx_build:
     common:
       - output_types: conda
@@ -168,7 +189,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx>=1.15.0,<1.16
+          - ucx>=1.15.0,<1.18
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
@@ -181,12 +202,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu12>=1.15.0,<1.16
+              - libucx-cu12>=1.15.0,<1.18
           - matrix:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu11>=1.15.0,<1.16
+              - libucx-cu11>=1.15.0,<1.18
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
@@ -204,8 +225,7 @@ dependencies:
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
-          - &cudf_unsuffixed cudf==24.8.*
-          - cupy>=12.0.0
+          - &cudf_unsuffixed cudf==24.10.*,>=0.0.0a0
     specific:
       - output_types: [requirements, pyproject]
         matrices:
@@ -213,31 +233,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu12==24.8.*
-              - &cupy_cu12 cupy-cuda12x>=12.0.0
-          - matrix:
-              cuda: "12.*"
-              cuda_suffixed: "false"
-            packages:
-              - *cudf_unsuffixed
-              # NOTE: cupy still has a "-cuda12x" suffix here, because it's suffixed
-              #       in DLFW builds
-              - *cupy_cu12
+              - cudf-cu12==24.10.*,>=0.0.0a0
           - matrix:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu11==24.8.*
-              - &cupy_cu11 cupy-cuda11x>=12.0.0
-          - matrix:
-              cuda: "11.*"
-              cuda_suffixed: "false"
-            packages:
-              - *cudf_unsuffixed
-              # NOTE: cupy still has a "-cuda11x" suffix here, because it's suffixed
-              #       in DLFW builds
-              - *cupy_cu11
+              - cudf-cu11==24.10.*,>=0.0.0a0
           - matrix:
             packages:
               - *cudf_unsuffixed
-              - *cupy_cu11

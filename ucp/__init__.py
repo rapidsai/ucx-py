@@ -102,11 +102,19 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
+if "UCX_PROTO_ENABLE" not in os.environ and get_ucx_version() >= (1, 12, 0):
+    # UCX protov2 still doesn't support CUDA async/managed memory
+    logger.info("Setting UCX_PROTO_ENABLE=n")
+    os.environ["UCX_PROTO_ENABLE"] = "n"
 
+
+__ucx_min_version__ = "1.15.0"
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
 
-if get_ucx_version() < (1, 11, 1):
+if get_ucx_version() < tuple(int(i) for i in __ucx_min_version__.split(".")):
     raise ImportError(
         f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
-        "1.11.1 or newer."
+        f"{__ucx_min_version__} or newer. If you believe the wrong version "
+        "is being loaded, please check the path from where UCX is loaded "
+        "by rerunning with the environment variable `UCX_LOG_LEVEL=debug`."
     )
