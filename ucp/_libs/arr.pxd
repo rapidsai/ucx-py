@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
@@ -24,3 +24,6 @@ cdef class Array:
     cpdef bint _f_contiguous(self)
     cpdef bint _contiguous(self)
     cpdef Py_ssize_t _nbytes(self)
+
+
+cpdef Array asarray(obj)
