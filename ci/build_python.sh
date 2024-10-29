@@ -16,7 +16,7 @@ rapids-generate-version > ./VERSION
 rapids-logger "Begin py build"
 conda config --set path_conflict prevent
 
-sccache --show-zero-stats
+sccache --zero-stats
 
 RAPIDS_PACKAGE_VERSION=$(head -1 ./VERSION) rapids-conda-retry mambabuild \
   conda/recipes/ucx-py
