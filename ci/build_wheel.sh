@@ -3,7 +3,6 @@
 
 set -euo pipefail
 
-package_name="ucx-py"
 underscore_package_name=$(echo "${package_name}" | tr "-" "_")
 
 source rapids-date-string
