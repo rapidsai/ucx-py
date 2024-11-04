@@ -109,6 +109,7 @@ skip = [
 
 [tool.pytest.ini_options]
 xfail_strict = true
+addopts = "--tb=native"
 
 [tool.rapids-build-backend]
 build-backend = "setuptools.build_meta"
