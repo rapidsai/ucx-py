@@ -27,4 +27,6 @@ python -m auditwheel repair \
     --exclude "libuct.so.0" \
     dist/*
 
+./ci/validate_wheel.sh final_dist
+
 RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 python final_dist
