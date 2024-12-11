@@ -38,7 +38,7 @@ os.environ["RAPIDS_NO_INITIALIZE"] = "True"
 
 import cudf  # noqa: E402
 import rmm  # noqa: E402
-from cudf.core.abc import Serializable
+from cudf.core.abc import Serializable  # noqa: E402
 from rmm.allocators.cupy import rmm_cupy_allocator  # noqa: E402
 
 
