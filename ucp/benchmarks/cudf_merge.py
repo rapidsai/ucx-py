@@ -38,8 +38,9 @@ os.environ["RAPIDS_NO_INITIALIZE"] = "True"
 
 import cudf  # noqa: E402
 import rmm  # noqa: E402
-from rmm.allocators.cupy import rmm_cupy_allocator  # noqa: E402
 from cudf.core.abc import Serializable
+from rmm.allocators.cupy import rmm_cupy_allocator  # noqa: E402
+
 
 def sizeof_cudf_dataframe(df):
     return int(
