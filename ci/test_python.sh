@@ -9,6 +9,8 @@ cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/../
 rapids-logger "Create test conda environment"
 . /opt/conda/etc/profile.d/conda.sh
 
+UCX_PY_VERSION="$(head -1 ./VERSION)"
+
 rapids-dependency-file-generator \
   --output conda \
   --file-key test_python \
@@ -50,7 +52,7 @@ PYTHON_CHANNEL=$(rapids-download-conda-from-s3 python)
 
 rapids-mamba-retry install \
   --channel "${PYTHON_CHANNEL}" \
-  ucx-py
+  "ucx-py=${UCX_PY_VERSION}"
 
 rapids-logger "Run tests with conda package"
 run_tests

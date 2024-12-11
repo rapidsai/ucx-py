@@ -1,16 +1,15 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # cython: language_level=3
 
 
-from cpython.array cimport array, newarrayobject
 from cpython.buffer cimport PyBuffer_IsContiguous
+from cpython.mem cimport PyMem_Free, PyMem_Malloc
 from cpython.memoryview cimport (
     PyMemoryView_FromObject,
     PyMemoryView_GET_BUFFER,
 )
-from cpython.object cimport PyObject
 from cpython.ref cimport Py_INCREF
 from cpython.tuple cimport PyTuple_New, PyTuple_SET_ITEM
 from cython cimport (
@@ -20,6 +19,7 @@ from cython cimport (
     nonecheck,
     wraparound,
 )
+from cython.view cimport array
 from libc.stdint cimport uintptr_t
 from libc.string cimport memcpy
 
@@ -62,13 +62,14 @@ cdef dict itemsize_mapping = {
 }
 
 
-cdef array array_Py_ssize_t = array("q")
+cdef sizeof_Py_ssize_t = sizeof(Py_ssize_t)
 
 
-cdef inline Py_ssize_t[::1] new_Py_ssize_t_array(Py_ssize_t n):
-    return newarrayobject(
-        (<PyObject*>array_Py_ssize_t).ob_type, n, array_Py_ssize_t.ob_descr
-    )
+cdef Py_ssize_t[::1] new_Py_ssize_t_array(Py_ssize_t n):
+    cdef array a = array((n,), sizeof_Py_ssize_t, b"q", "c", False)
+    a.data = <char*>PyMem_Malloc(n * sizeof(Py_ssize_t))
+    a.callback_free_data = PyMem_Free
+    return a
 
 
 @auto_pickle(False)
@@ -245,7 +246,7 @@ cdef class Array:
 cdef inline bint _c_contiguous(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
                                Py_ssize_t[::1] shape_mv,
-                               Py_ssize_t[::1] strides_mv) nogil:
+                               Py_ssize_t[::1] strides_mv) noexcept nogil:
     cdef Py_ssize_t i, s
     if strides_mv is not None:
         s = itemsize
@@ -263,7 +264,7 @@ cdef inline bint _c_contiguous(Py_ssize_t itemsize,
 cdef inline bint _f_contiguous(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
                                Py_ssize_t[::1] shape_mv,
-                               Py_ssize_t[::1] strides_mv) nogil:
+                               Py_ssize_t[::1] strides_mv) noexcept nogil:
     cdef Py_ssize_t i, s
     if strides_mv is not None:
         s = itemsize
@@ -279,7 +280,7 @@ cdef inline bint _f_contiguous(Py_ssize_t itemsize,
 cdef inline bint _contiguous(Py_ssize_t itemsize,
                              Py_ssize_t ndim,
                              Py_ssize_t[::1] shape_mv,
-                             Py_ssize_t[::1] strides_mv) nogil:
+                             Py_ssize_t[::1] strides_mv) noexcept nogil:
     cdef bint r = _c_contiguous(itemsize, ndim, shape_mv, strides_mv)
     if not r:
         r = _f_contiguous(itemsize, ndim, shape_mv, strides_mv)
@@ -292,8 +293,27 @@ cdef inline bint _contiguous(Py_ssize_t itemsize,
 @wraparound(False)
 cdef inline Py_ssize_t _nbytes(Py_ssize_t itemsize,
                                Py_ssize_t ndim,
-                               Py_ssize_t[::1] shape_mv) nogil:
+                               Py_ssize_t[::1] shape_mv) noexcept nogil:
     cdef Py_ssize_t i, nbytes = itemsize
     for i in range(ndim):
         nbytes *= shape_mv[i]
     return nbytes
+
+
+cpdef Array asarray(obj):
+    """Coerce other objects to ``Array``. No-op for existing ``Array``s.
+
+    Parameters
+    ----------
+    obj: object
+        Object exposing the Python buffer protocol or ``__cuda_array_interface__``.
+
+    Returns
+    -------
+    array: Array
+        An instance of the ``Array`` class.
+    """
+    if isinstance(obj, Array):
+        return <Array>obj
+    else:
+        return Array(obj)

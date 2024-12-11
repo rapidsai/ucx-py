@@ -3,17 +3,19 @@
 
 set -euo pipefail
 
-package_name="ucx-py"
-underscore_package_name=$(echo "${package_name}" | tr "-" "_")
-
-source rapids-configure-sccache
 source rapids-date-string
 
 rapids-generate-version > ./VERSION
 
 RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
 
-python -m pip wheel . -w dist --no-deps --disable-pip-version-check --config-settings rapidsai.disable-cuda=false
+python -m pip wheel \
+    -v \
+    -w dist \
+    --no-deps \
+    --disable-pip-version-check \
+    --config-settings rapidsai.disable-cuda=false \
+    .
 
 mkdir -p final_dist
 python -m auditwheel repair \
@@ -25,4 +27,6 @@ python -m auditwheel repair \
     --exclude "libuct.so.0" \
     dist/*
 
-RAPIDS_PY_WHEEL_NAME="${underscore_package_name}_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 final_dist
+./ci/validate_wheel.sh final_dist
+
+RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 python final_dist
