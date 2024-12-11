@@ -49,7 +49,7 @@ def sizeof_cudf_dataframe(df):
 
 
 async def send_df(ep, df):
-    header, frames = df.serialize()
+    header, frames = df.device_serialize()
     header["frame_ifaces"] = [f.__cuda_array_interface__ for f in frames]
     header = pickle.dumps(header)
     header_nbytes = np.array([len(header)], dtype=np.uint64)
