@@ -126,7 +126,7 @@ Instructions for building UCX >= 1.15.0 (minimum version supported by UCX-Py), m
     mkdir build
     cd build
     # Performance build
-    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=/opt/conda/pkgs/cuda-nvml-dev-12.5.82-he02047a_0 --enable-mt
+    ../contrib/configure-release --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
     # Debug build
     ../contrib/configure-devel --prefix=$CONDA_PREFIX --with-cuda=$CUDA_HOME --enable-mt
     make -j install
