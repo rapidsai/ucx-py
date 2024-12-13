@@ -235,10 +235,11 @@ To build UCX-Py using those UCX packages (to avoid needing to build UCX from sou
 This will automatically handle installing appropriate, compatible ``libucx-cu{11,12}`` packages for build-time and runtime use.
 When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-cu{11,12}`` package.
 
-UCX-Py packages are built against the oldest version of UCX the project supports, and can run against a range
+UCX-Py packages are built against the oldest version of UCX that UCX-Py supports, and can run against a range
 of ABI-compatible UCX versions.
 
-You can use packages from PyPI to customize the UCX version used at runtime. For example, to use UCX 1.16 at runtime, run the following.
+You can use packages from PyPI to customize the UCX version used at runtime.
+For example, to switch to using UCX 1.16 at runtime, run the following.
 
 ::
 
