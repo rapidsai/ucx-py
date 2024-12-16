@@ -34,17 +34,24 @@ support is active by checking for the presence of ``/dev/infiniband/rdma_cm`` an
 Conda
 -----
 
-Conda packages can be installed as so. Replace ``<CUDA version>`` with the
-desired version (minimum ``11.2``). These are available both on ``rapidsai``
-and ``rapidsai-nightly``. Starting with the UCX 1.14.1 conda-forge package,
-InfiniBand support is available again via rdma-core, thus building UCX
-from source is not required solely for that purpose anymore but may still
-be done if desired (e.g., to test for new capabilities or bug fixes).
+Use one of the commands below to install conda packages.
+Replace `-c rapidsai` with `-c rapidsai-nightly` to pull in the newer but less stable nightly packages.
+Change `cuda-version` to pin to a different CUDA minor version if you'd like.
 
 ::
 
+    # CUDA 11
     conda create -n ucx -c conda-forge -c rapidsai \
-      cudatoolkit=<CUDA version> ucx-py
+      cuda-version=11.8 ucx-py
+
+    # CUDA 12
+    conda create -n ucx -c conda-forge -c rapidsai \
+      cuda-version=12.5 ucx-py
+
+Starting with the UCX 1.14.1 conda-forge package,
+InfiniBand support is available again via rdma-core, thus building UCX
+from source is not required solely for that purpose anymore but may still
+be done if desired (e.g., to test for new capabilities or bug fixes).
 
 PyPI
 ----
@@ -55,13 +62,15 @@ workloads and either one can be chosen if the application doesn't use
 CUDA, but currently there are no pre-built CPU-only packages available,
 so either one of CUDA packages must be installed instead. The CUDA
 version is differentiated by the suffix ``-cuXY``, where ``XY`` must be
-replaced with the desired CUDA version. Installing CUDA ``12`` package
-can be done with the following command:
+replaced with the desired CUDA version.
 
 ::
 
+    # CUDA 11
     pip install ucx-py-cu12
 
+    # CUDA 12
+    pip install ucx-py-cu12
 
 UCX-Py has no direct dependency on CUDA, but the package specifies the
 ``-cuXY`` prefix so that the correct ``libucx-cuXY`` package is selected.
@@ -75,8 +84,7 @@ Source
 Conda
 ~~~~~
 
-The following instructions assume you'll be using UCX-Py on a CUDA-enabled system and is in a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
-
+The following instructions assume you'll be using UCX-Py on a CUDA-enabled system and using a `Conda environment <https://docs.conda.io/projects/conda/en/latest/>`_.
 
 Build Dependencies
 ^^^^^^^^^^^^^^^^^^
@@ -85,7 +93,7 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        "python=3.12" setuptools "cython>=3.0.0"
+        "python=3.12" "setuptools>=64.0" "cython>=3.0.0"
 
 .. note::
     The Python version must be explicitly specified here, UCX-Py currently supports
@@ -102,17 +110,17 @@ Test Dependencies
         dask distributed cloudpickle
 
 
-UCX >= 1.11.1
+UCX >= 1.15.0
 ^^^^^^^^^^^^^
 
-Instructions for building UCX >= 1.11.1 (minimum version supported by UCX-Py), make sure to change ``git checkout v1.11.1`` to a newer version if desired:
+Instructions for building UCX >= 1.15.0 (minimum version supported by UCX-Py), make sure to change ``git checkout v1.15.0`` to a newer version if desired:
 
 ::
 
     conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.11.1
+    git checkout v1.15.0
     ./autogen.sh
     mkdir build
     cd build
@@ -134,13 +142,13 @@ It is possible to enable InfiniBand support via the conda-forge rdma-core packag
     conda install -c conda-forge c-compiler cxx-compiler gcc_linux-64=11.* rdma-core=28.*
 
 
-After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.11.1`` to a newer version if desired:
+After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.15.0`` to a newer version if desired:
 
 ::
 
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.11.1
+    git checkout v1.15.0
     ./autogen.sh
     mkdir build
     cd build
@@ -168,7 +176,7 @@ Before continuing, first ensure MOFED 5.0 or higher is installed, for example in
 If MOFED drivers are not installed on the machine, you can download drivers directly from
 `NVIDIA <https://network.nvidia.com/products/infiniband-drivers/linux/mlnx_ofed/>`_.
 
-Building UCX >= 1.11.1 as shown previously should automatically include InfiniBand support if available in the system. It is possible to explicitly
+Building from source as shown previously should automatically include InfiniBand support if available in the system. It is possible to explicitly
 activate those, ensuring the system satisfies all dependencies or fail otherwise, by including the ``--with-rdmacm`` and ``--with-verbs`` build flags.
 Additionally, we want to make sure UCX uses compilers from the system, we do so by specifying ``CC=/usr/bin/gcc`` and ``CXX=/usr/bin/g++``, be sure
 to adjust that for the path to your system compilers. For example:
@@ -205,7 +213,42 @@ PyPI
 
 The following instructions assume you'll be installing UCX-Py on a CUDA-enabled system, in a pip-only environment.
 
-Installing UCX-Py from source in a pip-only environment has additional limitations when compared to conda environments. Unlike conda packages, where the ``ucx`` package is installed under the ``CONDA_PREFIX``, ``libucx`` is installed under ``site-packages`` which is normally not looked for system libraries. Therefore, you will either need UCX to be installed in the system path, or include the UCX install path in ``LD_LIBRARY_PATH``.
+Installing UCX-Py from source in a pip-only environment has additional limitations when compared to conda environments.
+
+UCX-Py with UCX from PyPI
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``. 
+Notice that those builds do not currently include InfiniBand support, if InfiniBand is required you will 
+need to provide a custom UCX install as described in the "UCX-Py with custom UCX install" section.
+
+To build UCX-Py using those UCX packages (to avoid needing to build UCX from source), run the following.
+
+::
+
+    conda activate ucx
+    git clone https://github.com/rapidsai/ucx-py.git
+    cd ucx-py
+    pip install -C 'rapidsai.disable-cuda=false' .
+    # or for develop build
+    pip install -v -e .
+
+This will automatically handle installing appropriate, compatible ``libucx-cu{11,12}`` packages for build-time and runtime use.
+When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-cu{11,12}`` package.
+
+UCX-Py packages are built against the oldest version of UCX that UCX-Py supports, and can run against a range
+of ABI-compatible UCX versions.
+
+You can use packages from PyPI to customize the UCX version used at runtime.
+For example, to switch to using UCX 1.16 at runtime, run the following.
+
+::
+
+    # CUDA 11
+    pip install 'libucx-cu11>=1.16.0,<1.17'
+
+    # CUDA 12
+    pip install 'libucx-cu12>=1.16.0,<1.17'
 
 
 UCX-Py with UCX system install
@@ -222,39 +265,44 @@ If a UCX system install is available, building and installing UCX-Py can be done
     # or for develop build
     pip install -v -e .
 
+To ensure that system install of UCX is always used at runtime (and not the ``libucx-cu{11,12}`` wheels), set the following
+environment variable in the runtime environment.
+
+::
+
+    export RAPIDS_LIBUCX_PREFER_SYSTEM_LIBRARY=true
+
 
 UCX-Py with custom UCX install
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If UCX is installed in a non-default path, specifying ``LD_LIBRARY_PATH`` is required both to install and run UCX-Py code. For installation, ``LD_LIBRARY_PATH`` is required to ensure UCX-Py builds against the desired version of UCX, since another incompatible UCX version may already be installed in the system. Running UCX-Py code also needs to find the proper UCX libraries at runtime, and thus ``LD_LIBRARY_PATH`` must be specified as well.
-
-A custom UCX install does not necessarily mean it needs to be build from source, a ``libucx-cuXY`` package may be used as well. For example, with the CUDA ``12`` package:
-
-::
-
-    pip install libucx-cu12
-
-The above will install the UCX library in your environment, specifically under ``site-packages/libucx``. To find the path to ``site-packages`` you may execute:
+If UCX is installed in a non-default path (as it might be if you built it from source), some additional configuration is required to build and run UCX-Py against it.
+To check if the loader can find your custom UCX installation, run the following.
 
 ::
 
-    python -c "import site; print(site.getsitepackages()[0])"
+    ldconfig -p | grep libucs
 
-The command above will print the path to ``site-packages``, such as ``/opt/python/site-packages``. The path to the UCX shared library installation is then ``/opt/python/site-packages/libucx/lib``, which is the value that will be specified for ``LD_LIBRARY_PATH``. If you build UCX from source and installed it in a different location, make sure you adjust the value of ``LD_LIBRARY_PATH`` accordingly, or if you built UCX from source and installed it in a path that the system will lookup for libraries by default, specifying ``LD_LIBRARY_PATH`` is unnecessary.
-
-Now installing UCX-Py can be done via ``pip install``:
+If that returns that filepath you expect, then you can just use the "UCX-Py with UCX system install" instructions above.
+If that doesn't show anything, then you need to help the loader find the UCX libraries.
+At build time, add your install of UCX to ``LD_LIBRARY_PATH``.
 
 ::
 
     conda activate ucx
     git clone https://github.com/rapidsai/ucx-py.git
     cd ucx-py
-    LD_LIBRARY_PATH=/opt/python/site-packages/libucx/lib pip install -v .
+    CUSTOM_UCX_INSTALL="wherever-you-put-your-ucx-install"
+    LD_LIBRARY_PATH="${CUSTOM_UCX_INSTALL}:${LD_LIBRARY_PATH}" \
+        pip install -v .
     # or for develop build
-    LD_LIBRARY_PATH=/opt/python/site-packages/libucx/lib pip install -v -e .
+    LD_LIBRARY_PATH="${CUSTOM_UCX_INSTALL}:${LD_LIBRARY_PATH}" \
+        pip install -v -e .
 
-Now, to run UCX-Py-enabled code specifying ``LD_LIBRARY_PATH`` will also be required. For example:
+Set the following in the environment to ensure that those libraries are preferred at run time as well.
 
 ::
 
-    LD_LIBRARY_PATH=/opt/python/site-packages/libucx/lib python -c "import ucp; print(ucp.get_ucx_version())"
+    RAPIDS_LIBUCX_PREFER_SYSTEM_LIBRARY=true
+    LD_LIBRARY_PATH="${CUSTOM_UCX_INSTALL}:${LD_LIBRARY_PATH}" \
+      python -c "import ucp; print(ucp.get_ucx_version())"
