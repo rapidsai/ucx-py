@@ -96,9 +96,8 @@ Build Dependencies
         "python=3.12" "setuptools>=64.0" "cython>=3.0.0"
 
 .. note::
-    The Python version must be explicitly specified here.
-    See https://docs.rapids.ai/install/ for the list of supported Python versions
-    for recent RAPIDS releases.
+    The Python version must be explicitly specified here, UCX-Py currently supports
+    Python versions 3.10, 3.11, and 3.12.
 
 Test Dependencies
 ^^^^^^^^^^^^^^^^^
