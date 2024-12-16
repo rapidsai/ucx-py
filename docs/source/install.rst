@@ -219,7 +219,9 @@ Installing UCX-Py from source in a pip-only environment has additional limitatio
 UCX-Py with UCX from PyPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``.
+CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``. 
+Notice that those builds do not currently include InfiniBand support, if InfiniBand is required you will 
+need to provide a custom UCX install as described in the "UCX-Py with custom UCX install" section.
 
 To build UCX-Py using those UCX packages (to avoid needing to build UCX from source), run the following.
 
