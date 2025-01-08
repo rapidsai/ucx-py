@@ -42,11 +42,16 @@ DEPENDENCIES=(
   cudf
   rapids-dask-dependency
 )
-for DEP in "${DEPENDENCIES[@]}"; do
-  for FILE in dependencies.yaml conda/environments/*.yml; do
+UCX_PY_DEPENDENCIES=(
+  ucx-py
+)
+for FILE in dependencies.yaml conda/environments/*.yml; do
+  for DEP in "${DEPENDENCIES[@]}"; do
     sed_runner "/-.* ${DEP}\(-cu[[:digit:]]\{2\}\)\{0,1\}==/ s/==.*/==${NEXT_RAPIDS_SHORT_TAG_PEP440}.*,>=0.0.0a0/g" "${FILE}"
   done
-  sed_runner "/\"${DEP}==/ s/==.*\"/==${NEXT_RAPIDS_SHORT_TAG_PEP440}.*,>=0.0.0a0\"/g" pyproject.toml
+  for DEP in "${UCX_PY_DEPENDENCIES[@]}"; do
+    sed_runner "/-.* ${DEP}\(-cu[[:digit:]]\{2\}\)\{0,1\}==/ s/==.*/==${NEXT_SHORT_TAG_PEP440}.*,>=0.0.0a0/g" "${FILE}"
+  done
 done
 
 for FILE in .github/workflows/*.yaml; do
