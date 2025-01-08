@@ -40,6 +40,7 @@ function sed_runner() {
 
 DEPENDENCIES=(
   cudf
+  rapids-dask-dependency
 )
 for DEP in "${DEPENDENCIES[@]}"; do
   for FILE in dependencies.yaml conda/environments/*.yml; do

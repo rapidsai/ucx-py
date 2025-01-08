@@ -217,7 +217,7 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - dask
+          - rapids-dask-dependency==25.2.*,>=0.0.0a0
           - distributed
           - numba>=0.57
           - pytest==7.*
