@@ -6,17 +6,20 @@ set -euo pipefail
 # Support invoking test_python.sh outside the script directory
 cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")"/../
 
-rapids-logger "Create test conda environment"
+rapids-logger "Create test conda environment using artifacts from previous job"
 . /opt/conda/etc/profile.d/conda.sh
 
 UCX_PY_VERSION="$(head -1 ./VERSION)"
+PYTHON_CHANNEL=$(rapids-download-conda-from-s3 python)
 
 rapids-dependency-file-generator \
   --output conda \
   --file-key test_python \
-  --matrix "cuda=${RAPIDS_CUDA_VERSION%.*};arch=$(arch);py=${RAPIDS_PY_VERSION}" | tee env.yaml
+  --matrix "cuda=${RAPIDS_CUDA_VERSION%.*};arch=$(arch);py=${RAPIDS_PY_VERSION}" \
+  --prepend-channel "${PYTHON_CHANNEL}" \
+  | tee env.yaml
 
-rapids-mamba-retry env create --yes -f env.yaml -n test
+rapids-mamba-retry env create -yq -f env.yaml -n test
 conda activate test
 
 rapids-print-env
@@ -46,13 +49,6 @@ run_tests() {
   # in subsequent commands
   ./ci/run_benchmark_pytests.sh
 }
-
-rapids-logger "Downloading artifacts from previous jobs"
-PYTHON_CHANNEL=$(rapids-download-conda-from-s3 python)
-
-rapids-mamba-retry install \
-  --channel "${PYTHON_CHANNEL}" \
-  "ucx-py=${UCX_PY_VERSION}"
 
 rapids-logger "Run tests with conda package"
 run_tests

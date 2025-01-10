@@ -17,6 +17,7 @@ files:
       - cuda_version
       - depends_on_cupy
       - py_version
+      - test_ucx_py
       - test_python
   checks:
     output: none
@@ -212,12 +213,17 @@ dependencies:
           # without CUDA, e.g. 'pip install .'
           - matrix: null
             packages: null
+  test_ucx_py:
+    common:
+      - output_types: conda
+        packages:
+          - ucx-py==0.42.*,>=0.0.0a0
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - dask
+          - rapids-dask-dependency==25.2.*,>=0.0.0a0
           - distributed
           - numba>=0.57
           - pytest==7.*
