@@ -35,7 +35,9 @@ def _get_ctx():
     return _ctx
 
 
-async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, listener, stream_timeout=5.0):
+async def exchange_peer_info(
+    endpoint, msg_tag, ctrl_tag, listener, connect_timeout=5.0
+):
     """Help function that exchange endpoint information"""
 
     # Pack peer information incl. a checksum
@@ -50,20 +52,20 @@ async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, listener, stream_timeo
     if listener is True:
         await asyncio.wait_for(
             comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes),
-            timeout=stream_timeout,
+            timeout=connect_timeout,
         )
         await asyncio.wait_for(
             comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes),
-            timeout=stream_timeout,
+            timeout=connect_timeout,
         )
     else:
         await asyncio.wait_for(
             comm.stream_recv(endpoint, peer_info_arr, peer_info_arr.nbytes),
-            timeout=stream_timeout,
+            timeout=connect_timeout,
         )
         await asyncio.wait_for(
             comm.stream_send(endpoint, my_info_arr, my_info_arr.nbytes),
-            timeout=stream_timeout,
+            timeout=connect_timeout,
         )
 
     # Unpacking and sanity check of the peer information
@@ -74,7 +76,7 @@ async def exchange_peer_info(endpoint, msg_tag, ctrl_tag, listener, stream_timeo
 
     if expected_checksum != ret["checksum"]:
         raise RuntimeError(
-            f'Checksum invalid! {hex(expected_checksum)} != {hex(ret["checksum"])}'
+            f"Checksum invalid! {hex(expected_checksum)} != {hex(ret['checksum'])}"
         )
 
     return ret
@@ -157,6 +159,7 @@ async def _listener_handler_coroutine(conn_request, ctx, func, endpoint_error_ha
         msg_tag=msg_tag,
         ctrl_tag=ctrl_tag,
         listener=True,
+        connect_timeout=ctx.connect_timeout,
     )
     tags = {
         "msg_send": peer_info["msg_tag"],
@@ -216,7 +219,9 @@ class ApplicationContext:
     The context of the Asyncio interface of UCX.
     """
 
-    def __init__(self, config_dict={}, blocking_progress_mode=None):
+    def __init__(
+        self, config_dict={}, blocking_progress_mode=None, connect_timeout=None
+    ):
         self.progress_tasks = []
 
         # For now, a application context only has one worker
@@ -230,6 +235,10 @@ class ApplicationContext:
         else:
             self.blocking_progress_mode = True
 
+        if connect_timeout is None:
+            self.connect_timeout = float(os.environ.get("UCXPY_CONNECT_TIMEOUT", 5))
+        else:
+            self.connect_timeout = connect_timeout
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
             weakref.finalize(
@@ -330,6 +339,7 @@ class ApplicationContext:
             msg_tag=msg_tag,
             ctrl_tag=ctrl_tag,
             listener=False,
+            connect_timeout=self.connect_timeout,
         )
         tags = {
             "msg_send": peer_info["msg_tag"],
@@ -548,6 +558,7 @@ class Endpoint:
 
     def __init__(self, endpoint, ctx, tags=None):
         self._ep = endpoint
+        self._uid = self._ep.handle
         self._ctx = ctx
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
@@ -559,7 +570,7 @@ class Endpoint:
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
-        return self._ep.handle
+        return self._uid
 
     def closed(self):
         """Is this endpoint closed?"""
@@ -896,7 +907,12 @@ class Endpoint:
 # The following functions initialize and use a single ApplicationContext instance
 
 
-def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
+def init(
+    options={},
+    env_takes_precedence=False,
+    blocking_progress_mode=None,
+    connect_timeout=None,
+):
     """Initiate UCX.
 
     Usually this is done automatically at the first API call
@@ -914,6 +930,10 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
         If None, blocking UCX progress mode is used unless the environment variable
         `UCXPY_NON_BLOCKING_MODE` is defined.
         Otherwise, if True blocking mode is used and if False non-blocking mode is used.
+    connect_timeout: float, optional
+        The timeout in seconds for exchanging endpoint information upon endpoint
+        establishment. If None, use the value from `UCXPY_CONNECT_TIMEOUT` if defined,
+        otherwise fallback to the default of 5 seconds.
     """
     global _ctx
     if _ctx is not None:
@@ -935,7 +955,11 @@ def init(options={}, env_takes_precedence=False, blocking_progress_mode=None):
                 logger.debug(
                     f"Ignoring environment {env_k}={env_v}; using option {k}={v}"
                 )
-    _ctx = ApplicationContext(options, blocking_progress_mode=blocking_progress_mode)
+    _ctx = ApplicationContext(
+        options,
+        blocking_progress_mode=blocking_progress_mode,
+        connect_timeout=connect_timeout,
+    )
 
 
 def reset():
