@@ -235,13 +235,10 @@ class ApplicationContext:
         else:
             self.blocking_progress_mode = True
 
-        if "UCXPY_CONNECT_TIMEOUT" in os.environ:
-            self.connect_timeout = float(os.environ["UCXPY_CONNECT_TIMEOUT"])
-        elif connect_timeout is not None:
-            self.connect_timeout = connect_timeout
+        if connect_timeout is None:
+            self.connect_timeout = float(os.get("UCXPY_CONNECT_TIMEOUT", 5))           
         else:
-            self.connect_timeout = 5.0
-
+            self.connect_timeout = connect_timeout
         if self.blocking_progress_mode:
             self.epoll_fd = self.worker.init_blocking_progress_mode()
             weakref.finalize(
