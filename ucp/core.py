@@ -236,7 +236,7 @@ class ApplicationContext:
             self.blocking_progress_mode = True
 
         if connect_timeout is None:
-            self.connect_timeout = float(os.get("UCXPY_CONNECT_TIMEOUT", 5))           
+            self.connect_timeout = float(os.get("UCXPY_CONNECT_TIMEOUT", 5))
         else:
             self.connect_timeout = connect_timeout
         if self.blocking_progress_mode:
@@ -932,8 +932,8 @@ def init(
         Otherwise, if True blocking mode is used and if False non-blocking mode is used.
     connect_timeout: float, optional
         The timeout in seconds for exchanging endpoint information upon endpoint
-        establishment. If None, the default of 5 seconds is used, unless
-        `UCXPY_CONNECT_TIMEOUT` is defined, which takes precedence over this argument.
+        establishment. If None, use the value from `UCXPY_CONNECT_TIMEOUT` if defined,
+        otherwise fallback to the default of 5 seconds.
     """
     global _ctx
     if _ctx is not None:
