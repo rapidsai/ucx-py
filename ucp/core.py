@@ -236,7 +236,7 @@ class ApplicationContext:
             self.blocking_progress_mode = True
 
         if connect_timeout is None:
-            self.connect_timeout = float(os.get("UCXPY_CONNECT_TIMEOUT", 5))
+            self.connect_timeout = float(os.environ.get("UCXPY_CONNECT_TIMEOUT", 5))
         else:
             self.connect_timeout = connect_timeout
         if self.blocking_progress_mode:
