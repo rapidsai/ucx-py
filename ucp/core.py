@@ -561,6 +561,7 @@ class Endpoint:
 
     def __init__(self, endpoint, ctx, tags=None):
         self._ep = endpoint
+        self._uid = self._ep.handle
         self._ctx = ctx
         self._send_count = 0  # Number of calls to self.send()
         self._recv_count = 0  # Number of calls to self.recv()
@@ -572,7 +573,7 @@ class Endpoint:
     @property
     def uid(self):
         """The unique ID of the underlying UCX endpoint"""
-        return self._ep.handle
+        return self._uid
 
     def closed(self):
         """Is this endpoint closed?"""
