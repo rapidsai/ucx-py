@@ -225,7 +225,7 @@ dependencies:
           - cloudpickle
           - rapids-dask-dependency==25.2.*,>=0.0.0a0
           - distributed
-          - numba>=0.57
+          - numba>=0.59.1,<0.61.0a0
           - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
