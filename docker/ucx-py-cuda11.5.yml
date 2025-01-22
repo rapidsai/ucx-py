@@ -13,5 +13,5 @@ dependencies:
   - dask
   - distributed
   - cupy
-  - numba>=0.57
+  - numba>=0.59.1,<0.61.0a0
   - rmm
