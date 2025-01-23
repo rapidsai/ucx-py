@@ -25,7 +25,7 @@ repos:
               - id: verify-alpha-spec
                 args:
                   - --fix
-                  - --rapids-version=25.02
+                  - --rapids-version=25.04
       - repo: https://github.com/rapidsai/dependency-file-generator
         rev: v1.16.0
         hooks:
