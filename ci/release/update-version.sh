@@ -54,6 +54,10 @@ for FILE in dependencies.yaml conda/environments/*.yml; do
   done
 done
 
+for DEP in "${DEPENDENCIES[@]}"; do
+  sed_runner "/\"${DEP}\(-cu[[:digit:]]\{2\}\)\{0,1\}==/ s/==.*\"/==${NEXT_RAPIDS_SHORT_TAG_PEP440}.*,>=0.0.0a0\"/g" pyproject.toml
+done
+
 for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
 done
