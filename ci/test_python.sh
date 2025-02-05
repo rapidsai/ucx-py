@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2024, NVIDIA CORPORATION.
+# Copyright (c) 2024-2025, NVIDIA CORPORATION.
 
 set -euo pipefail
 
@@ -70,7 +70,7 @@ if [[ "${TEST_UCX_MASTER}" == 1 ]]; then
     popd; popd
     git clean -ffdx
     python setup.py build_ext --inplace
-    python -m pip install -e .
+    rapids-pip-retry install -e .
 
     rapids-logger "Run tests with pip package against ucx master"
     run_tests
