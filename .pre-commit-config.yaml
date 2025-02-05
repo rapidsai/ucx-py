@@ -22,6 +22,7 @@ repos:
       - repo: https://github.com/rapidsai/pre-commit-hooks
         rev: v0.4.0
         hooks:
+              - id: verify-copyright
               - id: verify-alpha-spec
                 args:
                   - --fix
