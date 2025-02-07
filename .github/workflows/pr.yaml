@@ -19,7 +19,7 @@ jobs:
       - wheel-tests
       - telemetry-setup
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yam@branch-25.04
+    uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@branch-25.04
     with:
       needs: ${{ toJSON(needs) }}
   telemetry-setup:
