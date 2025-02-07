@@ -17,11 +17,28 @@ jobs:
       - conda-python-tests
       - wheel-build
       - wheel-tests
+      - telemetry-setup
     secrets: inherit
     uses: rapidsai/shared-workflows/.github/workflows/pr-builder.yaml@branch-25.04
+    with:
+      needs: ${{ toJSON(needs) }}
+  telemetry-setup:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      OTEL_SERVICE_NAME: "pr-ucx-py"
+    steps:
+      - name: Telemetry setup
+        # This gate is here and not at the job level because we need the job to not be skipped,
+        # since other jobs depend on it.
+        if: ${{ vars.TELEMETRY_ENABLED == 'true' }}
+        uses: rapidsai/shared-actions/telemetry-dispatch-stash-base-env-vars@main
   checks:
     secrets: inherit
+    needs: telemetry-setup
     uses: rapidsai/shared-workflows/.github/workflows/checks.yaml@branch-25.04
+    with:
+      ignored_pr_jobs: telemetry-summarize
   conda-python-build:
     needs: checks
     secrets: inherit
@@ -50,3 +67,12 @@ jobs:
       build_type: pull-request
       script: ci/test_wheel.sh
       container-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g --ulimit=nofile=1000000:1000000"
+  telemetry-summarize:
+    # This job must use a self-hosted runner to record telemetry traces.
+    runs-on: linux-amd64-cpu4
+    needs: pr-builder
+    if: ${{ vars.TELEMETRY_ENABLED == 'true' && !cancelled() }}
+    continue-on-error: true
+    steps:
+      - name: Telemetry summarize
+        uses: rapidsai/shared-actions/telemetry-dispatch-summarize@main
