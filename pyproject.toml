@@ -27,7 +27,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 authors = [
     { name = "NVIDIA Corporation" },
 ]
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.23,<3.0a0",
