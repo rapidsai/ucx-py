@@ -38,6 +38,7 @@ os.environ["RAPIDS_NO_INITIALIZE"] = "True"
 
 import cudf  # noqa: E402
 import rmm  # noqa: E402
+from cudf.core.abc import Serializable  # noqa: E402
 from rmm.allocators.cupy import rmm_cupy_allocator  # noqa: E402
 
 
@@ -48,7 +49,7 @@ def sizeof_cudf_dataframe(df):
 
 
 async def send_df(ep, df):
-    header, frames = df.serialize()
+    header, frames = df.device_serialize()
     header["frame_ifaces"] = [f.__cuda_array_interface__ for f in frames]
     header = pickle.dumps(header)
     header_nbytes = np.array([len(header)], dtype=np.uint64)
@@ -72,8 +73,7 @@ async def recv_df(ep):
     for frame in frames:
         await ep.recv(frame)
 
-    cudf_typ = pickle.loads(header["type-serialized"])
-    return cudf_typ.deserialize(header, frames)
+    return Serializable.device_deserialize(header, frames)
 
 
 async def barrier(rank, eps):
