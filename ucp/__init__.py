@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 """UCX-Py: Python bindings for UCX <www.openucx.org>"""
@@ -101,11 +101,6 @@ if (
 if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
-
-if "UCX_PROTO_ENABLE" not in os.environ and get_ucx_version() >= (1, 12, 0):
-    # UCX protov2 still doesn't support CUDA async/managed memory
-    logger.info("Setting UCX_PROTO_ENABLE=n")
-    os.environ["UCX_PROTO_ENABLE"] = "n"
 
 
 __ucx_min_version__ = "1.15.0"
