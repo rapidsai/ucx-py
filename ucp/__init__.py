@@ -102,6 +102,15 @@ if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
+if (
+    "UCX_PROTO_ENABLE" not in os.environ
+    and get_ucx_version() >= (1, 12, 0)
+    and get_ucx_version() < (1, 18, 0)
+):
+    # UCX protov2 still doesn't support CUDA async/managed memory
+    logger.info("Setting UCX_PROTO_ENABLE=n")
+    os.environ["UCX_PROTO_ENABLE"] = "n"
+
 
 __ucx_min_version__ = "1.15.0"
 __ucx_version__ = "%d.%d.%d" % get_ucx_version()
