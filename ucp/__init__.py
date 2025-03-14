@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 """UCX-Py: Python bindings for UCX <www.openucx.org>"""
@@ -39,6 +39,19 @@ try:
 except ImportError:
     pynvml = None
 
+_ucx_version = get_ucx_version()
+
+__ucx_min_version__ = "1.15.0"
+__ucx_version__ = "%d.%d.%d" % _ucx_version
+
+if _ucx_version < tuple(int(i) for i in __ucx_min_version__.split(".")):
+    raise ImportError(
+        f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
+        f"{__ucx_min_version__} or newer. If you believe the wrong version "
+        "is being loaded, please check the path from where UCX is loaded "
+        "by rerunning with the environment variable `UCX_LOG_LEVEL=debug`."
+    )
+
 # Setup UCX-Py logger
 logger = get_ucxpy_logger()
 
@@ -53,7 +66,7 @@ if "UCX_RNDV_FRAG_MEM_TYPE" not in os.environ:
 if (
     pynvml is not None
     and "UCX_CUDA_COPY_MAX_REG_RATIO" not in os.environ
-    and get_ucx_version() >= (1, 12, 0)
+    and _ucx_version >= (1, 12, 0)
 ):
     try:
         pynvml.nvmlInit()
@@ -98,23 +111,11 @@ if (
     ):
         pass
 
-if "UCX_MAX_RNDV_RAILS" not in os.environ and get_ucx_version() >= (1, 12, 0):
+if "UCX_MAX_RNDV_RAILS" not in os.environ and _ucx_version >= (1, 12, 0):
     logger.info("Setting UCX_MAX_RNDV_RAILS=1")
     os.environ["UCX_MAX_RNDV_RAILS"] = "1"
 
-if "UCX_PROTO_ENABLE" not in os.environ and get_ucx_version() >= (1, 12, 0):
+if "UCX_PROTO_ENABLE" not in os.environ and (1, 12, 0) <= _ucx_version < (1, 18, 0):
     # UCX protov2 still doesn't support CUDA async/managed memory
     logger.info("Setting UCX_PROTO_ENABLE=n")
     os.environ["UCX_PROTO_ENABLE"] = "n"
-
-
-__ucx_min_version__ = "1.15.0"
-__ucx_version__ = "%d.%d.%d" % get_ucx_version()
-
-if get_ucx_version() < tuple(int(i) for i in __ucx_min_version__.split(".")):
-    raise ImportError(
-        f"Support for UCX {__ucx_version__} has ended. Please upgrade to "
-        f"{__ucx_min_version__} or newer. If you believe the wrong version "
-        "is being loaded, please check the path from where UCX is loaded "
-        "by rerunning with the environment variable `UCX_LOG_LEVEL=debug`."
-    )
