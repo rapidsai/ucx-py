@@ -52,6 +52,8 @@ jobs:
       sha: ${{ inputs.sha }}
       date: ${{ inputs.date }}
       script: ci/build_wheel.sh
+      package-type: python
+      wheel-name: ucx_py
   wheel-publish:
     needs: wheel-build
     secrets: inherit
