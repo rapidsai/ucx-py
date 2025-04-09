@@ -4,8 +4,8 @@ channels:
 - nvidia
 - conda-forge
 dependencies:
-# required for building docs
-- sphinx
+# the ceiling on sphinx can be removed when https://github.com/spatialaudio/nbsphinx/issues/825 is resolved
+- sphinx>=8.0,<8.2.0
 - sphinx-markdown-tables
 - sphinx_rtd_theme
 - sphinxcontrib-websupport

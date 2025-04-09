@@ -221,13 +221,13 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx-py==0.42.*
+          - ucx-py==0.43.*,>=0.0.0a0
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - rapids-dask-dependency==25.2.*
+          - rapids-dask-dependency==25.4.*,>=0.0.0a0
           - distributed
           - numba>=0.59.1,<0.61.0a0
           - pytest==7.*
@@ -235,7 +235,7 @@ dependencies:
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
-          - &cudf_unsuffixed cudf==25.2.*
+          - &cudf_unsuffixed cudf==25.4.*,>=0.0.0a0
     specific:
       - output_types: [requirements, pyproject]
         matrices:
@@ -243,12 +243,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu12==25.2.*
+              - cudf-cu12==25.4.*,>=0.0.0a0
           - matrix:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu11==25.2.*
+              - cudf-cu11==25.4.*,>=0.0.0a0
           - matrix:
             packages:
               - *cudf_unsuffixed
