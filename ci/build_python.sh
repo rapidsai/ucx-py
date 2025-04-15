@@ -11,7 +11,7 @@ rapids-generate-version > ./VERSION
 RAPIDS_PACKAGE_VERSION=$(head -1 ./VERSION)
 export RAPIDS_PACKAGE_VERSION
 
-# populates `RATTLER_CHANNELS` array
+# populates `RATTLER_CHANNELS` array and `RATTLER_ARGS` array
 source rapids-rattler-channel-string
 
 rapids-logger "Building ucx-py"
