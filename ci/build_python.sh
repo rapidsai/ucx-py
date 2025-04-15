@@ -18,9 +18,7 @@ rapids-logger "Building ucx-py"
 
 # Need `--experimental` flag to use `load_from_file` and `git.head_rev`
 rattler-build build --recipe conda/recipes/ucx-py \
-                    --experimental \
-                    --channel-priority disabled \
-                    --output-dir "$RAPIDS_CONDA_BLD_OUTPUT_DIR" \
+                    "${RATTLER_ARGS[@]}" \
                     "${RATTLER_CHANNELS[@]}"
 
 # remove build_cache directory to avoid uploading the entire source tree
