@@ -10,7 +10,7 @@ rapids-logger "Create test conda environment using artifacts from previous job"
 . /opt/conda/etc/profile.d/conda.sh
 
 UCX_PY_VERSION="$(head -1 ./VERSION)"
-PYTHON_CHANNEL=$(rapids-download-conda-from-s3 python)
+PYTHON_CHANNEL=$(rapids-download-conda-from-github python)
 
 rapids-dependency-file-generator \
   --output conda \
