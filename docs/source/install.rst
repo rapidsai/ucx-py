@@ -93,11 +93,11 @@ Build Dependencies
 
     conda create -n ucx -c conda-forge \
         automake make libtool pkg-config \
-        "python=3.12" "setuptools>=64.0" "cython>=3.0.0"
+        "python=3.13" "setuptools>=64.0" "cython>=3.0.0"
 
 .. note::
     The Python version must be explicitly specified here, UCX-Py currently supports
-    Python versions 3.10, 3.11, and 3.12.
+    Python versions 3.10, 3.11, 3.12, and 3.13.
 
 Test Dependencies
 ^^^^^^^^^^^^^^^^^
@@ -218,8 +218,8 @@ Installing UCX-Py from source in a pip-only environment has additional limitatio
 UCX-Py with UCX from PyPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``. 
-Notice that those builds do not currently include InfiniBand support, if InfiniBand is required you will 
+CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``.
+Notice that those builds do not currently include InfiniBand support, if InfiniBand is required you will
 need to provide a custom UCX install as described in the "UCX-Py with custom UCX install" section.
 
 To build UCX-Py using those UCX packages (to avoid needing to build UCX from source), run the following.
