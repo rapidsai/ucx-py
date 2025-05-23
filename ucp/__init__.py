@@ -83,16 +83,22 @@ if (
         for dev_idx in range(device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
 
-            # Ignore MIG devices and use rely on UCX's default for now. Increasing
-            # `UCX_CUDA_COPY_MAX_REG_RATIO` should be thoroughly tested, as it's
-            # not yet clear whether it would be safe to set `1.0` for those
-            # instances too.
-            if _is_mig_device(handle):
+            try:
+                total_memory = pynvml.nvmlDeviceGetMemoryInfo(handle).total
+            except pynvml.NVMLError_NotSupported:
+                total_memory = None
+
+            # Ignore MIG devices and devices with no memory resource (i.e., only
+            # integrated CPU+GPU memory resource) and rely on UCX's default for
+            # now. Increasing `UCX_CUDA_COPY_MAX_REG_RATIO` should be thoroughly
+            # tested, as it's not yet clear whether it would be safe to set `1.0`
+            # for those instances too.
+            if _is_mig_device(handle) or total_memory is None:
                 continue
 
             try:
                 bar1_total = pynvml.nvmlDeviceGetBAR1MemoryInfo(handle).bar1Total
-            except pynvml.nvml.NVMLError_NotSupported:
+            except pynvml.NVMLError_NotSupported:
                 # Bar1 access not supported on this device, set it to
                 # zero (always lower than device memory).
                 bar1_total = 0
