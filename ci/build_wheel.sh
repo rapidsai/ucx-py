@@ -8,8 +8,6 @@ source rapids-init-pip
 
 rapids-generate-version > ./VERSION
 
-RAPIDS_PY_CUDA_SUFFIX="$(rapids-wheel-ctk-name-gen ${RAPIDS_CUDA_VERSION})"
-
 rapids-pip-retry wheel \
     -v \
     -w dist \
@@ -28,5 +26,3 @@ python -m auditwheel repair \
     dist/*
 
 ./ci/validate_wheel.sh "${RAPIDS_WHEEL_BLD_OUTPUT_DIR}"
-
-RAPIDS_PY_WHEEL_NAME="ucx_py_${RAPIDS_PY_CUDA_SUFFIX}" rapids-upload-wheels-to-s3 python "${RAPIDS_WHEEL_BLD_OUTPUT_DIR}"
