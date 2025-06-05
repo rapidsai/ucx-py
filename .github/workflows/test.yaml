@@ -19,16 +19,17 @@ on:
 jobs:
   conda-python-tests:
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@branch-25.04
+    uses: rapidsai/shared-workflows/.github/workflows/conda-python-tests.yaml@branch-25.06
     with:
       build_type: ${{ inputs.build_type }}
       branch: ${{ inputs.branch }}
       date: ${{ inputs.date }}
+      script: ci/test_python.sh
       sha: ${{ inputs.sha }}
       container-options: "--cap-add CAP_SYS_PTRACE --shm-size=8g --ulimit=nofile=1000000:1000000"
   wheel-tests:
     secrets: inherit
-    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@branch-25.04
+    uses: rapidsai/shared-workflows/.github/workflows/wheels-test.yaml@branch-25.06
     with:
       build_type: ${{ inputs.build_type }}
       branch: ${{ inputs.branch }}

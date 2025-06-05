@@ -95,6 +95,10 @@ dependencies:
               cuda: "12.8"
             packages:
               - cuda-version=12.8
+          - matrix:
+              cuda: "12.9"
+            packages:
+              - cuda-version=12.9
   cuda:
     specific:
       - output_types: conda
@@ -124,8 +128,12 @@ dependencies:
             packages:
               - python=3.12
           - matrix:
+              py: "3.13"
             packages:
-              - python>=3.10,<3.13
+              - python=3.13
+          - matrix:
+            packages:
+              - python>=3.10,<3.14
   build_python:
     common:
       - output_types: [conda, requirements, pyproject]
@@ -221,21 +229,21 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx-py==0.43.*
+          - ucx-py==0.44.*,>=0.0.0a0
   test_python:
     common:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cloudpickle
-          - rapids-dask-dependency==25.4.*
+          - rapids-dask-dependency==25.6.*,>=0.0.0a0
           - distributed
-          - numba>=0.59.1,<0.61.0a0
+          - numba>=0.59.1,<0.62.0a0
           - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
       - output_types: [conda]
         packages:
-          - &cudf_unsuffixed cudf==25.4.*
+          - &cudf_unsuffixed cudf==25.6.*,>=0.0.0a0
     specific:
       - output_types: [requirements, pyproject]
         matrices:
@@ -243,12 +251,12 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu12==25.4.*
+              - cudf-cu12==25.6.*,>=0.0.0a0
           - matrix:
               cuda: "11.*"
               cuda_suffixed: "true"
             packages:
-              - cudf-cu11==25.4.*
+              - cudf-cu11==25.6.*,>=0.0.0a0
           - matrix:
             packages:
               - *cudf_unsuffixed
