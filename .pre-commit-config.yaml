@@ -20,7 +20,7 @@ repos:
                 types_or: [python, cython]
                 additional_dependencies: ["flake8-force"]
       - repo: https://github.com/rapidsai/pre-commit-hooks
-        rev: v0.4.0
+        rev: v0.7.0
         hooks:
               - id: verify-copyright
               - id: verify-alpha-spec
