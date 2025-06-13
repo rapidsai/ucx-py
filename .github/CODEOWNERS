@@ -8,6 +8,7 @@ benchmarks/     @rapidsai/ucxpy-python-codeowners
 /.github/                @rapidsai/ci-codeowners
 /ci/                     @rapidsai/ci-codeowners
 /.pre-commit-config.yaml @rapidsai/ci-codeowners
+/.shellcheckrc           @rapidsai/ci-codeowners
 
 #packaging code owners
 /.devcontainer/    @rapidsai/packaging-codeowners

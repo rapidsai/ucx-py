@@ -19,8 +19,12 @@ repos:
                 types: [file]
                 types_or: [python, cython]
                 additional_dependencies: ["flake8-force"]
+      - repo: https://github.com/shellcheck-py/shellcheck-py
+        rev: v0.10.0.1
+        hooks:
+          - id: shellcheck
       - repo: https://github.com/rapidsai/pre-commit-hooks
-        rev: v0.4.0
+        rev: v0.6.0
         hooks:
               - id: verify-copyright
               - id: verify-alpha-spec
@@ -28,7 +32,7 @@ repos:
                   - --fix
                   - --rapids-version=25.08
       - repo: https://github.com/rapidsai/dependency-file-generator
-        rev: v1.17.0
+        rev: v1.18.1
         hooks:
               - id: rapids-dependency-file-generator
                 args: ["--clean"]
