@@ -1,10 +1,10 @@
 #!/bin/bash
-# Copyright (c) 2022, NVIDIA CORPORATION.
+# Copyright (c) 2022-2025, NVIDIA CORPORATION.
 
 set -e
 
 function logger {
-    echo -e "\n$@\n"
+    echo -e "\n${1}\n"
 }
 
 # Requires conda installed at /opt/conda and the ucx environment setup
@@ -13,8 +13,15 @@ source /opt/conda/etc/profile.d/conda.sh
 conda activate ucx
 
 cd ucx-py/
+
 # Benchmark using command-line provided transports or else default
-for tls in ${@:-"tcp" "all"}; do
+if [[ ${#@} -eq 0 ]]; then
+    transport_types=(tcp all)
+else
+    transport_types=("${@}")
+fi
+
+for tls in "${transport_types[@]}"; do
     export UCX_TLS=${tls}
     logger "Python pytest for ucx-py"
 

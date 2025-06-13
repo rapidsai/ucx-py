@@ -1,9 +1,9 @@
 #!/bin/bash
-# Copyright (c) 2021, NVIDIA CORPORATION.
+# Copyright (c) 2021-2025, NVIDIA CORPORATION.
 set -e
 
 function logger {
-    echo -e "\n$@\n"
+    echo -e "\n${1}\n"
 }
 
 PYTHON_PREFIX=$(python -c "import distutils.sysconfig; print(distutils.sysconfig.PREFIX)")
@@ -25,17 +25,17 @@ pip list
 # BUILD - Build UCX master, UCX-Py and run tests
 ################################################################################
 logger "Build UCX master"
-cd $HOME
+cd "${HOME}"
 git clone https://github.com/openucx/ucx
 cd ucx
 ./autogen.sh
 ./contrib/configure-devel \
-    --prefix=$PYTHON_PREFIX \
+    --prefix="${PYTHON_PREFIX}" \
     --enable-gtest=no \
     --with-valgrind=no
 make -j install
 
-echo $PYTHON_PREFIX >> /etc/ld.so.conf.d/python.conf
+echo "${PYTHON_PREFIX}" >> /etc/ld.so.conf.d/python.conf
 ldconfig
 
 logger "UCX Version and Build Information"
@@ -46,7 +46,7 @@ ucx_info -v
 # TEST - Run pytests for ucx-py
 ################################################################################
 logger "Clone and Build UCX-Py"
-cd $HOME
+cd "${HOME}"
 git clone https://github.com/rapidsai/ucx-py
 cd ucx-py
 python setup.py build_ext --inplace
