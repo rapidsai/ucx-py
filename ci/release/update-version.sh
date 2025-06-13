@@ -61,5 +61,4 @@ for FILE in .github/workflows/*.yaml; do
 done
 
 echo "${NEXT_FULL_TAG_PEP440}" > VERSION
-
-sed_runner "s/--rapids-version=[[:digit:]]\{2\}.[[:digit:]]\{2\}/--rapids-version=${NEXT_RAPIDS_SHORT_TAG}/g" .pre-commit-config.yaml
+echo "${NEXT_RAPIDS_SHORT_TAG}.00" > RAPIDS_VERSION
