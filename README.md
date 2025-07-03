@@ -1,5 +1,5 @@
-[!WARNING]
-UCX-Py is deprecated and will be phased out soon, version 0.45 (RAPIDS 25.08) is expected to be the last release. Projects that rely on UCX-Py are advised to migrate to [UCXX](https://github.com/rapidsai/ucxx) immediately.
+> [!WARNING]
+> UCX-Py is deprecated and will be phased out soon, version 0.45 (RAPIDS 25.08) is expected to be the last release. Projects that rely on UCX-Py are advised to migrate to [UCXX](https://github.com/rapidsai/ucxx) immediately.
 
 [![https://ucx-py.readthedocs.io/en/latest/](https://readthedocs.org/projects/ucx-py/badge/ "ReadTheDocs")]( https://ucx-py.readthedocs.io/en/latest/ )
 
