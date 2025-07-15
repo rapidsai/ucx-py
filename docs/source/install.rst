@@ -40,10 +40,6 @@ Change `cuda-version` to pin to a different CUDA minor version if you'd like.
 
 ::
 
-    # CUDA 11
-    conda create -n ucx -c conda-forge -c rapidsai \
-      cuda-version=11.8 ucx-py
-
     # CUDA 12
     conda create -n ucx -c conda-forge -c rapidsai \
       cuda-version=12.9 ucx-py
@@ -56,21 +52,20 @@ be done if desired (e.g., to test for new capabilities or bug fixes).
 PyPI
 ----
 
-PyPI installation is possible and currently supports two variants: CUDA
-version ``11`` and ``12``. Both packages are compatible with CPU-only
-workloads and either one can be chosen if the application doesn't use
-CUDA, but currently there are no pre-built CPU-only packages available,
-so either one of CUDA packages must be installed instead. The CUDA
-version is differentiated by the suffix ``-cuXY``, where ``XY`` must be
-replaced with the desired CUDA version.
+PyPI installation is possible and currently supports CUDA version
+``12``. Packages are compatible with CPU-only workloads and any one can
+be chosen if the application doesn't use CUDA, but currently there are
+no pre-built CPU-only packages available, so the CUDA package must be
+installed instead. CUDA versions are differentiated by the suffix
+``-cuXY``, where ``XY`` must be replaced with the desired CUDA version.
 
 ::
 
-    # CUDA 11
-    pip install ucx-py-cu12
-
     # CUDA 12
     pip install ucx-py-cu12
+
+    # CUDA 13 - planned only, not available yet!
+    pip install ucx-py-cu13
 
 UCX-Py has no direct dependency on CUDA, but the package specifies the
 ``-cuXY`` prefix so that the correct ``libucx-cuXY`` package is selected.
@@ -218,7 +213,7 @@ Installing UCX-Py from source in a pip-only environment has additional limitatio
 UCX-Py with UCX from PyPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CUDA-enabled builds of the UCX libraries are available from PyPI, under the names ``libucx-cu{11,12}``.
+CUDA-enabled builds of the UCX libraries are available from PyPI, under the name ``libucx-cu12``.
 Notice that those builds do not currently include InfiniBand support, if InfiniBand is required you will
 need to provide a custom UCX install as described in the "UCX-Py with custom UCX install" section.
 
@@ -233,8 +228,8 @@ To build UCX-Py using those UCX packages (to avoid needing to build UCX from sou
     # or for develop build
     pip install -v -e .
 
-This will automatically handle installing appropriate, compatible ``libucx-cu{11,12}`` packages for build-time and runtime use.
-When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-cu{11,12}`` package.
+This will automatically handle installing appropriate, compatible ``libucx-cu12`` packages for build-time and runtime use.
+When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-cu12`` package.
 
 UCX-Py packages are built against the oldest version of UCX that UCX-Py supports, and can run against a range
 of ABI-compatible UCX versions.
@@ -243,9 +238,6 @@ You can use packages from PyPI to customize the UCX version used at runtime.
 For example, to switch to using UCX 1.16 at runtime, run the following.
 
 ::
-
-    # CUDA 11
-    pip install 'libucx-cu11>=1.16.0,<1.17'
 
     # CUDA 12
     pip install 'libucx-cu12>=1.16.0,<1.17'
@@ -265,7 +257,7 @@ If a UCX system install is available, building and installing UCX-Py can be done
     # or for develop build
     pip install -v -e .
 
-To ensure that system install of UCX is always used at runtime (and not the ``libucx-cu{11,12}`` wheels), set the following
+To ensure that system install of UCX is always used at runtime (and not the ``libucx-cu12`` wheels), set the following
 environment variable in the runtime environment.
 
 ::
