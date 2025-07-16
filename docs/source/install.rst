@@ -64,9 +64,6 @@ installed instead. CUDA versions are differentiated by the suffix
     # CUDA 12
     pip install ucx-py-cu12
 
-    # CUDA 13 - planned only, not available yet!
-    pip install ucx-py-cu13
-
 UCX-Py has no direct dependency on CUDA, but the package specifies the
 ``-cuXY`` prefix so that the correct ``libucx-cuXY`` package is selected.
 This is also the reason why there are no CPU-only UCX-Py packages
