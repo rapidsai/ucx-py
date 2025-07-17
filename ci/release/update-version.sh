@@ -58,7 +58,11 @@ done
 
 for FILE in .github/workflows/*.yaml; do
   sed_runner "/shared-workflows/ s/@.*/@branch-${NEXT_RAPIDS_SHORT_TAG}/g" "${FILE}"
+  sed_runner "s/:[0-9]*\\.[0-9]*-/:${NEXT_SHORT_TAG}-/g" "${FILE}"
 done
 
 echo "${NEXT_FULL_TAG_PEP440}" > VERSION
 echo "${NEXT_RAPIDS_SHORT_TAG}.00" > RAPIDS_VERSION
+
+# Update CI image tags of the form {rapids_version}-{something}
+sed_runner "s/:[0-9]*\\.[0-9]*-/:${NEXT_SHORT_TAG}-/g" ./CONTRIBUTING.md
