@@ -30,7 +30,7 @@ requirements:
     - cython>=3.0.0
     - pip
     - python =${{ py_version }}
-    - rapids-build-backend>=0.3.1,<0.4.0dev0
+    - rapids-build-backend>=0.4.0,<0.5.0.dev0
     - setuptools>=64.0.0
     - ucx
   run:
