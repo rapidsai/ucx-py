@@ -114,7 +114,7 @@ addopts = "--tb=native"
 [tool.rapids-build-backend]
 build-backend = "setuptools.build_meta"
 commit-files = [
-    "ucp/COMMIT_FILE"
+    "ucp/GIT_COMMIT"
 ]
 # by default, do not rename the package 'ucx-py-cu${ver}'
 # (this is overridden in wheel publishing)
