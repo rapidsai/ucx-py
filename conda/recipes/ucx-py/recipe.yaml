@@ -39,6 +39,9 @@ requirements:
     - python
     - ucx >=1.15.0,<1.19.0
   ignore_run_exports:
+    from_package:
+      - ${{ compiler("c") }}
+      - ${{ compiler("cxx") }}
     by_name:
       - ucx
 
