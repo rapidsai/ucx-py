@@ -41,7 +41,7 @@ except ImportError:
 
 _ucx_version = get_ucx_version()
 
-__ucx_min_version__ = "1.15.0"
+__ucx_min_version__ = "1.17.0"
 __ucx_version__ = "%d.%d.%d" % _ucx_version
 
 if _ucx_version < tuple(int(i) for i in __ucx_min_version__.split(".")):
