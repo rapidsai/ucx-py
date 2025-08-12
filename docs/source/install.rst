@@ -102,17 +102,17 @@ Test Dependencies
         dask distributed cloudpickle
 
 
-UCX >= 1.15.0
+UCX >= 1.17.0
 ^^^^^^^^^^^^^
 
-Instructions for building UCX >= 1.15.0 (minimum version supported by UCX-Py), make sure to change ``git checkout v1.15.0`` to a newer version if desired:
+Instructions for building UCX >= 1.17.0 (minimum version supported by UCX-Py), make sure to change ``git checkout v1.17.0`` to a newer version if desired:
 
 ::
 
     conda activate ucx
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.15.0
+    git checkout v1.17.0
     ./autogen.sh
     mkdir build
     cd build
@@ -134,13 +134,13 @@ It is possible to enable InfiniBand support via the conda-forge rdma-core packag
     conda install -c conda-forge c-compiler cxx-compiler gcc_linux-64=11.* rdma-core=28.*
 
 
-After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.15.0`` to a newer version if desired:
+After installing the necessary dependencies, it's now time to build UCX from source, make sure to change ``git checkout v1.17.0`` to a newer version if desired:
 
 ::
 
     git clone https://github.com/openucx/ucx
     cd ucx
-    git checkout v1.15.0
+    git checkout v1.17.0
     ./autogen.sh
     mkdir build
     cd build

@@ -157,7 +157,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx==1.15.0
+          - ucx==1.17.0
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
@@ -165,14 +165,14 @@ dependencies:
           - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
     specific:
       # very tight >=x.x.x,<x.x.(x+1) here allows for installation of
-      # post release like 1.15.0.post1
+      # post release like 1.17.0.post1
       - output_types: [requirements, pyproject]
         matrices:
           - matrix:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu12>=1.15.0,<1.15.1
+              - libucx-cu12>=1.17.0,<1.17.1
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
@@ -181,7 +181,7 @@ dependencies:
     common:
       - output_types: conda
         packages:
-          - ucx>=1.15.0,<1.19
+          - ucx>=1.17.0,<1.20
       - output_types: requirements
         packages:
           # pip recognizes the index as a global option for the requirements.txt file
@@ -194,7 +194,7 @@ dependencies:
               cuda: "12.*"
               cuda_suffixed: "true"
             packages:
-              - libucx-cu12>=1.15.0,<1.19
+              - libucx-cu12>=1.17.0,<1.20
           # this fallback is intentionally empty... it simplifies building from source
           # without CUDA, e.g. 'pip install .'
           - matrix: null
