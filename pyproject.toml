@@ -49,7 +49,7 @@ classifiers = [
 test = [
     "cloudpickle",
     "cudf==25.10.*,>=0.0.0a0",
-    "cupy-cuda12x>=12.0.0",
+    "cupy-cuda13x>=13.6.0",
     "distributed",
     "numba>=0.59.1,<0.62.0a0",
     "pytest-asyncio",
