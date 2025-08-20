@@ -42,7 +42,7 @@ Change `cuda-version` to pin to a different CUDA minor version if you'd like.
 
     # CUDA 12
     conda create -n ucx -c conda-forge -c rapidsai \
-      cuda-version=12.9 ucx-py
+      cuda-version=13.0 ucx-py
 
 Starting with the UCX 1.14.1 conda-forge package,
 InfiniBand support is available again via rdma-core, thus building UCX
