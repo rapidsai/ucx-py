@@ -233,7 +233,7 @@ To build UCX-Py using those UCX packages (to avoid needing to build UCX from sou
     pip install -v -e .
 
 This will automatically handle installing appropriate, compatible ``libucx-cu{12,13}`` packages for build-time and runtime use.
-When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-{cu12,13}`` package.
+When you run UCX-Py code installed this way, it will load UCX libraries from the installed ``libucx-cu{12,13}`` package.
 
 UCX-Py packages are built against the oldest version of UCX that UCX-Py supports, and can run against a range
 of ABI-compatible UCX versions.
