@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2021, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION. All rights reserved.
 # See file LICENSE for terms.
 
 # This file is a copy of what is available in a Cython demo + some additions
@@ -58,7 +58,7 @@ def _find_libucx_libs_and_headers():
 include_dirs = [os.path.dirname(get_python_inc())]
 library_dirs = [get_config_var("LIBDIR")]
 libraries = ["ucp", "uct", "ucm", "ucs"]
-extra_compile_args = ["-std=c99", "-Werror"]
+extra_compile_args = ["-std=c99", "-Werror", "-Wno-error=sign-compare"]
 
 # tell the compiler and linker where to find UCX libraries and their headers
 # provided by the 'libucx' wheel

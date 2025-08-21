@@ -238,10 +238,17 @@ dependencies:
           - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
-      - output_types: [conda]
-        packages:
-          - &cudf_unsuffixed cudf==25.10.*,>=0.0.0a0
     specific:
+      - output_types: [conda]
+        matrices:
+          - matrix:
+              cuda: "12.*"
+            packages:
+              - &cudf_unsuffixed cudf==25.10.*,>=0.0.0a0
+          # TODO: restore cudf on CUDA 13 once there are cudf CUDA 13 packages
+          # ref: https://github.com/rapidsai/ucx-py/pull/1162#issuecomment-3210841342
+          - matrix:
+            packages:
       - output_types: [requirements, pyproject]
         matrices:
           - matrix:
@@ -249,11 +256,7 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - cudf-cu12==25.10.*,>=0.0.0a0
-          - matrix:
-              cuda: "13.*"
-              cuda_suffixed: "true"
-            packages:
-              - cudf-cu13==25.10.*,>=0.0.0a0
+          # TODO: restore cudf on CUDA 13 once there are cudf CUDA 13 packages
+          # ref: https://github.com/rapidsai/ucx-py/pull/1162#issuecomment-3210841342
           - matrix:
             packages:
-              - *cudf_unsuffixed
