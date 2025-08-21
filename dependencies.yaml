@@ -6,6 +6,7 @@ files:
       - checks
       - cuda
       - cuda_version
+      - depends_on_cudf
       - depends_on_cupy
       - py_version
       - rapids_build_setuptools
@@ -15,6 +16,7 @@ files:
     output: none
     includes:
       - cuda_version
+      - depends_on_cudf
       - depends_on_cupy
       - py_version
       - test_ucx_py
@@ -55,6 +57,7 @@ files:
       table: project.optional-dependencies
       key: test
     includes:
+      - depends_on_cudf
       - depends_on_cupy
       - test_python
 channels:
@@ -238,6 +241,28 @@ dependencies:
           - pytest==7.*
           - pytest-asyncio
           - pytest-rerunfailures
+      - output_types: [conda]
+        packages:
+          - &numba_cuda numba-cuda>=0.19.0,<0.20.0a0
+    specific:
+      - output_types: [requirements, pyproject]
+        matrices:
+          - matrix:
+              cuda: "12.*"
+            packages:
+              - numba-cuda[cu12]>=0.19.0,<0.20.0a0
+          # fallback to CUDA 13 versions if 'cuda' is '13.*' or not provided
+          - matrix:
+            packages:
+              - numba-cuda[cu13]>=0.19.0,<0.20.0a0
+  # TODO: re-include cudf on CUDA 13 here once cudf CUDA 13 packages exist
+  # ref: https://github.com/rapidsai/ucx-py/pull/1162#issuecomment-3210841342
+  depends_on_cudf:
+    common:
+      - output_types: requirements
+        packages:
+          # pip recognizes the index as a global option for the requirements.txt file
+          - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
     specific:
       - output_types: [conda]
         matrices:
@@ -245,10 +270,12 @@ dependencies:
               cuda: "12.*"
             packages:
               - &cudf_unsuffixed cudf==25.10.*,>=0.0.0a0
-          # TODO: restore cudf on CUDA 13 once there are cudf CUDA 13 packages
-          # ref: https://github.com/rapidsai/ucx-py/pull/1162#issuecomment-3210841342
+          - matrix:
+              cuda: "13.*"
+            packages:
           - matrix:
             packages:
+              - *cudf_unsuffixed
       - output_types: [requirements, pyproject]
         matrices:
           - matrix:
@@ -256,7 +283,7 @@ dependencies:
               cuda_suffixed: "true"
             packages:
               - cudf-cu12==25.10.*,>=0.0.0a0
-          # TODO: restore cudf on CUDA 13 once there are cudf CUDA 13 packages
-          # ref: https://github.com/rapidsai/ucx-py/pull/1162#issuecomment-3210841342
           - matrix:
+              cuda: "13.*"
             packages:
+          - {matrix: null, packages: [*cudf_unsuffixed]}
