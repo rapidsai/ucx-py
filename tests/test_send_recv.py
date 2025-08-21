@@ -1,3 +1,5 @@
+# Copyright (c) 2020-2025, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
 import functools
 
 import pytest
@@ -102,18 +104,18 @@ async def test_send_recv_cupy(size, dtype, blocking_progress_mode):
 @pytest.mark.parametrize("blocking_progress_mode", [True, False])
 async def test_send_recv_numba(size, dtype, blocking_progress_mode):
     ucp.init(blocking_progress_mode=blocking_progress_mode)
-    cuda = pytest.importorskip("numba.cuda")
+    import numba.cuda
 
     ary = np.arange(size, dtype=dtype)
-    msg = cuda.to_device(ary)
+    msg = numba.cuda.to_device(ary)
     msg_size = np.array([msg.nbytes], dtype=np.uint64)
     listener = ucp.create_listener(
-        make_echo_server(lambda n: cuda.device_array((n,), dtype=np.uint8))
+        make_echo_server(lambda n: numba.cuda.device_array((n,), dtype=np.uint8))
     )
     client = await ucp.create_endpoint(ucp.get_address(), listener.port)
     await client.send(msg_size)
     await client.send(msg)
-    resp = cuda.device_array_like(msg)
+    resp = numba.cuda.device_array_like(msg)
     await client.recv(resp)
     np.testing.assert_array_equal(np.array(resp), np.array(msg))
 

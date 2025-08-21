@@ -5,4 +5,5 @@ cxx_compiler_version:
   - 14
 
 ucx:
-  - "==1.17.*"
+  - "==1.17.*"  # [os.environ.get("RAPIDS_CUDA_VERSION", "").startswith("12")]
+  - "==1.19.*"  # [not os.environ.get("RAPIDS_CUDA_VERSION", "").startswith("12")]
