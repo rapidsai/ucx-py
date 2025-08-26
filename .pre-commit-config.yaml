@@ -35,6 +35,6 @@ repos:
         rev: v1.20.0
         hooks:
               - id: rapids-dependency-file-generator
-                args: ["--clean"]
+                args: ["--clean", "--warn-all", "--strict"]
 default_language_version:
       python: python3
