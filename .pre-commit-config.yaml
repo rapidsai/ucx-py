@@ -32,9 +32,9 @@ repos:
                   - --fix
                   - --rapids-version-file=RAPIDS_VERSION
       - repo: https://github.com/rapidsai/dependency-file-generator
-        rev: v1.19.0
+        rev: v1.20.0
         hooks:
               - id: rapids-dependency-file-generator
-                args: ["--clean"]
+                args: ["--clean", "--warn-all", "--strict"]
 default_language_version:
       python: python3
