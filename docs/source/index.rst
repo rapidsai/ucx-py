@@ -1,6 +1,10 @@
 UCX-Py
 ======
 
+.. warning::
+
+    UCX-Py is deprecated, version 0.45 was its last release and it will receive no further updates. Users are advised to migrate to `UCXX <https://github.com/rapidsai/ucxx>`_ immediately. `UCXX documentation <https://docs.rapids.ai/api/ucxx/nightly/>`_.
+
 UCX-Py is the Python interface for `UCX <https://github.com/openucx/ucx>`_, a low-level high-performance networking library.  UCX and UCX-Py supports several transport methods including InfiniBand and NVLink while still using traditional networking protocols like TCP.
 
 
