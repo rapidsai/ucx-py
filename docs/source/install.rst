@@ -231,12 +231,12 @@ UCX-Py packages are built against the oldest version of UCX that UCX-Py supports
 of ABI-compatible UCX versions.
 
 You can use packages from PyPI to customize the UCX version used at runtime.
-For example, to switch to using UCX 1.19 at runtime, run the following.
+For example, to switch to using UCX 1.18 at runtime, run the following.
 
 ::
 
     # CUDA 12
-    pip install 'libucx-cu12>=1.19.0,<1.20'
+    pip install 'libucx-cu12>=1.18.0,<1.19'
 
 
 UCX-Py with UCX system install
