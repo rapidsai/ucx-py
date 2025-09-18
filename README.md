@@ -1,5 +1,5 @@
-> [!WARNING]
-> UCX-Py is deprecated and will be phased out soon, version 0.45 (RAPIDS 25.08) is expected to be the last release. Projects that rely on UCX-Py are advised to migrate to [UCXX](https://github.com/rapidsai/ucxx) immediately.
+> [!CAUTION]
+> UCX-Py has been discontinued, version 0.45 (RAPIDS 25.08) was its last release and it will receive no further updates, see the [RAPIDS Support Notice 50](https://docs.rapids.ai/notices/rsn0050/) for details. Projects depending on UCX-Py are advised to migrate to [UCXX](https://github.com/rapidsai/ucxx) immediately. [UCXX documentation](https://docs.rapids.ai/api/ucxx/nightly/).
 
 [![https://ucx-py.readthedocs.io/en/latest/](https://readthedocs.org/projects/ucx-py/badge/ "ReadTheDocs")]( https://ucx-py.readthedocs.io/en/latest/ )
 
