@@ -1,3 +1,6 @@
+# Copyright (c) 2019-2025, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
+#
 # -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
@@ -19,11 +22,8 @@
 
 # -- Project information -----------------------------------------------------
 
-# The full version, including alpha/beta/rc tags.
-from ucp import __version__ as release
-
 # The short X.Y version.
-version = ".".join(release.split(".")[:2])
+version = "0.45.0"
 
 project = "ucx-py"
 copyright = "2019-2021, NVIDIA"

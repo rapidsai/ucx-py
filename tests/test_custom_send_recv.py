@@ -1,6 +1,9 @@
+# Copyright (c) 2020-2025, NVIDIA CORPORATION. All rights reserved.
+# See file LICENSE for terms.
 import asyncio
 import pickle
 
+import numba.cuda
 import numpy as np
 import pytest
 
@@ -8,7 +11,6 @@ import ucp
 
 cudf = pytest.importorskip("cudf")
 distributed = pytest.importorskip("distributed")
-cuda = pytest.importorskip("numba.cuda")
 
 
 @pytest.mark.asyncio
@@ -75,14 +77,14 @@ async def test_send_recv_cudf(event_loop, g):
                 for is_cuda, size in zip(is_cudas.tolist(), sizes.tolist()):
                     if size > 0:
                         if is_cuda:
-                            frame = cuda.device_array((size,), dtype=np.uint8)
+                            frame = numba.cuda.device_array((size,), dtype=np.uint8)
                         else:
                             frame = np.empty(size, dtype=np.uint8)
                         await self.ep.recv(frame)
                         frames.append(frame)
                     else:
                         if is_cuda:
-                            frames.append(cuda.device_array((0,), dtype=np.uint8))
+                            frames.append(numba.cuda.device_array((0,), dtype=np.uint8))
                         else:
                             frames.append(b"")
                 return frames
